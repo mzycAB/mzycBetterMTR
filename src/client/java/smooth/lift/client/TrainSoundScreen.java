@@ -49,6 +49,10 @@ import java.util.List;
  *   最下方 = 「淡入淡出:」秒数输入框（默认 1 秒）
  * </pre>
  *
+ * <p>★【09-27 三次改版】**五个二级页各读自己那一项的分类文件夹**
+ * （`MBM_Audio/train/run|round|switch|in|out`，见 {@link #PAGE_CATEGORIES}）；
+ * 原来是五项共用一个 `pbm/music`（已删）。老存档里的 `pbm/music` 由服务端迁移到 `train/run`。
+ *
  * <p>★ 版式的数字**不在这里写**，全部来自 {@link SoundListLayout}
  * （屏蔽门那几个二级页也用同一份）—— 两份各写一遍的话，将来「列宽调一下」只会调一边，
  * 表现是「列车这页比屏蔽门那页窄一点」，而且**不报错**。
@@ -101,6 +105,23 @@ public class TrainSoundScreen extends Screen {
             SmoothLift.SYNC_TRAIN_SWITCH,
             SmoothLift.SYNC_TRAIN_ARRIVE,
             SmoothLift.SYNC_TRAIN_DEPART,
+    };
+
+    /**
+     * 五个二级页各自的**音频分类**（★【09-27 三次改版】：原来五项共用一个 `pbm/music`，
+     * 现在拆成 `train/run|round|switch|in|out`，与 {@link #LABELS} 同序）。
+     *
+     * <p>★ 顺序必须与 {@link #LABELS}（按钮文字）严格一致：第 1 个按钮「列车运行音效」→
+     * `train/run`，第 2 个「列车转弯音效」→ `train/round`，第 3 个「列车道岔音效」→ `train/switch`，
+     * 第 4 个「列车进站音效」→ `train/in`，第 5 个「列车出站音效」→ `train/out`。
+     * 错位是**不报错**的，只是列表读错了文件夹（回归里单独成节断言）。
+     */
+    private static final String[] PAGE_CATEGORIES = {
+            EscalatorSpeedManager.CAT_TRAIN_RUN,
+            EscalatorSpeedManager.CAT_TRAIN_ROUND,
+            EscalatorSpeedManager.CAT_TRAIN_SWITCH,
+            EscalatorSpeedManager.CAT_TRAIN_IN,
+            EscalatorSpeedManager.CAT_TRAIN_OUT,
     };
 
     /** 音量框左边那个标签的文字。★ 一级页只有这一种标签，5 行共用同一份文字。 */
@@ -259,6 +280,11 @@ public class TrainSoundScreen extends Screen {
     // 构建
     // ------------------------------------------------------------------
 
+    /** 当前二级页对应的音频分类；一级页没有列表，回落第 1 项（`train/run`）。 */
+    private String currentCategory() {
+        return PAGE_CATEGORIES[Math.max(0, page - 1)];
+    }
+
     @Override
     protected void init() {
         OPEN = this;
@@ -266,8 +292,11 @@ public class TrainSoundScreen extends Screen {
         stored.clear();
         pending.clear();
         if (mc.level != null) {
-            stored.addAll(EscalatorSpeedManager.getClientAudioLibraryKeys(mc.level));
-            pending.addAll(EscalatorSpeedManager.getClientFolderAudioKeys(mc.level));
+            // 【1.28】音频隔离：每一页只列**自己那一项**分类（MBM_Audio/train/<哪一项>）的待导入 / 已存入。
+            // 【09-27 三次改版】五项各一个分类，不再是共用的 pbm/music。
+            String category = currentCategory();
+            stored.addAll(EscalatorSpeedManager.getClientAudioLibraryKeys(mc.level, category));
+            pending.addAll(EscalatorSpeedManager.getClientFolderAudioKeys(mc.level, category));
         }
         Collections.sort(stored);
         Collections.sort(pending);
@@ -437,20 +466,22 @@ public class TrainSoundScreen extends Screen {
         init();
     }
 
-    /** 二级页左列：把文件夹里的一段 OGG 导入**共用音频存档**（与屏蔽门界面走同一条通道）。 */
+    /** 二级页左列：把**本页那一项的分类**（{@code MBM_Audio/train/…}）文件夹里的一段 OGG 导入存档音频库。 */
     private void importPending(String id) {
         FriendlyByteBuf buf = PacketByteBufs.create();
+        buf.writeUtf(currentCategory(), 64);
         buf.writeUtf(id, 128);
-        // ★ 这只包的名字里带 psd，但服务端做的事是**纯导入**（importAudioToStore + 补发音频库同步），
+        // ★ 这只包的名字里带 psd，但服务端做的事是**按包里的分类纯导入**（importAudioToStore + 补发音频库同步），
         //   与「哪一项用它」无关 —— 见 SmoothLift 里那个接收器的注释。
         ClientPlayNetworking.send(SmoothLift.IMPORT_PSD_MIDIUM_AUDIO_CHANNEL, buf);
         setStatus("已导入存档：" + truncate(id, 16));
         init();
     }
 
-    /** 二级页右列「删除」：从**共用音频存档**移除（服务端会一起清掉引用它的那些设置）。 */
+    /** 二级页右列「删除」：从**本页那一项的分类**音频存档移除（服务端会一起清掉引用它的那些设置）。 */
     private void deleteStored(String id) {
         FriendlyByteBuf buf = PacketByteBufs.create();
+        buf.writeUtf(currentCategory(), 64);
         buf.writeUtf(id, 128);
         ClientPlayNetworking.send(SmoothLift.DELETE_AUDIO_CHANNEL, buf);
         stored.remove(id);

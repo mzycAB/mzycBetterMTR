@@ -66,6 +66,27 @@
 #                                 补上「在视锥里、在视距内、但被墙挡住」这一类；
 #                                 ★ 空集合必须回退视锥剔除（不得当成「全被挡住」）；
 #                                 Section 存段键 + /mtrxr occ on|off 逃生开关（默认开）
+#   check-escalator-light-repair.py 【1.27】修**原版 MTR 自带**的「扶梯贴着完整方块 ⇒ 贴图变黑」：
+#                                 ★ 根因双验（MTR 字节码 BlockEscalatorSide.getCullingShape2 ==
+#                                 VoxelShapes.empty ⇒ 面永不剔除；原版 shouldRenderFace 的
+#                                 isEmpty → return true 分支）+ 取光在邻格（邻块实心 ⇒ 光 0 ⇒ 黑；
+#                                 AO 的 isSolidRender 保护会被 flags.get(0) 旁路 ⇒ 两条路都踩）；
+#                                 【1.27b】判据改成只看「采样值 == 0」（不再自己推断采样格被埋，
+#                                 前一版推断差一格就静默失效）+ 扶梯自己格也黑时交回原版；
+#                                 ★ 重入闸 IN_REPAIR：2 参 getLightColor 的字节码就是转调 3 参，
+#                                 而 3 参正被 mixin 挂着 ⇒ 不设闸无限递归（开闸必须先于取光、finally 复位）；
+#                                 ★ 三处 mixin（AO 两端 + 平面端）描述符与 MC 字节码逐字对撞、
+#                                 refmap 真 remap 到 class_778$class_4303 / $class_780 / class_761；
+#                                 ★ 反面对照：不打遮挡形状（那会换来 X 光）、不覆盖 escalator 模型
+#   check-escalator-ui-twocol.py  【09-27】扶梯三页 UI 也改成「这样」：
+#                                 主界面四行 = 直梯一级菜单同款 [按钮] 标签 [框]、
+#                                 两个子界面（选择扶梯音乐 / 选择无障碍提示音）= 左右两列列表；
+#                                 几何唯一源 SoundListLayout + 底部预留 44 ⇒ 240 px 下正好 6 行、
+#                                 速度框/音量框语义不许混、不许再有灰字小字。
+#                                 ★【五改】删「阶梯速度对齐扶梯速度」与主界面「无障碍：开/关」；
+#                                 声音/提示音设置的音量框搬到按钮**右侧**；主界面按钮一律 200 宽；
+#                                 声音设置二级菜单加「不播」（哨兵 FUTI_AUDIO_OFF：放行 → 播放端短路）；
+#                                 提示音开关搬进提示音二级菜单右列第 3 行（仍发 SET_HELP_CHANNEL）。
 #   check-mbm-command.py          【1.53】/MBM music in|delete（原 /dtmusic）+ MBM_Audio 文件夹改名
 #   check-mbm-help.py             【1.53】/MBM help 打开的「预设选择」界面：三个港铁预设（与用户清单逐字比对）+
 #                                 【1.58】★ 层判据：「不播」必须写 none（素材层）不许写 off（会落到子开关，
@@ -84,8 +105,12 @@
 #                                 底部淡入淡出秒数（默认 1 / 上限 60 / 越界当非法不夹取）、
 #                                 ★ 界面只许「标题 + 音量」两种文字（绘制调用点 == 2）、
 #                                 骨架底线（翻页不发包 / 选用不假装成功 / syncTrain 不回「已同步」）
+#   check-audio-category.py        【1.28】音频分类隔离：15 个分类常量（含列车五项 train/*）、界面按分类取数、
+#                                 DELETE / IMPORT_PSD_MIDIUM 两个通道带 category、同步包按分类结构、
+#                                 列车五页 ↔ 五分类同序、老分类键/文件夹双迁移、
+#                                 补全带分类（只影响 1.20.4；1.20.1 / Forge-1.20.1 无此功能）
 #   check-lift-chime.py           直梯提示音：开关/倍速/音量链路 + 同步包读写顺序配对
-#   check-lift-tone.py            直梯三提示音（up/down/chime）素材：数据/指令/UI/播放端
+#   check-lift-tone.py            直梯四提示音（up/down/open/close）素材：数据/指令/UI/播放端
 #   check-lift-move-sound.py      直梯「准备移动」up.ogg / down.ogg 的触发判据与素材选择
 #   check-chime-tiers.py          无障碍提示音分档素材（5 档 pitch）
 #   check-lift-track-look.py      直梯楼层轨道外观
@@ -128,12 +153,16 @@ run "屏蔽门1.28身份迁移与列车倍率" "$PY" _tools/check-psd-128.py
 run "屏蔽门铃声/播报归属"   "$PY" _tools/check-psd-scope.py
 run "屏蔽门1.31借用与列车挡" "$PY" _tools/check-psd-131.py
 run "扶梯阶梯渲染引擎"      "$PY" _tools/check-escalator-step-engine.py
+run "扶梯黑面修复(原版MTR)" "$PY" _tools/check-escalator-light-repair.py
+run "扶梯黑面修复(Sodium兼容)" "$PY" _tools/check-sodium-light-repair.py
+run "扶梯三页UI两列版式+五改"    "$PY" _tools/check-escalator-ui-twocol.py
 run "MBM批量音频指令"       "$PY" _tools/check-mbm-command.py
+run "音频分类隔离"          "$PY" _tools/check-audio-category.py
 run "预设选择界面与预设" "$PY" _tools/check-mbm-help.py
 run "同步所有按钮与弹窗" "$PY" _tools/check-1.55-sync.py
 run "列车音效界面与侧线" "$PY" _tools/check-1.57-train-siding.py
 run "直梯提示音链路"        "$PY" _tools/check-lift-chime.py
-run "直梯三提示音素材"      "$PY" _tools/check-lift-tone.py
+run "直梯四提示音素材"      "$PY" _tools/check-lift-tone.py
 run "直梯准备移动音"        "$PY" _tools/check-lift-move-sound.py
 run "无障碍提示音分档"      "$PY" _tools/check-chime-tiers.py
 run "直梯楼层轨道外观"      "$PY" _tools/check-lift-track-look.py

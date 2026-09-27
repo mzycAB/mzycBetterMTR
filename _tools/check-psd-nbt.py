@@ -63,9 +63,16 @@ READ_CALLS = (r"\.(?:contains|getInt|getBoolean|getString|getDouble|getLong|getF
 nested_reads = set(re.findall(READ_CALLS, body))
 read_keys |= nested_reads
 
+# ★ 只读不写的**旧格式迁移键**豁免：1.45 旧存档的直梯提示音元素是
+#   `{ "key", "up", "down", "chime" }`，新格式改写成 open/close —— 读侧仍要兼容旧档
+#   （把 chime 喂给 open/close），但新档永远不会再写 chime ⇒ 全局读写相等断言要放行它。
+LEGACY_READ_ONLY_KEYS = {"chime"}
+only_read_raw = read_keys - write_keys
+only_read = sorted(k for k in only_read_raw if k not in LEGACY_READ_ONLY_KEYS)
+
 print("===== 1) 读 / 写 集合完全相等（全局）=====")
-print("        读 %d 个字段、写 %d 个字段" % (len(read_keys), len(write_keys)))
-only_read = sorted(read_keys - write_keys)
+print("        读 %d 个字段、写 %d 个字段（豁免迁移旧键 %d 个）" % (
+    len(read_keys), len(write_keys), len(LEGACY_READ_ONLY_KEYS)))
 only_write = sorted(write_keys - read_keys)
 check(not only_read, "没有「读了却不写」的字段（否则值一重启就丢）",
       "多出来：%s" % only_read if only_read else "无")

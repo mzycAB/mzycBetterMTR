@@ -343,6 +343,17 @@ public final class EscalatorAudioPlayer {
             stopAll(mc);
             return;
         }
+        // 【09-27 五改】「不播」哨兵：这条扶梯被显式设成静音（石斧界面 → 声音设置 → 不播）。
+        //   ★ 必须在下面那两个分支**之前**短路 —— 它不是一个文件、不在音频库里，
+        //     若走到 getAudioBytes 就会拿到 null，接着弹出一句「音频还没同步到本客户端」：
+        //     那是一句毫无关系、还很误导的话（玩家明明是自己点的「不播」）。
+        //   ★ 让「不播」参与「最近一条扶梯」的挑选（它在 blockAudio 里是一条正常绑定），
+        //     于是它天然**压过维度默认层** —— 与直梯那套「单独设置 > 默认」语义完全一致。
+        if (EscalatorSpeedData.FUTI_AUDIO_OFF.equals(bestId)) {
+            stopAll(mc);
+            note("最近的这条扶梯被设成了「不播」（石斧界面 → 声音设置 → 不播 可改回）");
+            return;
+        }
         // 【1.24】可闻范围按**这条扶梯自己的**生效范围算（/futiround 设置，默认 16 格）。
         // 每 tick 现算：范围是网络同步驱动的，绝不能塞进任何「缓存到方块变化为止」的计算里（坑 17）。
         double range = rangeFor(mc, bestPos);

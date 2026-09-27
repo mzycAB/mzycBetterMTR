@@ -36,6 +36,9 @@ public class SmoothLiftClient implements ClientModInitializer {
     /** 【1.7】服务端音频同步分块拼接缓冲：维度ID → (块索引 → 数据)。 */
     private static final Map<String, Map<Integer, byte[]>> PENDING_SYNC_CHUNKS = new HashMap<>();
 
+    /** 【1.18.1204】服务端地图图片同步分块拼接缓冲（与音频分块同模式，独立 key 避免串批）。 */
+    private static final Map<String, Map<Integer, byte[]>> PICTURE_SYNC_CHUNKS = new HashMap<>();
+
     /**
      * 【1.45】判定「直梯楼层轨道」（按注册名前缀，两端共用主类的判据，避免各写一份走样）。
      * 见 {@link smooth.lift.SmoothLift#isLiftTrackFloor}。
@@ -91,6 +94,9 @@ public class SmoothLiftClient implements ClientModInitializer {
         // 门值从哪里来：见 PsdDoorTracker（挂在两个 MTR 版本的屏蔽门渲染读口上，每帧每扇门回报一次）。
         // 只认「屏蔽门方块」的注册名，所以与上面三个播放器互不影响。
         ClientTickEvents.END_CLIENT_TICK.register(PsdChimePlayer::onClientTick);
+
+        // 【1.18.1204】地图图片纹理：每 tick 轮询图集 sprite 引用，检测资源重载后重贴
+        ClientTickEvents.END_CLIENT_TICK.register(PictureTextures::onClientTick);
 
         // 拿着石斧右键扶梯 -> 打开速度输入界面
         UseBlockCallback.EVENT.register((player, world, hand, hitResult) -> {
@@ -188,6 +194,8 @@ public class SmoothLiftClient implements ClientModInitializer {
         ClientPlayConnectionEvents.DISCONNECT.register((handler, client) -> {
             EscalatorSpeedManager.clearClientData();
             PENDING_SYNC_CHUNKS.clear();
+            PICTURE_SYNC_CHUNKS.clear();
+            PictureTextures.onDisconnect();
             EscalatorAudioPlayer.onDisconnect();
             EscalatorChimePlayer.onDisconnect();
             LiftChimePlayer.onDisconnect();
@@ -285,10 +293,25 @@ public class SmoothLiftClient implements ClientModInitializer {
                     audioLibrary.put(id, bytes);
                 }
             }
-            int folderCount = data.readVarInt();
-            final Set<String> folderAudio = new HashSet<>();
-            for (int i = 0; i < folderCount; i++) {
-                folderAudio.add(data.readUtf(128));
+            // 【1.28】分类区：分类数 → (分类名 → 待导入数 → 名字 ×N → 已导入数 → 名字 ×N) × 分类数
+            //   顺序同 EscalatorSpeedManager.buildAudioSyncPayload / ALL_CATEGORIES。
+            int categoryCount = data.readVarInt();
+            final Map<String, Set<String>> folderByCategory = new HashMap<>();
+            final Map<String, Set<String>> audioCategoryNames = new HashMap<>();
+            for (int c = 0; c < categoryCount; c++) {
+                String category = data.readUtf(64);
+                int folderCount = data.readVarInt();
+                Set<String> folder = new HashSet<>();
+                for (int i = 0; i < folderCount; i++) {
+                    folder.add(data.readUtf(128));
+                }
+                folderByCategory.put(category, folder);
+                int importedCount = data.readVarInt();
+                Set<String> imported = new HashSet<>();
+                for (int i = 0; i < importedCount; i++) {
+                    imported.add(data.readUtf(128));
+                }
+                audioCategoryNames.put(category, imported);
             }
             int bindCount = data.readVarInt();
             final Map<BlockPos, String> blockAudio = new HashMap<>();
@@ -299,16 +322,16 @@ public class SmoothLiftClient implements ClientModInitializer {
             String defaultAudioRaw = data.readUtf(128);
             final String defaultAudio = defaultAudioRaw.isEmpty() ? null : defaultAudioRaw;
             client.execute(() -> {
-                EscalatorSpeedManager.applyClientAudioData(dimKey, audioLibrary, folderAudio, blockAudio,
-                        defaultAudio);
+                EscalatorSpeedManager.applyClientAudioData(dimKey, audioLibrary, folderByCategory,
+                        audioCategoryNames, blockAudio, defaultAudio);
                 long kb = 0L;
                 for (byte[] value : audioLibrary.values()) {
                     kb += value.length;
                 }
                 // 「绑定了却没声音」时，这条日志能立刻看出客户端到底有没有拿到音频数据。
                 LOGGER.info("[SmoothLift/Audio] 音频同步完成（{}）：已入库 {} 个音频（{}KB）、"
-                                + "文件夹待导入 {} 个、扶梯绑定 {} 处、默认音频 {}",
-                        dimKey.location(), audioLibrary.size(), kb / 1024, folderAudio.size(),
+                                + "分类 {} 个、扶梯绑定 {} 处、默认音频 {}",
+                        dimKey.location(), audioLibrary.size(), kb / 1024, categoryCount,
                         blockAudio.size(), defaultAudio == null ? "" : defaultAudio);
                 EscalatorAudioPlayer.onAudioReloaded();
                 AudioSetupScreen.notifyAudioDataChanged();
@@ -318,6 +341,59 @@ public class SmoothLiftClient implements ClientModInitializer {
                 // 【1.57】列车音效的二级页列的也是这两张表（左列未导入 / 右列已导入）——
                 //   同一个理由，库里增删之后它也得跟着刷新。
                 TrainSoundScreen.notifyToneDataChanged();
+            });
+        });
+
+        // 【1.18.1204】接收服务端分块同步的「地图图片库 + 当前图片名」，全部块到齐后
+        //   交给 PictureTextures 裁切/缩放/加灰边并写进方块图集（渲染线程执行）。
+        ClientPlayNetworking.registerGlobalReceiver(SmoothLift.PICTURE_SYNC_CHANNEL, (client, handler, buf, responseSender) -> {
+            String dimId = buf.readUtf(256);
+            int totalChunks = buf.readVarInt();
+            int chunkIndex = buf.readVarInt();
+            byte[] chunk = buf.readByteArray();
+            if (totalChunks <= 0 || chunkIndex < 0 || chunkIndex >= totalChunks) {
+                return;
+            }
+            Map<Integer, byte[]> chunks = PICTURE_SYNC_CHUNKS.computeIfAbsent(dimId, k -> new HashMap<>());
+            // 与音频分块同一约定：见到 0 号块 = 一批新的重发，丢掉上一次残留。
+            if (chunkIndex == 0) {
+                chunks.clear();
+            }
+            chunks.put(chunkIndex, chunk);
+            if (chunks.size() < totalChunks) {
+                return;
+            }
+            PICTURE_SYNC_CHUNKS.remove(dimId);
+            int total = 0;
+            for (byte[] part : chunks.values()) {
+                total += part.length;
+            }
+            byte[] payload = new byte[total];
+            int offset = 0;
+            for (int i = 0; i < totalChunks; i++) {
+                byte[] part = chunks.get(i);
+                if (part == null) {
+                    return;
+                }
+                System.arraycopy(part, 0, payload, offset, part.length);
+                offset += part.length;
+            }
+            final FriendlyByteBuf data = new FriendlyByteBuf(Unpooled.wrappedBuffer(payload));
+            int pictureCount = data.readVarInt();
+            final Map<String, byte[]> pictureLibrary = new HashMap<>();
+            for (int i = 0; i < pictureCount; i++) {
+                String name = data.readUtf(256);
+                // 单张上限与服务端一致（12MB），显式传上限避免无参 readByteArray 的 2MB 截断。
+                byte[] bytes = data.readByteArray(EscalatorSpeedData.MAX_PICTURE_BYTES);
+                if (bytes.length > 0) {
+                    pictureLibrary.put(name, bytes);
+                }
+            }
+            final String current = data.readUtf(256);
+            client.execute(() -> {
+                PictureTextures.applyData(pictureLibrary, current);
+                LOGGER.info("[SmoothLift/Picture] 图片数据同步完成（{}）：库 {} 张，当前 {}",
+                        dimId, pictureLibrary.size(), current.isEmpty() ? "(无)" : current);
             });
         });
 
@@ -498,20 +574,23 @@ public class SmoothLiftClient implements ClientModInitializer {
             float speed = buf.readFloat();
             // 【1.43】音量 —— 读的顺序必须与 EscalatorSpeedManager.buildLiftChimePacket 的写序一致
             int volume = buf.readVarInt();
-            // 【1.46】三提示音独立子开关（追加在音量后面，顺序与写侧一致：up → down → chime）
+            // 【1.46】四提示音独立子开关（追加在音量后面，顺序与写侧一致：up → down → open → close）
             boolean upEnabled = buf.readBoolean();
             boolean downEnabled = buf.readBoolean();
-            boolean chimeEnabled = buf.readBoolean();
+            boolean openEnabled = buf.readBoolean();
+            boolean closeEnabled = buf.readBoolean();
             // 【1.47】淡入淡出范围（包尾追加）
             int round = buf.readVarInt();
-            // 【1.48】三项各自音量（-1 = 跟随共用默认）
+            // 【1.48】四项各自音量（-1 = 跟随共用默认）
             int toneVolumeUp = buf.readVarInt();
             int toneVolumeDown = buf.readVarInt();
-            int toneVolumeChime = buf.readVarInt();
-            // 【1.15】三项的维度默认素材（default / off / 音频库文件名）—— 读序同 buildLiftChimePacket
+            int toneVolumeOpen = buf.readVarInt();
+            int toneVolumeClose = buf.readVarInt();
+            // 【1.15】四项的维度默认素材（default / off / 音频库文件名）—— 读序同 buildLiftChimePacket
             String toneAudioUp = buf.readUtf(128);
             String toneAudioDown = buf.readUtf(128);
-            String toneAudioChime = buf.readUtf(128);
+            String toneAudioOpen = buf.readUtf(128);
+            String toneAudioClose = buf.readUtf(128);
             final ResourceKey<Level> dimKey;
             try {
                 dimKey = EscalatorSpeedManager.parseDimensionKey(dimId);
@@ -520,22 +599,23 @@ public class SmoothLiftClient implements ClientModInitializer {
             }
             client.execute(() -> {
                 EscalatorSpeedManager.applyClientLiftChime(dimKey, enabled, speed, volume,
-                        upEnabled, downEnabled, chimeEnabled, round,
-                        toneVolumeUp, toneVolumeDown, toneVolumeChime,
-                        toneAudioUp, toneAudioDown, toneAudioChime);
+                        upEnabled, downEnabled, openEnabled, closeEnabled, round,
+                        toneVolumeUp, toneVolumeDown, toneVolumeOpen, toneVolumeClose,
+                        toneAudioUp, toneAudioDown, toneAudioOpen, toneAudioClose);
                 LOGGER.info("[SmoothLift/LiftChime] 直梯提示音设置已同步（{}）：{}、倍速 {}、音量 {}、"
-                                + "子开关 up={} down={} chime={}、范围 {} 格、单项音量 up={} down={} chime={}、"
-                                + "默认素材 up={} down={} chime={}",
+                                + "子开关 up={} down={} open={} close={}、范围 {} 格、"
+                                + "单项音量 up={} down={} open={} close={}、"
+                                + "默认素材 up={} down={} open={} close={}",
                         dimKey.location(), enabled ? "开" : "关", speed, volume,
-                        upEnabled, downEnabled, chimeEnabled, round,
-                        toneVolumeUp, toneVolumeDown, toneVolumeChime,
-                        toneAudioUp, toneAudioDown, toneAudioChime);
+                        upEnabled, downEnabled, openEnabled, closeEnabled, round,
+                        toneVolumeUp, toneVolumeDown, toneVolumeOpen, toneVolumeClose,
+                        toneAudioUp, toneAudioDown, toneAudioOpen, toneAudioClose);
             });
         });
 
-        // 【1.45】接收服务端同步的**直梯楼层轨道提示音**（竖井列 → up/down/chime 三音频 id）。
+        // 【1.45】接收服务端同步的**直梯楼层轨道提示音**（竖井列 → up/down/open/close 四音频 id）。
         //   播放端（LiftChimePlayer）按「最近直梯的竖井列」查这份镜像；打开石斧界面时也要读它。
-        //   ★ 顺序同 buildLiftTonePacket：dimId → 条数 → (key, up, down, chime) × N。
+        //   ★ 顺序同 buildLiftTonePacket：dimId → 条数 → (key, up, down, open, close) × N。
         ClientPlayNetworking.registerGlobalReceiver(SmoothLift.LIFT_TONE_SYNC_CHANNEL, (client, handler, buf, responseSender) -> {
             String dimId = buf.readUtf(256);
             int n = buf.readVarInt();
@@ -544,8 +624,9 @@ public class SmoothLiftClient implements ClientModInitializer {
                 long key = buf.readLong();
                 String up = buf.readUtf(128);
                 String down = buf.readUtf(128);
-                String chime = buf.readUtf(128);
-                tones.put(key, new EscalatorSpeedData.LiftToneAudio(up, down, chime));
+                String open = buf.readUtf(128);
+                String close = buf.readUtf(128);
+                tones.put(key, new EscalatorSpeedData.LiftToneAudio(up, down, open, close));
             }
             final ResourceKey<Level> dimKey;
             try {

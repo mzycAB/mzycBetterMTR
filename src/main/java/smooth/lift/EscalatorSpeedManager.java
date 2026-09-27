@@ -120,26 +120,34 @@ public final class EscalatorSpeedManager {
         public float liftHelpSpeed = EscalatorSpeedData.DEFAULT_LIFT_HELP_SPEED;
         /** 【1.43】直梯开关门提示音音量（{@code /lifthelploud}，服务端同步过来的镜像）。 */
         public int liftHelpVolume = EscalatorSpeedData.DEFAULT_LIFT_HELP_VOLUME;
-        /** 【1.48】三项各自音量镜像（-1 = 跟随共用默认）。 */
+        /** 【1.48】四项各自音量镜像（-1 = 跟随共用默认）。【1.28】chime 拆成 open / close。 */
         public int liftToneVolumeUp = EscalatorSpeedData.LIFT_TONE_VOLUME_UNSET;
         public int liftToneVolumeDown = EscalatorSpeedData.LIFT_TONE_VOLUME_UNSET;
-        public int liftToneVolumeChime = EscalatorSpeedData.LIFT_TONE_VOLUME_UNSET;
-        /** 【1.47】直梯提示音（三项共用）淡入淡出范围（{@code /lifthelpround}，服务端同步过来的镜像）。 */
+        public int liftToneVolumeOpen = EscalatorSpeedData.LIFT_TONE_VOLUME_UNSET;
+        public int liftToneVolumeClose = EscalatorSpeedData.LIFT_TONE_VOLUME_UNSET;
+        /** 【1.47】直梯提示音（四项共用）淡入淡出范围（{@code /lifthelpround}，服务端同步过来的镜像）。 */
         public int liftHelpRound = EscalatorSpeedData.DEFAULT_LIFT_HELP_ROUND;
-        /** 【1.46】三提示音独立子开关的镜像（{@code /lifthelp up|down|door on|off} / 石斧 UI 开关）。 */
+        /** 【1.46】四提示音独立子开关的镜像（{@code /lifthelp up|down|open|close on|off} / 石斧 UI 开关）。 */
         public boolean liftToneUpEnabled = true;
         public boolean liftToneDownEnabled = true;
-        public boolean liftToneChimeEnabled = true;
+        public boolean liftToneOpenEnabled = true;
+        public boolean liftToneCloseEnabled = true;
         /**
-         * 【1.15】三提示音的**维度默认素材**镜像（{@code /lifthelp up|down|door <名字>}）。
+         * 【1.15】四提示音的**维度默认素材**镜像（{@code /lifthelp up|down|open|close <名字>}）。
          * 单独设置过的那条直梯按 {@link #liftToneAudio} 走；没设置、或者那一项是
          * {@code default}（跟维度默认）时回落到这里。
          */
         public String liftToneAudioUp = EscalatorSpeedData.LIFT_TONE_DEFAULT;
         public String liftToneAudioDown = EscalatorSpeedData.LIFT_TONE_DEFAULT;
-        public String liftToneAudioChime = EscalatorSpeedData.LIFT_TONE_DEFAULT;
-        /** 【1.7】存档<MBM_Audio>文件夹里可选 OGG 文件名（上传来源，未入库的才显示）。 */
-        public final Set<String> folderAudio = new HashSet<>();
+        public String liftToneAudioOpen = EscalatorSpeedData.LIFT_TONE_DEFAULT;
+        public String liftToneAudioClose = EscalatorSpeedData.LIFT_TONE_DEFAULT;
+        /**
+         * 【1.28】分类 → 该分类子文件夹里的 OGG 文件名（服务端扫描同步过来的镜像，待导入来源）。
+         * 取代旧版平铺的 {@code folderAudio}。
+         */
+        public final Map<String, Set<String>> folderByCategory = new HashMap<>();
+        /** 【1.28】分类 → 该分类已导入存档的音频名集合（服务端同步过来的镜像）。 */
+        public final Map<String, Set<String>> audioCategoryNames = new HashMap<>();
         /**
          * 【1.45】直梯楼层轨道提示音（竖井列打包坐标 → 三音频 id，服务端同步过来的镜像）。
          * 播放端按「最近直梯的楼层列」查它。
@@ -342,23 +350,53 @@ public final class EscalatorSpeedManager {
     /** 【1.7】应用服务端同步过来的音频库、就绪拾取文件夹名单与扶梯-音频绑定（覆盖式更新）。 */
     public static void applyClientAudioData(ResourceKey<Level> dimension,
                                             Map<String, byte[]> audioLibrary,
-                                            Set<String> folderAudio,
+                                            Map<String, Set<String>> folderByCategory,
+                                            Map<String, Set<String>> audioCategoryNames,
                                             Map<BlockPos, String> blockAudio,
                                             String defaultAudio) {
         ClientDimensionData data = CLIENT_DATA.computeIfAbsent(dimension, k -> new ClientDimensionData());
         data.audioLibrary.clear();
         data.audioLibrary.putAll(audioLibrary);
-        data.folderAudio.clear();
-        data.folderAudio.addAll(folderAudio);
+        data.folderByCategory.clear();
+        for (Map.Entry<String, Set<String>> e : folderByCategory.entrySet()) {
+            data.folderByCategory.put(e.getKey(), new HashSet<>(e.getValue()));
+        }
+        data.audioCategoryNames.clear();
+        for (Map.Entry<String, Set<String>> e : audioCategoryNames.entrySet()) {
+            data.audioCategoryNames.put(e.getKey(), new HashSet<>(e.getValue()));
+        }
         data.blockAudio.clear();
         data.blockAudio.putAll(blockAudio);
         data.defaultAudio = defaultAudio;
     }
 
-    /** 【1.11】客户端：当前维度的默认扶梯音频 ID；没设置返回 null。 */
+    // ------------------------------------------------------------------
+    // 【六改】运行底噪「默认」层的兜底 = 模组内置的那条底噪
+    //
+    //   用户点名「扶梯ui里「声音设置」的「默认」和「内置地铁自动扶梯」是一个东西」，
+    //   于是六改把界面里那条内置音频行删掉了。但 defaultAudio 字段**初始是 null**：
+    //   若不做兜底，「默认」= null = 静音 ⇒ 内置行删掉之后，玩家再没有任何办法让扶梯出声
+    //   （用户实报：「选择扶梯默认提示音没有声音了」）。
+    //   兜底之后「默认」就真的等于那条内置底噪，与用户「两个是一个东西」的判断一致。
+    // ------------------------------------------------------------------
+
+    /** 【六改】模组内置的第一条运行底噪的绑定 ID（目前唯一一条 = {@code builtin:subway_escalator}）。 */
+    public static String builtinDefaultAudioId() {
+        if (BUILTIN_AUDIO.isEmpty()) {
+            return null;
+        }
+        return BUILTIN_PREFIX + BUILTIN_AUDIO.keySet().iterator().next();
+    }
+
+    /** 【六改】把「未设置」的默认音频规整成内置底噪 ID（null / 空串 → 内置；其余原样）。 */
+    public static String normaliseDefaultAudio(String audioId) {
+        return audioId == null || audioId.isEmpty() ? builtinDefaultAudioId() : audioId;
+    }
+
+    /** 【1.11】客户端：当前维度的默认扶梯音频 ID；没设置返回**内置底噪**（六改起不再返回 null）。 */
     public static String getClientDefaultAudio(ResourceKey<Level> dimension) {
         ClientDimensionData data = CLIENT_DATA.get(dimension);
-        return data == null ? null : data.defaultAudio;
+        return normaliseDefaultAudio(data == null ? null : data.defaultAudio);
     }
 
     /** 【1.9】该扶梯**实际使用**的声音音量（1~1000，100 = 原始音量）。
@@ -1590,15 +1628,6 @@ public final class EscalatorSpeedManager {
         return data == null ? Map.of() : java.util.Collections.unmodifiableMap(data.blockAudio);
     }
 
-    /**
-     * 【1.7】客户端：当前维度已存入存档的音频 ID（文件名）列表。
-     * 供音乐选择界面列出可绑定/可删除的音频；空则返回空集合。
-     */
-    public static Set<String> getClientAudioLibraryKeys(Level level) {
-        ClientDimensionData data = CLIENT_DATA.get(level.dimension());
-        return data == null ? Set.of() : java.util.Collections.unmodifiableSet(data.audioLibrary.keySet());
-    }
-
     /** 断开连接时清空客户端镜像，避免换世界后残留旧数据。 */
     public static void clearClientData() {
         CLIENT_DATA.clear();
@@ -1690,24 +1719,403 @@ public final class EscalatorSpeedManager {
     /** 存档目录下存放待导入 OGG 的文件夹名。【1.53】smoothlift_audio → MBM_Audio。 */
     public static final String AUDIO_FOLDER = "MBM_Audio";
 
-    /** 该世界存档的音频来源文件夹路径。 */
+    // ------------------------------------------------------------------
+    // 【1.28】音频分类（音频隔离）
+    //
+    // 每个设置项只读自己分类的**子文件夹**（MBM_Audio/<分类>）里的 .ogg：
+    //   待导入列表 = 该子文件夹里还没入库的文件；
+    //   导入存档后名字记进**这个分类**的注册表（audioCategoryNames）；
+    //   已存入列表 = 只有这个分类导入过的音频。
+    // 目录总览（MBM_Audio 下的分组目录：futi / train / pbm / lift）：
+    //   futi/music      扶梯运行底噪（/futimusic、石斧 UI 扶梯音乐）
+    //   futi/help       扶梯无障碍提示音（/futihelpmusic、石斧 UI 提示音音乐）
+    //   train/run       列车运行音效（石斧 UI 侧线「列车音效」第 1 页）
+    //   train/round     列车转弯音效（同上第 2 页）
+    //   train/switch    列车道岔音效（同上第 3 页）
+    //   train/in        列车进站音效（同上第 4 页）
+    //   train/out       列车出站音效（同上第 5 页）
+    //   pbm/open        屏蔽门开门提示音（/pbmmusic open、石斧 UI 屏蔽门第 1 页）
+    //   pbm/close       屏蔽门关门提示音（/pbmmusic close、石斧 UI 第 2 页）
+    //   pbm/midium      屏蔽门到站播报（/pbmmidium、石斧 UI 第 3 页）
+    //   pbm/arrive      屏蔽门进站报站（/pbmarrive、石斧 UI 第 4 页）
+    //   lift/up         直梯上楼提示音（/lifthelp up）
+    //   lift/down       直梯下楼提示音（/lifthelp down）
+    //   lift/open       直梯开门提示音（/lifthelp open）
+    //   lift/close      直梯关门提示音（/lifthelp close）
+    // ★ futi/ 、train/ 与 pbm/、lift/ 一样只是**分组目录**：它们本身不是分类 ⇒ 里面不放 ogg，
+    //   futi/ 只放 music/ 与 help/，train/ 只放 run/ round/ switch/ in/ out/。
+    //   （判据：没有任何分类字符串恰好 == "futi" / "train" / "pbm" / "lift"。）
+    // ★★【09-27 三次改版】旧的 `pbm/music`（列车音效）**已删**，作用拆成上面 train/ 五项；
+    //   老存档里的 pbm/music 由 migrateCategoryKey 迁到 train/run（文件夹也由
+    //   migrateLegacyAudioFolder 搬过去）。
+    // ------------------------------------------------------------------
+
+    public static final String CAT_FUTI = "futi/music";
+    public static final String CAT_HELP = "futi/help";
+    public static final String CAT_TRAIN_RUN = "train/run";
+    public static final String CAT_TRAIN_ROUND = "train/round";
+    public static final String CAT_TRAIN_SWITCH = "train/switch";
+    public static final String CAT_TRAIN_IN = "train/in";
+    public static final String CAT_TRAIN_OUT = "train/out";
+    public static final String CAT_PSD_OPEN = "pbm/open";
+    public static final String CAT_PSD_CLOSE = "pbm/close";
+    public static final String CAT_PSD_MIDIUM = "pbm/midium";
+    public static final String CAT_PSD_ARRIVE = "pbm/arrive";
+    public static final String CAT_LIFT_UP = "lift/up";
+    public static final String CAT_LIFT_DOWN = "lift/down";
+    public static final String CAT_LIFT_OPEN = "lift/open";
+    public static final String CAT_LIFT_CLOSE = "lift/close";
+
+    /** 全部音频分类（顺序 = 存档/同步包的书写顺序，别改；旧存档迁移也按它铺名字）。 */
+    public static final String[] ALL_CATEGORIES = {
+            CAT_FUTI, CAT_HELP,
+            CAT_TRAIN_RUN, CAT_TRAIN_ROUND, CAT_TRAIN_SWITCH, CAT_TRAIN_IN, CAT_TRAIN_OUT,
+            CAT_PSD_OPEN, CAT_PSD_CLOSE, CAT_PSD_MIDIUM, CAT_PSD_ARRIVE,
+            CAT_LIFT_UP, CAT_LIFT_DOWN, CAT_LIFT_OPEN, CAT_LIFT_CLOSE,
+    };
+
+    /**
+     * 【09-27 三次改版】旧**文件夹**相对路径 → 现在该放的分类（服务端启动时把老 .ogg 搬过去）。
+     *
+     * <p>与 {@link #migrateCategoryKey(String)}（NBT 键）配套：键迁了、文件不搬的话，
+     * 界面「已存入」有名字却找不到文件（或反过来）。只搬 {@code .ogg}、**不覆盖**同名文件；
+     * 源目录搬空后才删，非空（还有别的东西）就留着 —— 绝不递归删。
+     * <ul>
+     *   <li>{@code pbm/futi} → {@link #CAT_FUTI}</li>
+     *   <li>{@code futi}（一轮中间改版：.ogg 直接躺在 futi/ 下）→ {@link #CAT_FUTI}</li>
+     *   <li>{@code pbm/help} → {@link #CAT_HELP}</li>
+     *   <li>{@code pbm/music} → {@link #CAT_TRAIN_RUN}</li>
+     * </ul>
+     * ★ 不搬 {@code futi/music}：它现在**就是** {@link #CAT_FUTI} 的新路径，不是旧目录。
+     */
+    private static final String[][] LEGACY_FOLDERS = {
+            {"pbm/futi", CAT_FUTI},
+            {"futi", CAT_FUTI},
+            {"pbm/help", CAT_HELP},
+            {"pbm/music", CAT_TRAIN_RUN},
+    };
+
+    /**
+     * 【1.28+】旧分类键 → 新分类键（改过目录的是**扶梯两类**与**列车音效**）。
+     *
+     * <p>读档时用它迁移 {@code audioCategoryNames} 的键：否则改名之后，旧存档里那些分类
+     * 的「已存入」注册表会找不到 → 界面右列看着像「没导入过」（字节其实还在 audioLibrary 里）。
+     * <ul>
+     *   <li>{@code pbm/futi}（扶梯底噪原始路径）→ {@link #CAT_FUTI}</li>
+     *   <li>{@code futi}（一轮中间改版的底噪路径）→ {@link #CAT_FUTI}</li>
+     *   <li>{@code pbm/help}（扶梯提示音原始路径）→ {@link #CAT_HELP}</li>
+     *   <li>{@code pbm/music}（列车音效原始路径）→ {@link #CAT_TRAIN_RUN}</li>
+     * </ul>
+     * 屏蔽门 / 直梯都没改过路径，无需迁移。
+     * ★ 千万不要加 {@code futi/music} → train/run：{@code futi/music} 现在是**扶梯底噪**的新键，
+     *   映射它会导致底噪数据每次读档都被误迁到列车音效（往返 bug）。
+     */
+    public static String migrateCategoryKey(String legacyKey) {
+        if ("pbm/futi".equals(legacyKey)) {
+            return CAT_FUTI;
+        }
+        if ("futi".equals(legacyKey)) {
+            return CAT_FUTI;
+        }
+        if ("pbm/help".equals(legacyKey)) {
+            return CAT_HELP;
+        }
+        if ("pbm/music".equals(legacyKey)) {
+            return CAT_TRAIN_RUN;
+        }
+        return legacyKey;
+    }
+
+    /** 该世界存档的音频来源文件夹路径（根）。 */
     public static Path audioFolder(ServerLevel level) {
         return level.getServer().getWorldPath(LevelResource.ROOT).resolve(AUDIO_FOLDER);
     }
 
-    /** 确保存档音频来源文件夹存在；不存在则自动创建（服务端启动时调用）。 */
+    /** 该世界存档某个分类的子文件夹路径（{@code MBM_Audio/<分类>}）。 */
+    public static Path audioFolder(ServerLevel level, String category) {
+        return audioFolder(level).resolve(category);
+    }
+
+    /** 确保存档音频来源文件夹（含全部分类子文件夹）存在；不存在则自动创建（服务端启动时调用）。 */
     public static void ensureAudioFolder(ServerLevel level) {
         try {
             Files.createDirectories(audioFolder(level));
+            for (String category : ALL_CATEGORIES) {
+                Files.createDirectories(audioFolder(level, category));
+            }
         } catch (IOException ignored) {
             // 无法创建时忽略：后续扫描遇到不可读文件夹会当作无音频处理。
         }
+        // 【09-27 三次改版】把老分类目录里玩家已经放进去的 .ogg 搬到新目录（幂等；搬空才删源目录）。
+        for (String[] pair : LEGACY_FOLDERS) {
+            migrateLegacyAudioFolder(level, pair[0], pair[1]);
+        }
     }
 
-    /** 扫描存档音频来源文件夹里的 .ogg 文件，返回 文件名 → 字节。文件夹不存在/不可读/超限的文件忽略。 */
-    public static Map<String, byte[]> scanAudioFiles(ServerLevel level) {
+    // ------------------------------------------------------------------
+    // 【1.18.1204】地图图片（MBM_Picture）：文件夹 / 扫描 / 导入 / 删除
+    //
+    // 与音频同一个模式：MBM_Picture 是**来源文件夹**，玩家把图片放进去后由
+    // /MBM picture new 导入；图片原始字节存入 SavedData（pictureLibrary），
+    // 所以删掉文件夹里的原图也不影响已导入的图片。客户端拿到字节后自行
+    // 做「裁四等分 → 缩放 1024 → 加 64px 灰边」并更新图片方块图集贴图。
+    // ------------------------------------------------------------------
+
+    /** 存档目录下存放待导入地图图片的文件夹名（服务端启动时自动创建）。 */
+    public static final String PICTURE_FOLDER = "MBM_Picture";
+
+    /** 【09-27】单张地图图片任一方向的像素上限。NativeImage 按 宽×高×4 在原生内存分配，
+     *  12MB 的压缩大小上限约束不住解码后的内存（曾导致 /MBM picture new 后 OOM），
+     *  因此在解码前用文件头探测尺寸并拒绝超限图片。 */
+    public static final int MAX_PICTURE_DIMENSION = 8192;
+
+    /** 【09-27】最近一次 {@link #scanPictureFiles} 因体积/尺寸超限被忽略的文件数（供指令提示玩家）。 */
+    public static int lastScanRejected = 0;
+
+    /**
+     * 【09-27】只解析图片文件头（PNG IHDR / JPEG SOF / BMP 信息头）读取像素宽高，**不整图解码**，
+     * 用于在解码前拒绝超大图片。格式无法识别或头部损坏返回 {@code null}（调用方按“未知”处理）。
+     */
+    public static int[] probeImageSize(byte[] bytes) {
+        if (bytes == null || bytes.length < 8) {
+            return null;
+        }
+        try {
+            // PNG：8 字节签名 + IHDR 块，宽度/高度在偏移 16/20（大端）。
+            if ((bytes[0] & 0xFF) == 0x89 && (bytes[1] & 0xFF) == 0x50
+                    && (bytes[2] & 0xFF) == 0x4E && (bytes[3] & 0xFF) == 0x47) {
+                if (bytes.length < 24) {
+                    return null;
+                }
+                int w = ((bytes[16] & 0xFF) << 24) | ((bytes[17] & 0xFF) << 16)
+                        | ((bytes[18] & 0xFF) << 8) | (bytes[19] & 0xFF);
+                int h = ((bytes[20] & 0xFF) << 24) | ((bytes[21] & 0xFF) << 16)
+                        | ((bytes[22] & 0xFF) << 8) | (bytes[23] & 0xFF);
+                return new int[]{w, h};
+            }
+            // JPEG：SOI(FFD8) 后按段遍历，找 SOF0~15（段内偏移 +5/+7 为高/宽，大端）。
+            if ((bytes[0] & 0xFF) == 0xFF && (bytes[1] & 0xFF) == 0xD8) {
+                int i = 2;
+                while (i + 9 < bytes.length) {
+                    if ((bytes[i] & 0xFF) != 0xFF) {
+                        i++;
+                        continue;
+                    }
+                    int marker = bytes[i + 1] & 0xFF;
+                    if (marker == 0xD9 || marker == 0xDA) {
+                        break; // EOI 或 SOS：后面是图像数据，不再有 SOF
+                    }
+                    boolean sof = marker == 0xC0 || marker == 0xC1 || marker == 0xC2 || marker == 0xC3
+                            || marker == 0xC5 || marker == 0xC6 || marker == 0xC7
+                            || marker == 0xC9 || marker == 0xCA || marker == 0xCB
+                            || marker == 0xCD || marker == 0xCE || marker == 0xCF;
+                    if (sof) {
+                        int h = ((bytes[i + 5] & 0xFF) << 8) | (bytes[i + 6] & 0xFF);
+                        int w = ((bytes[i + 7] & 0xFF) << 8) | (bytes[i + 8] & 0xFF);
+                        return new int[]{w, h};
+                    }
+                    if (marker == 0x01 || (marker >= 0xD0 && marker <= 0xD7)) {
+                        i += 2; // 无数据段
+                        continue;
+                    }
+                    if (i + 4 >= bytes.length) {
+                        return null;
+                    }
+                    int segLen = ((bytes[i + 2] & 0xFF) << 8) | (bytes[i + 3] & 0xFF);
+                    if (segLen < 2) {
+                        return null;
+                    }
+                    i += 2 + segLen;
+                }
+                return null;
+            }
+            // BMP：14 字节文件头 + 信息头；宽/高在偏移 18/22（小端）。负高度 = 自顶向下，取绝对值。
+            if ((bytes[0] & 0xFF) == 0x42 && (bytes[1] & 0xFF) == 0x4D) {
+                if (bytes.length < 26) {
+                    return null;
+                }
+                int headerSize = (bytes[14] & 0xFF) | ((bytes[15] & 0xFF) << 8)
+                        | ((bytes[16] & 0xFF) << 16) | ((bytes[17] & 0xFF) << 24);
+                int w;
+                int h;
+                if (headerSize >= 40) {
+                    // BITMAPINFOHEADER（32 位宽高）
+                    w = (bytes[18] & 0xFF) | ((bytes[19] & 0xFF) << 8)
+                            | ((bytes[20] & 0xFF) << 16) | ((bytes[21] & 0xFF) << 24);
+                    h = (bytes[22] & 0xFF) | ((bytes[23] & 0xFF) << 8)
+                            | ((bytes[24] & 0xFF) << 16) | ((bytes[25] & 0xFF) << 24);
+                } else {
+                    // BITMAPCOREHEADER（16 位宽高）
+                    w = (bytes[18] & 0xFF) | ((bytes[19] & 0xFF) << 8);
+                    h = (bytes[20] & 0xFF) | ((bytes[21] & 0xFF) << 8);
+                }
+                if (h < 0) {
+                    h = -h;
+                }
+                return new int[]{w, h};
+            }
+        } catch (Exception ignored) {
+            return null;
+        }
+        return null;
+    }
+
+    /** 该世界存档的地图图片来源文件夹路径。 */
+    public static Path pictureFolder(ServerLevel level) {
+        return level.getServer().getWorldPath(LevelResource.ROOT).resolve(PICTURE_FOLDER);
+    }
+
+    /** 确保存档地图图片来源文件夹存在；不存在则自动创建（服务端启动时调用）。 */
+    public static void ensurePictureFolder(ServerLevel level) {
+        try {
+            Files.createDirectories(pictureFolder(level));
+        } catch (IOException ignored) {
+            // 无法创建时忽略：后续扫描遇到不可读文件夹会当作无图片处理。
+        }
+    }
+
+    /** 扫描 MBM_Picture 文件夹里的图片文件，返回 文件名 → 字节。文件夹不存在/不可读/超限的文件忽略。 */
+    public static Map<String, byte[]> scanPictureFiles(ServerLevel level) {
         Map<String, byte[]> out = new HashMap<>();
-        Path dir = audioFolder(level);
+        Path dir = pictureFolder(level);
+        lastScanRejected = 0;
+        try (Stream<Path> paths = Files.list(dir)) {
+            paths.filter(path -> {
+                        String name = path.getFileName().toString().toLowerCase(Locale.ROOT);
+                        return name.endsWith(".png") || name.endsWith(".jpg")
+                                || name.endsWith(".jpeg") || name.endsWith(".bmp");
+                    })
+                    .forEach(path -> {
+                        try {
+                            byte[] bytes = Files.readAllBytes(path);
+                            if (bytes.length == 0) {
+                                return;
+                            }
+                            if (bytes.length > EscalatorSpeedData.MAX_PICTURE_BYTES) {
+                                LOGGER.warn("[SmoothLift/Picture] 跳过 {}：{} 字节超过单张大小上限 {}",
+                                        path.getFileName(), bytes.length, EscalatorSpeedData.MAX_PICTURE_BYTES);
+                                lastScanRejected++;
+                                return;
+                            }
+                            // 解码前用文件头探测尺寸，拒绝超限图片，防止客户端 NativeImage 解码时原生内存爆掉。
+                            int[] dim = probeImageSize(bytes);
+                            if (dim != null && (dim[0] > MAX_PICTURE_DIMENSION || dim[1] > MAX_PICTURE_DIMENSION)) {
+                                LOGGER.warn("[SmoothLift/Picture] 跳过 {}：尺寸 {}x{} 超过单边上限 {}px",
+                                        path.getFileName(), dim[0], dim[1], MAX_PICTURE_DIMENSION);
+                                lastScanRejected++;
+                                return;
+                            }
+                            out.put(path.getFileName().toString(), bytes);
+                        } catch (IOException ignored) {
+                            // 单个文件读失败就跳过，别中断其它文件。
+                        }
+                    });
+        } catch (IOException ignored) {
+            // 文件夹不存在或不可读时返回空映射。
+        }
+        return out;
+    }
+
+    /**
+     * 从 MBM_Picture 文件夹把指定图片拷入存档图片库（上传来源 -> 融入存档）。
+     * 内容可解码性由客户端纹理管线校验；服务端只做大小上限校验。
+     *
+     * @return {@code null} 表示导入成功；否则返回失败原因（可直接显示给玩家）
+     */
+    public static String importPictureToStore(ServerLevel level, String fileName) {
+        byte[] bytes = scanPictureFiles(level).get(fileName);
+        if (bytes == null) {
+            return "存档文件夹 " + PICTURE_FOLDER + " 里没有这个文件";
+        }
+        EscalatorSpeedData data = getServerData(level);
+        data.pictureLibrary.put(fileName, bytes);
+        data.setDirty();
+        LOGGER.info("[SmoothLift/Picture] 已导入 {}（{} 字节）到存档图片库", fileName, bytes.length);
+        return null;
+    }
+
+    /** 从存档图片库删除一份图片（只删存档里的，**不动** MBM_Picture 文件夹里的文件）。 */
+    public static void deletePictureFromStore(ServerLevel level, String fileName) {
+        EscalatorSpeedData data = getServerData(level);
+        data.removePicture(fileName);
+        data.setDirty();
+        LOGGER.info("[SmoothLift/Picture] 已从存档图片库删除 {}", fileName);
+    }
+
+    /** 服务端：已导入存档的图片名（/MBM picture delete 指令补全用）。 */
+    public static Set<String> getServerPictureLibraryKeys(ServerLevel level) {
+        return java.util.Collections.unmodifiableSet(
+                new HashSet<>(getServerData(level).pictureLibrary.keySet()));
+    }
+
+    /** 设置当前显示图片（null = 库空，客户端显示白色+灰边占位）。 */
+    public static void setPictureCurrent(ServerLevel level, String name) {
+        EscalatorSpeedData data = getServerData(level);
+        data.pictureCurrent = (name != null && data.pictureLibrary.containsKey(name)) ? name : null;
+        data.setDirty();
+    }
+
+    /** 当前显示图片ID（null = 库空）。 */
+    public static String getPictureCurrent(ServerLevel level) {
+        return getServerData(level).pictureCurrent;
+    }
+
+    /** 图片库里字典序最大的一张图片ID；库空返回 null（删除当前图片后的回退选择）。 */
+    public static String largestLibraryKey(ServerLevel level) {
+        Set<String> keys = getServerData(level).pictureLibrary.keySet();
+        if (keys.isEmpty()) {
+            return null;
+        }
+        return java.util.Collections.max(keys);
+    }
+
+    /**
+     * 【09-27 三次改版】把 {@code MBM_Audio/<legacyCategory>} 里已有的 {@code .ogg} 搬到
+     * {@code MBM_Audio/<newCategory>}（幂等）。
+     *
+     * <p>安全约定：只动 {@code .ogg}；目标已存在同名文件时**跳过**（不覆盖玩家的东西）；
+     * 源目录只有在**搬空之后**才尝试删除，里面还有别的文件就原样留着。任何异常都吞掉
+     * （音频目录不该让服务端起不来）。
+     */
+    private static void migrateLegacyAudioFolder(ServerLevel level, String legacyCategory, String newCategory) {
+        Path oldDir = audioFolder(level, legacyCategory);
+        if (legacyCategory.equals(newCategory) || !Files.isDirectory(oldDir)) {
+            return;
+        }
+        Path newDir = audioFolder(level, newCategory);
+        try {
+            Files.createDirectories(newDir);
+            try (Stream<Path> paths = Files.list(oldDir)) {
+                for (Path path : paths.toList()) {
+                    String name = path.getFileName().toString();
+                    if (!name.toLowerCase(Locale.ROOT).endsWith(".ogg")) {
+                        continue;
+                    }
+                    Path target = newDir.resolve(name);
+                    if (Files.exists(target)) {
+                        continue;   // 不覆盖
+                    }
+                    try {
+                        Files.move(path, target);
+                    } catch (IOException ignored) {
+                        // 单个文件搬失败就留着，别中断其它文件。
+                    }
+                }
+            }
+            try (Stream<Path> rest = Files.list(oldDir)) {
+                if (rest.findAny().isEmpty()) {
+                    Files.deleteIfExists(oldDir);
+                }
+            }
+        } catch (IOException ignored) {
+            // 迁移失败按「老目录还在原地」处理，不影响启动。
+        }
+    }
+
+    /** 扫描某个分类的子文件夹里的 .ogg 文件，返回 文件名 → 字节。文件夹不存在/不可读/超限的文件忽略。 */
+    public static Map<String, byte[]> scanAudioFiles(ServerLevel level, String category) {
+        Map<String, byte[]> out = new HashMap<>();
+        Path dir = audioFolder(level, category);
         try (Stream<Path> paths = Files.list(dir)) {
             paths.filter(path -> path.getFileName().toString().toLowerCase(Locale.ROOT).endsWith(".ogg"))
                     .forEach(path -> {
@@ -1720,7 +2128,7 @@ public final class EscalatorSpeedManager {
                         }
                     });
         } catch (IOException ignored) {
-            // 文件夹尚未创建或不可读：视作无可用来源。
+            // 子文件夹尚未创建或不可读：视作无可用来源。
         }
         return out;
     }
@@ -1774,15 +2182,18 @@ public final class EscalatorSpeedManager {
     }
 
     /**
-     * 从存档音频文件夹把指定文件拷入存档音频库（上传来源 -&gt; 融入存档）。
-     * 入库前校验内容确实是 MC 能播的 Ogg Vorbis。
+     * 从存档音频来源文件夹的**某个分类子文件夹**把指定文件拷入存档音频库
+     * （上传来源 -&gt; 融入存档）。入库前校验内容确实是 MC 能播的 Ogg Vorbis。
+     *
+     * <p>【1.28】名字同时记进该分类的注册表（{@code audioCategoryNames}）——
+     * 「分开存放」：每个设置项的「已存入」列表只列自己分类导入过的音频。
      *
      * @return {@code null} 表示导入成功；否则返回失败原因（可直接显示给玩家）
      */
-    public static String importAudioToStore(ServerLevel level, String fileName) {
-        byte[] bytes = scanAudioFiles(level).get(fileName);
+    public static String importAudioToStore(ServerLevel level, String category, String fileName) {
+        byte[] bytes = scanAudioFiles(level, category).get(fileName);
         if (bytes == null) {
-            return "存档文件夹 " + AUDIO_FOLDER + " 里没有这个文件";
+            return "存档文件夹 " + AUDIO_FOLDER + "/" + category + " 里没有这个文件";
         }
         String problem = describeOggProblem(bytes);
         if (problem != null) {
@@ -1791,19 +2202,44 @@ public final class EscalatorSpeedManager {
         }
         EscalatorSpeedData data = getServerData(level);
         data.audioLibrary.put(fileName, bytes);
+        data.audioCategoryNames.computeIfAbsent(category, k -> new HashSet<>()).add(fileName);
         data.setDirty();
-        LOGGER.info("[SmoothLift/Audio] 已导入 {}（{} 字节）到存档音频库", fileName, bytes.length);
+        LOGGER.info("[SmoothLift/Audio] 已导入 {}（{} 字节）到存档音频库[分类 {}]", fileName, bytes.length, category);
         return null;
     }
 
-    /** 客户端：存档文件夹里尚未入库、可"选中即导入并绑定"的 OGG 文件名；空返回空集合。 */
-    public static Set<String> getClientFolderAudioKeys(Level level) {
+    /** 客户端：某个分类的子文件夹里尚未入库、可"选中即导入并绑定"的 OGG 文件名；空返回空集合。 */
+    public static Set<String> getClientFolderAudioKeys(Level level, String category) {
         ClientDimensionData data = CLIENT_DATA.get(level.dimension());
         if (data == null) {
             return Set.of();
         }
-        java.util.Collections.synchronizedSet(data.folderAudio).removeAll(data.audioLibrary.keySet());
-        return java.util.Collections.unmodifiableSet(data.folderAudio);
+        Set<String> folder = data.folderByCategory.getOrDefault(category, Set.of());
+        Set<String> imported = data.audioCategoryNames.getOrDefault(category, Set.of());
+        Set<String> out = new HashSet<>(folder);
+        out.removeAll(imported);
+        return java.util.Collections.unmodifiableSet(out);
+    }
+
+    /** 客户端：某个分类已导入存档的音频名（「已存入」列表）；空返回空集合。 */
+    public static Set<String> getClientAudioLibraryKeys(Level level, String category) {
+        ClientDimensionData data = CLIENT_DATA.get(level.dimension());
+        if (data == null) {
+            return Set.of();
+        }
+        return java.util.Collections.unmodifiableSet(
+                new HashSet<>(data.audioCategoryNames.getOrDefault(category, Set.of())));
+    }
+
+    /** 服务端：某个分类已导入存档的音频名（指令补全用）。 */
+    public static Set<String> getServerAudioLibraryKeys(ServerLevel level, String category) {
+        Set<String> names = getServerData(level).audioCategoryNames.get(category);
+        return names == null ? Set.of() : java.util.Collections.unmodifiableSet(new HashSet<>(names));
+    }
+
+    /** 服务端：某个分类的「已导入」集合（为空时自动补一张空表，方便调用方直接 add）。 */
+    public static Set<String> categoryAudioNames(EscalatorSpeedData data, String category) {
+        return data.audioCategoryNames.computeIfAbsent(category, k -> new HashSet<>());
     }
 
     public static EscalatorSpeedData getServerData(ServerLevel level) {
@@ -2405,76 +2841,15 @@ public final class EscalatorSpeedManager {
     /** 音频传输分块大小。MC 网络包上限 32767 字节，这里留足协议头余量。 */
     public static final int AUDIO_CHUNK_SIZE = 16 * 1024;
 
-    /** 音频 ID（文件名）的最大字符数，超过则拒绝上传，避免同步包超限。 */
-    public static final int MAX_AUDIO_NAME = 48;
-
-    /** 服务端拼接中的音频上传：音频ID → (块索引 → 数据)。 */
-    private static final Map<String, Map<Integer, byte[]>> PENDING_UPLOADS = new HashMap<>();
-
-    /**
-     * 收到客户端上传的一个音频块。全部块到齐后拼出完整 OGG 字节并返回；
-     * 未到齐返回 null（继续等待）；块非法或缺块时丢弃并返回 null。
-     * 音频ID为文件名：同名再上传即覆盖（一个音频可被多条扶梯复用，都是同一个 ID）。
-     */
-    public static byte[] handleAudioUploadChunk(String audioId, int totalChunks, int chunkIndex, byte[] chunk) {
-        if (audioId == null || audioId.isEmpty() || audioId.length() > MAX_AUDIO_NAME
-                || totalChunks <= 0
-                || chunkIndex < 0 || chunkIndex >= totalChunks
-                || chunk == null || chunk.length == 0 || chunk.length > AUDIO_CHUNK_SIZE) {
-            return null;
-        }
-        Map<Integer, byte[]> chunks = PENDING_UPLOADS.computeIfAbsent(audioId, k -> new HashMap<>());
-        chunks.put(chunkIndex, chunk);
-        if (chunks.size() < totalChunks) {
-            return null;
-        }
-        PENDING_UPLOADS.remove(audioId);
-        int total = 0;
-        for (byte[] part : chunks.values()) {
-            total += part.length;
-        }
-        if (total <= 0 || total > EscalatorSpeedData.MAX_AUDIO_BYTES) {
-            return null;
-        }
-        byte[] bytes = new byte[total];
-        int offset = 0;
-        for (int i = 0; i < totalChunks; i++) {
-            byte[] part = chunks.get(i);
-            if (part == null) {
-                return null;
-            }
-            System.arraycopy(part, 0, bytes, offset, part.length);
-            offset += part.length;
-        }
-        // OGG 魔数校验（'OggS'）
-        if (bytes.length < 4 || bytes[0] != 'O' || bytes[1] != 'g' || bytes[2] != 'g' || bytes[3] != 'S') {
-            return null;
-        }
-        return bytes;
-    }
-
-    /** 把已上传的音频写入存档。返回是否成功（音频ID格式非法、字节超限或不是 Ogg Vorbis 则拒绝）。 */
-    public static boolean storeAudio(ServerLevel level, String audioId, byte[] bytes) {
-        if (audioId == null || audioId.isEmpty() || audioId.length() > MAX_AUDIO_NAME
-                || bytes == null || bytes.length == 0 || bytes.length > EscalatorSpeedData.MAX_AUDIO_BYTES) {
-            return false;
-        }
-        String problem = describeOggProblem(bytes);
-        if (problem != null) {
-            LOGGER.warn("[SmoothLift/Audio] 拒绝上传的音频 {}（{} 字节）：{}", audioId, bytes.length, problem);
-            return false;
-        }
-        EscalatorSpeedData data = getServerData(level);
-        data.audioLibrary.put(audioId, bytes);
-        data.setDirty();
-        return true;
-    }
-
-    /** 把音频绑定到扶梯方块（音频必须已入库，或是内置音频）。返回是否绑定成功。 */
+    /** 把音频绑定到扶梯方块（音频必须已在**扶梯底噪分类**入库，或是内置音频）。返回是否绑定成功。 */
     public static boolean bindAudio(ServerLevel level, BlockPos pos, String audioId) {
         EscalatorSpeedData data = getServerData(level);
+        // 【09-27】「不播」哨兵专门放行：它不是一个文件（音频库里必然找不到），
+        //   但它是合法取值 —— 含义 = 这一条扶梯静音、压过维度默认层。
         if (audioId == null
-                || (!isBuiltinAudio(audioId) && !data.audioLibrary.containsKey(audioId))) {
+                || (!EscalatorSpeedData.FUTI_AUDIO_OFF.equals(audioId)
+                        && !isBuiltinAudio(audioId)
+                        && !categoryAudioNames(data, CAT_FUTI).contains(audioId))) {
             return false;
         }
         data.bindAudio(pos, audioId);
@@ -2497,12 +2872,32 @@ public final class EscalatorSpeedManager {
     }
 
     /** 从存档删除一段音频，同时解绑所有引用它的扶梯。返回是否真的删除了。 */
-    public static boolean deleteAudio(ServerLevel level, String audioId) {
+    /**
+     * 【1.28】从**某个分类**删除一段已导入的音频。
+     *
+     * <p>只把这个名字从该分类的注册表摘掉（界面「已存入」列表立刻不显示）；
+     * 只有当名字不再属于**任何**分类时，才真正从音频库删字节 + 清理所有引用
+     * （{@link EscalatorSpeedData#removeAudio} 会把引用它的扶梯/提示音/直梯/屏蔽门
+     * 一并退化成默认或「不播」）。同名音频在别的分类还有一份时，字节与引用保留。
+     *
+     * @return 分类注册表里确实有这个名字才 true
+     */
+    public static boolean deleteAudio(ServerLevel level, String category, String audioId) {
         EscalatorSpeedData data = getServerData(level);
-        if (!data.audioLibrary.containsKey(audioId)) {
+        Set<String> names = data.audioCategoryNames.get(category);
+        if (names == null || !names.remove(audioId)) {
             return false;
         }
-        data.removeAudio(audioId);
+        boolean stillReferenced = false;
+        for (Set<String> other : data.audioCategoryNames.values()) {
+            if (other.contains(audioId)) {
+                stillReferenced = true;
+                break;
+            }
+        }
+        if (!stillReferenced) {
+            data.removeAudio(audioId);
+        }
         data.setDirty();
         return true;
     }
@@ -2518,9 +2913,9 @@ public final class EscalatorSpeedManager {
     // 带 -f 的指令改**所有**扶梯（含单独绑定的）。
     // ------------------------------------------------------------------
 
-    /** 【1.11】默认扶梯音频 ID；没设置返回 null。 */
+    /** 【1.11】默认扶梯音频 ID；【六改】没设置返回**内置底噪**（不再返回 null，见 {@link #normaliseDefaultAudio}）。 */
     public static String getDefaultAudio(ServerLevel level) {
-        return getServerData(level).defaultAudio;
+        return normaliseDefaultAudio(getServerData(level).defaultAudio);
     }
 
     /**
@@ -2707,7 +3102,7 @@ public final class EscalatorSpeedManager {
      * 而提示音要的是端头短促循环的定位音；「模组自带的那一个」已经被 {@code default} 占用，
      * 再允许 builtin 只会让两个 default 的语义打架。
      */
-    public static AudioArg resolveHelpAudioName(ServerLevel level, String name) {
+    public static AudioArg resolveHelpAudioName(ServerLevel level, String category, String name) {
         if (name == null || name.isEmpty()) {
             return new AudioArg(null, false, "提示音名字不能为空");
         }
@@ -2723,16 +3118,17 @@ public final class EscalatorSpeedManager {
                     + "这里请用 default或自己导入的文件名");
         }
         EscalatorSpeedData data = getServerData(level);
-        if (data.audioLibrary.containsKey(name)) {
+        Set<String> catNames = categoryAudioNames(data, category);
+        if (catNames.contains(name)) {
             return new AudioArg(name, false, null);
         }
-        if (!lower.endsWith(".ogg") && data.audioLibrary.containsKey(name + ".ogg")) {
+        if (!lower.endsWith(".ogg") && catNames.contains(name + ".ogg")) {
             return new AudioArg(name + ".ogg", false, null);
         }
-        return new AudioArg(null, false, "存档里没有叫「" + name + "」的音频"
-                + (data.audioLibrary.isEmpty()
-                        ? ""
-                        : ""));
+        return new AudioArg(null, false, "「" + category + "」分类里没有叫「" + name + "」的音频"
+                + (catNames.isEmpty()
+                        ? "（这个分类还没有导入过音频）"
+                        : "（已有：" + previewNames(data, category) + "）"));
     }
 
     /**
@@ -2815,7 +3211,7 @@ public final class EscalatorSpeedManager {
         String id = normaliseHelpAudio(audioId);
         if (!EscalatorSpeedData.HELP_AUDIO_DEFAULT.equals(id)
                 && !EscalatorSpeedData.HELP_AUDIO_OFF.equals(id)
-                && !data.audioLibrary.containsKey(id)) {
+                && !categoryAudioNames(data, CAT_HELP).contains(id)) {
             return false;
         }
         Map<BlockPos, String> overrides = data.helpAudioOverrides(in);
@@ -2827,6 +3223,15 @@ public final class EscalatorSpeedManager {
         String defaultId = normaliseHelpAudio(in ? data.defaultHelpAudioIn : data.defaultHelpAudioOut);
         if (!id.equals(defaultId)) {
             data.bindHelpAudio(pos, id, in);
+        }
+        // 【六改】用户点名「选择音乐就默认开启，选择不播就默认关闭」（那只开关按钮已按其点名删掉）
+        //   ⇒ 绑一段**会出声的**提示音（含「默认提示音」）时，顺手把这条扶梯的无障碍提示音打开。
+        //   否则：这一条（或本维度）曾被关过的话，玩家选完仍是静音，而界面上已经没有开关
+        //   可以把状态拨回来（用户实报「选择扶梯默认提示音没有声音了」）。
+        //   ★ 只做「开」、不顺手做「关」：让某一头静音由 HELP_AUDIO_OFF（不播）表达，
+        //     而它只作用于那一头，不会把另一头一起哑掉 —— 1.41 的「进 / 出各设各的」不能破。
+        if (!EscalatorSpeedData.HELP_AUDIO_OFF.equals(id)) {
+            setHelp(level, pos, true);
         }
         data.setDirty();
         return true;
@@ -2866,7 +3271,8 @@ public final class EscalatorSpeedManager {
         }
     }
 
-    public static AudioArg resolveAudioName(ServerLevel level, String name) {
+    /** 【1.28】按分类解析扶梯运行底噪（/futimusic）的素材名：default / off / none / builtin:… / 本分类导入的 .ogg。 */
+    public static AudioArg resolveAudioName(ServerLevel level, String category, String name) {
         if (name == null || name.isEmpty()) {
             return new AudioArg(null, false, "音频名字不能为空");
         }
@@ -2881,22 +3287,23 @@ public final class EscalatorSpeedManager {
             return new AudioArg(name, false, null);
         }
         EscalatorSpeedData data = getServerData(level);
-        if (data.audioLibrary.containsKey(name)) {
+        Set<String> catNames = categoryAudioNames(data, category);
+        if (catNames.contains(name)) {
             return new AudioArg(name, false, null);
         }
         // 玩家少打后缀名时兜底
-        if (!lower.endsWith(".ogg") && data.audioLibrary.containsKey(name + ".ogg")) {
+        if (!lower.endsWith(".ogg") && catNames.contains(name + ".ogg")) {
             return new AudioArg(name + ".ogg", false, null);
         }
-        return new AudioArg(null, false, "存档里没有叫「" + name + "」的音频"
-                + (data.audioLibrary.isEmpty()
-                        ? ""
-                        : ""));
+        return new AudioArg(null, false, "「" + category + "」分类里没有叫「" + name + "」的音频"
+                + (catNames.isEmpty()
+                        ? "（这个分类还没有导入过音频）"
+                        : "（已有：" + previewNames(data, category) + "）"));
     }
 
-    /** 列几个已有音频名，拼进「找不到音频」的提示里。 */
-    private static String previewNames(EscalatorSpeedData data) {
-        List<String> names = new ArrayList<>(data.audioLibrary.keySet());
+    /** 列某个分类里几个已有音频名，拼进「找不到音频」的提示里。 */
+    private static String previewNames(EscalatorSpeedData data, String category) {
+        List<String> names = new ArrayList<>(categoryAudioNames(data, category));
         names.sort(String::compareTo);
         boolean more = names.size() > 6;
         if (more) {
@@ -2917,7 +3324,7 @@ public final class EscalatorSpeedManager {
         if (level.isClientSide()) {
             return getClientDefaultAudio(level.dimension());
         }
-        return getServerData((ServerLevel) level).defaultAudio;
+        return getDefaultAudio((ServerLevel) level);
     }
 
     /** 【1.11】这条扶梯是否有单独绑定的音频（链上任意方块有绑定就算）。 */
@@ -2995,15 +3402,27 @@ public final class EscalatorSpeedManager {
     private static byte[] buildAudioSyncPayload(ServerLevel level) {
         EscalatorSpeedData data = getServerData(level);
         FriendlyByteBuf buf = PacketByteBufs.create();
+        // ① 平铺音频库（名字 → 字节，播放端按名字取）
         buf.writeVarInt(data.audioLibrary.size());
         for (Map.Entry<String, byte[]> entry : data.audioLibrary.entrySet()) {
             buf.writeUtf(entry.getKey(), 128);
             buf.writeByteArray(entry.getValue());
         }
-        Map<String, byte[]> folder = scanAudioFiles(level);
-        buf.writeVarInt(folder.size());
-        for (String name : folder.keySet()) {
-            buf.writeUtf(name, 128);
+        // ②【1.28】分类区：每分类一段（子文件夹待导入名单 + 已导入注册表名单）
+        //    格式：分类数 → (分类名 → 待导入数 → 名字 ×N → 已导入数 → 名字 ×N) × 分类数
+        buf.writeVarInt(ALL_CATEGORIES.length);
+        for (String category : ALL_CATEGORIES) {
+            buf.writeUtf(category, 64);
+            Map<String, byte[]> folder = scanAudioFiles(level, category);
+            buf.writeVarInt(folder.size());
+            for (String name : folder.keySet()) {
+                buf.writeUtf(name, 128);
+            }
+            Set<String> imported = data.audioCategoryNames.getOrDefault(category, Set.of());
+            buf.writeVarInt(imported.size());
+            for (String name : imported) {
+                buf.writeUtf(name, 128);
+            }
         }
         buf.writeVarInt(data.blockAudio.size());
         for (Map.Entry<BlockPos, String> entry : data.blockAudio.entrySet()) {
@@ -3043,6 +3462,88 @@ public final class EscalatorSpeedManager {
                 sendAudioSyncTo(player, level);
             }
         }
+    }
+
+    // ------------------------------------------------------------------
+    // 【1.18.1204】地图图片：分块同步（与音频同步同一个模式）
+    // ------------------------------------------------------------------
+
+    /** 地图图片同步分块大小（与音频一致，留足协议头余量）。 */
+    public static final int PICTURE_CHUNK_SIZE = AUDIO_CHUNK_SIZE;
+
+    /**
+     * 构建**合并全部维度**的图片同步负载（文件名 → 原始字节；客户端自行裁切/缩放/加灰边后写图集）。
+     *
+     * <p>图片库是按维度（主世界/末地/下界）各存一份的，若逐维度发送原始负载，
+     * 空维度（末地/下界）会把主世界刚应用的图片覆盖成空白 —— 这是「重进存档图片丢失、
+     * 需要重新导入」的根因。合并后任何一轮同步都携带完整图片库，空维度不再清空客户端图集。
+     */
+    private static byte[] buildMergedPictureSyncPayload(MinecraftServer server) {
+        Map<String, byte[]> merged = new LinkedHashMap<>();
+        String current = null;
+        for (ServerLevel lv : server.getAllLevels()) {
+            EscalatorSpeedData data = getServerData(lv);
+            for (Map.Entry<String, byte[]> entry : data.pictureLibrary.entrySet()) {
+                merged.putIfAbsent(entry.getKey(), entry.getValue());
+            }
+            // 当前显示图片：取第一个「有图且确实存在于合并库中」的维度（空维度跳过）。
+            if (current == null && data.pictureCurrent != null
+                    && data.pictureLibrary.containsKey(data.pictureCurrent)) {
+                current = data.pictureCurrent;
+            }
+        }
+        FriendlyByteBuf buf = PacketByteBufs.create();
+        buf.writeVarInt(merged.size());
+        for (Map.Entry<String, byte[]> entry : merged.entrySet()) {
+            buf.writeUtf(entry.getKey(), 256);
+            buf.writeByteArray(entry.getValue());
+        }
+        // 当前显示图片（空串 = 库空，客户端显示白色+灰边占位）。
+        buf.writeUtf(current == null ? "" : current, 256);
+        byte[] payload = new byte[buf.readableBytes()];
+        buf.readBytes(payload);
+        return payload;
+    }
+
+    /** 把合并后的图片数据（覆盖全部维度）分块发给单个玩家。 */
+    public static void sendPictureSyncTo(ServerPlayer player, ServerLevel level) {
+        byte[] payload = buildMergedPictureSyncPayload(level.getServer());
+        String dimId = level.dimension().location().toString();
+        int totalChunks = Math.max(1, (payload.length + PICTURE_CHUNK_SIZE - 1) / PICTURE_CHUNK_SIZE);
+        for (int i = 0; i < totalChunks; i++) {
+            int from = i * PICTURE_CHUNK_SIZE;
+            int len = Math.min(PICTURE_CHUNK_SIZE, payload.length - from);
+            byte[] chunk = new byte[len];
+            System.arraycopy(payload, from, chunk, 0, len);
+            FriendlyByteBuf buf = PacketByteBufs.create();
+            buf.writeUtf(dimId, 256);
+            buf.writeVarInt(totalChunks);
+            buf.writeVarInt(i);
+            buf.writeByteArray(chunk);
+            ServerPlayNetworking.send(player, SmoothLift.PICTURE_SYNC_CHANNEL, buf);
+        }
+    }
+
+    /** 把合并后的图片数据（覆盖全部维度）分块同步给所有在线玩家。每人一轮即可，无需逐维度。 */
+    public static void syncPictureToAll(MinecraftServer server) {
+        for (ServerPlayer player : server.getPlayerList().getPlayers()) {
+            sendPictureSyncTo(player, player.serverLevel());
+        }
+    }
+
+    /**
+     * 查询「合并视图」的当前显示图片名（空维度跳过，与 {@link #buildMergedPictureSyncPayload} 同规则）。
+     *
+     * <p>返回 {@code null} 表示当前没有任何一张图片在显示（客户端图集是白色+灰边占位）。
+     */
+    public static String getMergedPictureCurrent(MinecraftServer server) {
+        for (ServerLevel lv : server.getAllLevels()) {
+            EscalatorSpeedData data = getServerData(lv);
+            if (data.pictureCurrent != null && data.pictureLibrary.containsKey(data.pictureCurrent)) {
+                return data.pictureCurrent;
+            }
+        }
+        return null;
     }
 
     // ------------------------------------------------------------------
@@ -3346,19 +3847,18 @@ public final class EscalatorSpeedManager {
     }
 
     // ------------------------------------------------------------------
-    // 【1.46】三提示音（up / down / chime）的**独立子开关**：总开关（/lifthelp）开着时，
-    //   这三个还能各自再关一层。which 一律是 "up" / "down" / "chime"。
+    // 【1.46】四提示音（up / down / open / close）的**独立子开关**：总开关（/lifthelp）开着时，
+    //   这四个还能各自再关一层。which 一律是 "up" / "down" / "open" / "close"。
     //   客户端读镜像、服务端读 SavedData；指令与石斧 UI 都走这一组。
-    //   ★【1.15】指令路径由 /lifthelpup|down|chime 改成 /lifthelp up|down|door
-    //     （door 是 chime 的**别名**：指令/显示用 door，数据层继续叫 chime），
-    //     数据字段名一个字节都不动，旧存档原样可用。
+    //   ★【1.28】原来的 chime（开关门一体）拆成 open（开门）/ close（关门）两项。
     // ------------------------------------------------------------------
 
     private static boolean serverLiftToneEnabled(EscalatorSpeedData data, String which) {
         return switch (which) {
             case "up" -> data.defaultLiftToneUpEnabled;
             case "down" -> data.defaultLiftToneDownEnabled;
-            case "chime" -> data.defaultLiftToneChimeEnabled;
+            case "open" -> data.defaultLiftToneOpenEnabled;
+            case "close" -> data.defaultLiftToneCloseEnabled;
             default -> true;
         };
     }
@@ -3367,7 +3867,8 @@ public final class EscalatorSpeedManager {
         switch (which) {
             case "up" -> data.defaultLiftToneUpEnabled = enabled;
             case "down" -> data.defaultLiftToneDownEnabled = enabled;
-            case "chime" -> data.defaultLiftToneChimeEnabled = enabled;
+            case "open" -> data.defaultLiftToneOpenEnabled = enabled;
+            case "close" -> data.defaultLiftToneCloseEnabled = enabled;
             default -> {
             }
         }
@@ -3380,7 +3881,8 @@ public final class EscalatorSpeedManager {
             return switch (which) {
                 case "up" -> data == null || data.liftToneUpEnabled;
                 case "down" -> data == null || data.liftToneDownEnabled;
-                case "chime" -> data == null || data.liftToneChimeEnabled;
+                case "open" -> data == null || data.liftToneOpenEnabled;
+                case "close" -> data == null || data.liftToneCloseEnabled;
                 default -> true;
             };
         }
@@ -3438,7 +3940,8 @@ public final class EscalatorSpeedManager {
         return switch (which) {
             case "up" -> "上楼提示音";
             case "down" -> "下楼提示音";
-            case "chime" -> "开关门提示音";
+            case "open" -> "开门提示音";
+            case "close" -> "关门提示音";
             default -> "提示音";
         };
     }
@@ -3461,7 +3964,8 @@ public final class EscalatorSpeedManager {
         return switch (which) {
             case "up" -> data.defaultLiftToneAudioUp;
             case "down" -> data.defaultLiftToneAudioDown;
-            case "chime" -> data.defaultLiftToneAudioChime;
+            case "open" -> data.defaultLiftToneAudioOpen;
+            case "close" -> data.defaultLiftToneAudioClose;
             default -> EscalatorSpeedData.LIFT_TONE_DEFAULT;
         };
     }
@@ -3471,7 +3975,8 @@ public final class EscalatorSpeedManager {
         switch (which) {
             case "up" -> data.defaultLiftToneAudioUp = id;
             case "down" -> data.defaultLiftToneAudioDown = id;
-            case "chime" -> data.defaultLiftToneAudioChime = id;
+            case "open" -> data.defaultLiftToneAudioOpen = id;
+            case "close" -> data.defaultLiftToneAudioClose = id;
             default -> {
             }
         }
@@ -3484,7 +3989,8 @@ public final class EscalatorSpeedManager {
             return EscalatorSpeedData.normalizeLiftToneAudio(switch (which) {
                 case "up" -> data == null ? null : data.liftToneAudioUp;
                 case "down" -> data == null ? null : data.liftToneAudioDown;
-                case "chime" -> data == null ? null : data.liftToneAudioChime;
+                case "open" -> data == null ? null : data.liftToneAudioOpen;
+                case "close" -> data == null ? null : data.liftToneAudioClose;
                 default -> null;
             });
         }
@@ -3560,12 +4066,14 @@ public final class EscalatorSpeedManager {
                     EscalatorSpeedData.LiftToneAudio t = e.getValue();
                     String up = "up".equals(which) && src.equals(t.up()) ? id : t.up();
                     String down = "down".equals(which) && src.equals(t.down()) ? id : t.down();
-                    String chime = "chime".equals(which) && src.equals(t.chime()) ? id : t.chime();
-                    if (!up.equals(t.up()) || !down.equals(t.down()) || !chime.equals(t.chime())) {
+                    String open = "open".equals(which) && src.equals(t.open()) ? id : t.open();
+                    String close = "close".equals(which) && src.equals(t.close()) ? id : t.close();
+                    if (!up.equals(t.up()) || !down.equals(t.down())
+                            || !open.equals(t.open()) || !close.equals(t.close())) {
                         touched = true;
                     }
-                    if (!EscalatorSpeedData.isLiftToneAllDefault(up, down, chime)) {
-                        next.put(e.getKey(), new EscalatorSpeedData.LiftToneAudio(up, down, chime));
+                    if (!EscalatorSpeedData.isLiftToneAllDefault(up, down, open, close)) {
+                        next.put(e.getKey(), new EscalatorSpeedData.LiftToneAudio(up, down, open, close));
                     }
                 }
                 if (touched) {
@@ -3583,7 +4091,7 @@ public final class EscalatorSpeedManager {
 
     /**
      * 【1.15】把「按竖井列单独设置」里 {@code which} 这一项**改回「跟维度默认」**；
-     * 三项都变成默认的那条记录直接删掉（表越干净越好查）。
+     * 四项都变成默认的那条记录直接删掉（表越干净越好查）。
      *
      * @return 真的改动过才 true
      */
@@ -3597,12 +4105,14 @@ public final class EscalatorSpeedManager {
             EscalatorSpeedData.LiftToneAudio t = e.getValue();
             String up = "up".equals(which) ? EscalatorSpeedData.LIFT_TONE_DEFAULT : t.up();
             String down = "down".equals(which) ? EscalatorSpeedData.LIFT_TONE_DEFAULT : t.down();
-            String chime = "chime".equals(which) ? EscalatorSpeedData.LIFT_TONE_DEFAULT : t.chime();
-            if (!up.equals(t.up()) || !down.equals(t.down()) || !chime.equals(t.chime())) {
+            String open = "open".equals(which) ? EscalatorSpeedData.LIFT_TONE_DEFAULT : t.open();
+            String close = "close".equals(which) ? EscalatorSpeedData.LIFT_TONE_DEFAULT : t.close();
+            if (!up.equals(t.up()) || !down.equals(t.down())
+                    || !open.equals(t.open()) || !close.equals(t.close())) {
                 touched = true;
             }
-            if (!EscalatorSpeedData.isLiftToneAllDefault(up, down, chime)) {
-                next.put(e.getKey(), new EscalatorSpeedData.LiftToneAudio(up, down, chime));
+            if (!EscalatorSpeedData.isLiftToneAllDefault(up, down, open, close)) {
+                next.put(e.getKey(), new EscalatorSpeedData.LiftToneAudio(up, down, open, close));
             }
         }
         if (!touched) {
@@ -3629,7 +4139,8 @@ public final class EscalatorSpeedManager {
      * Brigadier 的字面量优先于字符串参数 ⇒ 玩家打不出「把默认素材设成 off」这一句。
      * 这里仍然认 {@code off} 只是让「别处传进来 / 玩家从别处抄来的写法」不至于报错。
      */
-    public static AudioArg resolveLiftToneName(ServerLevel level, String name) {
+    /** 【1.28】按分类解析直梯提示音素材名（/lifthelp up|down|open|close <名字>）。 */
+    public static AudioArg resolveLiftToneName(ServerLevel level, String category, String name) {
         if (name == null || name.isEmpty()) {
             return new AudioArg(null, false, "音频名字不能为空");
         }
@@ -3641,31 +4152,28 @@ public final class EscalatorSpeedManager {
             return new AudioArg(EscalatorSpeedData.LIFT_TONE_OFF, true, null);
         }
         EscalatorSpeedData data = getServerData(level);
-        if (data.audioLibrary.containsKey(name)) {
+        Set<String> catNames = categoryAudioNames(data, category);
+        if (catNames.contains(name)) {
             return new AudioArg(name, false, null);
         }
         // 玩家少打后缀名时兜底（与 /futimusic 同一手法）
-        if (!lower.endsWith(".ogg") && data.audioLibrary.containsKey(name + ".ogg")) {
+        if (!lower.endsWith(".ogg") && catNames.contains(name + ".ogg")) {
             return new AudioArg(name + ".ogg", false, null);
         }
-        return new AudioArg(null, false, "存档里没有叫「" + name + "」的音频。直梯提示音可以用 "
+        return new AudioArg(null, false, "「" + category + "」分类里没有叫「" + name + "」的音频。直梯提示音可以用 "
                 + EscalatorSpeedData.LIFT_TONE_DEFAULT + " 内置素材、none 不播，或用导入过的 .ogg；"
-                + (data.audioLibrary.isEmpty()
+                + (catNames.isEmpty()
                         ? "现在还没有导入过任何音频，玩家需要在石斧界面里上传或导入 .ogg"
-                        : "已有的：" + previewNames(data)));
-    }
-
-    /** 【1.15】服务端：当前维度音频库里已有的音频 ID（文件名），供指令补全用。 */
-    public static Set<String> getServerAudioLibraryKeys(ServerLevel level) {
-        return java.util.Collections.unmodifiableSet(getServerData(level).audioLibrary.keySet());
+                        : "已有的：" + previewNames(data, category)));
     }
 
     /**
      * 【1.15】直梯提示音名字参数的 Tab 补全候选（**字典序，default / none 排在最前**）：
-     * 模组内置素材 {@code default}、不播 {@code none}，然后是玩家导入的每一个 .ogg 文件名。
+     * 模组内置素材 {@code default}、不播 {@code none}，然后是**该分类**导入的每一个 .ogg 文件名。
+     * 【1.28】按分类取。
      */
-    public static List<String> liftToneNameCandidates(ServerLevel level) {
-        List<String> names = new ArrayList<>(getServerAudioLibraryKeys(level));
+    public static List<String> liftToneNameCandidates(ServerLevel level, String category) {
+        List<String> names = new ArrayList<>(getServerAudioLibraryKeys(level, category));
         names.sort(String::compareTo);
         List<String> out = new ArrayList<>(names.size() + 2);
         out.add(EscalatorSpeedData.LIFT_TONE_DEFAULT);
@@ -3700,8 +4208,8 @@ public final class EscalatorSpeedManager {
     }
 
     // ------------------------------------------------------------------
-    // 【1.48】三项提示音（up / down / chime）**各自的音量**：-1 = 该项没单独调过 → 跟随共用默认。
-    //   which 一律是 "up" / "down" / "chime"（指令子命令用 door = chime 的别名，见 SmoothLift）。
+    // 【1.48】四提示音（up / down / open / close）**各自的音量**：-1 = 该项没单独调过 → 跟随共用默认。
+    //   which 一律是 "up" / "down" / "open" / "close"。
     //   客户端读镜像、服务端读 SavedData；石斧 UI 每个列表里的音量输入框走这一组。
     // ------------------------------------------------------------------
 
@@ -3709,7 +4217,8 @@ public final class EscalatorSpeedManager {
         return switch (which) {
             case "up" -> data.defaultLiftToneVolumeUp;
             case "down" -> data.defaultLiftToneVolumeDown;
-            case "chime" -> data.defaultLiftToneVolumeChime;
+            case "open" -> data.defaultLiftToneVolumeOpen;
+            case "close" -> data.defaultLiftToneVolumeClose;
             default -> EscalatorSpeedData.LIFT_TONE_VOLUME_UNSET;
         };
     }
@@ -3718,7 +4227,8 @@ public final class EscalatorSpeedManager {
         switch (which) {
             case "up" -> data.defaultLiftToneVolumeUp = EscalatorSpeedData.clampLiftToneVolume(volume);
             case "down" -> data.defaultLiftToneVolumeDown = EscalatorSpeedData.clampLiftToneVolume(volume);
-            case "chime" -> data.defaultLiftToneVolumeChime = EscalatorSpeedData.clampLiftToneVolume(volume);
+            case "open" -> data.defaultLiftToneVolumeOpen = EscalatorSpeedData.clampLiftToneVolume(volume);
+            case "close" -> data.defaultLiftToneVolumeClose = EscalatorSpeedData.clampLiftToneVolume(volume);
             default -> {
             }
         }
@@ -3732,7 +4242,8 @@ public final class EscalatorSpeedManager {
             own = switch (which) {
                 case "up" -> data == null ? EscalatorSpeedData.LIFT_TONE_VOLUME_UNSET : data.liftToneVolumeUp;
                 case "down" -> data == null ? EscalatorSpeedData.LIFT_TONE_VOLUME_UNSET : data.liftToneVolumeDown;
-                case "chime" -> data == null ? EscalatorSpeedData.LIFT_TONE_VOLUME_UNSET : data.liftToneVolumeChime;
+                case "open" -> data == null ? EscalatorSpeedData.LIFT_TONE_VOLUME_UNSET : data.liftToneVolumeOpen;
+                case "close" -> data == null ? EscalatorSpeedData.LIFT_TONE_VOLUME_UNSET : data.liftToneVolumeClose;
                 default -> EscalatorSpeedData.LIFT_TONE_VOLUME_UNSET;
             };
         } else {
@@ -3751,7 +4262,8 @@ public final class EscalatorSpeedManager {
             return switch (which) {
                 case "up" -> data != null && data.liftToneVolumeUp != EscalatorSpeedData.LIFT_TONE_VOLUME_UNSET;
                 case "down" -> data != null && data.liftToneVolumeDown != EscalatorSpeedData.LIFT_TONE_VOLUME_UNSET;
-                case "chime" -> data != null && data.liftToneVolumeChime != EscalatorSpeedData.LIFT_TONE_VOLUME_UNSET;
+                case "open" -> data != null && data.liftToneVolumeOpen != EscalatorSpeedData.LIFT_TONE_VOLUME_UNSET;
+                case "close" -> data != null && data.liftToneVolumeClose != EscalatorSpeedData.LIFT_TONE_VOLUME_UNSET;
                 default -> false;
             };
         }
@@ -3759,14 +4271,14 @@ public final class EscalatorSpeedManager {
                 != EscalatorSpeedData.LIFT_TONE_VOLUME_UNSET;
     }
 
-    /** {@code /lifthelploud up|down|chime <音量>}：只改**本维度**这项的音量。 */
+    /** {@code /lifthelploud up|down|open|close <音量>}：只改**本维度**这项的音量。 */
     public static void setDefaultLiftToneVolume(ServerLevel level, String which, int volume) {
         EscalatorSpeedData data = getServerData(level);
         setServerLiftToneVolume(data, which, volume);
         data.setDirty();
     }
 
-    /** {@code /lifthelploud up|down|chime <X> to <Y>}：本维度这项音量正好是 X 时才改成 Y。 */
+    /** {@code /lifthelploud up|down|open|close <X> to <Y>}：本维度这项音量正好是 X 时才改成 Y。 */
     public static boolean replaceDefaultLiftToneVolume(ServerLevel level, String which, int from, int to) {
         EscalatorSpeedData data = getServerData(level);
         if (serverLiftToneVolume(data, which) != from) {
@@ -3777,7 +4289,7 @@ public final class EscalatorSpeedManager {
         return true;
     }
 
-    /** {@code /lifthelploud -f up|down|chime <音量>}：把**所有维度**这项的音量都设成该值。 */
+    /** {@code /lifthelploud -f up|down|open|close <音量>}：把**所有维度**这项的音量都设成该值。 */
     public static int setDefaultLiftToneVolumeAll(MinecraftServer server, String which, int volume) {
         int changed = 0;
         int clamped = EscalatorSpeedData.clampLiftToneVolume(volume);
@@ -3792,7 +4304,7 @@ public final class EscalatorSpeedManager {
         return changed;
     }
 
-    /** {@code /lifthelploud -f up|down|chime <X> to <Y>}：所有维度里这项音量正好是 X 的改成 Y。 */
+    /** {@code /lifthelploud -f up|down|open|close <X> to <Y>}：所有维度里这项音量正好是 X 的改成 Y。 */
     public static int replaceDefaultLiftToneVolumeAll(MinecraftServer server, String which, int from, int to) {
         int changed = 0;
         int clamped = EscalatorSpeedData.clampLiftToneVolume(to);
@@ -4044,9 +4556,11 @@ public final class EscalatorSpeedManager {
      */
     public static void applyClientLiftChime(ResourceKey<Level> dimension, boolean enabled, float speed,
                                             int volume, boolean upEnabled, boolean downEnabled,
-                                            boolean chimeEnabled, int round,
-                                            int toneVolumeUp, int toneVolumeDown, int toneVolumeChime,
-                                            String toneAudioUp, String toneAudioDown, String toneAudioChime) {
+                                            boolean openEnabled, boolean closeEnabled, int round,
+                                            int toneVolumeUp, int toneVolumeDown,
+                                            int toneVolumeOpen, int toneVolumeClose,
+                                            String toneAudioUp, String toneAudioDown,
+                                            String toneAudioOpen, String toneAudioClose) {
         ClientDimensionData data = CLIENT_DATA.computeIfAbsent(dimension, k -> new ClientDimensionData());
         data.liftHelp = enabled;
         data.liftHelpSpeed = EscalatorSpeedData.clampLiftHelpSpeed(speed);
@@ -4054,14 +4568,17 @@ public final class EscalatorSpeedManager {
         data.liftHelpRound = EscalatorSpeedData.clampLiftHelpRound(round);
         data.liftToneUpEnabled = upEnabled;
         data.liftToneDownEnabled = downEnabled;
-        data.liftToneChimeEnabled = chimeEnabled;
+        data.liftToneOpenEnabled = openEnabled;
+        data.liftToneCloseEnabled = closeEnabled;
         data.liftToneVolumeUp = EscalatorSpeedData.clampLiftToneVolume(toneVolumeUp);
         data.liftToneVolumeDown = EscalatorSpeedData.clampLiftToneVolume(toneVolumeDown);
-        data.liftToneVolumeChime = EscalatorSpeedData.clampLiftToneVolume(toneVolumeChime);
-        // 【1.15】三项的维度默认素材
+        data.liftToneVolumeOpen = EscalatorSpeedData.clampLiftToneVolume(toneVolumeOpen);
+        data.liftToneVolumeClose = EscalatorSpeedData.clampLiftToneVolume(toneVolumeClose);
+        // 【1.15】四项的维度默认素材
         data.liftToneAudioUp = EscalatorSpeedData.normalizeLiftToneAudio(toneAudioUp);
         data.liftToneAudioDown = EscalatorSpeedData.normalizeLiftToneAudio(toneAudioDown);
-        data.liftToneAudioChime = EscalatorSpeedData.normalizeLiftToneAudio(toneAudioChime);
+        data.liftToneAudioOpen = EscalatorSpeedData.normalizeLiftToneAudio(toneAudioOpen);
+        data.liftToneAudioClose = EscalatorSpeedData.normalizeLiftToneAudio(toneAudioClose);
         clientLiftChimeGeneration++;
     }
 
@@ -4075,12 +4592,12 @@ public final class EscalatorSpeedManager {
 
     /**
      * 【1.42】构建某个维度的「直梯提示音」同步包：维度默认开关 + 维度默认倍速
-     * 【1.43】+ 维度默认音量。【1.46】+ 三提示音独立子开关。
-     * 【1.15】+ 三项的**维度默认素材**（up / down / chime）。
+     * 【1.43】+ 维度默认音量。【1.46】+ 四提示音独立子开关（up/down/open/close）。
+     * 【1.15】+ 四项的**维度默认素材**。
      *
      * <p>字段顺序**就是** {@link #applyClientLiftChime} 的入参顺序，两处必须一起改
      * （客户端 {@code SmoothLiftClient} 那边是按同一顺序读的）：
-     * {@code dimId → enabled → speed → volume → upEnabled → downEnabled → chimeEnabled}。
+     * {@code dimId → enabled → speed → volume → upEnabled → downEnabled → openEnabled → closeEnabled}。
      */
     private static FriendlyByteBuf buildLiftChimePacket(ServerLevel level) {
         EscalatorSpeedData data = getServerData(level);
@@ -4091,17 +4608,20 @@ public final class EscalatorSpeedManager {
         buf.writeVarInt(data.defaultLiftHelpVolume);
         buf.writeBoolean(data.defaultLiftToneUpEnabled);
         buf.writeBoolean(data.defaultLiftToneDownEnabled);
-        buf.writeBoolean(data.defaultLiftToneChimeEnabled);
-        // 【1.47】淡入淡出范围（三项共用）
+        buf.writeBoolean(data.defaultLiftToneOpenEnabled);
+        buf.writeBoolean(data.defaultLiftToneCloseEnabled);
+        // 【1.47】淡入淡出范围（四项共用）
         buf.writeVarInt(data.defaultLiftHelpRound);
-        // 【1.48】三项各自音量（-1 = 跟随共用默认）
+        // 【1.48】四项各自音量（-1 = 跟随共用默认）
         buf.writeVarInt(data.defaultLiftToneVolumeUp);
         buf.writeVarInt(data.defaultLiftToneVolumeDown);
-        buf.writeVarInt(data.defaultLiftToneVolumeChime);
-        // 【1.15】三项的维度默认素材（包尾追加，读侧顺序必须一致）
+        buf.writeVarInt(data.defaultLiftToneVolumeOpen);
+        buf.writeVarInt(data.defaultLiftToneVolumeClose);
+        // 【1.15】四项的维度默认素材（包尾追加，读侧顺序必须一致）
         buf.writeUtf(EscalatorSpeedData.normalizeLiftToneAudio(data.defaultLiftToneAudioUp), 128);
         buf.writeUtf(EscalatorSpeedData.normalizeLiftToneAudio(data.defaultLiftToneAudioDown), 128);
-        buf.writeUtf(EscalatorSpeedData.normalizeLiftToneAudio(data.defaultLiftToneAudioChime), 128);
+        buf.writeUtf(EscalatorSpeedData.normalizeLiftToneAudio(data.defaultLiftToneAudioOpen), 128);
+        buf.writeUtf(EscalatorSpeedData.normalizeLiftToneAudio(data.defaultLiftToneAudioClose), 128);
         return buf;
     }
 
@@ -4155,7 +4675,7 @@ public final class EscalatorSpeedManager {
     }
 
     /**
-     * 【1.45】按「哪一项（up/down/chime）」定位值；{@code which} 不属于这三者 → null。
+     * 【1.45】按「哪一项（up/down/open/close）」定位值；{@code which} 不属于这四项 → null。
      *
      * <p>【1.15】改成 public：播放端（{@code LiftChimePlayer}）要拿它做「单独设置」这一层的
      * 取值，再按「default = 跟维度默认」往下回落。
@@ -4164,7 +4684,8 @@ public final class EscalatorSpeedManager {
         return switch (which) {
             case "up" -> tone.up();
             case "down" -> tone.down();
-            case "chime" -> tone.chime();
+            case "open" -> tone.open();
+            case "close" -> tone.close();
             default -> null;
         };
     }
@@ -4172,15 +4693,16 @@ public final class EscalatorSpeedManager {
     /**
      * 校验并写入一个直梯提示音设置。
      *
-     * @return 成功写入了才 true；{@code audioId} 不是 default / off / 音频库里存在的 id → false。
+     * @return 成功写入了才 true；{@code audioId} 不是 default / off / 该分类音频库里存在的 id → false。
+     * 【1.28】素材校验按这一项的**分类**走（up→lift/up、down→lift/down、open→lift/open、close→lift/close）。
      */
     public static boolean setServerLiftTone(ServerLevel level, long key, String which, String audioId) {
-        if (!"up".equals(which) && !"down".equals(which) && !"chime".equals(which)) {
+        if (!"up".equals(which) && !"down".equals(which) && !"open".equals(which) && !"close".equals(which)) {
             return false;
         }
         if (!EscalatorSpeedData.LIFT_TONE_DEFAULT.equals(audioId)
                 && !EscalatorSpeedData.LIFT_TONE_OFF.equals(audioId)
-                && !getServerData(level).audioLibrary.containsKey(audioId)) {
+                && !categoryAudioNames(getServerData(level), liftToneCategory(which)).contains(audioId)) {
             return false;
         }
         EscalatorSpeedData data = getServerData(level);
@@ -4190,22 +4712,35 @@ public final class EscalatorSpeedManager {
         }
         String up = "up".equals(which) ? audioId : old.up();
         String down = "down".equals(which) ? audioId : old.down();
-        String chime = "chime".equals(which) ? audioId : old.chime();
+        String open = "open".equals(which) ? audioId : old.open();
+        String close = "close".equals(which) ? audioId : old.close();
         if (EscalatorSpeedData.LIFT_TONE_DEFAULT.equals(up)
                 && EscalatorSpeedData.LIFT_TONE_DEFAULT.equals(down)
-                && EscalatorSpeedData.LIFT_TONE_DEFAULT.equals(chime)) {
-            // 三项全默认 = 等于没设置，直接删掉这条记录（表越干净越好查）。
+                && EscalatorSpeedData.LIFT_TONE_DEFAULT.equals(open)
+                && EscalatorSpeedData.LIFT_TONE_DEFAULT.equals(close)) {
+            // 四项全默认 = 等于没设置，直接删掉这条记录（表越干净越好查）。
             data.liftToneAudio.remove(key);
         } else {
-            data.liftToneAudio.put(key, new EscalatorSpeedData.LiftToneAudio(up, down, chime));
+            data.liftToneAudio.put(key, new EscalatorSpeedData.LiftToneAudio(up, down, open, close));
         }
         data.setDirty();
         return true;
     }
 
+    /** 【1.28】直梯提示音「项」→ 音频分类（与界面/指令的文件夹对应）。 */
+    public static String liftToneCategory(String which) {
+        return switch (which) {
+            case "up" -> CAT_LIFT_UP;
+            case "down" -> CAT_LIFT_DOWN;
+            case "open" -> CAT_LIFT_OPEN;
+            case "close" -> CAT_LIFT_CLOSE;
+            default -> CAT_LIFT_OPEN;
+        };
+    }
+
     /**
      * 【1.45】构建某个维度的「直梯楼层轨道提示音」同步包：
-     * {@code dimId → 条数 → (key, up, down, chime) × N}。
+     * {@code dimId → 条数 → (key, up, down, open, close) × N}。
      */
     private static FriendlyByteBuf buildLiftTonePacket(ServerLevel level) {
         EscalatorSpeedData data = getServerData(level);
@@ -4217,7 +4752,8 @@ public final class EscalatorSpeedManager {
             EscalatorSpeedData.LiftToneAudio tone = e.getValue();
             buf.writeUtf(tone.up(), 128);
             buf.writeUtf(tone.down(), 128);
-            buf.writeUtf(tone.chime(), 128);
+            buf.writeUtf(tone.open(), 128);
+            buf.writeUtf(tone.close(), 128);
         }
         return buf;
     }
@@ -4254,7 +4790,8 @@ public final class EscalatorSpeedManager {
         ClientDimensionData data = CLIENT_DATA.computeIfAbsent(dimension, k -> new ClientDimensionData());
         if (EscalatorSpeedData.LIFT_TONE_DEFAULT.equals(tone.up())
                 && EscalatorSpeedData.LIFT_TONE_DEFAULT.equals(tone.down())
-                && EscalatorSpeedData.LIFT_TONE_DEFAULT.equals(tone.chime())) {
+                && EscalatorSpeedData.LIFT_TONE_DEFAULT.equals(tone.open())
+                && EscalatorSpeedData.LIFT_TONE_DEFAULT.equals(tone.close())) {
             data.liftToneAudio.remove(key);
         } else {
             data.liftToneAudio.put(key, tone);
@@ -4268,7 +4805,8 @@ public final class EscalatorSpeedManager {
         switch (which) {
             case "up" -> data.liftToneUpEnabled = enabled;
             case "down" -> data.liftToneDownEnabled = enabled;
-            case "chime" -> data.liftToneChimeEnabled = enabled;
+            case "open" -> data.liftToneOpenEnabled = enabled;
+            case "close" -> data.liftToneCloseEnabled = enabled;
             default -> {
             }
         }
@@ -4289,7 +4827,8 @@ public final class EscalatorSpeedManager {
         switch (which) {
             case "up" -> data.liftToneVolumeUp = v;
             case "down" -> data.liftToneVolumeDown = v;
-            case "chime" -> data.liftToneVolumeChime = v;
+            case "open" -> data.liftToneVolumeOpen = v;
+            case "close" -> data.liftToneVolumeClose = v;
             default -> {
             }
         }
@@ -5290,24 +5829,26 @@ public final class EscalatorSpeedManager {
      *
      * @return 落库后的 id，或 {@code null}（没找到这个名字 = 失败）
      */
-    public static String resolvePsdMidiumName(ServerLevel level, String name) {
+    /** 【1.28】解析 {@code /pbmmidium} 与石斧界面的**素材名**（分类 = pbm/midium）。 */
+    public static String resolvePsdMidiumName(ServerLevel level, String category, String name) {
         if (EscalatorSpeedData.isPsdMidiumOff(name)) {
             return EscalatorSpeedData.PSD_MIDIUM_OFF;
         }
         EscalatorSpeedData data = getServerData(level);
-        if (data.audioLibrary.containsKey(name)) {
+        Set<String> catNames = categoryAudioNames(data, category);
+        if (catNames.contains(name)) {
             return name;
         }
         if (!name.toLowerCase(Locale.ROOT).endsWith(".ogg")) {
             String withExt = name + ".ogg";
-            if (data.audioLibrary.containsKey(withExt)) {
+            if (catNames.contains(withExt)) {
                 return withExt;
             }
-            if (importAudioToStore(level, withExt) == null && data.audioLibrary.containsKey(withExt)) {
+            if (importAudioToStore(level, category, withExt) == null && catNames.contains(withExt)) {
                 return withExt;
             }
         }
-        if (importAudioToStore(level, name) == null && data.audioLibrary.containsKey(name)) {
+        if (importAudioToStore(level, category, name) == null && catNames.contains(name)) {
             return name;
         }
         return null;
@@ -5322,35 +5863,37 @@ public final class EscalatorSpeedManager {
      * ★ 两个方法**故意分开**而不是互相调用：它们的「不播」哨兵眼下是同一个串，
      * 但将来任何一方改了语义都必须是本地改动（本仓那条「一个哨兵同时表达两件事」的教训）。
      */
-    public static String resolvePsdArriveName(ServerLevel level, String name) {
+    /** 【1.28】解析 {@code /pbmarrive} 与石斧界面的**素材名**（分类 = pbm/arrive）。 */
+    public static String resolvePsdArriveName(ServerLevel level, String category, String name) {
         if (EscalatorSpeedData.isPsdArriveOff(name)) {
             return EscalatorSpeedData.PSD_ARRIVE_OFF;
         }
         EscalatorSpeedData data = getServerData(level);
-        if (data.audioLibrary.containsKey(name)) {
+        Set<String> catNames = categoryAudioNames(data, category);
+        if (catNames.contains(name)) {
             return name;
         }
         if (!name.toLowerCase(Locale.ROOT).endsWith(".ogg")) {
             String withExt = name + ".ogg";
-            if (data.audioLibrary.containsKey(withExt)) {
+            if (catNames.contains(withExt)) {
                 return withExt;
             }
-            if (importAudioToStore(level, withExt) == null && data.audioLibrary.containsKey(withExt)) {
+            if (importAudioToStore(level, category, withExt) == null && catNames.contains(withExt)) {
                 return withExt;
             }
         }
-        if (importAudioToStore(level, name) == null && data.audioLibrary.containsKey(name)) {
+        if (importAudioToStore(level, category, name) == null && catNames.contains(name)) {
             return name;
         }
         return null;
     }
 
-    /** 【1.21】{@code /pbmarrive <名字>} 的补全项：音频库里全部名字 + {@code off}。 */
-    public static List<String> psdArriveSuggestions(ServerLevel level) {
+    /** 【1.21】{@code /pbmarrive <名字>} 的补全项：该分类全部名字 + {@code off}。 */
+    public static List<String> psdArriveSuggestions(ServerLevel level, String category) {
         List<String> out = new ArrayList<>();
         out.add(EscalatorSpeedData.PSD_ARRIVE_OFF);
         if (level != null) {
-            List<String> names = new ArrayList<>(getServerData(level).audioLibrary.keySet());
+            List<String> names = new ArrayList<>(categoryAudioNames(getServerData(level), category));
             names.sort(String::compareTo);
             out.addAll(names);
         }
@@ -5408,12 +5951,12 @@ public final class EscalatorSpeedManager {
         return changed;
     }
 
-    /** 【1.17】{@code /pbmmidium <名字>} 的补全项：音频库里全部名字 + {@code off}。 */
-    public static List<String> psdMidiumSuggestions(ServerLevel level) {
+    /** 【1.17】{@code /pbmmidium <名字>} 的补全项：该分类（pbm/midium）全部名字 + {@code off}。 */
+    public static List<String> psdMidiumSuggestions(ServerLevel level, String category) {
         List<String> out = new ArrayList<>();
         out.add(EscalatorSpeedData.PSD_MIDIUM_OFF);
         if (level != null) {
-            List<String> names = new ArrayList<>(getServerData(level).audioLibrary.keySet());
+            List<String> names = new ArrayList<>(categoryAudioNames(getServerData(level), category));
             names.sort(String::compareTo);
             out.addAll(names);
         }
@@ -5512,7 +6055,7 @@ public final class EscalatorSpeedManager {
         String id = EscalatorSpeedData.normalizePsdToneAudio(audioId);
         if (!EscalatorSpeedData.isPsdBuiltinName(id)
                 && !EscalatorSpeedData.PSD_TONE_OFF.equals(id)
-                && !data.audioLibrary.containsKey(id)) {
+                && !categoryAudioNames(data, "open".equals(which) ? CAT_PSD_OPEN : CAT_PSD_CLOSE).contains(id)) {
             return false;
         }
         EscalatorSpeedData.PsdToneAudio old = data.psdToneAudio.get(key);
@@ -5983,7 +6526,8 @@ public final class EscalatorSpeedManager {
      * Brigadier 的字面量优先于字符串参数 ⇒ 玩家打不出「把素材设成 off」这一句。
      * 这里仍然认 {@code off} 只是让从别处抄来的写法不至于报错。
      */
-    public static AudioArg resolvePsdToneName(ServerLevel level, String name) {
+    /** 【1.28】按分类解析屏蔽门提示音素材名（/pbmmusic open|close <名字>）。 */
+    public static AudioArg resolvePsdToneName(ServerLevel level, String category, String name) {
         if (name == null || name.isEmpty()) {
             return new AudioArg(null, false, "音频名字不能为空");
         }
@@ -6004,30 +6548,31 @@ public final class EscalatorSpeedManager {
             return new AudioArg(EscalatorSpeedData.PSD_TONE_OFF, true, null);
         }
         EscalatorSpeedData data = getServerData(level);
-        if (data.audioLibrary.containsKey(name)) {
+        Set<String> catNames = categoryAudioNames(data, category);
+        if (catNames.contains(name)) {
             return new AudioArg(name, false, null);
         }
-        if (!lower.endsWith(".ogg") && data.audioLibrary.containsKey(name + ".ogg")) {
+        if (!lower.endsWith(".ogg") && catNames.contains(name + ".ogg")) {
             return new AudioArg(name + ".ogg", false, null);
         }
-        return new AudioArg(null, false, "存档里没有叫「" + name + "」的音频。屏蔽门提示音可以用 "
+        return new AudioArg(null, false, "「" + category + "」分类里没有叫「" + name + "」的音频。屏蔽门提示音可以用 "
                 + EscalatorSpeedData.PSD_TONE_BUILTIN_OPEN + " / "
                 + EscalatorSpeedData.PSD_TONE_BUILTIN_CLOSE + " / "
                 + EscalatorSpeedData.PSD_TONE_BUILTIN_CLOSE_M + " / "
                 + EscalatorSpeedData.PSD_TONE_BUILTIN_CLOSE_S + " 四段内置素材、none 不播，"
                 + "或用导入过的 .ogg；"
-                + (data.audioLibrary.isEmpty()
+                + (catNames.isEmpty()
                         ? "现在还没有导入过任何音频，玩家需要在石斧界面里上传或导入 .ogg"
-                        : "已有的：" + previewNames(data)));
+                        : "已有的：" + previewNames(data, category)));
     }
 
     /**
      * 【1.15】屏蔽门名字参数的 Tab 补全候选（**四段内置名排最前，然后是 none 与库文件名**）：
      * {@code default} / {@code default-c} / {@code default-m} / {@code default-s} / {@code none}
-     * + 每一个导入过的 .ogg。
+     * + 该分类导入过的每一个 .ogg。【1.28】按分类取。
      */
-    public static List<String> psdNameCandidates(ServerLevel level) {
-        List<String> names = new ArrayList<>(getServerAudioLibraryKeys(level));
+    public static List<String> psdNameCandidates(ServerLevel level, String category) {
+        List<String> names = new ArrayList<>(getServerAudioLibraryKeys(level, category));
         names.sort(String::compareTo);
         List<String> out = new ArrayList<>(names.size() + 5);
         out.add(EscalatorSpeedData.PSD_TONE_BUILTIN_OPEN);

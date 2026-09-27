@@ -82,8 +82,8 @@ import java.util.Set;
  * <p><b>【1.39】提示音可以换成玩家导入的 OGG 了</b>（{@code /futihelpmusic} + 提示音选择界面）。
  * 数据上是与运行底噪**完全对称**的第二套「音频绑定」
  * （{@code defaultHelpAudioIn/Out} / {@code blockHelpAudioIn/Out}），
- * 而且**共用同一个导入文件夹与同一份音频库**（{@code <存档>/MBM_Audio/}）——
- * 导入一次，底噪与提示音两边都能选。取值三种：
+ * 【1.28】音频隔离后两者分文件夹存放：底噪读 {@code <存档>/MBM_Audio/futi/music/}、提示音读
+ * {@code <存档>/MBM_Audio/futi/help/}，各自只列自己分类导入过的音频。取值三种：
  * <ul>
  *   <li>{@link EscalatorSpeedData#HELP_AUDIO_DEFAULT}（{@code default}，初始值，旧存档缺字段也是它）
  *       = **模组原来的提示音**，也就是 1.15~1.34 那套「五档素材 + 速率分档」，行为**逐字节不变**；</li>

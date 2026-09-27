@@ -54,8 +54,6 @@ public class SmoothLift implements ModInitializer {
     public static final ResourceLocation REQUEST_SYNC_CHANNEL = new ResourceLocation("smoothlift", "request_sync");
 
     // 【1.7】自定义扶梯声音
-    /** 客户端 -> 服务端：分块上传一段 OGG 音频（音频ID = 文件名，同名覆盖、可复用）。 */
-    public static final ResourceLocation UPLOAD_AUDIO_CHANNEL = new ResourceLocation("smoothlift", "upload_audio");
     /** 客户端 -> 服务端：把音频绑定到某条扶梯。 */
     public static final ResourceLocation BIND_AUDIO_CHANNEL = new ResourceLocation("smoothlift", "bind_audio");
     /** 客户端 -> 服务端：解绑某条扶梯的音频（之后静音）。 */
@@ -66,6 +64,8 @@ public class SmoothLift implements ModInitializer {
     public static final ResourceLocation IMPORT_FOLDER_AUDIO_CHANNEL = new ResourceLocation("smoothlift", "import_folder_audio");
     /** 服务端 -> 客户端：分块同步音频库与扶梯-音频绑定。 */
     public static final ResourceLocation AUDIO_SYNC_CHANNEL = new ResourceLocation("smoothlift", "audio_sync");
+    /** 【1.18.1204】服务端 -> 客户端：分块同步地图图片库（源图字节，客户端自行切图/缩放/加灰边）。 */
+    public static final ResourceLocation PICTURE_SYNC_CHANNEL = new ResourceLocation("smoothlift", "picture_sync");
     /** 【1.9】客户端 -> 服务端：设置某条扶梯的声音音量（1~100）。 */
     public static final ResourceLocation SET_VOLUME_CHANNEL = new ResourceLocation("smoothlift", "set_volume");
     /** 【1.9】服务端 -> 客户端：同步「扶梯方块 → 声音音量」表（小包，不含音频字节）。 */
@@ -110,7 +110,7 @@ public class SmoothLift implements ModInitializer {
     public static final ResourceLocation SET_LIFT_TONE_CHANNEL = new ResourceLocation("smoothlift", "set_lift_tone");
     /** 【1.48】客户端 -> 服务端：设置**共用默认音量**（石斧 UI 主界面输入框 = /lifthelploud <音量>）。 */
     public static final ResourceLocation SET_LIFT_CHIME_VOLUME_CHANNEL = new ResourceLocation("smoothlift", "set_lift_chime_volume");
-    /** 【1.48】客户端 -> 服务端：设置某一项（up/down/chime）的**单项音量**（石斧 UI 列表输入框 = /lifthelploud up|down|door）。 */
+    /** 【1.48】客户端 -> 服务端：设置某一项（up/down/open/close）的**单项音量**（石斧 UI 列表输入框 = /lifthelploud up|down|open|close）。 */
     public static final ResourceLocation SET_LIFT_TONE_VOLUME_CHANNEL = new ResourceLocation("smoothlift", "set_lift_tone_volume");
     /** 【1.46】客户端 -> 服务端：设置某类提示音（up/down/chime）的**维度默认子开关**（石斧 UI 开关）。 */
     public static final ResourceLocation SET_LIFT_TONE_SWITCH_CHANNEL = new ResourceLocation("smoothlift", "set_lift_tone_switch");
@@ -284,6 +284,9 @@ public class SmoothLift implements ModInitializer {
     public void onInitialize() {
         System.out.println("[SmoothLift] Loaded");
 
+        // 【1.18.1204】地图图片方块（shsubwaypicture 命名空间，12 个方块 + 物品组）
+        PictureBlocks.register();
+
         // 指令树全部在 registerCommands 里注册（抽出来是为了能脱离游戏环境做指令树校验）
         CommandRegistrationCallback.EVENT.register((dispatcher, registryAccess, environment) ->
                 registerCommands(dispatcher));
@@ -431,28 +434,6 @@ public class SmoothLift implements ModInitializer {
             });
         });
 
-        // 客户端分块上传自定义音频。全部块到齐后入库并广播音频同步。
-        ServerPlayNetworking.registerGlobalReceiver(UPLOAD_AUDIO_CHANNEL, (server, player, handler, buf, responseSender) -> {
-            String audioId = buf.readUtf(128);
-            int totalChunks = buf.readVarInt();
-            int chunkIndex = buf.readVarInt();
-            byte[] chunk = buf.readByteArray();
-            server.execute(() -> {
-                ServerLevel level = player.serverLevel();
-                byte[] complete = EscalatorSpeedManager.handleAudioUploadChunk(audioId, totalChunks, chunkIndex, chunk);
-                if (complete == null) {
-                    return;
-                }
-                if (!EscalatorSpeedManager.storeAudio(level, audioId, complete)) {
-                    player.displayClientMessage(Component.literal(
-                            "音频上传失败：文件过大或不是 MC 能播的 Ogg Vorbis"), true);
-                    return;
-                }
-                player.displayClientMessage(Component.literal("音频已上传并存入存档"), true);
-                EscalatorSpeedManager.syncAudioToAll(server);
-            });
-        });
-
         // 客户端把音频绑定到扶梯
         ServerPlayNetworking.registerGlobalReceiver(BIND_AUDIO_CHANNEL, (server, player, handler, buf, responseSender) -> {
             BlockPos pos = buf.readBlockPos();
@@ -483,12 +464,14 @@ public class SmoothLift implements ModInitializer {
             });
         });
 
-        // 客户端从存档删除一段音频（同时解绑所有引用它的扶梯，并向所有玩家重发同步）
+        // 客户端从存档**某个分类**删除一段音频（同时解绑所有引用它的扶梯，并向所有玩家重发同步）
+        //   buf 顺序：category(utf), audioId(utf)。【1.28】分类由发送的界面决定（每个界面只删自己的）。
         ServerPlayNetworking.registerGlobalReceiver(DELETE_AUDIO_CHANNEL, (server, player, handler, buf, responseSender) -> {
+            String category = buf.readUtf(64);
             String audioId = buf.readUtf(128);
             server.execute(() -> {
                 ServerLevel level = player.serverLevel();
-                if (EscalatorSpeedManager.deleteAudio(level, audioId)) {
+                if (EscalatorSpeedManager.deleteAudio(level, category, audioId)) {
                     player.displayClientMessage(Component.literal("已从存档删除音频"), true);
                     EscalatorSpeedManager.syncAudioToAll(server);
                     // 【1.39】提示音那边也可能引用过这一段（共用同一个库），单独设置也要一起刷新
@@ -508,7 +491,7 @@ public class SmoothLift implements ModInitializer {
             });
         });
 
-        // 客户端把存档 MBM_Audio 文件夹里的一个 OGG 导入存档并绑定到扶梯（融入存档，删原文件仍可播）
+        // 客户端把存档 MBM_Audio/futi/music 文件夹里的一个 OGG 导入存档并绑定到扶梯（融入存档，删原文件仍可播）
         ServerPlayNetworking.registerGlobalReceiver(IMPORT_FOLDER_AUDIO_CHANNEL, (server, player, handler, buf, responseSender) -> {
             BlockPos pos = buf.readBlockPos();
             String fileName = buf.readUtf(128);
@@ -517,7 +500,7 @@ public class SmoothLift implements ModInitializer {
                 if (!EscalatorUtil.isEscalator(level.getBlockState(pos))) {
                     return;
                 }
-                String problem = EscalatorSpeedManager.importAudioToStore(level, fileName);
+                String problem = EscalatorSpeedManager.importAudioToStore(level, EscalatorSpeedManager.CAT_FUTI, fileName);
                 if (problem == null) {
                     EscalatorSpeedManager.bindAudio(level, pos, fileName);
                     player.displayClientMessage(Component.literal("已从文件夹导入并与这条扶梯绑定"), true);
@@ -529,7 +512,8 @@ public class SmoothLift implements ModInitializer {
         });
 
         // 【1.41】客户端把一段音频设为这条扶梯**某一头**的无障碍提示音音乐
-        //（与运行底噪的 BIND_AUDIO 完全对称，但数据独立；共用同一个音频库）
+        //（与运行底噪的 BIND_AUDIO 完全对称，但数据独立；【1.28】起提示音读 futi/help 分类、
+        //  底噪读 futi/music，字节库共用）
         //   buf 顺序：pos, audioId, in（in = true → 进入扶梯 / 上客端那一头）
         ServerPlayNetworking.registerGlobalReceiver(BIND_HELP_AUDIO_CHANNEL, (server, player, handler, buf, responseSender) -> {
             BlockPos pos = buf.readBlockPos();
@@ -545,6 +529,10 @@ public class SmoothLift implements ModInitializer {
                             ? "这条扶梯" + helpEndLabel(in) + "的无障碍提示音已设为「不播」"
                             : "已把这段声音设为这条扶梯" + helpEndLabel(in) + "的无障碍提示音"), true);
                     EscalatorSpeedManager.syncHelpAudioToAll(server);
+                    // 【六改】选一段会出声的提示音会**顺手把这一条的无障碍提示音打开**
+                    //   （见 EscalatorSpeedManager#bindHelpAudio）⇒ 开关镜像也要一起同步，
+                    //   否则客户端那边 blockHelp 还是旧的「关」，声音仍然出不来。
+                    EscalatorSpeedManager.syncHelpToAll(server);
                 } else {
                     player.displayClientMessage(Component.literal("设置失败：音频不存在"), true);
                 }
@@ -566,8 +554,7 @@ public class SmoothLift implements ModInitializer {
             });
         });
 
-        // 【1.41】客户端把存档 MBM_Audio 文件夹里的一个 OGG 导入存档并设为提示音音乐
-        //（与运行底噪共用同一个文件夹与同一个库：导入一次，两边都能选）
+        // 【1.41】客户端把存档 MBM_Audio/futi/help 文件夹里的一个 OGG 导入存档并设为提示音音乐
         //   buf 顺序：pos, fileName, in
         ServerPlayNetworking.registerGlobalReceiver(IMPORT_FOLDER_HELP_AUDIO_CHANNEL, (server, player, handler, buf, responseSender) -> {
             BlockPos pos = buf.readBlockPos();
@@ -578,7 +565,7 @@ public class SmoothLift implements ModInitializer {
                 if (!EscalatorUtil.isEscalator(level.getBlockState(pos))) {
                     return;
                 }
-                String problem = EscalatorSpeedManager.importAudioToStore(level, fileName);
+                String problem = EscalatorSpeedManager.importAudioToStore(level, EscalatorSpeedManager.CAT_HELP, fileName);
                 if (problem == null) {
                     EscalatorSpeedManager.bindHelpAudio(level, pos, fileName, in);
                     player.displayClientMessage(Component.literal(
@@ -670,7 +657,8 @@ public class SmoothLift implements ModInitializer {
             String which = buf.readUtf(32);
             boolean enabled = buf.readBoolean();
             server.execute(() -> {
-                if (!"up".equals(which) && !"down".equals(which) && !"chime".equals(which)) {
+                if (!"up".equals(which) && !"down".equals(which)
+                        && !"open".equals(which) && !"close".equals(which)) {
                     return;
                 }
                 ServerLevel level = player.serverLevel();
@@ -696,13 +684,14 @@ public class SmoothLift implements ModInitializer {
             });
         });
 
-        // 【1.48】石斧 UI 单项列表「音量」：= /lifthelploud up|down|door <音量>（该项自己的音量）。
+        // 【1.48】石斧 UI 单项列表「音量」：= /lifthelploud up|down|open|close <音量>（该项自己的音量）。
         //   buf 顺序：which(utf), volume(VarInt)
         ServerPlayNetworking.registerGlobalReceiver(SET_LIFT_TONE_VOLUME_CHANNEL, (server, player, handler, buf, responseSender) -> {
             String which = buf.readUtf(32);
             int volume = buf.readVarInt();
             server.execute(() -> {
-                if (!"up".equals(which) && !"down".equals(which) && !"chime".equals(which)) {
+                if (!"up".equals(which) && !"down".equals(which)
+                        && !"open".equals(which) && !"close".equals(which)) {
                     return;
                 }
                 ServerLevel level = player.serverLevel();
@@ -715,15 +704,16 @@ public class SmoothLift implements ModInitializer {
             });
         });
 
-        // 【1.45】客户端把 MBM_Audio 文件夹里的一个 OGG 导入存档并设为某条直梯的某一项提示音。
-        //   buf 顺序：key(long), which(utf), fileName(utf)
+        // 【1.45】客户端把 MBM_Audio/lift/<which> 文件夹里的一个 OGG 导入存档并设为某条直梯的某一项提示音。
+        //   buf 顺序：key(long), which(utf: up|down|open|close), fileName(utf)
         ServerPlayNetworking.registerGlobalReceiver(IMPORT_FOLDER_LIFT_TONE_CHANNEL, (server, player, handler, buf, responseSender) -> {
             long key = buf.readLong();
             String which = buf.readUtf(32);
             String fileName = buf.readUtf(128);
             server.execute(() -> {
                 ServerLevel level = player.serverLevel();
-                String problem = EscalatorSpeedManager.importAudioToStore(level, fileName);
+                String problem = EscalatorSpeedManager.importAudioToStore(
+                        level, EscalatorSpeedManager.liftToneCategory(which), fileName);
                 if (problem == null) {
                     if (EscalatorSpeedManager.setServerLiftTone(level, key, which, fileName)) {
                         player.displayClientMessage(Component.literal(
@@ -877,7 +867,7 @@ public class SmoothLift implements ModInitializer {
                 //   音频库同步包（AUDIO_SYNC_CHANNEL）—— 不补发这一包，刚导入的曲子会一直挂在
                 //   左列（表现为「点了没反应，重启游戏之后才跑到右边」）。
                 int libBefore = EscalatorSpeedManager.getServerData(level).audioLibrary.size();
-                String resolved = EscalatorSpeedManager.resolvePsdMidiumName(level, name);
+                String resolved = EscalatorSpeedManager.resolvePsdMidiumName(level, EscalatorSpeedManager.CAT_PSD_MIDIUM, name);
                 if (resolved == null) {
                     player.displayClientMessage(Component.literal(
                             "到站播报设置失败：找不到名为「" + name + "」的音频"), true);
@@ -910,7 +900,7 @@ public class SmoothLift implements ModInitializer {
                 // 而客户端的「已导入」列表来自音频库同步包 —— 不补发这一包，
                 // 刚导入的曲子会一直挂在左列（表现为「点了没反应」）。
                 int libBefore = EscalatorSpeedManager.getServerData(level).audioLibrary.size();
-                String resolved = EscalatorSpeedManager.resolvePsdArriveName(level, name);
+                String resolved = EscalatorSpeedManager.resolvePsdArriveName(level, EscalatorSpeedManager.CAT_PSD_ARRIVE, name);
                 if (resolved == null) {
                     player.displayClientMessage(Component.literal(
                             "进站报站设置失败：找不到名为「" + name + "」的音频"), true);
@@ -929,14 +919,16 @@ public class SmoothLift implements ModInitializer {
             });
         });
 
-        // 【1.19】客户端把 MBM_Audio 文件夹里的一段 OGG **只导入存档音频库**（不改设置）。
-        //   buf 顺序：name(utf128)
+        // 【1.19/1.28】客户端把 **某一分类子文件夹** 里的一段 OGG **只导入存档音频库**（不改设置）。
+        //   分类由发送的界面决定（每个界面只导入自己的分类，见发送侧；列车音效也走这一条）。
+        //   buf 顺序：category(utf64), name(utf128)
         ServerPlayNetworking.registerGlobalReceiver(IMPORT_PSD_MIDIUM_AUDIO_CHANNEL,
                 (server, player, handler, buf, responseSender) -> {
+            String category = buf.readUtf(64);
             String name = buf.readUtf(128);
             server.execute(() -> {
                 ServerLevel level = player.serverLevel();
-                String problem = EscalatorSpeedManager.importAudioToStore(level, name);
+                String problem = EscalatorSpeedManager.importAudioToStore(level, category, name);
                 if (problem == null) {
                     player.displayClientMessage(Component.literal(
                             "已导入存档音频库：「" + name + "」"), true);
@@ -969,7 +961,7 @@ public class SmoothLift implements ModInitializer {
             });
         });
 
-        // 【1.50】客户端把 MBM_Audio 文件夹里的一个 OGG 导入存档并设为某一扇门的一项提示音。
+        // 【1.50】客户端把 MBM_Audio/pbm/<which> 文件夹里的一个 OGG 导入存档并设为某一扇门的一项提示音。
         //   buf 顺序：key(long), which(utf), fileName(utf)
         ServerPlayNetworking.registerGlobalReceiver(IMPORT_FOLDER_PSD_TONE_CHANNEL, (server, player, handler, buf, responseSender) -> {
             long key = buf.readLong();
@@ -977,7 +969,9 @@ public class SmoothLift implements ModInitializer {
             String fileName = buf.readUtf(128);
             server.execute(() -> {
                 ServerLevel level = player.serverLevel();
-                String problem = EscalatorSpeedManager.importAudioToStore(level, fileName);
+                String problem = EscalatorSpeedManager.importAudioToStore(
+                        level, "open".equals(which) ? EscalatorSpeedManager.CAT_PSD_OPEN : EscalatorSpeedManager.CAT_PSD_CLOSE,
+                        fileName);
                 if (problem == null) {
                     if (EscalatorSpeedManager.setServerPsdTone(level, key, which, fileName)) {
                         player.displayClientMessage(Component.literal(
@@ -1013,11 +1007,15 @@ public class SmoothLift implements ModInitializer {
             // 【1.50】屏蔽门开关门提示音（开关 + 每扇门单独素材）
             EscalatorSpeedManager.syncPsdChimeToAll(server);
             EscalatorSpeedManager.syncPsdToneToAll(server);
+            // 【1.18.1204】地图图片库：进世界时若不推送，客户端图片库为空，重进存档就要重新导入
+            EscalatorSpeedManager.syncPictureToAll(server);
         });
 
-        // 服务端启动时确保存档音频来源文件夹存在（没有就自动新建）
-        ServerLifecycleEvents.SERVER_STARTED.register(server ->
-                EscalatorSpeedManager.ensureAudioFolder(server.overworld()));
+        // 服务端启动时确保存档来源文件夹存在（音频 MBM_Audio；【1.18.1204】地图图片 MBM_Picture）
+        ServerLifecycleEvents.SERVER_STARTED.register(server -> {
+            EscalatorSpeedManager.ensureAudioFolder(server.overworld());
+            EscalatorSpeedManager.ensurePictureFolder(server.overworld());
+        });
 
         // 客户端进世界后主动请求同步：此时双方频道均已就绪，可靠送达
         ServerPlayNetworking.registerGlobalReceiver(REQUEST_SYNC_CHANNEL, (server, player, handler, buf, responseSender) -> {
@@ -1045,6 +1043,9 @@ public class SmoothLift implements ModInitializer {
                     EscalatorSpeedManager.sendPsdChimeSyncTo(player, level);
                     EscalatorSpeedManager.sendPsdToneSyncTo(player, level);
                 }
+                // 【1.18.1204】地图图片库（文件名 → 源图字节）：负载已合并全部维度，
+                // 发一轮即可——空维度（末地/下界）不再把已应用的图片清空。
+                EscalatorSpeedManager.sendPictureSyncTo(player, player.serverLevel());
             });
         });
 
@@ -1420,7 +1421,7 @@ public class SmoothLift implements ModInitializer {
         String name = StringArgumentType.getString(context, "name");
         CommandSourceStack source = context.getSource();
         ServerLevel level = source.getLevel();
-        EscalatorSpeedManager.AudioArg arg = EscalatorSpeedManager.resolveAudioName(level, name);
+        EscalatorSpeedManager.AudioArg arg = EscalatorSpeedManager.resolveAudioName(level, EscalatorSpeedManager.CAT_FUTI, name);
         if (!arg.ok()) {
             source.sendFailure(Component.literal(arg.error()));
             return 0;
@@ -1444,12 +1445,12 @@ public class SmoothLift implements ModInitializer {
         String targetName = StringArgumentType.getString(context, "target");
         CommandSourceStack source = context.getSource();
         ServerLevel level = source.getLevel();
-        EscalatorSpeedManager.AudioArg from = EscalatorSpeedManager.resolveAudioName(level, name);
+        EscalatorSpeedManager.AudioArg from = EscalatorSpeedManager.resolveAudioName(level, EscalatorSpeedManager.CAT_FUTI, name);
         if (!from.ok()) {
             source.sendFailure(Component.literal(from.error()));
             return 0;
         }
-        EscalatorSpeedManager.AudioArg to = EscalatorSpeedManager.resolveAudioName(level, targetName);
+        EscalatorSpeedManager.AudioArg to = EscalatorSpeedManager.resolveAudioName(level, EscalatorSpeedManager.CAT_FUTI, targetName);
         if (!to.ok()) {
             source.sendFailure(Component.literal(to.error()));
             return 0;
@@ -1472,7 +1473,7 @@ public class SmoothLift implements ModInitializer {
         String name = StringArgumentType.getString(context, "name");
         CommandSourceStack source = context.getSource();
         ServerLevel level = source.getLevel();
-        EscalatorSpeedManager.AudioArg arg = EscalatorSpeedManager.resolveAudioName(level, name);
+        EscalatorSpeedManager.AudioArg arg = EscalatorSpeedManager.resolveAudioName(level, EscalatorSpeedManager.CAT_FUTI, name);
         if (!arg.ok()) {
             source.sendFailure(Component.literal(arg.error()));
             return 0;
@@ -1496,12 +1497,12 @@ public class SmoothLift implements ModInitializer {
         String targetName = StringArgumentType.getString(context, "target");
         CommandSourceStack source = context.getSource();
         ServerLevel level = source.getLevel();
-        EscalatorSpeedManager.AudioArg from = EscalatorSpeedManager.resolveAudioName(level, name);
+        EscalatorSpeedManager.AudioArg from = EscalatorSpeedManager.resolveAudioName(level, EscalatorSpeedManager.CAT_FUTI, name);
         if (!from.ok()) {
             source.sendFailure(Component.literal(from.error()));
             return 0;
         }
-        EscalatorSpeedManager.AudioArg to = EscalatorSpeedManager.resolveAudioName(level, targetName);
+        EscalatorSpeedManager.AudioArg to = EscalatorSpeedManager.resolveAudioName(level, EscalatorSpeedManager.CAT_FUTI, targetName);
         if (!to.ok()) {
             source.sendFailure(Component.literal(to.error()));
             return 0;
@@ -1526,7 +1527,8 @@ public class SmoothLift implements ModInitializer {
     // 与 /futimusic 的唯一语义差别：
     //   `default` = **模组原来的提示音**（五档「咔啪」素材 + /futihelpspeed 速率），
     //   而不是内置运行底噪；另外多一个 `off` = 这一头不播提示音。
-    // 导入文件夹与音频库**与运行底噪共用**：导入一次，两边都能选。
+    // 【1.28】音频隔离：提示音只读自己分类的子文件夹 MBM_Audio/futi/help（底噪是 futi/music），
+    //   字节库仍共用一份，但「已导入」各自独立：导入一次，只在提示音这边可选。
     //
     // ★【1.41】有 `in`（进入扶梯 / 上客端）与 `out`（离开扶梯 / 落客端）两个子命令，
     //   各是一套**互不影响**的数据（形状与 /futihelpspeed 的 in|out 完全一致）：
@@ -1602,7 +1604,7 @@ public class SmoothLift implements ModInitializer {
         String name = StringArgumentType.getString(context, "name");
         CommandSourceStack source = context.getSource();
         ServerLevel level = source.getLevel();
-        EscalatorSpeedManager.AudioArg arg = EscalatorSpeedManager.resolveHelpAudioName(level, name);
+        EscalatorSpeedManager.AudioArg arg = EscalatorSpeedManager.resolveHelpAudioName(level, EscalatorSpeedManager.CAT_HELP, name);
         if (!arg.ok()) {
             source.sendFailure(Component.literal(arg.error()));
             return 0;
@@ -1621,12 +1623,12 @@ public class SmoothLift implements ModInitializer {
         String targetName = StringArgumentType.getString(context, "target");
         CommandSourceStack source = context.getSource();
         ServerLevel level = source.getLevel();
-        EscalatorSpeedManager.AudioArg from = EscalatorSpeedManager.resolveHelpAudioName(level, name);
+        EscalatorSpeedManager.AudioArg from = EscalatorSpeedManager.resolveHelpAudioName(level, EscalatorSpeedManager.CAT_HELP, name);
         if (!from.ok()) {
             source.sendFailure(Component.literal(from.error()));
             return 0;
         }
-        EscalatorSpeedManager.AudioArg to = EscalatorSpeedManager.resolveHelpAudioName(level, targetName);
+        EscalatorSpeedManager.AudioArg to = EscalatorSpeedManager.resolveHelpAudioName(level, EscalatorSpeedManager.CAT_HELP, targetName);
         if (!to.ok()) {
             source.sendFailure(Component.literal(to.error()));
             return 0;
@@ -1651,7 +1653,7 @@ public class SmoothLift implements ModInitializer {
         String name = StringArgumentType.getString(context, "name");
         CommandSourceStack source = context.getSource();
         ServerLevel level = source.getLevel();
-        EscalatorSpeedManager.AudioArg arg = EscalatorSpeedManager.resolveHelpAudioName(level, name);
+        EscalatorSpeedManager.AudioArg arg = EscalatorSpeedManager.resolveHelpAudioName(level, EscalatorSpeedManager.CAT_HELP, name);
         if (!arg.ok()) {
             source.sendFailure(Component.literal(arg.error()));
             return 0;
@@ -1670,12 +1672,12 @@ public class SmoothLift implements ModInitializer {
         String targetName = StringArgumentType.getString(context, "target");
         CommandSourceStack source = context.getSource();
         ServerLevel level = source.getLevel();
-        EscalatorSpeedManager.AudioArg from = EscalatorSpeedManager.resolveHelpAudioName(level, name);
+        EscalatorSpeedManager.AudioArg from = EscalatorSpeedManager.resolveHelpAudioName(level, EscalatorSpeedManager.CAT_HELP, name);
         if (!from.ok()) {
             source.sendFailure(Component.literal(from.error()));
             return 0;
         }
-        EscalatorSpeedManager.AudioArg to = EscalatorSpeedManager.resolveHelpAudioName(level, targetName);
+        EscalatorSpeedManager.AudioArg to = EscalatorSpeedManager.resolveHelpAudioName(level, EscalatorSpeedManager.CAT_HELP, targetName);
         if (!to.ok()) {
             source.sendFailure(Component.literal(to.error()));
             return 0;
@@ -2356,14 +2358,15 @@ public class SmoothLift implements ModInitializer {
     }
 
     /**
-     * 【1.45】直梯提示音三项的中文名（石斧界面 / 指令反馈共用同一套词）。
-     * {@code which} 不是 up/down/chime → 返回「提示音」兜底。
+     * 【1.45】直梯提示音四项的中文名（石斧界面 / 指令反馈共用同一套词）。
+     * {@code which} 不是 up/down/open/close → 返回「提示音」兜底。
      */
     private static String liftToneLabel(String which, String audioId) {
         return switch (which) {
             case "up" -> "上楼提示音";
             case "down" -> "下楼提示音";
-            case "chime" -> "开关门提示音";
+            case "open" -> "开门提示音";
+            case "close" -> "关门提示音";
             default -> "提示音";
         };
     }
@@ -2680,13 +2683,13 @@ public class SmoothLift implements ModInitializer {
     }
 
     // ------------------------------------------------------------------
-    // 【1.48】/lifthelploud up|down|door：三项提示音**各自的**音量
-    //   up = 上楼 / down = 下楼 / door = 开关门（chime 的别名）。
+    // 【1.48】/lifthelploud up|down|open|close：四提示音**各自的**音量
+    //   up = 上楼 / down = 下楼 / open = 开门 / close = 关门。
     //   形状与「共用默认音量」一致（<音量> / <X> to <Y> / -f <音量> / -f <X> to <Y>），
     //   只是改的是对应那一项；没单独调过的项跟随共用默认。
     // ------------------------------------------------------------------
 
-    /** 注册某一项（up/down/chime）的音量子命令树。{@code literal} = 界面用名，{@code which} = 数据用名。 */
+    /** 注册某一项（up/down/open/close）的音量子命令树。{@code literal} = 界面用名，{@code which} = 数据用名。 */
     private static LiteralArgumentBuilder<CommandSourceStack> liftToneLoudCommand(String literal, String which) {
         return Commands.literal(literal)
                 .then(Commands.argument("volume", volumeArg())
@@ -2706,7 +2709,7 @@ public class SmoothLift implements ModInitializer {
                                         .executes(context -> liftToneLoudForceFromTo(context, which)))));
     }
 
-    /** /lifthelploud up|down|door &lt;音量&gt; —— 设置**本维度**这一项的音量。 */
+    /** /lifthelploud up|down|open|close &lt;音量&gt; —— 设置**本维度**这一项的音量。 */
     private static int liftToneLoudGlobal(CommandContext<CommandSourceStack> context, String which) {
         int volume = IntegerArgumentType.getInteger(context, "volume");
         CommandSourceStack source = context.getSource();
@@ -2720,7 +2723,7 @@ public class SmoothLift implements ModInitializer {
         return 1;
     }
 
-    /** /lifthelploud up|down|door &lt;X&gt; to &lt;Y&gt; —— 本维度这一项音量正好是 X 时才改成 Y。 */
+    /** /lifthelploud up|down|open|close &lt;X&gt; to &lt;Y&gt; —— 本维度这一项音量正好是 X 时才改成 Y。 */
     private static int liftToneLoudFromTo(CommandContext<CommandSourceStack> context, String which) {
         int from = IntegerArgumentType.getInteger(context, "volume");
         int to = IntegerArgumentType.getInteger(context, "target");
@@ -2775,12 +2778,9 @@ public class SmoothLift implements ModInitializer {
         return 1;
     }
 
-    /** 【1.48】数据用名（up/down/chime）→ 指令里的字面名（door 是 chime 的别名）。 */
+    /** 【1.48】数据用名 → 指令里的字面名。【1.28】up/down/open/close 全部同名，不再有 door → chime 别名。 */
     private static String literalName(String which) {
-        return switch (which) {
-            case "chime" -> "door";
-            default -> which;
-        };
+        return which;
     }
 
     // ------------------------------------------------------------------
@@ -2957,13 +2957,13 @@ public class SmoothLift implements ModInitializer {
      * 不要在这里抛 NPE：补全异常不会被 Brigadier 的 {@code CommandSyntaxException} 兜住。
      */
     private static CompletableFuture<Suggestions> liftToneNameSuggestions(
-            CommandContext<CommandSourceStack> context, SuggestionsBuilder builder) {
+            CommandContext<CommandSourceStack> context, SuggestionsBuilder builder, String category) {
         CommandSourceStack source = context.getSource();
         if (source == null) {
             return builder.buildFuture();
         }
         String typed = builder.getRemainingLowerCase();
-        for (String candidate : EscalatorSpeedManager.liftToneNameCandidates(source.getLevel())) {
+        for (String candidate : EscalatorSpeedManager.liftToneNameCandidates(source.getLevel(), category)) {
             if (candidate.toLowerCase(Locale.ROOT).startsWith(typed)) {
                 builder.suggest(candidate);
             }
@@ -3052,7 +3052,7 @@ public class SmoothLift implements ModInitializer {
         String name = StringArgumentType.getString(context, "name");
         CommandSourceStack source = context.getSource();
         ServerLevel level = source.getLevel();
-        EscalatorSpeedManager.AudioArg arg = EscalatorSpeedManager.resolveLiftToneName(level, name);
+        EscalatorSpeedManager.AudioArg arg = EscalatorSpeedManager.resolveLiftToneName(level, EscalatorSpeedManager.liftToneCategory(which), name);
         if (!arg.ok()) {
             source.sendFailure(Component.literal(arg.error()));
             return 0;
@@ -3073,12 +3073,12 @@ public class SmoothLift implements ModInitializer {
         String targetName = StringArgumentType.getString(context, "target");
         CommandSourceStack source = context.getSource();
         ServerLevel level = source.getLevel();
-        EscalatorSpeedManager.AudioArg from = EscalatorSpeedManager.resolveLiftToneName(level, name);
+        EscalatorSpeedManager.AudioArg from = EscalatorSpeedManager.resolveLiftToneName(level, EscalatorSpeedManager.liftToneCategory(which), name);
         if (!from.ok()) {
             source.sendFailure(Component.literal(from.error()));
             return 0;
         }
-        EscalatorSpeedManager.AudioArg to = EscalatorSpeedManager.resolveLiftToneName(level, targetName);
+        EscalatorSpeedManager.AudioArg to = EscalatorSpeedManager.resolveLiftToneName(level, EscalatorSpeedManager.liftToneCategory(which), targetName);
         if (!to.ok()) {
             source.sendFailure(Component.literal(to.error()));
             return 0;
@@ -3106,7 +3106,7 @@ public class SmoothLift implements ModInitializer {
         String name = StringArgumentType.getString(context, "name");
         CommandSourceStack source = context.getSource();
         ServerLevel level = source.getLevel();
-        EscalatorSpeedManager.AudioArg arg = EscalatorSpeedManager.resolveLiftToneName(level, name);
+        EscalatorSpeedManager.AudioArg arg = EscalatorSpeedManager.resolveLiftToneName(level, EscalatorSpeedManager.liftToneCategory(which), name);
         if (!arg.ok()) {
             source.sendFailure(Component.literal(arg.error()));
             return 0;
@@ -3127,12 +3127,12 @@ public class SmoothLift implements ModInitializer {
         String targetName = StringArgumentType.getString(context, "target");
         CommandSourceStack source = context.getSource();
         ServerLevel level = source.getLevel();
-        EscalatorSpeedManager.AudioArg from = EscalatorSpeedManager.resolveLiftToneName(level, name);
+        EscalatorSpeedManager.AudioArg from = EscalatorSpeedManager.resolveLiftToneName(level, EscalatorSpeedManager.liftToneCategory(which), name);
         if (!from.ok()) {
             source.sendFailure(Component.literal(from.error()));
             return 0;
         }
-        EscalatorSpeedManager.AudioArg to = EscalatorSpeedManager.resolveLiftToneName(level, targetName);
+        EscalatorSpeedManager.AudioArg to = EscalatorSpeedManager.resolveLiftToneName(level, EscalatorSpeedManager.liftToneCategory(which), targetName);
         if (!to.ok()) {
             source.sendFailure(Component.literal(to.error()));
             return 0;
@@ -3155,13 +3155,13 @@ public class SmoothLift implements ModInitializer {
     }
 
     /**
-     * 注册 `/lifthelp` 下面的一条子命令树：{@code up} / {@code down} / {@code door}。
+     * 注册 `/lifthelp` 下面的一条子命令树：{@code up} / {@code down} / {@code open} / {@code close}。
      *
-     * @param literal 指令里写的名字（{@code up} / {@code down} / {@code door}）
-     * @param which   数据层用的项目名（{@code up} / {@code down} / {@code chime}）
-     *                —— 只有 door 需要映射成 chime，其余两个同名。
+     * @param literal 指令里写的名字（与数据层同名：{@code up} / {@code down} / {@code open} / {@code close}）
+     * @param which   数据层用的项目名（同 literal；【1.28】旧的 door → chime 别名已拆成 open / close 两个字面量）
      */
     private static LiteralArgumentBuilder<CommandSourceStack> liftToneBranch(String literal, String which) {
+        String category = EscalatorSpeedManager.liftToneCategory(which);
         return Commands.literal(literal)
                 .executes(context -> liftToneShow(context, literal, which))
                 // ★ 顺序即优先级：字面量必须排在字符串参数前面（详见本节开头那段说明）。
@@ -3187,18 +3187,18 @@ public class SmoothLift implements ModInitializer {
                                         .then(Commands.literal("on")
                                                 .executes(context -> liftToneSwitchForceFromTo(context, which, false, true)))))
                         .then(Commands.argument("name", StringArgumentType.string())
-                                .suggests(SmoothLift::liftToneNameSuggestions)
+                                .suggests((ctx, b) -> liftToneNameSuggestions(ctx, b, category))
                                 .executes(context -> liftToneAudioForceSet(context, literal, which))
                                 .then(Commands.literal("to")
                                         .then(Commands.argument("target", StringArgumentType.string())
-                                                .suggests(SmoothLift::liftToneNameSuggestions)
+                                                .suggests((ctx, b) -> liftToneNameSuggestions(ctx, b, category))
                                                 .executes(context -> liftToneAudioForceFromTo(context, which))))))
                 .then(Commands.argument("name", StringArgumentType.string())
-                        .suggests(SmoothLift::liftToneNameSuggestions)
+                        .suggests((ctx, b) -> liftToneNameSuggestions(ctx, b, category))
                         .executes(context -> liftToneAudioSet(context, literal, which))
                         .then(Commands.literal("to")
                                 .then(Commands.argument("target", StringArgumentType.string())
-                                        .suggests(SmoothLift::liftToneNameSuggestions)
+                                        .suggests((ctx, b) -> liftToneNameSuggestions(ctx, b, category))
                                         .executes(context -> liftToneAudioFromTo(context, literal, which)))));
     }
 
@@ -3243,6 +3243,7 @@ public class SmoothLift implements ModInitializer {
      * @param which   数据用名（open / close，与 {@code EscalatorSpeedManager} 一致）
      */
     private static LiteralArgumentBuilder<CommandSourceStack> pbmMusicItemCommand(String literal, String which) {
+        String category = "open".equals(which) ? EscalatorSpeedManager.CAT_PSD_OPEN : EscalatorSpeedManager.CAT_PSD_CLOSE;
         return Commands.literal(literal)
                 .executes(context -> pbmMusicItemShow(context, which))
                 .then(Commands.literal("on")
@@ -3268,34 +3269,35 @@ public class SmoothLift implements ModInitializer {
                                                 .executes(context -> pbmMusicItemForceFromTo(context, which, false, true)))))
                         // 【1.15】-f <名字> / -f <X> to <Y>
                         .then(Commands.argument("name", StringArgumentType.string())
-                                .suggests(SmoothLift::psdToneNameSuggestions)
+                                .suggests((ctx, b) -> psdToneNameSuggestions(ctx, b, category))
                                 .executes(context -> pbmMusicItemAudioForceSet(context, literal, which))
                                 .then(Commands.literal("to")
                                         .then(Commands.argument("target", StringArgumentType.string())
-                                                .suggests(SmoothLift::psdToneNameSuggestions)
+                                                .suggests((ctx, b) -> psdToneNameSuggestions(ctx, b, category))
                                                 .executes(context -> pbmMusicItemAudioForceFromTo(context, which))))))
                 // 【1.15】<名字> / <X> to <Y>（不带 -f = 只改本维度）
                 .then(Commands.argument("name", StringArgumentType.string())
-                        .suggests(SmoothLift::psdToneNameSuggestions)
+                        .suggests((ctx, b) -> psdToneNameSuggestions(ctx, b, category))
                         .executes(context -> pbmMusicItemAudioSet(context, literal, which))
                         .then(Commands.literal("to")
                                 .then(Commands.argument("target", StringArgumentType.string())
-                                        .suggests(SmoothLift::psdToneNameSuggestions)
+                                        .suggests((ctx, b) -> psdToneNameSuggestions(ctx, b, category))
                                         .executes(context -> pbmMusicItemAudioFromTo(context, literal, which)))));
     }
 
     /**
-     * 【1.15】屏蔽门素材名参数的 Tab 补全：**四段内置名排最前 + none + 玩家导入的每个 .ogg**。
+     * 【1.15】屏蔽门素材名参数的 Tab 补全：**四段内置名排最前 + none + 该分类导入的每个 .ogg**。
      * 与 {@link #liftToneNameSuggestions} 同一套「source 为 null 时给空补全」的保护。
+     * 【1.28】按分类取（open → pbm/open、close → pbm/close）。
      */
     private static CompletableFuture<Suggestions> psdToneNameSuggestions(
-            CommandContext<CommandSourceStack> context, SuggestionsBuilder builder) {
+            CommandContext<CommandSourceStack> context, SuggestionsBuilder builder, String category) {
         CommandSourceStack source = context.getSource();
         if (source == null) {
             return builder.buildFuture();
         }
         String typed = builder.getRemainingLowerCase();
-        for (String candidate : EscalatorSpeedManager.psdNameCandidates(source.getLevel())) {
+        for (String candidate : EscalatorSpeedManager.psdNameCandidates(source.getLevel(), category)) {
             if (candidate.toLowerCase(Locale.ROOT).startsWith(typed)) {
                 builder.suggest(candidate);
             }
@@ -3455,7 +3457,7 @@ public class SmoothLift implements ModInitializer {
         String name = StringArgumentType.getString(context, "name");
         CommandSourceStack source = context.getSource();
         ServerLevel level = source.getLevel();
-        EscalatorSpeedManager.AudioArg arg = EscalatorSpeedManager.resolvePsdToneName(level, name);
+        EscalatorSpeedManager.AudioArg arg = EscalatorSpeedManager.resolvePsdToneName(level, "open".equals(which) ? EscalatorSpeedManager.CAT_PSD_OPEN : EscalatorSpeedManager.CAT_PSD_CLOSE, name);
         if (!arg.ok()) {
             source.sendFailure(Component.literal(arg.error()));
             return 0;
@@ -3476,12 +3478,12 @@ public class SmoothLift implements ModInitializer {
         String targetName = StringArgumentType.getString(context, "target");
         CommandSourceStack source = context.getSource();
         ServerLevel level = source.getLevel();
-        EscalatorSpeedManager.AudioArg from = EscalatorSpeedManager.resolvePsdToneName(level, name);
+        EscalatorSpeedManager.AudioArg from = EscalatorSpeedManager.resolvePsdToneName(level, "open".equals(which) ? EscalatorSpeedManager.CAT_PSD_OPEN : EscalatorSpeedManager.CAT_PSD_CLOSE, name);
         if (!from.ok()) {
             source.sendFailure(Component.literal(from.error()));
             return 0;
         }
-        EscalatorSpeedManager.AudioArg to = EscalatorSpeedManager.resolvePsdToneName(level, targetName);
+        EscalatorSpeedManager.AudioArg to = EscalatorSpeedManager.resolvePsdToneName(level, "open".equals(which) ? EscalatorSpeedManager.CAT_PSD_OPEN : EscalatorSpeedManager.CAT_PSD_CLOSE, targetName);
         if (!to.ok()) {
             source.sendFailure(Component.literal(to.error()));
             return 0;
@@ -3509,7 +3511,7 @@ public class SmoothLift implements ModInitializer {
         String name = StringArgumentType.getString(context, "name");
         CommandSourceStack source = context.getSource();
         ServerLevel level = source.getLevel();
-        EscalatorSpeedManager.AudioArg arg = EscalatorSpeedManager.resolvePsdToneName(level, name);
+        EscalatorSpeedManager.AudioArg arg = EscalatorSpeedManager.resolvePsdToneName(level, "open".equals(which) ? EscalatorSpeedManager.CAT_PSD_OPEN : EscalatorSpeedManager.CAT_PSD_CLOSE, name);
         if (!arg.ok()) {
             source.sendFailure(Component.literal(arg.error()));
             return 0;
@@ -3530,12 +3532,12 @@ public class SmoothLift implements ModInitializer {
         String targetName = StringArgumentType.getString(context, "target");
         CommandSourceStack source = context.getSource();
         ServerLevel level = source.getLevel();
-        EscalatorSpeedManager.AudioArg from = EscalatorSpeedManager.resolvePsdToneName(level, name);
+        EscalatorSpeedManager.AudioArg from = EscalatorSpeedManager.resolvePsdToneName(level, "open".equals(which) ? EscalatorSpeedManager.CAT_PSD_OPEN : EscalatorSpeedManager.CAT_PSD_CLOSE, name);
         if (!from.ok()) {
             source.sendFailure(Component.literal(from.error()));
             return 0;
         }
-        EscalatorSpeedManager.AudioArg to = EscalatorSpeedManager.resolvePsdToneName(level, targetName);
+        EscalatorSpeedManager.AudioArg to = EscalatorSpeedManager.resolvePsdToneName(level, "open".equals(which) ? EscalatorSpeedManager.CAT_PSD_OPEN : EscalatorSpeedManager.CAT_PSD_CLOSE, targetName);
         if (!to.ok()) {
             source.sendFailure(Component.literal(to.error()));
             return 0;
@@ -4204,7 +4206,7 @@ public class SmoothLift implements ModInitializer {
         String name = StringArgumentType.getString(context, "name");
         int seconds = IntegerArgumentType.getInteger(context, "seconds");
         CommandSourceStack source = context.getSource();
-        String resolved = EscalatorSpeedManager.resolvePsdMidiumName(source.getLevel(), name);
+        String resolved = EscalatorSpeedManager.resolvePsdMidiumName(source.getLevel(), EscalatorSpeedManager.CAT_PSD_MIDIUM, name);
         if (resolved == null) {
             sendUnknownMidiumName(source, name);
             return 0;
@@ -4226,7 +4228,7 @@ public class SmoothLift implements ModInitializer {
      */
     private static int pbmMidiumApply(CommandSourceStack source, ServerLevel level,
                                       String name, int seconds, String suffix) {
-        String resolved = EscalatorSpeedManager.resolvePsdMidiumName(level, name);
+        String resolved = EscalatorSpeedManager.resolvePsdMidiumName(level, EscalatorSpeedManager.CAT_PSD_MIDIUM, name);
         if (resolved == null) {
             sendUnknownMidiumName(source, name);
             return 0;
@@ -4243,9 +4245,10 @@ public class SmoothLift implements ModInitializer {
         return 1;
     }
 
-    /** 「这个名字找不到」的统一提示（顺便列出库里已有的名字）。 */
+    /** 「这个名字找不到」的统一提示（顺便列出该分类里已有的名字）。 */
     private static void sendUnknownMidiumName(CommandSourceStack source, String name) {
-        java.util.List<String> have = EscalatorSpeedManager.psdMidiumSuggestions(source.getLevel());
+        java.util.List<String> have = EscalatorSpeedManager.psdMidiumSuggestions(source.getLevel(),
+                EscalatorSpeedManager.CAT_PSD_MIDIUM);
         String list = String.join("、", have);
         source.sendFailure(Component.literal(
                 "找不到名为「" + name + "」的音频。"
@@ -4260,7 +4263,8 @@ public class SmoothLift implements ModInitializer {
             return builder.buildFuture();
         }
         String typed = builder.getRemainingLowerCase();
-        for (String candidate : EscalatorSpeedManager.psdMidiumSuggestions(source.getLevel())) {
+        for (String candidate : EscalatorSpeedManager.psdMidiumSuggestions(source.getLevel(),
+                EscalatorSpeedManager.CAT_PSD_MIDIUM)) {
             if (candidate.toLowerCase(Locale.ROOT).startsWith(typed)) {
                 builder.suggest(candidate);
             }
@@ -4330,7 +4334,7 @@ public class SmoothLift implements ModInitializer {
         String name = StringArgumentType.getString(context, "name");
         int seconds = IntegerArgumentType.getInteger(context, "seconds");
         CommandSourceStack source = context.getSource();
-        String resolved = EscalatorSpeedManager.resolvePsdArriveName(source.getLevel(), name);
+        String resolved = EscalatorSpeedManager.resolvePsdArriveName(source.getLevel(), EscalatorSpeedManager.CAT_PSD_ARRIVE, name);
         if (resolved == null) {
             sendUnknownArriveName(source, name);
             return 0;
@@ -4348,7 +4352,7 @@ public class SmoothLift implements ModInitializer {
     /** `本维度` 那条路共用的落地：解析名字 → 落库 → 同步 → 反馈。 */
     private static int pbmArriveApply(CommandSourceStack source, ServerLevel level,
                                       String name, int seconds, String suffix) {
-        String resolved = EscalatorSpeedManager.resolvePsdArriveName(level, name);
+        String resolved = EscalatorSpeedManager.resolvePsdArriveName(level, EscalatorSpeedManager.CAT_PSD_ARRIVE, name);
         if (resolved == null) {
             sendUnknownArriveName(source, name);
             return 0;
@@ -4365,9 +4369,10 @@ public class SmoothLift implements ModInitializer {
         return 1;
     }
 
-    /** 「这个名字找不到」的统一提示（顺便列出库里已有的名字）。 */
+    /** 「这个名字找不到」的统一提示（顺便列出该分类里已有的名字）。 */
     private static void sendUnknownArriveName(CommandSourceStack source, String name) {
-        java.util.List<String> have = EscalatorSpeedManager.psdArriveSuggestions(source.getLevel());
+        java.util.List<String> have = EscalatorSpeedManager.psdArriveSuggestions(source.getLevel(),
+                EscalatorSpeedManager.CAT_PSD_ARRIVE);
         String list = String.join("、", have);
         source.sendFailure(Component.literal(
                 "找不到名为「" + name + "」的音频。"
@@ -4382,7 +4387,8 @@ public class SmoothLift implements ModInitializer {
             return builder.buildFuture();
         }
         String typed = builder.getRemainingLowerCase();
-        for (String candidate : EscalatorSpeedManager.psdArriveSuggestions(source.getLevel())) {
+        for (String candidate : EscalatorSpeedManager.psdArriveSuggestions(source.getLevel(),
+                EscalatorSpeedManager.CAT_PSD_ARRIVE)) {
             if (candidate.toLowerCase(Locale.ROOT).startsWith(typed)) {
                 builder.suggest(candidate);
             }
@@ -4416,16 +4422,22 @@ public class SmoothLift implements ModInitializer {
     private static int dtMusicImportAll(CommandContext<CommandSourceStack> context) {
         CommandSourceStack source = context.getSource();
         ServerLevel level = source.getLevel();
-        java.util.Map<String, byte[]> folder = EscalatorSpeedManager.scanAudioFiles(level);
-        if (folder.isEmpty()) {
+        // 【1.28】批量导入 = 扫**全部分类子文件夹**（MBM_Audio/<分类>），各自入库到各自分类。
+        java.util.Map<String, String> found = new java.util.LinkedHashMap<>(); // 文件名 → 分类
+        for (String category : EscalatorSpeedManager.ALL_CATEGORIES) {
+            for (String name : EscalatorSpeedManager.scanAudioFiles(level, category).keySet()) {
+                found.putIfAbsent(name, category);
+            }
+        }
+        if (found.isEmpty()) {
             source.sendSuccess(() -> Component.literal(
                     EscalatorSpeedManager.AUDIO_FOLDER + " 文件夹里没有可导入的 .ogg"), false);
             return 0;
         }
         int ok = 0;
         int skipped = 0;
-        for (String name : folder.keySet()) {
-            if (EscalatorSpeedManager.importAudioToStore(level, name) == null) {
+        for (java.util.Map.Entry<String, String> e : found.entrySet()) {
+            if (EscalatorSpeedManager.importAudioToStore(level, e.getValue(), e.getKey()) == null) {
                 ok++;
             } else {
                 skipped++;
@@ -4456,7 +4468,11 @@ public class SmoothLift implements ModInitializer {
         CommandSourceStack source = context.getSource();
         ServerLevel level = source.getLevel();
         EscalatorSpeedData data = EscalatorSpeedManager.getServerData(level);
-        java.util.List<String> ids = new java.util.ArrayList<>(data.audioLibrary.keySet());
+        // 【1.28】删除所有 = 每个分类的已导入名字都删一遍（同名在多个分类时也逐个清干净）。
+        java.util.Set<String> ids = new java.util.LinkedHashSet<>();
+        for (java.util.Set<String> names : data.audioCategoryNames.values()) {
+            ids.addAll(names);
+        }
         if (ids.isEmpty()) {
             source.sendSuccess(() -> Component.literal(
                     "存档音频库里没有已导入的音频"), false);
@@ -4466,8 +4482,10 @@ public class SmoothLift implements ModInitializer {
         int midiumCleared = 0;
         int arriveCleared = 0;
         for (String id : ids) {
-            if (EscalatorSpeedManager.deleteAudio(level, id)) {
-                removed++;
+            for (String category : EscalatorSpeedManager.ALL_CATEGORIES) {
+                if (EscalatorSpeedManager.deleteAudio(level, category, id)) {
+                    removed++;
+                }
             }
             // 与单条删除通道相同的两路兜底：到站播报 / 进站报站指向已删音频的按各自语义回落。
             midiumCleared += EscalatorSpeedManager.clearPsdMidiumIfRemoved(level.getServer(), id);
@@ -4486,6 +4504,165 @@ public class SmoothLift implements ModInitializer {
             }
         }
         return removed;
+    }
+
+    /**
+     * {@code /MBM picture}：【1.18.1204】无参数：反馈当前显示图片的名字。
+     *
+     * <p>查询「合并视图」的当前显示图片（与同步负载同规则：跳过空维度）。
+     * 没有显示任何图片时给出可用的后续指令提示。
+     */
+    private static int dtPictureQuery(CommandContext<CommandSourceStack> context) {
+        CommandSourceStack source = context.getSource();
+        String current = EscalatorSpeedManager.getMergedPictureCurrent(source.getServer());
+        if (current == null) {
+            source.sendSuccess(() -> Component.literal(
+                    "当前没有显示任何图片（可用 /MBM picture <名字> 切换，或用 /MBM picture new 从 "
+                            + EscalatorSpeedManager.PICTURE_FOLDER + " 文件夹导入）"), false);
+            return 0;
+        }
+        source.sendSuccess(() -> Component.literal("当前显示图片：「" + current + "」"), false);
+        return 1;
+    }
+
+    /**
+     * {@code /MBM picture new}：【1.18.1204】把 MBM_Picture 文件夹里的**所有**图片批量导入存档图片库。
+     *
+     * <p>逐张走 {@link EscalatorSpeedManager#importPictureToStore}（大小上限校验；同名已入库的会被
+     * 覆盖，幂等）。★ 图片原始字节直接融入存档（SavedData），之后删除 MBM_Picture 文件夹里的原图
+     * 也不受影响。客户端收到同步后把「当前显示图片」切成 4 块、每块缩放到 1024×1024、按角落给
+     * 外边缘加 64px 灰边，再写进图片方块图集并烘焙上传。
+     *
+     * <p>本次导入的图片会接替当前显示：显示库中**字典序最大**的一张（导入完立刻能在方块上看到）。
+     */
+    private static int dtPictureNewAll(CommandContext<CommandSourceStack> context) {
+        CommandSourceStack source = context.getSource();
+        ServerLevel level = source.getLevel();
+        java.util.Map<String, byte[]> found = EscalatorSpeedManager.scanPictureFiles(level);
+        if (found.isEmpty()) {
+            source.sendSuccess(() -> Component.literal(
+                    EscalatorSpeedManager.PICTURE_FOLDER + " 文件夹里没有可导入的图片（支持 png/jpg/jpeg/bmp）"), false);
+            return 0;
+        }
+        int ok = 0;
+        int skipped = 0;
+        java.util.TreeSet<String> imported = new java.util.TreeSet<>();
+        for (String name : found.keySet()) {
+            if (EscalatorSpeedManager.importPictureToStore(level, name) == null) {
+                ok++;
+                imported.add(name);
+            } else {
+                skipped++;
+            }
+        }
+        if (ok > 0) {
+            // 本次导入的所有图片里字典序最大的一张成为「当前显示图片」。
+            EscalatorSpeedManager.setPictureCurrent(level, imported.last());
+        }
+        String msg = "已导入 " + ok + " 张图片到存档"
+                + (skipped > 0 ? "，跳过 " + skipped + " 张" : "")
+                + (EscalatorSpeedManager.lastScanRejected > 0
+                        ? "，另有 " + EscalatorSpeedManager.lastScanRejected + " 张因体积/尺寸超限被忽略" : "")
+                + (ok > 0 ? "；图片方块将显示「" + imported.last() + "」" : "");
+        source.sendSuccess(() -> Component.literal(msg), false);
+        if (ok > 0) {
+            EscalatorSpeedManager.syncPictureToAll(level.getServer());
+            if (source.getPlayer() != null) {
+                EscalatorSpeedManager.sendPictureSyncTo(source.getPlayer(), level);
+            }
+        }
+        return ok;
+    }
+
+    /**
+     * {@code /MBM picture <名字>}：【1.18.1204】切换当前显示图片为库中名为 XXX 的图片。
+     *
+     * <p>只改「当前显示」，不删库、不动 MBM_Picture 文件夹里的原图。
+     * 图片方块贴图是全局的，因此对**所有维度**一起切换（避免某维度残留别的当前图）。
+     */
+    private static int dtPictureSwitch(CommandContext<CommandSourceStack> context) {
+        CommandSourceStack source = context.getSource();
+        String name = StringArgumentType.getString(context, "name");
+        MinecraftServer server = source.getServer();
+        boolean found = false;
+        for (ServerLevel lv : server.getAllLevels()) {
+            if (EscalatorSpeedManager.getServerData(lv).pictureLibrary.containsKey(name)) {
+                found = true;
+                EscalatorSpeedManager.setPictureCurrent(lv, name);
+            }
+        }
+        if (!found) {
+            source.sendSuccess(() -> Component.literal("存档图片库里没有这张图片：" + name), false);
+            return 0;
+        }
+        source.sendSuccess(() -> Component.literal("图片方块将显示「" + name + "」"), false);
+        EscalatorSpeedManager.syncPictureToAll(server);
+        if (source.getPlayer() != null) {
+            EscalatorSpeedManager.sendPictureSyncTo(source.getPlayer(), source.getPlayer().serverLevel());
+        }
+        return 1;
+    }
+
+    /**
+     * {@code /MBM picture delete <名字>}：【1.18.1204】只删存档里名为 XXX 的这张图片。
+     *
+     * <p>只删存档里融入的那份字节（SavedData），**不动** MBM_Picture 文件夹里的原图。
+     * 若删的正是「当前显示图片」，则回退显示库中剩下的一张（字典序最大）；所有维度一并处理。
+     */
+    private static int dtPictureDeleteOne(CommandContext<CommandSourceStack> context) {
+        CommandSourceStack source = context.getSource();
+        String name = StringArgumentType.getString(context, "name");
+        MinecraftServer server = source.getServer();
+        int removed = 0;
+        for (ServerLevel lv : server.getAllLevels()) {
+            EscalatorSpeedData data = EscalatorSpeedManager.getServerData(lv);
+            if (data.pictureLibrary.containsKey(name)) {
+                EscalatorSpeedManager.deletePictureFromStore(lv, name);
+                if (name.equals(data.pictureCurrent)) {
+                    EscalatorSpeedManager.setPictureCurrent(lv, EscalatorSpeedManager.largestLibraryKey(lv));
+                }
+                removed++;
+            }
+        }
+        if (removed == 0) {
+            source.sendSuccess(() -> Component.literal("存档图片库里没有这张图片：" + name), false);
+            return 0;
+        }
+        source.sendSuccess(() -> Component.literal(
+                "已删除存档图片：" + name + "（MBM_Picture 文件夹里的原图未动）"), false);
+        EscalatorSpeedManager.syncPictureToAll(server);
+        if (source.getPlayer() != null) {
+            EscalatorSpeedManager.sendPictureSyncTo(source.getPlayer(), source.getPlayer().serverLevel());
+        }
+        return 1;
+    }
+
+    /**
+     * {@code /MBM picture delete}：【1.18.1204】清空存档里**所有**融入的图片。
+     *
+     * <p>只删存档里融入的那份字节（SavedData），**不动** MBM_Picture 文件夹里的原图。
+     * 清空后客户端把所有图片方块贴图恢复成「白色 + 64px 灰边」（灰色边框保留，符合用户要求）。
+     * 图片方块贴图是全局的，因此**所有维度**的图片库一起清空。
+     */
+    private static int dtPictureDeleteAll(CommandContext<CommandSourceStack> context) {
+        CommandSourceStack source = context.getSource();
+        MinecraftServer server = source.getServer();
+        int count = 0;
+        for (ServerLevel lv : server.getAllLevels()) {
+            EscalatorSpeedData data = EscalatorSpeedManager.getServerData(lv);
+            count += data.pictureLibrary.size();
+            data.pictureLibrary.clear();
+            data.pictureCurrent = null;
+            data.setDirty();
+        }
+        final int total = count;
+        source.sendSuccess(() -> Component.literal(
+                "已删除存档内全部 " + total + " 张图片（MBM_Picture 文件夹里的原图未动）"), false);
+        EscalatorSpeedManager.syncPictureToAll(server);
+        if (source.getPlayer() != null) {
+            EscalatorSpeedManager.sendPictureSyncTo(source.getPlayer(), source.getPlayer().serverLevel());
+        }
+        return count > 0 ? 1 : 0;
     }
 
     // ==================================================================
@@ -4517,12 +4694,14 @@ public class SmoothLift implements ModInitializer {
     //     见 crossround 教训：同名 token（`off`）在两层上含义不同，解析函数必须交代落在哪。
     // ==================================================================
 
-    /** 【1.58】「经典港铁预设」= 依次执行这 11 条指令（前 9 条 = 用户点名清单；末 2 条见上面 ②）。 */
+    /** 【1.58】「经典港铁预设」= 依次执行这 12 条指令（前 10 条 = 用户点名清单；末 2 条见上面 ②）。
+     *  【1.28】直梯 door 拆成 open / close 两条。 */
     private static final String[] PRESET_CLASSIC_MTR = {
             "futimusic -f default",
             "futihelp -f on",
             "lifthelp -f on",
-            "lifthelp door -f on",
+            "lifthelp open -f on",
+            "lifthelp close -f on",
             "lifthelp up -f on",
             "lifthelp down -f on",
             "pbmclosewait -f 1",
@@ -4534,12 +4713,13 @@ public class SmoothLift implements ModInitializer {
             "pbmmusic close -f on",
     };
 
-    /** 【1.58】「简单港铁预设」= 依次执行这 11 条指令（前 9 条 = 用户点名清单；末 2 条同经典）。 */
+    /** 【1.58】「简单港铁预设」= 依次执行这 12 条指令（前 10 条 = 用户点名清单；末 2 条同经典）。 */
     private static final String[] PRESET_SIMPLE_MTR = {
             "futimusic -f default",
             "futihelp -f off",
             "lifthelp -f on",
-            "lifthelp door -f off",
+            "lifthelp open -f off",
+            "lifthelp close -f off",
             "lifthelp up -f on",
             "lifthelp down -f on",
             "pbmclosewait -f 1",
@@ -4550,7 +4730,7 @@ public class SmoothLift implements ModInitializer {
     };
 
     /**
-     * 【1.58】「空白预设」= 依次执行这 9 条指令（用户点名清单，逐字照抄）。
+     * 【1.58】「空白预设」= 依次执行这 10 条指令（用户点名清单，逐字照抄）。
      *
      * <p>★ 只有 PSD 那两条与用户的字面写法不同：用户写的是 {@code pbmmusic open -f off}，
      * 但那会落到**子开关**（字面量优先）而不是「素材设成不播」⇒ 之后配什么素材都不出声。
@@ -4561,7 +4741,8 @@ public class SmoothLift implements ModInitializer {
             "futimusic -f off",
             "futihelp -f off",
             "lifthelp -f off",
-            "lifthelp door -f off",
+            "lifthelp open -f off",
+            "lifthelp close -f off",
             "lifthelp up -f off",
             "lifthelp down -f off",
             "pbmclosewait -f 1",
@@ -4572,12 +4753,12 @@ public class SmoothLift implements ModInitializer {
     /**
      * 【1.53】把所有音量一起设成同一个值的指令清单（顺序 = 执行顺序）。
      *
-     * <p>共 11 条，覆盖模组**全部**音量设置：
+     * <p>共 12 条，覆盖模组**全部**音量设置：
      * <ol>
      *   <li>{@code futiloud -f V} —— 扶梯运行底噪（含清掉按方块的单独音量）；</li>
      *   <li>{@code futihelploud -f V} —— 扶梯无障碍提示音（含清掉按方块的单独音量）；</li>
      *   <li>{@code lifthelploud -f V} —— 直梯共用默认音量；</li>
-     *   <li>{@code lifthelploud -f up|down|door V} —— 直梯三项各自的音量（否则单独调过的那项会盖掉共用值）；</li>
+     *   <li>{@code lifthelploud -f up|down|open|close V} —— 直梯四项各自的音量（否则单独调过的那项会盖掉共用值）；</li>
      *   <li>{@code pbmloud -f V} —— 屏蔽门共用默认音量（含清掉按扇门的单独音量）；</li>
      *   <li>{@code pbmloud -f open|close V} —— 屏蔽门两项各自的音量；</li>
      *   <li>{@code pbmmidiumloud -f V} / {@code pbmarriveloud -f V} —— 到站播报 / 进站报站。</li>
@@ -4592,7 +4773,8 @@ public class SmoothLift implements ModInitializer {
                 "lifthelploud -f " + v,
                 "lifthelploud -f up " + v,
                 "lifthelploud -f down " + v,
-                "lifthelploud -f door " + v,
+                "lifthelploud -f open " + v,
+                "lifthelploud -f close " + v,
                 "pbmloud -f " + v,
                 "pbmloud -f open " + v,
                 "pbmloud -f close " + v,
@@ -4703,8 +4885,8 @@ public class SmoothLift implements ModInitializer {
     public static final int SYNC_ESC_HELP_AUDIO = 2;
     /** 【1.55】一级菜单的编号（三个域通用）：0。 */
     public static final int SYNC_TOP_LEVEL = 0;
-    /** 【1.55】直梯二级页编号 1/2/3 = up/down/chime（与界面 {@code PAGES} 同序）。 */
-    static final String[] SYNC_LIFT_WHICH = {"up", "down", "chime"};
+    /** 【1.55】直梯二级页编号 1/2/3/4 = up/down/open/close（与界面 {@code PAGES} 同序）。 */
+    static final String[] SYNC_LIFT_WHICH = {"up", "down", "open", "close"};
     /** 【1.55】屏蔽门二级页编号 1/2 = open/close 素材。 */
     static final String[] SYNC_PSD_WHICH = {"open", "close"};
     /** 【1.55】屏蔽门二级页编号 3 = 到站播报素材，4 = 进站报站素材。 */
@@ -5015,7 +5197,31 @@ public class SmoothLift implements ModInitializer {
                         .then(Commands.literal("in")
                                 .executes(SmoothLift::dtMusicImportAll))
                         .then(Commands.literal("delete")
-                                .executes(SmoothLift::dtMusicDeleteAll)));
+                                .executes(SmoothLift::dtMusicDeleteAll)))
+                .then(Commands.literal("picture")
+                        .executes(SmoothLift::dtPictureQuery)
+                        .then(Commands.literal("new")
+                                .executes(SmoothLift::dtPictureNewAll))
+                        .then(Commands.argument("name", StringArgumentType.word())
+                                .suggests((ctx, builder) -> {
+                                    for (String k : EscalatorSpeedManager
+                                            .getServerPictureLibraryKeys(ctx.getSource().getLevel())) {
+                                        builder.suggest(k);
+                                    }
+                                    return builder.buildFuture();
+                                })
+                                .executes(SmoothLift::dtPictureSwitch))
+                        .then(Commands.literal("delete")
+                                .executes(SmoothLift::dtPictureDeleteAll)
+                                .then(Commands.argument("name", StringArgumentType.word())
+                                        .suggests((ctx, builder) -> {
+                                            for (String k : EscalatorSpeedManager
+                                                    .getServerPictureLibraryKeys(ctx.getSource().getLevel())) {
+                                                builder.suggest(k);
+                                            }
+                                            return builder.buildFuture();
+                                        })
+                                        .executes(SmoothLift::dtPictureDeleteOne))));
     }
 
     static void registerCommands(CommandDispatcher<CommandSourceStack> dispatcher) {
@@ -5218,7 +5424,8 @@ public class SmoothLift implements ModInitializer {
         //   -f in|out <名字>      -> 强制游戏内所有扶梯这一头都用这段提示音（清掉这一头的单独设置）
         //   -f in|out <X> to <Y>  -> 把这一头提示音为 X 的扶梯（含单独设置的）改成 Y
         // 名字可以是 `default`（模组原来的提示音）、`off`（这一头不播提示音），
-        // 或导入过的音频文件名（可省略 .ogg 后缀；与运行底噪**共用同一个导入文件夹**）。
+        // 或本分类导入过的音频文件名（可省略 .ogg 后缀；【1.28】起提示音读 MBM_Audio/futi/help
+        // 子文件夹，与底噪 futi/music 分开）。
         // `in` = 进入扶梯（上客端）、`out` = 离开扶梯（落客端），两头各有一套数据。
         // ★ 与 /futihelp（开关）、/futihelploud（音量）、/futihelpround（范围）、
         //   /futihelpspeed（速率）是五件独立的事：本指令只管「用哪段声音」。
@@ -5271,11 +5478,12 @@ public class SmoothLift implements ModInitializer {
                     .then(Commands.literal("on")
                         .executes(context -> liftHelpFromTo(context, false, true)))))
             .then(liftHelpForce("-f"))
-            // 【1.15】三提示音子命令：up / down / door（door = 开关门，数据层仍叫 chime）。
-            //   literal 是玩家写的词，which 是数据层的项目名，只有 door → chime 需要映射。
+            // 【1.15】提示音子命令；【1.28】原来的 door（= chime，开关门一体）拆成 open / close 两个字面量。
+            //   literal 与 which 同名（up / down / open / close）。
             .then(liftToneBranch("up", "up"))
             .then(liftToneBranch("down", "down"))
-            .then(liftToneBranch("door", "chime"))
+            .then(liftToneBranch("open", "open"))
+            .then(liftToneBranch("close", "close"))
         );
 
         // 【1.43】/lifthelploud：**直梯**开关门提示音的**音量**（1~1000，100 = 原始音量，
@@ -5295,18 +5503,18 @@ public class SmoothLift implements ModInitializer {
                 .then(Commands.literal("to")
                     .then(Commands.argument("target", volumeArg())
                         .executes(SmoothLift::liftHelpLoudFromTo))))
-            // 【1.48】三项提示音各自的音量（不带 -f 的主分支）：
+            // 【1.48】四提示音各自的音量（不带 -f 的主分支）：
             //   /lifthelploud up 200           本维度上楼提示音音量 = 200
             //   /lifthelploud up 200 to 300    本维度上楼提示音音量正好是 200 时才改成 300
-            //   （down = 下楼、door = 开关门即 chime 的别名；没单独调过的项跟随共用默认）
+            //   （down = 下楼、open = 开门、close = 关门；没单独调过的项跟随共用默认）
             .then(liftToneLoudCommand("up", "up"))
             .then(liftToneLoudCommand("down", "down"))
-            .then(liftToneLoudCommand("door", "chime"))
-            // 【1.48】-f 合并成**一个**节点：下面既有共用音量（<音量>），也有三项分支（up|down|door）。
+            .then(liftToneLoudCommand("open", "open"))
+            .then(liftToneLoudCommand("close", "close"))
+            // 【1.48】-f 合并成**一个**节点：下面既有共用音量（<音量>），也有四项分支（up|down|open|close）。
             //   /lifthelploud -f 200        所有维度共用默认音量 = 200
             //   /lifthelploud -f up 200     所有维度上楼提示音音量 = 200
             //   /lifthelploud -f up 200 to 300
-            //   （door = chime 的别名，开关门提示音）
             .then(Commands.literal("-f")
                 .then(Commands.argument("volume", volumeArg())
                     .executes(SmoothLift::liftHelpLoudForceAll)
@@ -5315,7 +5523,8 @@ public class SmoothLift implements ModInitializer {
                             .executes(SmoothLift::liftHelpLoudForceFromTo))))
                 .then(liftToneLoudForceBranch("up", "up"))
                 .then(liftToneLoudForceBranch("down", "down"))
-                .then(liftToneLoudForceBranch("door", "chime")))
+                .then(liftToneLoudForceBranch("open", "open"))
+                .then(liftToneLoudForceBranch("close", "close")))
         );
 
         // 【1.47】/lifthelpround：直梯提示音（上楼 / 下楼 / 开关门，**三项共用一份**）的

@@ -86,8 +86,9 @@ import java.util.Set;
  *
  * 【1.39 起】无障碍提示音的**音乐**（用哪段声音当提示音）：
  * defaultHelpAudioIn/Out / blockHelpAudioIn/Out：与 {@code /futimusic} 的运行底噪**完全对称**的
- *             第二套「音频绑定」，但**共用同一个导入文件夹与同一个 {@link #audioLibrary}**
- *             （导入一次，两边都能选）。
+ *             第二套「音频绑定」，【1.28】音频隔离后**分文件夹存放**（提示音读
+ *             {@code MBM_Audio/futi/help}、底噪读 {@code MBM_Audio/futi/music}），
+ *             字节库 {@link #audioLibrary} 仍是一份，但各自的「已导入注册表」独立。
  *             {@link #HELP_AUDIO_DEFAULT} = 模组原来的提示音（初始值，旧存档缺字段也是它）；
  *             {@link #HELP_AUDIO_OFF} = 这一头不播提示音；其它值 = 音频库里的文件名。
  *             ★ 速率（/futihelpspeed）只对 {@link #HELP_AUDIO_DEFAULT} 生效 ——
@@ -113,6 +114,9 @@ public class EscalatorSpeedData extends SavedData {
 
     /** 单个自定义音频的大小上限（字节）。防止存档 NBT 超限，且避免拖慢声音解码。 */
     public static final int MAX_AUDIO_BYTES = 12 * 1024 * 1024;
+
+    /** 【1.18.1204】单个地图图片的大小上限（字节）。/MBM picture new 时校验，防 NBT 超限。 */
+    public static final int MAX_PICTURE_BYTES = 12 * 1024 * 1024;
 
     /**
      * 【1.9】扶梯声音音量：界面输入范围 1~1000。
@@ -275,6 +279,21 @@ public class EscalatorSpeedData extends SavedData {
      */
     public static final String HELP_AUDIO_OFF = "off";
 
+    /**
+     * 【09-27】扶梯**运行底噪**（{@code /futimusic} 那一路）的「不播」哨兵。
+     *
+     * <p>它会被写进 {@code blockAudio}（方块 → 音频ID）里，含义是「**这一条扶梯静音**」，
+     * 而且**压过维度默认层** —— 否则「解绑」在默认层有声音时根本静不下来。
+     *
+     * <p>在它之前，「不播」只有默认层那一档（{@code /futimusic off} 把 {@code defaultAudio}
+     * 写成 {@code null}），**没法只让某一条扶梯哑掉**；石斧界面「选择扶梯音乐」右列
+     * 第 0 行那个「不播」就是绑它。
+     *
+     * <p>它不带 {@code builtin:} 前缀、也不在音频库里 ⇒ {@code bindAudio} 专门放行，
+     * 播放端专门短路（不许走到「音频还没同步」那条提示上去）。
+     */
+    public static final String FUTI_AUDIO_OFF = "off";
+
     public double defaultSpeed = DEFAULT_SPEED;
     public final Map<BlockPos, Double> speeds = new HashMap<>();
 
@@ -289,8 +308,24 @@ public class EscalatorSpeedData extends SavedData {
 
     /** 音频ID → OGG 文件字节（按内容哈希去重，一个音频可被多条扶梯复用）。 */
     public final Map<String, byte[]> audioLibrary = new HashMap<>();
+    /**
+     * 【1.28】音频分类 → 该分类已导入存档的音频名集合。
+     *
+     * <p>「音频隔离」：每个设置项只读自己分类的文件夹（{@code MBM_Audio/<分类>}），
+     * 导入存档后名字记进**这个分类**的集合；各界面的「已存入」列表只列自己分类的名字。
+     * 字节本体仍共用 {@link #audioLibrary}（按名字取），分类只决定「哪个界面看得见 / 删哪个」。
+     *
+     * <p>旧存档（1.27 及以前）没有这张表 ⇒ {@code fromTag} 迁移时把平铺库里的名字放进
+     * **所有**分类（旧版是一个共享库，任何界面都能看到，迁移后保持「到处都看得到」）。
+     */
+    public final Map<String, Set<String>> audioCategoryNames = new HashMap<>();
     /** 扶梯方块（x,y,z）→ 音频ID。未绑定音频的扶梯不播放声音。 */
     public final Map<BlockPos, String> blockAudio = new HashMap<>();
+
+    /** 【1.18.1204】图片ID → 原始图片文件字节（MBM_Picture 文件夹导入，直接融入存档，删原图不影响）。 */
+    public final Map<String, byte[]> pictureLibrary = new HashMap<>();
+    /** 【1.18.1204】当前显示图片ID（12 个图片方块共用一张图的 4 个切块）；null = 库空，显示白色+灰边。 */
+    public String pictureCurrent = null;
 
     /**
      * 【1.9】扶梯方块（x,y,z）→ 声音音量（1~1000，100 = 原始音量，可放大到 1000 = 10×）。
@@ -398,8 +433,9 @@ public class EscalatorSpeedData extends SavedData {
      *   <li>玩家导入的音频文件名（如 {@code example.ogg}）= 在这一头循环播放这段音频。</li>
      * </ul>
      *
-     * <p>音频字节**不重复存**：用的就是 {@link #audioLibrary}（与 {@code /futimusic} 的
-     * 运行底噪共用同一个导入文件夹与同一个库），这里只记「选了哪一个」。
+     * <p>音频字节**不重复存**：用的就是 {@link #audioLibrary}（【1.28】起提示音分类
+     * 读自己的子文件夹 {@code MBM_Audio/futi/help}，与运行底噪 {@code futi/music} 分开存放，
+     * 但字节库是一份），这里只记「选了哪一个」。
      * 与 {@link #defaultAudio}（运行底噪）是两套互不影响的数据。
      *
      * <p>★【1.41】起「进入扶梯」与「离开扶梯」是**两套独立数据**（形状同
@@ -467,15 +503,18 @@ public class EscalatorSpeedData extends SavedData {
      * <ul>
      *   <li>{@code up} = 上楼提示音（准备向上移动那声）；</li>
      *   <li>{@code down} = 下楼提示音（准备向下移动那声）；</li>
-     *   <li>{@code chime} = 开关门提示音（**内置素材**开门 2 次 / 关门 4 次连播；【1.52】导入的 ogg 只播一次）。</li>
+     *   <li>{@code open} = 开门提示音（【1.28】从原来的 {@code chime}（开关门）拆成开门 / 关门两路；
+     *       **内置素材**开门 2 次连播；【1.52】导入的 ogg 只播一次）；</li>
+     *   <li>{@code close} = 关门提示音（**内置素材**关门 4 次连播；【1.52】导入的 ogg 只播一次）。</li>
      * </ul>
      * 取值：**{@link #LIFT_TONE_VOLUME_UNSET}（-1）= 该项没单独调过，跟随 {@link #defaultLiftHelpVolume}**；
-     * 否则 = 该项自己的音量（1~1000，100 = 原始音量、1000 = 10×）。旧存档没有这三个字段 → -1
-     * （全部跟随共用默认，与 1.47 及以前行为一致）。
+     * 否则 = 该项自己的音量（1~1000，100 = 原始音量、1000 = 10×）。旧存档没有这四个字段 → -1
+     * （全部跟随共用默认，与 1.47 及以前行为一致；旧 {@code chime} 字段迁移到 open 与 close 两头）。
      */
     public int defaultLiftToneVolumeUp = LIFT_TONE_VOLUME_UNSET;
     public int defaultLiftToneVolumeDown = LIFT_TONE_VOLUME_UNSET;
-    public int defaultLiftToneVolumeChime = LIFT_TONE_VOLUME_UNSET;
+    public int defaultLiftToneVolumeOpen = LIFT_TONE_VOLUME_UNSET;
+    public int defaultLiftToneVolumeClose = LIFT_TONE_VOLUME_UNSET;
 
     /** 【1.48】「该项没单独调过」的哨兵（不是合法音量，合法区间是 1~1000）。 */
     public static final int LIFT_TONE_VOLUME_UNSET = -1;
@@ -487,14 +526,16 @@ public class EscalatorSpeedData extends SavedData {
      * <ul>
      *   <li>{@code up} = 上楼提示音（准备向上移动那声）；</li>
      *   <li>{@code down} = 下楼提示音（准备向下移动那声）；</li>
-     *   <li>{@code chime} = 开关门提示音（**内置素材**开门 2 次 / 关门 4 次连播；【1.52】导入的 ogg 只播一次）。</li>
+     *   <li>{@code open} = 开门提示音（【1.28】从原来的 {@code chime}（开关门）拆开，与关门互不干扰）；</li>
+     *   <li>{@code close} = 关门提示音。</li>
      * </ul>
-     * 三者独立，缺省全开（{@code true}）。旧存档没有这三个字段 → 读到 {@code true}，
-     * 与 1.45 之前的行为完全一致。
+     * 四者独立，缺省全开（{@code true}）。旧存档没有这四个字段 → 读到 {@code true}，
+     * 与 1.45 之前的行为完全一致（旧 {@code chime} 字段迁移到 open 与 close 两头）。
      */
     public boolean defaultLiftToneUpEnabled = true;
     public boolean defaultLiftToneDownEnabled = true;
-    public boolean defaultLiftToneChimeEnabled = true;
+    public boolean defaultLiftToneOpenEnabled = true;
+    public boolean defaultLiftToneCloseEnabled = true;
 
     /**
      * 【1.15】三项提示音的**维度默认素材**（{@code /lifthelp up|down|door <名字>} 设置）。
@@ -502,7 +543,8 @@ public class EscalatorSpeedData extends SavedData {
      * <ul>
      *   <li>{@code up} = 上楼提示音（准备向上移动那声）默认放哪一段；</li>
      *   <li>{@code down} = 下楼提示音（准备向下移动那声）；</li>
-     *   <li>{@code chime} = 开关门提示音（**内置素材**开门 2 次 / 关门 4 次连播；【1.52】导入的 ogg 只播一次）。</li>
+     *   <li>{@code open} = 开门提示音（【1.28】从原来的 {@code chime} 拆开；内置素材开门 2 次连播）；</li>
+     *   <li>{@code close} = 关门提示音（内置素材关门 4 次连播）。</li>
      * </ul>
      *
      * <p><b>与 {@link #liftToneAudio}（按竖井列单独设置）的关系</b>：
@@ -513,11 +555,12 @@ public class EscalatorSpeedData extends SavedData {
      *
      * <p>取值语义与 {@link #liftToneAudio} 相同：{@link #LIFT_TONE_DEFAULT} 内置素材 /
      * {@link #LIFT_TONE_OFF} 这一项不播 / 其它 = 音频库文件名。
-     * 旧存档没有这三个字段 → {@code default}。
+     * 旧存档没有这四个字段 → {@code default}（旧 {@code chime} 字段迁移到 open 与 close 两头）。
      */
     public String defaultLiftToneAudioUp = LIFT_TONE_DEFAULT;
     public String defaultLiftToneAudioDown = LIFT_TONE_DEFAULT;
-    public String defaultLiftToneAudioChime = LIFT_TONE_DEFAULT;
+    public String defaultLiftToneAudioOpen = LIFT_TONE_DEFAULT;
+    public String defaultLiftToneAudioClose = LIFT_TONE_DEFAULT;
 
     /**
      * 【1.47】直梯提示音（上楼 / 下楼 / 开关门，三项共用一份）的**淡入淡出范围**（格）。
@@ -543,7 +586,8 @@ public class EscalatorSpeedData extends SavedData {
      * （Y 固定为 0）。石斧右键任意一层轨道都定位到同一个 key。
      *
      * <p>值：{@code up} = 准备向上移动（up.ogg）、{@code down} = 准备向下移动（down.ogg）、
-     * {@code chime} = 开关门（liftmusic.ogg）。三者互不冲突，可分别选。
+     * {@code open} = 开门（liftmusic.ogg 连播 2 次）、{@code close} = 关门（liftmusic.ogg 连播 4 次）。
+     * 四者互不冲突，可分别选。
      * 每个字段取值有三种语义：
      * <ul>
      *   <li>{@link #LIFT_TONE_DEFAULT} = **跟维度默认**（{@link #defaultLiftToneAudioUp} 等，
@@ -563,12 +607,13 @@ public class EscalatorSpeedData extends SavedData {
     public static final String LIFT_TONE_MISSING = "";
 
     /**
-     * 【1.15】三项**全是** {@link #LIFT_TONE_DEFAULT}（都跟维度默认）吗？
+     * 【1.15】四项**全是** {@link #LIFT_TONE_DEFAULT}（都跟维度默认）吗？
      * 单独设置那张表用它决定「这条记录是不是等于没设置，可以直接删掉」。
+     * 【1.28】「项」从三项（up/down/chime）拆成四项（up/down/open/close）。
      */
-    public static boolean isLiftToneAllDefault(String up, String down, String chime) {
+    public static boolean isLiftToneAllDefault(String up, String down, String open, String close) {
         return LIFT_TONE_DEFAULT.equals(up) && LIFT_TONE_DEFAULT.equals(down)
-                && LIFT_TONE_DEFAULT.equals(chime);
+                && LIFT_TONE_DEFAULT.equals(open) && LIFT_TONE_DEFAULT.equals(close);
     }
 
     // ==================================================================
@@ -1132,10 +1177,53 @@ public class EscalatorSpeedData extends SavedData {
                 data.audioLibrary.put(key, bytes);
             }
         }
+        // 【1.28】音频分类注册表：每分类一个名字列表。
+        //   旧存档没有这张表 → 把平铺库里的名字放进**所有**分类（旧版 = 一个共享库，
+        //   任何界面都看得到；迁移后保持「到处都看得到」，玩家可自行在新文件夹结构下重新导入）。
+        //   【1.28+】分类改过目录（futi / music / help）→ 按 migrateCategoryKey 把旧键迁到新键。
+        CompoundTag catTag = tag.getCompound("audioCategoryNames");
+        boolean anyCategory = false;
+        for (String cat : catTag.getAllKeys()) {
+            net.minecraft.nbt.ListTag nameList = catTag.getList(cat, 8);
+            Set<String> names = new HashSet<>();
+            for (int i = 0; i < nameList.size(); i++) {
+                String n = nameList.getString(i);
+                if (data.audioLibrary.containsKey(n)) {
+                    names.add(n);
+                }
+            }
+            if (!names.isEmpty()) {
+                data.audioCategoryNames
+                        .computeIfAbsent(EscalatorSpeedManager.migrateCategoryKey(cat), k -> new HashSet<>())
+                        .addAll(names);
+                anyCategory = true;
+            }
+        }
+        if (!anyCategory && !data.audioLibrary.isEmpty()) {
+            for (String cat : EscalatorSpeedManager.ALL_CATEGORIES) {
+                data.audioCategoryNames.put(cat, new HashSet<>(data.audioLibrary.keySet()));
+            }
+        }
         for (Map.Entry<String, String> entry : readStringMap(tag.getCompound("blockAudio")).entrySet()) {
             BlockPos pos = parsePos(entry.getKey());
             if (pos != null) {
                 data.blockAudio.put(pos, entry.getValue());
+            }
+        }
+        // 【1.18.1204】地图图片库：与音频库相同的平铺字节存储，直接融入存档。
+        CompoundTag picTag = tag.getCompound("pictureLibrary");
+        for (String key : picTag.getAllKeys()) {
+            byte[] bytes = picTag.getByteArray(key);
+            if (bytes.length > 0 && bytes.length <= MAX_PICTURE_BYTES) {
+                data.pictureLibrary.put(key, bytes);
+            }
+        }
+        // 【1.18.1204】当前显示图片（旧存档没有这一段 → null = 库空占位纹理）。
+        //   引用悬空（指向不在库里的名字）时也按 null 处理，由客户端显示白色+灰边。
+        if (tag.contains("pictureCurrent")) {
+            String cur = tag.getString("pictureCurrent");
+            if (!cur.isEmpty() && data.pictureLibrary.containsKey(cur)) {
+                data.pictureCurrent = cur;
             }
         }
         // 【1.9】扶梯声音音量（旧存档没有这一段 → 全部按默认 100 处理）
@@ -1233,7 +1321,8 @@ public class EscalatorSpeedData extends SavedData {
         if (tag.contains("defaultLiftHelpVolume")) {
             data.defaultLiftHelpVolume = clampLiftHelpVolume(tag.getInt("defaultLiftHelpVolume"));
         }
-        // 【1.46】三提示音独立子开关：旧存档缺字段 → 保持 true（与 1.45 之前行为一致）
+        // 【1.46】四提示音独立子开关：旧存档缺字段 → 保持 true（与 1.45 之前行为一致）。
+        //   【1.28】旧 `chime` 字段迁移到 open 与 close 两头；新存档以 open/close 新字段为准。
         if (tag.contains("defaultLiftToneUpEnabled")) {
             data.defaultLiftToneUpEnabled = tag.getBoolean("defaultLiftToneUpEnabled");
         }
@@ -1241,9 +1330,18 @@ public class EscalatorSpeedData extends SavedData {
             data.defaultLiftToneDownEnabled = tag.getBoolean("defaultLiftToneDownEnabled");
         }
         if (tag.contains("defaultLiftToneChimeEnabled")) {
-            data.defaultLiftToneChimeEnabled = tag.getBoolean("defaultLiftToneChimeEnabled");
+            boolean chime = tag.getBoolean("defaultLiftToneChimeEnabled");
+            data.defaultLiftToneOpenEnabled = chime;
+            data.defaultLiftToneCloseEnabled = chime;
         }
-        // 【1.15】三项提示音的维度默认素材：旧存档缺字段 → default（内置素材，与 1.14 行为一致）
+        if (tag.contains("defaultLiftToneOpenEnabled")) {
+            data.defaultLiftToneOpenEnabled = tag.getBoolean("defaultLiftToneOpenEnabled");
+        }
+        if (tag.contains("defaultLiftToneCloseEnabled")) {
+            data.defaultLiftToneCloseEnabled = tag.getBoolean("defaultLiftToneCloseEnabled");
+        }
+        // 【1.15】四提示音的维度默认素材：旧存档缺字段 → default（内置素材，与 1.14 行为一致）。
+        //   【1.28】旧 `chime` 字段迁移到 open 与 close 两头。
         if (tag.contains("defaultLiftToneAudioUp")) {
             data.defaultLiftToneAudioUp = normalizeLiftToneAudio(tag.getString("defaultLiftToneAudioUp"));
         }
@@ -1251,13 +1349,22 @@ public class EscalatorSpeedData extends SavedData {
             data.defaultLiftToneAudioDown = normalizeLiftToneAudio(tag.getString("defaultLiftToneAudioDown"));
         }
         if (tag.contains("defaultLiftToneAudioChime")) {
-            data.defaultLiftToneAudioChime = normalizeLiftToneAudio(tag.getString("defaultLiftToneAudioChime"));
+            String chime = normalizeLiftToneAudio(tag.getString("defaultLiftToneAudioChime"));
+            data.defaultLiftToneAudioOpen = chime;
+            data.defaultLiftToneAudioClose = chime;
+        }
+        if (tag.contains("defaultLiftToneAudioOpen")) {
+            data.defaultLiftToneAudioOpen = normalizeLiftToneAudio(tag.getString("defaultLiftToneAudioOpen"));
+        }
+        if (tag.contains("defaultLiftToneAudioClose")) {
+            data.defaultLiftToneAudioClose = normalizeLiftToneAudio(tag.getString("defaultLiftToneAudioClose"));
         }
         // 【1.47】直梯提示音淡入淡出范围：旧存档缺字段 → 默认 4 格（同「第一次载入」）
         if (tag.contains("defaultLiftHelpRound")) {
             data.defaultLiftHelpRound = clampLiftHelpRound(tag.getInt("defaultLiftHelpRound"));
         }
-        // 【1.48】三项各自音量：旧存档缺字段 → -1（跟随共用默认）
+        // 【1.48】四项各自音量：旧存档缺字段 → -1（跟随共用默认）。
+        //   【1.28】旧 `chime` 字段迁移到 open / close 两头。
         if (tag.contains("defaultLiftToneVolumeUp")) {
             data.defaultLiftToneVolumeUp = clampLiftToneVolume(tag.getInt("defaultLiftToneVolumeUp"));
         }
@@ -1265,20 +1372,34 @@ public class EscalatorSpeedData extends SavedData {
             data.defaultLiftToneVolumeDown = clampLiftToneVolume(tag.getInt("defaultLiftToneVolumeDown"));
         }
         if (tag.contains("defaultLiftToneVolumeChime")) {
-            data.defaultLiftToneVolumeChime = clampLiftToneVolume(tag.getInt("defaultLiftToneVolumeChime"));
+            int chime = clampLiftToneVolume(tag.getInt("defaultLiftToneVolumeChime"));
+            data.defaultLiftToneVolumeOpen = chime;
+            data.defaultLiftToneVolumeClose = chime;
         }
-        // 【1.45】直梯楼层轨道提示音：key → {up, down, chime} 三个音频 id。
-        //   旧存档没有这张表 → 空表（全部走默认素材）。格式：
-        //   ListTag，每个元素是 `{ "key": <long>, "up": <str>, "down": <str>, "chime": <str> }`。
+        if (tag.contains("defaultLiftToneVolumeOpen")) {
+            data.defaultLiftToneVolumeOpen = clampLiftToneVolume(tag.getInt("defaultLiftToneVolumeOpen"));
+        }
+        if (tag.contains("defaultLiftToneVolumeClose")) {
+            data.defaultLiftToneVolumeClose = clampLiftToneVolume(tag.getInt("defaultLiftToneVolumeClose"));
+        }
+        // 【1.45】直梯楼层轨道提示音：key → {up, down, open, close} 四个音频 id。
+        //   旧存档没有这张表 → 空表（全部走默认素材）。
+        //   旧版元素是 `{ "key", "up", "down", "chime" }` ⇒ 迁移时把 chime 喂给 open / close 两头。
+        //   格式：ListTag，每个元素是 `{ \"key\": <long>, \"up\": <str>, \"down\": <str>,
+        //   \"open\": <str>, \"close\": <str> }`。
         if (tag.contains("liftToneAudio", 9)) {
             for (net.minecraft.nbt.Tag item : tag.getList("liftToneAudio", 10)) {
                 CompoundTag entry = (CompoundTag) item;
                 long key = entry.getLong("key");
                 String up = entry.contains("up") ? entry.getString("up") : "";
                 String down = entry.contains("down") ? entry.getString("down") : "";
-                String chime = entry.contains("chime") ? entry.getString("chime") : "";
-                if (key != 0L && !(up.isEmpty() && down.isEmpty() && chime.isEmpty())) {
-                    data.liftToneAudio.put(key, new LiftToneAudio(up, down, chime));
+                String chimeOld = entry.contains("chime") ? entry.getString("chime") : null;
+                String open = entry.contains("open") ? entry.getString("open")
+                        : (chimeOld != null ? chimeOld : "");
+                String close = entry.contains("close") ? entry.getString("close")
+                        : (chimeOld != null ? chimeOld : "");
+                if (key != 0L && !(up.isEmpty() && down.isEmpty() && open.isEmpty() && close.isEmpty())) {
+                    data.liftToneAudio.put(key, new LiftToneAudio(up, down, open, close));
                 }
             }
         }
@@ -1442,12 +1563,32 @@ public class EscalatorSpeedData extends SavedData {
             audioTag.putByteArray(entry.getKey(), entry.getValue());
         }
         tag.put("audioLibrary", audioTag);
+        // 【1.28】音频分类注册表：每分类一个名字列表（与读侧一一对应）。
+        net.minecraft.nbt.CompoundTag catTag = new net.minecraft.nbt.CompoundTag();
+        for (Map.Entry<String, Set<String>> e : audioCategoryNames.entrySet()) {
+            ListTag nameList = new ListTag();
+            for (String n : e.getValue()) {
+                nameList.add(net.minecraft.nbt.StringTag.valueOf(n));
+            }
+            catTag.put(e.getKey(), nameList);
+        }
+        tag.put("audioCategoryNames", catTag);
         CompoundTag bindTag = new CompoundTag();
         for (Map.Entry<BlockPos, String> entry : blockAudio.entrySet()) {
             BlockPos pos = entry.getKey();
             bindTag.putString(pos.getX() + "," + pos.getY() + "," + pos.getZ(), entry.getValue());
         }
         tag.put("blockAudio", bindTag);
+        // 【1.18.1204】地图图片库：与读侧一一对应，原图字节直接进存档 NBT。
+        CompoundTag picTag = new CompoundTag();
+        for (Map.Entry<String, byte[]> entry : pictureLibrary.entrySet()) {
+            picTag.putByteArray(entry.getKey(), entry.getValue());
+        }
+        tag.put("pictureLibrary", picTag);
+        // 【1.18.1204】当前显示图片（null 不写：旧版本读到「没有」＝库空占位纹理）。
+        if (pictureCurrent != null) {
+            tag.putString("pictureCurrent", pictureCurrent);
+        }
         // 【1.9】扶梯声音音量
         tag.put("blockVolume", writeIntMap(blockVolume));
         // 【1.12】默认扶梯音量
@@ -1489,21 +1630,28 @@ public class EscalatorSpeedData extends SavedData {
         tag.putFloat("defaultLiftHelpSpeed", defaultLiftHelpSpeed);
         // 【1.43】直梯提示音音量（同上，只有维度默认一层）
         tag.putInt("defaultLiftHelpVolume", defaultLiftHelpVolume);
-        // 【1.46】三提示音独立子开关（维度默认一层）
+        // 【1.46】四提示音独立子开关（维度默认一层）。【1.28】chime 拆成 open / close。
+        //   旧字段（chime）作为**向后兼容镜像**写一份，值 = open 那一头（同上一条 1.41 的注释逻辑）。
         tag.putBoolean("defaultLiftToneUpEnabled", defaultLiftToneUpEnabled);
         tag.putBoolean("defaultLiftToneDownEnabled", defaultLiftToneDownEnabled);
-        tag.putBoolean("defaultLiftToneChimeEnabled", defaultLiftToneChimeEnabled);
-        // 【1.15】三项提示音的维度默认素材（default / off / 音频库文件名）
+        tag.putBoolean("defaultLiftToneOpenEnabled", defaultLiftToneOpenEnabled);
+        tag.putBoolean("defaultLiftToneCloseEnabled", defaultLiftToneCloseEnabled);
+        tag.putBoolean("defaultLiftToneChimeEnabled", defaultLiftToneOpenEnabled);
+        // 【1.15】四提示音的维度默认素材（default / off / 音频库文件名）
         tag.putString("defaultLiftToneAudioUp", defaultLiftToneAudioUp);
         tag.putString("defaultLiftToneAudioDown", defaultLiftToneAudioDown);
-        tag.putString("defaultLiftToneAudioChime", defaultLiftToneAudioChime);
-        // 【1.47】直梯提示音淡入淡出范围（三项共用）
+        tag.putString("defaultLiftToneAudioOpen", defaultLiftToneAudioOpen);
+        tag.putString("defaultLiftToneAudioClose", defaultLiftToneAudioClose);
+        tag.putString("defaultLiftToneAudioChime", defaultLiftToneAudioOpen);
+        // 【1.47】直梯提示音淡入淡出范围（四项共用）
         tag.putInt("defaultLiftHelpRound", defaultLiftHelpRound);
-        // 【1.48】三项各自音量（-1 = 跟随共用默认）
+        // 【1.48】四项各自音量（-1 = 跟随共用默认）
         tag.putInt("defaultLiftToneVolumeUp", defaultLiftToneVolumeUp);
         tag.putInt("defaultLiftToneVolumeDown", defaultLiftToneVolumeDown);
-        tag.putInt("defaultLiftToneVolumeChime", defaultLiftToneVolumeChime);
-        // 【1.45】直梯楼层轨道提示音（竖井列 → 三音频 id）
+        tag.putInt("defaultLiftToneVolumeOpen", defaultLiftToneVolumeOpen);
+        tag.putInt("defaultLiftToneVolumeClose", defaultLiftToneVolumeClose);
+        tag.putInt("defaultLiftToneVolumeChime", defaultLiftToneVolumeOpen);
+        // 【1.45】直梯楼层轨道提示音（竖井列 → 四音频 id）
         ListTag toneList = new ListTag();
         for (Map.Entry<Long, LiftToneAudio> entry : liftToneAudio.entrySet()) {
             CompoundTag t = new CompoundTag();
@@ -1511,7 +1659,8 @@ public class EscalatorSpeedData extends SavedData {
             LiftToneAudio v = entry.getValue();
             t.putString("up", v.up);
             t.putString("down", v.down);
-            t.putString("chime", v.chime);
+            t.putString("open", v.open);
+            t.putString("close", v.close);
             toneList.add(t);
         }
         tag.put("liftToneAudio", toneList);
@@ -1934,6 +2083,10 @@ public class EscalatorSpeedData extends SavedData {
     /** 删除音频库中的一份音频，同时解绑所有引用它的扶梯（运行底噪与无障碍提示音两套引用一起解）。 */
     public void removeAudio(String audioId) {
         audioLibrary.remove(audioId);
+        // 【1.28】分类注册表里也一起摘掉（名字不再属于任何分类 ⇒ 各界面的「已存入」列表不再显示）。
+        for (Set<String> names : audioCategoryNames.values()) {
+            names.remove(audioId);
+        }
         blockAudio.entrySet().removeIf(entry -> entry.getValue().equals(audioId));
         blockHelpAudioIn.entrySet().removeIf(entry -> entry.getValue().equals(audioId));
         blockHelpAudioOut.entrySet().removeIf(entry -> entry.getValue().equals(audioId));
@@ -1945,10 +2098,11 @@ public class EscalatorSpeedData extends SavedData {
             LiftToneAudio t = entry.getValue();
             String up = audioId.equals(t.up()) ? LIFT_TONE_DEFAULT : t.up();
             String down = audioId.equals(t.down()) ? LIFT_TONE_DEFAULT : t.down();
-            String chime = audioId.equals(t.chime()) ? LIFT_TONE_DEFAULT : t.chime();
+            String open = audioId.equals(t.open()) ? LIFT_TONE_DEFAULT : t.open();
+            String close = audioId.equals(t.close()) ? LIFT_TONE_DEFAULT : t.close();
             if (!(LIFT_TONE_DEFAULT.equals(up) && LIFT_TONE_DEFAULT.equals(down)
-                    && LIFT_TONE_DEFAULT.equals(chime))) {
-                tones.put(entry.getKey(), new LiftToneAudio(up, down, chime));
+                    && LIFT_TONE_DEFAULT.equals(open) && LIFT_TONE_DEFAULT.equals(close))) {
+                tones.put(entry.getKey(), new LiftToneAudio(up, down, open, close));
             }
         }
         liftToneAudio.clear();
@@ -1960,8 +2114,11 @@ public class EscalatorSpeedData extends SavedData {
         if (audioId.equals(defaultLiftToneAudioDown)) {
             defaultLiftToneAudioDown = LIFT_TONE_DEFAULT;
         }
-        if (audioId.equals(defaultLiftToneAudioChime)) {
-            defaultLiftToneAudioChime = LIFT_TONE_DEFAULT;
+        if (audioId.equals(defaultLiftToneAudioOpen)) {
+            defaultLiftToneAudioOpen = LIFT_TONE_DEFAULT;
+        }
+        if (audioId.equals(defaultLiftToneAudioClose)) {
+            defaultLiftToneAudioClose = LIFT_TONE_DEFAULT;
         }
         // 【1.15】屏蔽门那一套共用**同一个**音频库，所以也要一起清：
         //   ★ 1.50 漏了这一步 —— 删掉一段音频后，引用它的那扇门会留着一个指向不存在文件的 id，
@@ -2006,15 +2163,28 @@ public class EscalatorSpeedData extends SavedData {
         }
     }
 
+    /** 【1.18.1204】删除图片库中的一份地图图片（只删存档里的，不动 MBM_Picture 文件夹的文件）。 */
+    public void removePicture(String pictureId) {
+        pictureLibrary.remove(pictureId);
+    }
+
     /**
      * 【1.45】一条直梯的三项提示音设置（可独立选择各自素材，互不冲突）。
      *
      * <p>每个字段的取值语义见 {@link #liftToneAudio}：{@link #LIFT_TONE_DEFAULT} 内置素材 /
      * {@link #LIFT_TONE_OFF} 不播 / 其它 = 音频库文件名。
      */
-    public record LiftToneAudio(String up, String down, String chime) {
+    /**
+     * 【1.45】一扇直梯（竖井列）的**四项提示音素材**（up / down / open / close）。
+     *
+     * <p>每个字段的取值语义见 {@link #liftToneAudio}：{@link #LIFT_TONE_DEFAULT} 内置素材 /
+     * {@link #LIFT_TONE_OFF} 不播 / 其它 = 音频库文件名。
+     * 【1.28】原来的 {@code chime}（开关门一体）拆成 {@code open}（开门）与 {@code close}（关门）
+     * 两路，各设各的素材、各开各的子开关、各调各的音量。
+     */
+    public record LiftToneAudio(String up, String down, String open, String close) {
         public static final LiftToneAudio NONE = new LiftToneAudio(
-                LIFT_TONE_DEFAULT, LIFT_TONE_DEFAULT, LIFT_TONE_DEFAULT);
+                LIFT_TONE_DEFAULT, LIFT_TONE_DEFAULT, LIFT_TONE_DEFAULT, LIFT_TONE_DEFAULT);
     }
 
     /**

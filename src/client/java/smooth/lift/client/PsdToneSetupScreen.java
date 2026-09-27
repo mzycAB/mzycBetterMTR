@@ -25,7 +25,7 @@ import java.util.List;
  * 【1.50】石斧右键**屏蔽门**打开的「屏蔽门开关门提示音」选择界面。
  *
  * <p>与直梯那个 {@link LiftToneSetupScreen} 同一套版式（固定区三行从下往上互不重叠、
- * 列表可滚、`跟维度默认 / 内置素材(default-c、default-m) / 不播 / 待导入 / 已入库` 五种行），差别只有：
+ * 列表可滚、`默认 / 内置素材(default-c、default-m) / 不播 / 待导入 / 已入库` 五种行），差别只有：
  * <ul>
  *   <li>项从三项（上楼 / 下楼 / 开关门）变成**两项**（开门 / 关门）；</li>
  *   <li>主界面多一个**总开关**按钮（= {@code /pbmmusic on|off}），直梯那个总开关放在指令里；
@@ -52,7 +52,8 @@ import java.util.List;
  * <p>★ 也别在这里自己算「连通串」：播放端拿的是 {@code runKeyOf} 的结果（1.27 起含站台那一层），
  * 界面若自己走洪水填充，两边会算出两个身份 ⇒ 界面写的设置播放端读不到（静默落回维度默认）。
  *
- * <p>音频库与扶梯 / 直梯共用（{@code MBM_Audio} 同一个文件夹、同一份导入库）。
+ * <p>【1.28】音频隔离：每个列表页只列**自己分类**子文件夹（{@code MBM_Audio/pbm/open}、{@code pbm/close}、
+ * {@code pbm/midium}、{@code pbm/arrive}）的待导入 / 已存入（见 {@link #categoryForPage}）。
  */
 public class PsdToneSetupScreen extends Screen {
 
@@ -259,6 +260,17 @@ public class PsdToneSetupScreen extends Screen {
      */
     private int page;
 
+    /** 【1.28】页面 → 音频分类（文件夹 = MBM_Audio/<分类>）。主界面没有列表，返回 null。 */
+    private static String categoryForPage(int page) {
+        return switch (page) {
+            case 1 -> EscalatorSpeedManager.CAT_PSD_OPEN;
+            case 2 -> EscalatorSpeedManager.CAT_PSD_CLOSE;
+            case 3 -> EscalatorSpeedManager.CAT_PSD_MIDIUM;
+            case 4 -> EscalatorSpeedManager.CAT_PSD_ARRIVE;
+            default -> null;
+        };
+    }
+
     private EditBox openVolumeInput;
     private EditBox closeVolumeInput;
     /** 【1.23】主界面「开门提示」行等待秒数框（秒，[0,+∞)）。 */
@@ -309,8 +321,13 @@ public class PsdToneSetupScreen extends Screen {
         stored.clear();
         pending.clear();
         if (mc.level != null) {
-            stored.addAll(EscalatorSpeedManager.getClientAudioLibraryKeys(mc.level));
-            pending.addAll(EscalatorSpeedManager.getClientFolderAudioKeys(mc.level));
+            // 【1.28】音频隔离：只列**当前页**那个分类（子文件夹）的待导入 / 已存入。
+            //   主界面（page 0）没有列表，不加载。
+            String category = categoryForPage(page);
+            if (category != null) {
+                stored.addAll(EscalatorSpeedManager.getClientAudioLibraryKeys(mc.level, category));
+                pending.addAll(EscalatorSpeedManager.getClientFolderAudioKeys(mc.level, category));
+            }
         }
         Collections.sort(stored);
         Collections.sort(pending);
@@ -1113,9 +1130,14 @@ public class PsdToneSetupScreen extends Screen {
         scroll = Math.max(0, Math.min(scroll, maxScroll));
     }
 
-    /** 【1.19】点左列一段**未入库**的音频 → 只把它导入存档音频库（不改到站播报）。 */
+    /** 【1.19/1.28】点左列一段**未入库**的音频 → 只把它导入**当前页分类**的存档音频库（不改设置）。 */
     private void importPending(String id) {
+        String category = categoryForPage(page);
+        if (category == null) {
+            return;
+        }
         FriendlyByteBuf buf = PacketByteBufs.create();
+        buf.writeUtf(category, 64);
         buf.writeUtf(id, 128);
         ClientPlayNetworking.send(SmoothLift.IMPORT_PSD_MIDIUM_AUDIO_CHANNEL, buf);
         setStatus("已导入存档：" + truncate(id, 16));
@@ -1132,9 +1154,14 @@ public class PsdToneSetupScreen extends Screen {
         init();
     }
 
-    /** 从存档移除一段音频（服务端会同时清掉引用它的扶梯 / 提示音 / 到站播报）。 */
+    /** 【1.28】从存档移除一段**当前页分类**的音频（服务端会同时清掉引用它的扶梯 / 提示音 / 到站播报）。 */
     private void deleteStored(String id) {
+        String category = categoryForPage(page);
+        if (category == null) {
+            return;
+        }
         FriendlyByteBuf buf = PacketByteBufs.create();
+        buf.writeUtf(category, 64);
         buf.writeUtf(id, 128);
         ClientPlayNetworking.send(SmoothLift.DELETE_AUDIO_CHANNEL, buf);
         stored.remove(id);
@@ -1187,11 +1214,11 @@ public class PsdToneSetupScreen extends Screen {
     }
 
     /**
-     * 列表开头几行：跟维度默认 / 两段可显式选的内置素材（默认-c、默认-m）/【关门页】默认（短）/ 不播。
+     * 列表开头几行：默认 / 两段可显式选的内置素材（默认-c、默认-m）/【关门页】默认（短）/ 不播。
      *
      * <p>【1.15】第一行写进去的是**这一扇门那一层的 {@code default}**，含义 = 「跟维度默认」：
      * 维度默认本身是 {@code default} 时落内置（**按端别**：开门 → dooropen.ogg、关门 → mdoorclose.ogg），
-     * 被 {@code /pbmmusic open|close <名字>} 改过就是玩家选的那段。文案写「跟维度默认」而不是
+     * 被 {@code /pbmmusic open|close <名字>} 改过就是玩家选的那段。文案写「默认」而不是
      * 「默认素材」—— 与直梯界面一致（后者会和指令里的 {@code default} 撞名）。
      *
      * <p>另外两段内置素材（{@code default-c} = doorclose.ogg、{@code default-m} = mdoorclose.ogg）
@@ -1201,7 +1228,7 @@ public class PsdToneSetupScreen extends Screen {
      *
      * <p>★【1.15】「默认（短）」（{@code default-s}）**只在关门页**出现，理由是它**按端别**
      * 解析（见 {@link EscalatorSpeedData#psdBuiltinKey}）：开门端的默认素材 {@code dooropen.ogg}
-     * 本来就没有语音播报段 ⇒ 在开门页它会和第一行「默认（跟维度默认）」**效果完全相同**，
+     * 本来就没有语音播报段 ⇒ 在开门页它会和第一行「默认」**效果完全相同**，
      * 摆两行一模一样的选项只会让人犯迷糊。所以这一行跟着「有没有播报段」这件事走，只摆在关门页。
      * （指令那边两端都收，写在开门端只是等价于 {@code default}，不会把开门声换成关门素材。）
      */

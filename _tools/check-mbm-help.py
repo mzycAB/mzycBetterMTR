@@ -16,7 +16,7 @@
 2b. ★★【1.58】**层判据**：PSD 那两行必须落在**素材层**——「不播」写 `none`，不许写 `off`
    （`off` 会被字面量优先匹配成**子开关**，之后配任何素材都不出声 = 用户报的「设不回来」）。
    并且「要出声」的预设必须显式 `pbmmusic open|close -f on`。
-3. 全音量 = 11 条指令（覆盖扶梯底噪/扶梯提示音/直梯共用+三项/屏蔽门共用+两项/到站/进站）。
+3. 全音量 = 12 条指令（覆盖扶梯底噪/扶梯提示音/直梯共用+四项/屏蔽门共用+两项/到站/进站）。
 4. 输入框：1~1000、只收数字、maxLength 4、**没改动就不发**（否则「进来点个预设再 ESC」
    会静默把所有音量改成框里那个值）。
 5. 开界面走服务端 -> 客户端包（指令在服务端执行、界面在客户端）；
@@ -58,17 +58,19 @@ def strip_comments(text):
 # ======================================================================
 # 0) 用户逐字给出的三份清单（本脚本的「真值」，不许从源码里反推）
 # 【1.58】用户给了新清单：三个预设各插入 `lifthelp -f on|off` 作为**第 3 条**。
+# 【1.60】直梯四提示音（up/down/open/close）：`lifthelp door` 拆成 open / close 两行。
 #   另有**两处刻意的修正**（见下面「层判据」一节）：
 #     - 港铁两个预设在末尾**各多 2 条** `pbmmusic open|close -f on`（把子开关打开）；
 #     - 空白预设的 PSD 两条写成 `none` 而不是用户字面的 `off`。
-#   所以「逐字一致」只对**前 9 条**成立；后面那两条是**超集**，单独断言。
+#   所以「逐字一致」只对**前 10 条**成立；后面那两条是**超集**，单独断言。
 # ======================================================================
 EXPECTED = {
     "classic": [
         "futimusic -f default",
         "futihelp -f on",
         "lifthelp -f on",
-        "lifthelp door -f on",
+        "lifthelp open -f on",
+        "lifthelp close -f on",
         "lifthelp up -f on",
         "lifthelp down -f on",
         "pbmclosewait -f 1",
@@ -79,7 +81,8 @@ EXPECTED = {
         "futimusic -f default",
         "futihelp -f off",
         "lifthelp -f on",
-        "lifthelp door -f off",
+        "lifthelp open -f off",
+        "lifthelp close -f off",
         "lifthelp up -f on",
         "lifthelp down -f on",
         "pbmclosewait -f 1",
@@ -90,7 +93,8 @@ EXPECTED = {
         "futimusic -f off",
         "futihelp -f off",
         "lifthelp -f off",
-        "lifthelp door -f off",
+        "lifthelp open -f off",
+        "lifthelp close -f off",
         "lifthelp up -f off",
         "lifthelp down -f off",
         "pbmclosewait -f 1",
@@ -133,10 +137,10 @@ def find_array(name):
 
 
 # ======================================================================
-# 1) 三个预设 = 用户那 9 条指令（逐字逐序）+ 港铁两个预设末尾的子开关「打开」
+# 1) 三个预设 = 用户那 10 条指令（逐字逐序）+ 港铁两个预设末尾的子开关「打开」
 # ======================================================================
 print()
-print("===== 1) 三个预设的指令清单（前 9 条与用户原文逐字比对）=====")
+print("===== 1) 三个预设的指令清单（前 10 条与用户原文逐字比对）=====")
 
 ARRAYS = {
     "classic": "PRESET_CLASSIC_MTR",
@@ -153,7 +157,7 @@ for pid, arr_name in ARRAYS.items():
           "实际前 %d 条 = %s" % (len(EXPECTED[pid]), got[:len(EXPECTED[pid])]))
     boot = BOOT_MUST_ENABLE.get(pid, [])
     check(got == EXPECTED[pid] + boot,
-          "「%s」= 用户那 9 条 + %d 条" % (LABELS[pid], len(boot)),
+          "「%s」= 用户那 10 条 + %d 条" % (LABELS[pid], len(boot)),
           "实际 = %s" % got)
 
 check(find_array("PRESET_CLASSIC_MTR") != find_array("PRESET_BLANK"),
@@ -250,10 +254,10 @@ for pid in EXPECTED:
     check('"%s"' % pid in screen_no, "界面里出现过预设 id 「%s」" % pid)
 
 # ======================================================================
-# 3) 全音量清单 = 11 条
+# 3) 全音量清单 = 12 条
 # ======================================================================
 print()
-print("===== 3) 全音量 = 11 条指令 =====")
+print("===== 3) 全音量 = 12 条指令 =====")
 
 m = re.search(r"private static String\[\] allVolumeCommands\(int volume\)\s*\{(.*?)\n    \}", sl, flags=re.S)
 check(m is not None, "抠得出 allVolumeCommands() 方法体")
@@ -266,14 +270,15 @@ if m:
         "lifthelploud -f ",
         "lifthelploud -f up ",
         "lifthelploud -f down ",
-        "lifthelploud -f door ",
+        "lifthelploud -f open ",
+        "lifthelploud -f close ",
         "pbmloud -f ",
         "pbmloud -f open ",
         "pbmloud -f close ",
         "pbmmidiumloud -f ",
         "pbmarriveloud -f ",
     ]
-    check(templates == expected_templates, "11 条音量指令（含 -f 强制变体）逐条齐全",
+    check(templates == expected_templates, "12 条音量指令（含 -f 强制变体）逐条齐全",
           "实际 = %s" % templates)
     check("String.valueOf(volume)" in fb, "用 String.valueOf 拼音量（不是手写死数）")
 

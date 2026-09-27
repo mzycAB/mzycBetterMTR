@@ -524,8 +524,9 @@ for fn in ("liftHelpLoudShow", "liftHelpLoudGlobal", "liftHelpLoudFromTo",
     check(fn in cmd_src, "  /lifthelploud 分支存在：%s" % fn)
 check(re.search(r'Commands\.literal\("lifthelploud"\)[\s\S]{0,1500}?liftToneLoudCommand\("up", "up"\)',
                 cmd_src) is not None
-      and 'liftToneLoudForceBranch("door", "chime")' in cmd_src,
-      "/lifthelploud 挂了 up|down|door 三项分支 + 合并的 -f 节点（【1.48】形状，door = chime 别名）")
+      and 'liftToneLoudForceBranch("open", "open")' in cmd_src
+      and 'liftToneLoudForceBranch("close", "close")' in cmd_src,
+      "/lifthelploud 挂了 up|down|open|close 四项分支 + 合并的 -f 节点（【1.60】直梯四提示音）")
 
 # 7c) 同步包**读写顺序配对** —— 跨文件不变量，最容易被单边改坏
 def pkt_ops(src, marker, kind, end=None, span=900):
@@ -556,24 +557,25 @@ check(w_ops is not None and r_ops is not None,
       "写 %s / 读 %s" % (w_ops, r_ops))
 if w_ops and r_ops:
     check(w_ops == r_ops,
-          "同步包写入顺序 == 读取顺序（dimId → enabled → speed → volume → up → down → chime → round → 单项音量×3）",
+          "同步包写入顺序 == 读取顺序（dimId → enabled → speed → volume → up → down → open → close → round → 单项音量×4）",
           "写 %s 读 %s" % (w_ops, r_ops))
-    # 【1.15】包尾又追加了三个字符串（三项的维度默认素材）
-    check(w_ops[-13:] == ["Boolean", "Float", "VarInt", "Boolean", "Boolean", "Boolean",
-                          "VarInt", "VarInt", "VarInt", "VarInt", "Utf", "Utf", "Utf"],
-          "【1.46~1.48】三子开关(up→down→chime) + 范围(round) + 三项各自音量 + "
-          "【1.15】三项默认素材(up→down→chime)",
-          "实际尾部 %s" % w_ops[-13:])
+    # 【1.15】包尾又追加了四个字符串（四项的维度默认素材）
+    check(w_ops[-16:] == ["Boolean", "Float", "VarInt", "Boolean", "Boolean", "Boolean", "Boolean",
+                          "VarInt", "VarInt", "VarInt", "VarInt", "VarInt",
+                          "Utf", "Utf", "Utf", "Utf"],
+          "【1.60】四子开关(up→down→open→close) + 范围(round) + 四项各自音量 + "
+          "【1.15】四项默认素材(up→down→open→close)",
+          "实际尾部 %s" % w_ops[-16:])
 
-# 7d) applyClientLiftChime 的入参 == 读侧读到的值（【1.46】三个子开关，【1.47】范围，【1.48】三项各自音量）
+# 7d) applyClientLiftChime 的入参 == 读侧读到的值（【1.46】四个子开关，【1.47】范围，【1.48】四项各自音量）
 check(re.search(
     r"applyClientLiftChime\(ResourceKey<Level> dimension,\s*boolean enabled,\s*"
     r"float speed,\s*int volume,\s*boolean upEnabled,\s*boolean downEnabled,\s*"
-    r"boolean chimeEnabled,\s*int round,\s*int toneVolumeUp,\s*int toneVolumeDown,\s*"
-    r"int toneVolumeChime,\s*String toneAudioUp,\s*String toneAudioDown,\s*"
-    r"String toneAudioChime\)", mgr_src) is not None,
-      "applyClientLiftChime 接收 (dimension, enabled, speed, volume, up, down, chime, round, 单项音量×3, "
-      "【1.15】三项维度默认素材×3) —— 与读侧顺序一致")
+    r"boolean openEnabled,\s*boolean closeEnabled,\s*int round,\s*int toneVolumeUp,\s*int toneVolumeDown,\s*"
+    r"int toneVolumeOpen,\s*int toneVolumeClose,\s*String toneAudioUp,\s*String toneAudioDown,\s*"
+    r"String toneAudioOpen,\s*String toneAudioClose\)", mgr_src) is not None,
+      "applyClientLiftChime 接收 (dimension, enabled, speed, volume, up, down, open, close, round, 单项音量×4, "
+      "【1.15】四项维度默认素材×4) —— 与读侧顺序一致")
 
 # 7e) 【1.47】播放端范围动态化：不再写死 16，而是从同步镜像读（默认 4 格）
 check("DEFAULT_LIFT_HELP_ROUND" in mgr_src or "defaultLiftHelpRound" in mgr_src,
@@ -581,7 +583,7 @@ check("DEFAULT_LIFT_HELP_ROUND" in mgr_src or "defaultLiftHelpRound" in mgr_src,
 check("getLiftHelpRound(mc.level)" in player_src and "cachedRound" in player_src,
       "播放端范围从同步镜像读（cachedRound，随 /lifthelpround 同步更新）")
 check('lifthelpround' in cmd_src,
-      "注册了 /lifthelpround 指令（三项提示音共用的淡入淡出范围）")
+      "注册了 /lifthelpround 指令（四项提示音共用的淡入淡出范围）")
 
 # 7e) 音量真的要能放大：GainManagedSound + AL_MAX_GAIN 必须**成对**出现
 check(re.search(r"class LiftMusicInstance extends AbstractSoundInstance\s+"

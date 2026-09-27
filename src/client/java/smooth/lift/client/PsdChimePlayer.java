@@ -1063,7 +1063,7 @@ public final class PsdChimePlayer {
                 LOGGER.info("[SmoothLift/PsdChime] 门 @{} 开门：★ 这一轮**不会有人声播报** —— "
                                 + "关门提示音这一项选的是「默认（短）」（default-s），"
                                 + "它与「默认」是同一段素材、按设计只播嘀嘀。"
-                                + "想听人声：石斧界面把它换成「默认（跟维度默认）」，"
+                                + "想听人声：石斧界面把它换成「默认」，"
                                 + "或 /pbmmusic close default",
                         posText(door));
             } else if (tone.splitMs() <= 0) {

@@ -187,6 +187,8 @@ public final class LiftChimePlayer {
     private static float seqPitch = 1.0f;
     /** 【1.45】这一轮连播用的素材：null = 内置 {@link #LIFT_MUSIC}；否则音频库文件名。 */
     private static String seqCustomId;
+    /** 【1.60】这一轮连播是哪一项（"open" 开门 / "close" 关门）—— 音量按它取单项。 */
+    private static String seqWhich = "close";
 
     /** 【1.45】直梯提示音素材设置的镜像代数（服务端同步回来时刷新本地缓存用）。 */
     private static long cachedToneGeneration = -1L;
@@ -297,12 +299,14 @@ public final class LiftChimePlayer {
         }
         seqPos = new Vec3(lift.x(), lift.y(), lift.z());
         seqPitch = cachedSpeed;
-        // 【1.45】开关门连播素材：竖井列上设了自定义 chime 就用自定义；「不播」→ 静默跳过；
-        // 默认素材 = 内置 liftmusic。
-        String customId = liftToneCustomId(mc, lift, "chime");
+        // 【1.60】开关门连播素材：竖井列上设了自定义 open/close 就用自定义；「不播」→ 静默跳过；
+        // 默认素材 = 内置 liftmusic。which 按本次跳变方向取（开门 → open、关门 → close）。
+        String which = closing ? "close" : "open";
+        seqWhich = which;
+        String customId = liftToneCustomId(mc, lift, which);
         if (STOP_SENTINEL.equals(customId)) {
-            LOGGER.info("[SmoothLift/LiftChime] 直梯 #{} 开始{}，但开关门提示音设为「不播」，跳过",
-                    lift.id(), closing ? "关门" : "开门");
+            LOGGER.info("[SmoothLift/LiftChime] 直梯 #{} 开始{}，但{}提示音设为「不播」，跳过",
+                    lift.id(), closing ? "关门" : "开门", closing ? "关门" : "开门");
             // 清掉可能残留的上一轮排期（避免旧 playsLeft 干等）
             playsLeft = 0;
             nextPlayTick = 0L;
@@ -429,7 +433,7 @@ public final class LiftChimePlayer {
     /**
      * 到点就放一下，放完这一轮就停。
      *
-     * @param helpVolume 【1.43】共用默认音量（1~1000）；【1.48】实际用 chime 单项（没调过回落它）
+     * @param helpVolume 【1.43】共用默认音量（1~1000）；【1.60】实际用 open/close 单项（没调过回落它）
      */
     private static void advance(Minecraft mc, int helpVolume) {
         if (playsLeft <= 0 || seqPos == null) {
@@ -439,8 +443,8 @@ public final class LiftChimePlayer {
         if (now < nextPlayTick) {
             return;
         }
-        // 【1.48】开关门连播用 chime 单项音量（-1 → 回落共用默认）
-        int toneVolume = liftToneVolume(mc, "chime");
+        // 【1.60】开关门连播用 open/close 单项音量（-1 → 回落共用默认）
+        int toneVolume = liftToneVolume(mc, seqWhich);
         // 【1.51】先判当前位置还听得见吗；听不见也照样往下推进排期，别把连播卡死。
         float base = volumeFactor(toneVolume);
         if (base * spatialFactor(playerPos(mc), seqPos) > 0.0f) {
@@ -625,7 +629,7 @@ public final class LiftChimePlayer {
     }
 
     /**
-     * 【1.48】某项（up / down / chime）**生效**的音量：该项单独调过用它，没调过（-1）回落共用默认。
+     * 【1.60】某项（up / down / open / close）**生效**的音量：该项单独调过用它，没调过（-1）回落共用默认。
      * 用同一个 {@link #cachedGeneration} 缓存（Manager 的镜像整体同步，一次刷新三项都新鲜）。
      */
     private static int liftToneVolume(Minecraft mc, String which) {

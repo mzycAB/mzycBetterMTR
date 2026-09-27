@@ -18,61 +18,90 @@ import java.util.Collections;
 import java.util.List;
 
 /**
- * 石斧界面里的「选择扶梯音乐」子界面。列表从上到下三段：
- * <ol>
- *   <li>存档文件夹 {@code MBM_Audio} 里的 OGG：点=导入存档并绑定（删原文件仍可播）。</li>
- *   <li><b>模组内置音频</b>：随模组 jar 一起分发，装了模组就自带（{@code assets/smoothlift/sounds/audio/*.ogg}，
- *       由模组自己的 {@code sounds.json} 注册）。点一下即绑定，<b>不需要玩家准备任何文件、也不需要 ffmpeg</b>。</li>
- *   <li>已存入存档的音频：点名字=绑定此扶梯；删除=从存档移除。</li>
- * </ol>
- * 【1.38】段与段之间的说明文字已按用户要求删掉（只保留最上面那一行「文件夹待导入」提示），
- * 三段的区别靠行本身的形态区分：待导入=歌名、内置=显示名、已存入=右边多一个「删除」按钮。
- * 行数可能超过一屏，支持鼠标滚轮滚动；列表右侧有滚动条。
+ * 石斧界面里的「选择扶梯音乐」子界面。
+ *
+ * <h2>★★【09-27 六改】右列改为「不播在上、默认在下」，并且删掉内置音频行</h2>
+ *
+ * <ul>
+ *   <li>★ 用户点名「**所有ui里的「不播」按钮永远放在「默认」按钮上面**」⇒
+ *       右列第 0 行 = {@link #OFF_ROW_LABEL}「不播」、第 1 行 = {@link #DEFAULT_ROW_LABEL}「默认」
+ *       （上一版是反的：默认在 0、不播在 1）。</li>
+ *   <li>★ 用户点名「扶梯ui里的「声音设置」里的「默认」和「内置地铁自动扶梯」是一个东西，
+ *       删除「内置地铁自动扶梯」按钮」⇒ 右列**不再列模组内置音频**。
+ *       理由站得住：模组只有一条内置底噪（{@code builtin:subway_escalator} = 内置 · 地铁自动扶梯），
+ *       而「默认」那一层（{@code /futimusic default}）指的就是它 —— 两行点下去结果一样。
+ *       ⇒ 想要那条声音就点「默认」；本类因此连 {@code builtin} 字段都删了。</li>
+ * </ul>
+ *
+ * <pre>
+ *   未导入存档          ┆   已导入存档
+ *   &lt;ogg 名&gt;[全宽]      ┆   [不播][选用]              ← 右列第 0 行（特殊项，只有「选用」）
+ *                      ┆   [默认][选用]              ← 右列第 1 行（同上）
+ *                      ┆   [名字][选用][删除]        ← 已存入第 i 条落在第 i + {@link #RIGHT_SPECIAL_ROWS} 行
+ *                      状态行（当前绑定 / 反馈）
+ *                      返回 / 刷新
+ * </pre>
+ *
+ * <h2>版式（与直梯 / 屏蔽门二级菜单同一款左右两列）</h2>
+ * <ul>
+ *   <li>★ 几何**全部**指向 {@link SoundListLayout}（本类只留别名）—— 与屏蔽门 / 直梯 / 列车
+ *       共用同一份数字，别再在本类里写 190 / 22；</li>
+ *   <li>★ 底部预留取 {@link SoundListLayout#BOTTOM_RESERVE_LIST}（44）⇒ 240 px 高的画布下
+ *       可见 **6** 行（与直梯二级页同一个口径）；</li>
+ *   <li>★ 原来底部那只「解绑此扶梯」按钮**升级成右列第 1 行**（「默认」+「选用」）——
+ *       语义没变，仍是「清掉这条扶梯的单独绑定、回维度默认层」。</li>
+ * </ul>
+ *
+ * <h2>左列 / 右列各是什么</h2>
+ * <ul>
+ *   <li><b>左列 = 未导入存档</b>：存档文件夹 {@code MBM_Audio/futi/music} 里的 OGG
+ *       （【1.28】只列扶梯底噪这一个分类）。点一下 = **导入存档并绑定**（删原文件仍可播）。</li>
+ *   <li><b>右列 = 已导入存档</b>：第 0 行「不播」（这条扶梯静音）、第 1 行「默认」（回维度默认层）；
+ *       再往后是已存入存档的音频（点名字 / 点「选用」= 绑定，点「删除」= 从存档移除）。</li>
+ * </ul>
+ *
+ * <p>行数可能超过一屏，支持鼠标滚轮滚动；列表右侧有滚动条。
  * 界面在按钮点击后保持打开，只在按 ESC 或「返回」时回到设置界面。
  */
 public class AudioSetupScreen extends Screen {
 
-    private static final int ROW_H = 22;          // 每行固定高度（含行间距）
-    private static final int LIST_TOP = 50;       // 列表可视区顶部
-    private static final int BOTTOM_RESERVE = 76;  // 底部固定区（解绑按钮 + 状态 + 提示）占用的高度
-    private static final int BTN_W = 200;         // 单列按钮宽度
+    // ------------------------------------------------------------------
+    // 两列列表几何：**全部**指向 SoundListLayout（唯一来源）
+    // ------------------------------------------------------------------
+    private static final int ROW_H = SoundListLayout.ROW_H;
+    private static final int LIST_TOP = SoundListLayout.LIST_TOP;
+    private static final int COL_W = SoundListLayout.COL_W;
+    private static final int ROW_NAME_W = SoundListLayout.ROW_NAME_W;
+    private static final int ROW_NAME_CHARS = SoundListLayout.ROW_NAME_CHARS;
+    private static final int ROW_BTN_W = SoundListLayout.ROW_BTN_W;
+    private static final int BTN_Y = SoundListLayout.BTN_Y;
+    /** 二级页底部预留 = **与屏蔽门 / 直梯同一份常量**（44）⇒ 240 px 画布下 6 行可见。 */
+    private static final int BOTTOM_RESERVE_LIST = SoundListLayout.BOTTOM_RESERVE_LIST;
 
-    // 行类型
-    private static final int T_HEADER = 0;   // 分段标题（不可点）
-    private static final int T_NOTE = 1;     // 灰色说明（不可点）
-    private static final int T_BUILTIN = 2;  // 内置音频：点=绑定
-    private static final int T_STORED = 3;   // 存档音频：点=绑定 / 删除
-    private static final int T_PENDING = 4;  // 待导入：点=导入并绑定
-
-    /** 列表里的一行。 */
-    private static final class Row {
-        final int type;
-        final String id;    // 可点行的绑定 ID；不可点行为 null
-        final String text;  // 显示文字
-
-        Row(int type, String id, String text) {
-            this.type = type;
-            this.id = id;
-            this.text = text;
-        }
-    }
+    /** 右列**前 2 行**是特殊项（第 0 行「不播」、第 1 行「默认」）⇒ 已存入第 i 条落在第 i + 2 行。 */
+    private static final int RIGHT_SPECIAL_ROWS = 2;
+    /**
+     * 【09-27 六改】右列**第 0 行**的文案 = 「不播」（这条扶梯静音）。
+     *
+     * <p>★ 用户点名的全局规范：「所有ui里的「不播」按钮**永远放在「默认」按钮上面**」，
+     * 而且「不播」永远就叫这两个字（不许写成「不播提示音」这种带尾巴的名字）。
+     */
+    private static final String OFF_ROW_LABEL = "不播";
+    /** 右列**第 1 行**的文案：回维度默认层（与直梯 / 屏蔽门那一行同一叫法：只有「默认」两个字）。 */
+    private static final String DEFAULT_ROW_LABEL = "默认";
 
     private final BlockPos pos;
 
-    /** 模组内置音频的绑定 ID（带 builtin: 前缀），顺序固定。 */
-    private final List<String> builtin = new ArrayList<>();
-    /** 已存入存档的音频 ID（文件名）。 */
+    /** 已存入存档的音频 ID（文件名，只含扶梯底噪分类）。 */
     private final List<String> stored = new ArrayList<>();
     /** 存档文件夹里尚未入库、待导入的 OGG 文件名。 */
     private final List<String> pending = new ArrayList<>();
-    /** 三段拼成的扁平行列表（每次刷新重建）。 */
-    private final List<Row> rows = new ArrayList<>();
 
     /** 这条扶梯**实际使用**的音频ID（单独绑定 &gt; 默认音频）；null 表示真的不会出声。 */
     private String boundAudioId;
     /**
-     * 【1.14】上面那个 ID 的来源：true = 本扶梯单独绑定的；false = 来自「默认音频」层
-     * （{@code /futimusic -f default}）。只影响文案（「当前绑定」/「使用默认音乐」），不影响播放。
+     * 上面那个 ID 的来源：true = 本扶梯单独绑定的；false = 来自「默认音频」层
+     * （{@code /futimusic -f default}）。既影响文案，也决定右列第 1 行的 ✓ 打在谁身上。
      */
     private boolean individualAudio;
     /** 【1.9】这条扶梯当前的声音音量（1~1000；100 = 原始音量），仅用于回显。 */
@@ -80,10 +109,12 @@ public class AudioSetupScreen extends Screen {
     /** 最近一次操作的反馈文字；非空时在底部用黄色显示。 */
     private String statusText;
 
-    /** 列表滚动像素偏移 / 最大可滚动量 / 列表可视区底部。 */
+    /** 列表滚动像素偏移 / 最大可滚动量 / 列表可视区上下限。 */
     private int scroll;
     private int maxScroll;
     private int listBottom;
+    /** 列表区顶部：要让出两列上方那一行表头。 */
+    private int listTop = LIST_TOP;
 
     /** 当前打开的实例；服务端数据同步回来时由 {@link #notifyAudioDataChanged()} 回调刷新。 */
     private static volatile AudioSetupScreen OPEN;
@@ -116,8 +147,6 @@ public class AudioSetupScreen extends Screen {
         OPEN = this;
         Minecraft mc = Minecraft.getInstance();
         // 【1.14】回显「这条扶梯实际会播什么」，而不是「本方块自己绑了什么」。
-        // 以前只看 getBlockAudioId(pos)：用 /futimusic -f default 把单独绑定清掉、改走默认音频后，
-        // 这里会错写成「未绑定（扶梯保持静音）」—— 其实声音照放。改成：
         //   effectiveAudioId = 单独绑定（链上任意方块）优先，其次默认音频；
         //   individualAudio  = 这个结果是不是「单独绑定」来的，用来区分文案。
         boundAudioId = mc.level == null ? null : EscalatorSpeedManager.effectiveAudioId(mc.level, pos);
@@ -126,15 +155,12 @@ public class AudioSetupScreen extends Screen {
                 ? EscalatorSpeedData.DEFAULT_AUDIO_VOLUME
                 : EscalatorSpeedManager.getVolumeForScreen(mc.level, pos);
 
-        builtin.clear();
-        // 内置音频随模组分发，永远可用（不依赖存档/文件夹/同步）。
-        builtin.addAll(EscalatorSpeedManager.builtinAudioIds());
-
         stored.clear();
         pending.clear();
         if (mc.level != null) {
-            stored.addAll(EscalatorSpeedManager.getClientAudioLibraryKeys(mc.level));
-            pending.addAll(EscalatorSpeedManager.getClientFolderAudioKeys(mc.level));
+            // 【1.28】音频隔离：只列扶梯底噪分类（MBM_Audio/futi/music）的待导入 / 已存入。
+            stored.addAll(EscalatorSpeedManager.getClientAudioLibraryKeys(mc.level, EscalatorSpeedManager.CAT_FUTI));
+            pending.addAll(EscalatorSpeedManager.getClientFolderAudioKeys(mc.level, EscalatorSpeedManager.CAT_FUTI));
         }
         Collections.sort(stored);
         Collections.sort(pending);
@@ -145,108 +171,111 @@ public class AudioSetupScreen extends Screen {
     /** 清空并重建控件（滚动、删除、同步回调后都会走到这里）。 */
     private void buildUi() {
         clearWidgets();
-        listBottom = Math.max(LIST_TOP + ROW_H, this.height - BOTTOM_RESERVE);
-        rebuildRows();
+        listBottom = Math.max(LIST_TOP + ROW_H, this.height - BOTTOM_RESERVE_LIST);
+        // 两列上方要让出一行表头（与屏蔽门 / 直梯那几个二级页同一套算法）。
+        listTop = LIST_TOP + ROW_H;
+        rebuildScroll();
 
-        // 顶部：返回 / 刷新
+        // 底部：返回 / 刷新（与屏蔽门 / 直梯二级页同一处版位）。
         addRenderableWidget(Button.builder(Component.literal("返回"), button -> onClose())
-                .bounds(this.width / 2 - 100, 24, 96, 20)
+                .bounds(this.width / 2 - 100, this.height + BTN_Y, 96, 20)
                 .build());
         addRenderableWidget(Button.builder(Component.literal("刷新"), button -> {
             ClientPlayNetworking.send(SmoothLift.REQUEST_SYNC_CHANNEL, PacketByteBufs.empty());
             setStatus("已请求刷新，同步回来后列表会自动更新");
-        }).bounds(this.width / 2 + 4, 24, 96, 20).build());
+        }).bounds(this.width / 2 + 4, this.height + BTN_Y, 96, 20).build());
 
         // 【1.55】右上角「同步所有」：这是二级菜单，射程只算「这条扶梯的运行底噪素材」。
         //   没有输入框 ⇒ beforeOpen 传 null。
         addRenderableWidget(SyncPopupScreen.syncButton(this, "esc", SmoothLift.SYNC_ESC_AUDIO,
                 pos.asLong(), null));
 
-        // 列表：只为「完整可见 + 可点击」的行创建按钮。
-        // （滚出可视区的行不建控件，避免按钮溢出到标题/底部文字上。）
-        for (int i = 0; i < rows.size(); i++) {
-            Row row = rows.get(i);
+        // 左列：本分类文件夹里**还没入库**的 OGG —— 点一下 = 导入存档并绑定。
+        for (int i = 0; i < pending.size(); i++) {
             int y = rowY(i);
             if (!fullyVisible(y)) {
                 continue;
             }
-            if (row.type == T_BUILTIN) {
-                addRenderableWidget(Button.builder(Component.literal(truncate(row.text, 28)), button -> bindAudio(row.id))
-                        .bounds(this.width / 2 - BTN_W / 2, y, BTN_W, 20)
-                        .build());
-            } else if (row.type == T_STORED) {
-                addRenderableWidget(Button.builder(Component.literal(truncate(row.text, 22)), button -> bindAudio(row.id))
-                        .bounds(this.width / 2 - BTN_W / 2, y, BTN_W - 50, 20)
-                        .build());
-                addRenderableWidget(Button.builder(Component.literal("删除"), button -> deleteAudio(row.id))
-                        .bounds(this.width / 2 - BTN_W / 2 + BTN_W - 46, y, 46, 20)
-                        .build());
-            } else if (row.type == T_PENDING) {
-                addRenderableWidget(Button.builder(Component.literal(truncate(row.text, 28)), button -> importFolderAudio(row.id))
-                        .bounds(this.width / 2 - BTN_W / 2, y, BTN_W, 20)
-                        .build());
-            }
+            String id = pending.get(i);
+            addRenderableWidget(Button.builder(Component.literal(truncate(id, 22)),
+                            button -> importFolderAudio(id))
+                    .bounds(SoundListLayout.leftColX(this.width), y, COL_W, 20)
+                    .build());
         }
 
-        // 底部：解绑此扶梯
-        addRenderableWidget(Button.builder(Component.literal("解绑此扶梯"), button -> {
-            FriendlyByteBuf buf = PacketByteBufs.create();
-            buf.writeBlockPos(pos);
-            ClientPlayNetworking.send(SmoothLift.UNBIND_AUDIO_CHANNEL, buf);
-            setStatus("已请求解除这段声音（若绑定中则不再播放）");
-        }).bounds(this.width / 2 - 60, this.height - BOTTOM_RESERVE + 6, 120, 20).build());
+        // 【六改】右列第 0 行：「不播」= 把这条扶梯的运行底噪**单独哑掉**。
+        //   ★ 写进 blockAudio 的是哨兵 FUTI_AUDIO_OFF（"off"）—— 不是文件，所以只有「选用」、没有「删除」。
+        //   ★ 它是「单独绑定层」，天然压过维度默认层（/futimusic default 也盖不住它）。
+        //   ★ 用户点名「所有ui里的「不播」永远放在「默认」上面」⇒ 它就在第 0 行。
+        int yOff = rowY(0);
+        if (fullyVisible(yOff)) {
+            boolean isOff = individualAudio
+                    && EscalatorSpeedData.FUTI_AUDIO_OFF.equals(boundAudioId);
+            addRenderableWidget(Button.builder(
+                            Component.literal((isOff ? "✓" : "") + OFF_ROW_LABEL),
+                            button -> playOff())
+                    .bounds(SoundListLayout.rightColX(this.width), yOff, ROW_NAME_W, 20)
+                    .build());
+            addRenderableWidget(Button.builder(Component.literal("选用"), button -> playOff())
+                    .bounds(SoundListLayout.rowPickX(this.width), yOff, ROW_BTN_W, 20)
+                    .build());
+        }
+
+        // 【六改】右列第 1 行：「默认」= 清掉这条扶梯的单独绑定、回维度默认层。
+        //   （原来在底部的那只「解绑此扶梯」按钮；它不是一个音频文件 ⇒ 只有「选用」、没有「删除」。）
+        int yDefault = rowY(1);
+        if (fullyVisible(yDefault)) {
+            boolean isDefault = !individualAudio;
+            addRenderableWidget(Button.builder(
+                            Component.literal((isDefault ? "✓" : "") + DEFAULT_ROW_LABEL),
+                            button -> unbindAudio())
+                    .bounds(SoundListLayout.rightColX(this.width), yDefault, ROW_NAME_W, 20)
+                    .build());
+            addRenderableWidget(Button.builder(Component.literal("选用"), button -> unbindAudio())
+                    .bounds(SoundListLayout.rowPickX(this.width), yDefault, ROW_BTN_W, 20)
+                    .build());
+        }
+
+        // 【六改】这里原来是「模组内置音频」一栏（只剩一条「内置 · 地铁自动扶梯」）——
+        //   用户点名删掉：它和上面那行「默认」指的是同一条声音。
+        // 右列：已存入存档的音频 —— 每行三个控件：名字 / 选用 / 删除。
+        int storedStart = RIGHT_SPECIAL_ROWS;
+        for (int i = 0; i < stored.size(); i++) {
+            int y = rowY(storedStart + i);
+            if (!fullyVisible(y)) {
+                continue;
+            }
+            String id = stored.get(i);
+            boolean isCurrent = individualAudio && id.equals(boundAudioId);
+            addRenderableWidget(Button.builder(
+                            Component.literal((isCurrent ? "✓" : "") + truncate(id, ROW_NAME_CHARS)),
+                            button -> bindAudio(id))
+                    .bounds(SoundListLayout.rightColX(this.width), y, ROW_NAME_W, 20)
+                    .build());
+            addRenderableWidget(Button.builder(Component.literal("选用"), button -> bindAudio(id))
+                    .bounds(SoundListLayout.rowPickX(this.width), y, ROW_BTN_W, 20)
+                    .build());
+            addRenderableWidget(Button.builder(Component.literal("删除"), button -> deleteAudio(id))
+                    .bounds(SoundListLayout.rowDeleteX(this.width), y, ROW_BTN_W, 20)
+                    .build());
+        }
     }
 
-    /**
-     * 把三段列表拼成扁平行列表，并重算滚动范围。
-     *
-     * <p>【1.38d】行顺序按用户要求再调：**「默认音乐」永远排在最顶端，它下面才是导入的音乐**。
-     * 「默认音乐」= {@link #builtin}（模组内置音频，装完模组就有、不依赖存档 / 文件夹 / 同步），
-     * 它自己一条就是玩家能立刻点的那一项；「导入的音乐」= {@link #pending}（存档文件夹里待导入）
-     * + {@link #stored}（已存入存档）。
-     *
-     * <p>【1.38】的调整仍然保留：删掉了「① 模组内置音频…」「② 已存入存档的音频…」两段介绍文字
-     * （行本身的形态已经能区分三段：待导入=歌名、内置=显示名、已存入=右边多一个「删除」按钮）。
-     * ★ 拼装机制没变：三种行类型（{@code T_BUILTIN} / {@code T_STORED} / {@code T_PENDING}）
-     * 与各自的点击行为仍各管各的（见 {@link #buildUi()}）。
-     */
-    private void rebuildRows() {
-        rows.clear();
-
-        // 第一段（最上端、位置固定）：模组内置音频 =「默认音乐」，永远可用。
-        for (String id : builtin) {
-            rows.add(new Row(T_BUILTIN, id, EscalatorSpeedManager.displayName(id)));
-        }
-
-        // 第二段：存档文件夹里的 OGG（玩家自己导入的音乐），点=导入并绑定。
-        rows.add(new Row(T_HEADER, null, "存档文件夹 MBM_Audio 待导入（点=导入并绑定）"));
-        if (pending.isEmpty()) {
-            rows.add(new Row(T_NOTE, null, "（暂无）"));
-        } else {
-            for (String id : pending) {
-                rows.add(new Row(T_PENDING, id, id));
-            }
-        }
-
-        // 第三段：已存入存档的音频（点名字=绑定；右边的「删除」=从存档移除）。
-        for (String id : stored) {
-            rows.add(new Row(T_STORED, id, id));
-        }
-
-        int total = rows.size() * ROW_H;
-        int visible = Math.max(ROW_H, listBottom - LIST_TOP);
-        maxScroll = Math.max(0, total - visible);
+    /** 两列行数 → 滚动范围（右列 = 特殊行 + 已存入）。 */
+    private void rebuildScroll() {
+        maxScroll = SoundListLayout.maxScroll(listTop, listBottom,
+                pending.size(), RIGHT_SPECIAL_ROWS + stored.size());
         scroll = Math.max(0, Math.min(scroll, maxScroll));
     }
 
     /** 第 index 行的屏幕 y（含滚动偏移）。 */
     private int rowY(int index) {
-        return LIST_TOP + index * ROW_H - scroll;
+        return SoundListLayout.rowY(listTop, index, scroll);
     }
 
     /** 该行是否完整落在列表可视区内。 */
     private boolean fullyVisible(int y) {
-        return y >= LIST_TOP && y + 20 <= listBottom;
+        return y >= listTop && y + 20 <= listBottom;
     }
 
     @Override
@@ -260,18 +289,43 @@ public class AudioSetupScreen extends Screen {
         return super.mouseScrolled(mouseX, mouseY, scrollX, scrollY);
     }
 
-    /** 点击一个音频（内置或已存档）：绑定到这条扶梯。 */
+    /** 点击一段已存档的音频：绑定到这条扶梯。 */
     private void bindAudio(String id) {
         FriendlyByteBuf buf = PacketByteBufs.create();
         buf.writeBlockPos(pos);
         buf.writeUtf(id, 128);
         ClientPlayNetworking.send(SmoothLift.BIND_AUDIO_CHANNEL, buf);
-        setStatus("已选择：" + truncate(EscalatorSpeedManager.displayName(id), 20));
+        setStatus("已选择：" + truncate(id, 20));
+    }
+
+    /** 右列第 1 行「默认」：清掉这条扶梯的单独绑定，改为跟随维度默认音乐。 */
+    private void unbindAudio() {
+        FriendlyByteBuf buf = PacketByteBufs.create();
+        buf.writeBlockPos(pos);
+        ClientPlayNetworking.send(SmoothLift.UNBIND_AUDIO_CHANNEL, buf);
+        setStatus("已请求解除这条扶梯的单独绑定（回到维度默认音乐）");
+    }
+
+    /**
+     * 【09-27 五改】右列第 0 行「不播」：把这条扶梯的运行底噪**单独哑掉**。
+     *
+     * <p>★ 发的是普通的 {@link SmoothLift#BIND_AUDIO_CHANNEL}，只是 ID 换成哨兵
+     * {@link EscalatorSpeedData#FUTI_AUDIO_OFF}（{@code bindAudio} 已为它专门放行）——
+     * 于是它落进「单独绑定层」，与「默认」/已存档的音频走**同一条**通路，
+     * 不需要任何新的网络包或指令。
+     */
+    private void playOff() {
+        FriendlyByteBuf buf = PacketByteBufs.create();
+        buf.writeBlockPos(pos);
+        buf.writeUtf(EscalatorSpeedData.FUTI_AUDIO_OFF, 128);
+        ClientPlayNetworking.send(SmoothLift.BIND_AUDIO_CHANNEL, buf);
+        setStatus("已选择：不播（只让这一条扶梯静音，不受维度默认音乐影响）");
     }
 
     /** 删除一条已存入存档的音频（服务端会同时解绑引用它的扶梯）。本地乐观移除便于立刻看到。 */
     private void deleteAudio(String name) {
         FriendlyByteBuf buf = PacketByteBufs.create();
+        buf.writeUtf(EscalatorSpeedManager.CAT_FUTI, 64);
         buf.writeUtf(name, 128);
         ClientPlayNetworking.send(SmoothLift.DELETE_AUDIO_CHANNEL, buf);
         stored.remove(name);
@@ -321,61 +375,51 @@ public class AudioSetupScreen extends Screen {
         this.renderBackground(guiGraphics, mouseX, mouseY, partialTick);
         super.render(guiGraphics, mouseX, mouseY, partialTick);
 
-        guiGraphics.drawCenteredString(this.font, this.title, this.width / 2, 10, 0xFFFFFF);
+        int cx = this.width / 2;
+        guiGraphics.drawCenteredString(this.font, this.title, cx, 10, 0xFFFFFF);
 
-        // 只画「分段标题 / 灰色说明」这两种行 —— 可点行由按钮自己画文字。
-        // 用裁剪区兜住，滚动到一半的行只露出可见部分，不会压到标题或底部。
-        guiGraphics.enableScissor(0, LIST_TOP, this.width, listBottom);
-        for (int i = 0; i < rows.size(); i++) {
-            Row row = rows.get(i);
-            if (row.type != T_HEADER && row.type != T_NOTE) {
-                continue;
-            }
-            int y = rowY(i);
-            if (y + ROW_H < LIST_TOP || y > listBottom) {
-                continue; // 完全在可视区外
-            }
-            int color = row.type == T_HEADER ? 0xFFE0E0E0 : 0xFF909090;
-            guiGraphics.drawCenteredString(this.font, Component.literal(row.text), this.width / 2, y + 6, color);
-        }
-        guiGraphics.disableScissor();
+        // 两列表头（与屏蔽门 / 直梯那几页逐字相同）
+        guiGraphics.drawCenteredString(this.font, Component.literal("未导入存档"),
+                SoundListLayout.leftColX(this.width) + COL_W / 2, LIST_TOP + 2, 0xFFFFFF);
+        guiGraphics.drawCenteredString(this.font, Component.literal("已导入存档"),
+                SoundListLayout.rightColX(this.width) + COL_W / 2, LIST_TOP + 2, 0xFFFFFF);
 
-        // 滚动条（可滚动时才显示）
-        if (maxScroll > 0) {
-            int barX = this.width / 2 + BTN_W / 2 + 10;
-            int trackTop = LIST_TOP;
-            int trackH = Math.max(ROW_H, listBottom - LIST_TOP);
+        // 中间那条竖线
+        guiGraphics.fill(cx, listTop, cx + 1, listBottom, 0x80FFFFFF);
+
+        // 滚动条（与屏蔽门 / 直梯那几页同一套）
+        int rowCount = Math.max(pending.size(), RIGHT_SPECIAL_ROWS + stored.size());
+        if (maxScroll > 0 && rowCount > 0) {
+            int barX = SoundListLayout.scrollBarX(this.width);
+            int trackTop = listTop;
+            int trackH = Math.max(ROW_H, listBottom - listTop);
             guiGraphics.fill(barX, trackTop, barX + 4, trackTop + trackH, 0x40000000);
-            int thumbH = Math.max(14, trackH * trackH / (rows.size() * ROW_H));
+            int thumbH = Math.max(14, trackH * trackH / (rowCount * ROW_H));
             int thumbY = trackTop + (trackH - thumbH) * scroll / maxScroll;
             guiGraphics.fill(barX, thumbY, barX + 4, thumbY + thumbH, 0xFFAAAAAA);
         }
 
-        // 无反馈时这一行显示绑定状态；有反馈时换成黄色反馈文字。
-        int statusY = this.height - BOTTOM_RESERVE + 30;
+        // 无反馈时这一行显示当前绑定状态；有反馈时换成黄色反馈文字。
         String info = statusText;
         if (info == null) {
-            if (boundAudioId == null) {
+            if (individualAudio && EscalatorSpeedData.FUTI_AUDIO_OFF.equals(boundAudioId)) {
+                // 【09-27 五改】「不播」不是「没绑定」也不是某段素材，单独给一句话，别显示成「当前绑定：off」。
+                info = "不播（这条扶梯静音）";
+            } else if (boundAudioId == null) {
                 info = "未绑定（扶梯保持静音）";
             } else {
                 // 单独绑定 → 「当前绑定」；走默认音频（/futimusic -f default 之后）→ 写明「默认音乐」，
                 // 否则玩家会以为绑定丢了（其实有声音）。
+                // ★【七改】「默认」层现在恒解析成**内置底噪**（见 EscalatorSpeedManager#normaliseDefaultAudio）
+                //   ⇒ 这里改走 displayName()，显示成「内置 · 地铁自动扶梯」而不是裸 ID「builtin:subway_…」。
                 String prefix = individualAudio ? "当前绑定：" : "使用默认音乐：";
                 info = prefix + truncate(EscalatorSpeedManager.displayName(boundAudioId), 18)
                         + "　音量 " + boundVolume + "%";
             }
         }
-        guiGraphics.drawCenteredString(this.font, Component.literal(info), this.width / 2, statusY,
-                statusText == null ? 0x808080 : 0xFFFF55);
-
-        guiGraphics.drawCenteredString(this.font,
-                Component.literal("内置音频开箱即用；自备文件必须是 Ogg Vorbis(.ogg)，MP3 改名 / Opus 都不会响"),
-                this.width / 2, statusY + 16, 0x808080);
-        guiGraphics.drawCenteredString(this.font,
-                Component.literal(maxScroll > 0
-                        ? "音量（底噪/提示音）都在上一页「扶梯设置」里调（滚轮可滚动列表）；底噪离开整条扶梯 16 格内才听得见"
-                        : "音量（底噪/提示音）都在上一页「扶梯设置」里调；底噪离开整条扶梯 16 格内才听得见"),
-                this.width / 2, statusY + 30, 0x808080);
+        guiGraphics.drawCenteredString(this.font, Component.literal(info), cx,
+                this.height + SoundListLayout.STATUS_Y_LIST,
+                statusText == null ? 0xFFFFFF : 0xFFFF55);
     }
 
     private static String truncate(String s, int max) {

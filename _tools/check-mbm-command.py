@@ -90,8 +90,10 @@ m = re.search(r"private static int dtMusicImportAll\(CommandContext<CommandSourc
 check(m is not None, "抠得出 dtMusicImportAll() 方法体")
 if m:
     fb = strip_comments(m.group(1))
-    check("scanAudioFiles(level)" in fb, "用 scanAudioFiles 全量扫 MBM_Audio 文件夹")
-    check("importAudioToStore(level, name)" in fb, "逐条走 importAudioToStore（同一套 ogg 校验）")
+    check("scanAudioFiles(level, category)" in fb or "scanAudioFiles(level," in fb,
+          "用 scanAudioFiles 扫全部分类子文件夹（MBM_Audio/<分类>）")
+    check("importAudioToStore(level," in fb and "e.getKey()" in fb,
+          "逐条走 importAudioToStore（同一套 ogg 校验）")
     check("sendAudioSyncTo(source.getPlayer(), level)" in fb,
           "导入后补发音频库同步包（客户端「已导入」右列刷新）")
     check("if (true)" not in fb and "if (false)" not in fb,
@@ -108,8 +110,10 @@ m = re.search(r"private static int dtMusicDeleteAll\(CommandContext<CommandSourc
 check(m is not None, "抠得出 dtMusicDeleteAll() 方法体")
 if m:
     fb = strip_comments(m.group(1))
-    check("audioLibrary.keySet()" in fb, "遍历 audioLibrary 全量键（快照）")
-    check("deleteAudio(level, id)" in fb, "逐条走 deleteAudio（removeAudio 连带清引用）")
+    check("audioCategoryNames.values()" in fb or "audioLibrary.keySet()" in fb,
+          "遍历全量键（快照；【1.28】起跨分类注册表遍历，同名在多个分类也清干净）")
+    check("deleteAudio(level," in fb and "ALL_CATEGORIES" in fb,
+          "逐条走 deleteAudio（【1.28】起按分类删，removeAudio 连带清引用）")
     check("syncAudioToAll(level.getServer())" in fb
           and "syncHelpAudioToAll(level.getServer())" in fb
           and "syncPsdChimeToAll(level.getServer())" in fb,

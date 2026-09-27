@@ -168,7 +168,7 @@ check("clearPsdToneOverrides" in mgr,
       "-f 会清掉「按扇门单独设置」（那些门从此跟维度默认）")
 check("resolvePsdToneName" in mgr and "psdNameCandidates" in mgr,
       "Manager：名字解析 + Tab 补全候选")
-m = re.search(r"public static AudioArg resolvePsdToneName\(ServerLevel level, String name\)(.*?)\n    \}", mgr, re.S)
+m = re.search(r"public static AudioArg resolvePsdToneName\(ServerLevel level, String category, String name\)(.*?)\n    \}", mgr, re.S)
 rz = m.group(1) if m else ""
 check(bool(rz), "找到 resolvePsdToneName")
 if rz:
@@ -178,8 +178,9 @@ if rz:
           "「存档里没有叫…的音频」）")
     check('"none".equals(lower)' in rz and '"mute".equals(lower)' in rz,
           "「这一项不播」写作 none（off 被字面量占了，但仍兼容）")
-    check("audioLibrary.containsKey" in rz, "其它名字去音频库找（找不到再试 名字+.ogg）")
-m = re.search(r"public static List<String> psdNameCandidates\(ServerLevel level\)(.*?)\n    \}", mgr, re.S)
+    check("categoryAudioNames(data, category)" in rz and "catNames.contains" in rz,
+          "其它名字去**本分类**已导入集合找（找不到再试 名字+.ogg）")
+m = re.search(r"public static List<String> psdNameCandidates\(ServerLevel level, String category\)(.*?)\n    \}", mgr, re.S)
 cd = m.group(1) if m else ""
 check(bool(cd) and cd.find("PSD_TONE_BUILTIN_OPEN") < cd.find('"none"'),
       "补全候选：四段内置名排最前，然后才是 none 与库文件名")
@@ -191,8 +192,8 @@ st = m.group(1) if m else ""
 check(bool(st) and "isPsdBuiltinName(id)" in st,
       "★ setServerPsdTone 用 isPsdBuiltinName(id) 放行（**不是**把四个名字各抄一遍）"
       " ⇒ 以后再加内置名不会漏掉这一处")
-check(bool(st) and "PSD_TONE_OFF.equals(id)" in st and "audioLibrary.containsKey(id)" in st,
-      "放行集合 = 内置名 ∪ 不播 ∪ 音频库（三支都在）")
+check(bool(st) and "PSD_TONE_OFF.equals(id)" in st and "categoryAudioNames(data," in st,
+      "放行集合 = 内置名 ∪ 不播 ∪ 本分类已导入（三支都在）")
 
 print("\n== 4. 指令（/pbmmusic open|close 素材分支 + 补全；/pbmloud 音量） ==")
 check('pbmMusicItemCommand("open", "open")' in main and 'pbmMusicItemCommand("close", "close")' in main,
@@ -200,7 +201,7 @@ check('pbmMusicItemCommand("open", "open")' in main and 'pbmMusicItemCommand("cl
 for fn in ("pbmMusicItemAudioSet", "pbmMusicItemAudioFromTo",
            "pbmMusicItemAudioForceSet", "pbmMusicItemAudioForceFromTo"):
     check(fn in main, "指令处理器存在：%s" % fn)
-check("psdToneNameSuggestions" in main and "suggests(SmoothLift::psdToneNameSuggestions)" in main,
+check("psdToneNameSuggestions" in main and "suggests((ctx, b) -> psdToneNameSuggestions(ctx, b, category))" in main,
       "素材名参数挂了补全提供器（Tab 能补出四个内置名 / none / 导入过的 ogg）")
 check("source == null" in main and "return builder.buildFuture()" in main,
       "补全提供器容忍 null source（_tools/CmdTreeCheck 用 null source 解析真指令树）")
@@ -433,7 +434,7 @@ check("PSD_MIDIUM_OFF" in mid_norm and "DEFAULT" not in mid_norm,
 check("isPsdMidiumOff" in data and "isPsdMidiumOff" in player,
       "isPsdMidiumOff 被播放端用上（不是死代码）")
 # 素材解析：**不许收内置名**
-_mid_resolve = re.search(r"public static String resolvePsdMidiumName\(ServerLevel level, String name\)\s*"
+_mid_resolve = re.search(r"public static String resolvePsdMidiumName\(ServerLevel level, String category, String name\)\s*"
                          r"\{(.*?)\n    \}", mgr, re.S)
 mid_resolve = _mid_resolve.group(1) if _mid_resolve else ""
 check(bool(mid_resolve) and "isPsdBuiltinName" not in mid_resolve,
@@ -705,7 +706,7 @@ check("resolvePsdArriveName" in mgr and "psdArriveSuggestions" in mgr
       and "setDefaultPsdArrive" in mgr and "getDoorPsdArriveAudio" in mgr
       and "getDoorPsdArriveSeconds" in mgr,
       "管理端一整套进站报站读写口都在")
-_ar_res = re.search(r"public static String resolvePsdArriveName\(ServerLevel level, String name\)\s*"
+_ar_res = re.search(r"public static String resolvePsdArriveName\(ServerLevel level, String category, String name\)\s*"
                     r"\{(.*?)\n    \}", mgr, re.S)
 ar_res = _ar_res.group(1) if _ar_res else ""
 check(bool(ar_res) and "isPsdBuiltinName" not in ar_res and "PSD_TONE_DEFAULT" not in ar_res,

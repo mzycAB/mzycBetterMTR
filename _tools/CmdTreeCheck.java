@@ -15,7 +15,7 @@ import java.util.List;
  * 建出来，然后 dump 出各层级的 Tab 补全项，确认 `/futihelp`、`/futihelploud`、`/futiround`、
  * `/futihelpround`、`/futihelpspeed`、`/futihelpmusic`（【1.39】，【1.41】起带 in|out），
  * 以及【1.42】直梯的 `/lifthelp` 与【1.43】`/lifthelploud` 的每个分支都真的可达。
- * 【1.15】`/lifthelpspeed` 已删除、`/lifthelpup|down|chime` 已改成 `/lifthelp up|down|door`，
+ * 【1.60】`/lifthelpspeed` 已删除、`/lifthelpup|down|chime` 已改成 `/lifthelp up|down|open|close`，
  * 这几条在下面都有「必须不再存在」的断言。
  *
  * <p>用法见 _tools/check-command-tree.sh。核心手法是给 {@code dispatcher.parse(input, null)}
@@ -37,7 +37,7 @@ import java.util.List;
  *       整个吃掉，真正的报错发生在 {@code resolveHelpAudioName} 里。</li>
  * </ol>
  *
- * <p>★【1.15】/lifthelp up|down|door 这一层有个**必须钉住**的东西：
+ * <p>★【1.60】/lifthelp up|down|open|close 这一层有个**必须钉住**的东西：
  * 同一层上既有字面量 {@code on} / {@code off} / {@code -f}，又有「音频名字」字符串参数，
  * 而 {@code StringArgumentType} 会把 {@code on} 也读成一个合法的字符串 ⇒ 两个子节点**同时匹配**。
  * Brigadier 取的是**子节点插入顺序里靠前**的那个（所以注册时字面量必须写在参数前面）。
@@ -121,14 +121,14 @@ public final class CmdTreeCheck {
 
         System.out.println();
         System.out.println("==================== 【1.42】/lifthelp 指令树 ====================");
-        failures += dump(dispatcher, "lifthelp ", "lifthelp 的直接子节点（1.15 起多了 up/down/door）");
+        failures += dump(dispatcher, "lifthelp ", "lifthelp 的直接子节点（1.60 起多了 up/down/open/close）");
         failures += dump(dispatcher, "lifthelp on ", "lifthelp on 的下一层");
         failures += dump(dispatcher, "lifthelp on to ", "lifthelp on to 的下一层");
         failures += dump(dispatcher, "lifthelp off to ", "lifthelp off to 的下一层");
         failures += dump(dispatcher, "lifthelp -f ", "lifthelp -f 的下一层");
         failures += dump(dispatcher, "lifthelp -f on to ", "lifthelp -f on to 的下一层");
-        System.out.println("-------------------- 【1.15】/lifthelp up|down|door 指令树 --------------------");
-        for (String liftTone : new String[]{"up", "down", "door"}) {
+        System.out.println("-------------------- 【1.60】/lifthelp up|down|open|close 指令树 --------------------");
+        for (String liftTone : new String[]{"up", "down", "open", "close"}) {
             System.out.println("===== lifthelp " + liftTone + " =====");
             failures += dump(dispatcher, "lifthelp " + liftTone + " ",
                     "lifthelp " + liftTone + " 的直接子节点（字面量 -f/off/on + 音频名字参数）");
@@ -150,8 +150,8 @@ public final class CmdTreeCheck {
         failures += dump(dispatcher, "lifthelploud 200 to ", "lifthelploud <X> to 的下一层");
         failures += dump(dispatcher, "lifthelploud -f ", "lifthelploud -f 的下一层");
         failures += dump(dispatcher, "lifthelploud -f 200 to ", "lifthelploud -f <X> to 的下一层");
-        // 【1.48】lifthelploud up|down|door：三项提示音各自的音量（door = chime 的别名）
-        for (String liftToneLoud : new String[]{"up", "down", "door"}) {
+        // 【1.60】lifthelploud up|down|open|close：四项提示音各自的音量
+        for (String liftToneLoud : new String[]{"up", "down", "open", "close"}) {
             System.out.println("===== lifthelploud " + liftToneLoud + " =====");
             failures += dump(dispatcher, "lifthelploud " + liftToneLoud + " ",
                     "lifthelploud " + liftToneLoud + " 的直接子节点（数值参数，无补全）");
@@ -417,9 +417,9 @@ public final class CmdTreeCheck {
 
         System.out.println();
         System.out.println("==================== 【1.48】/lifthelploud 三项分支各自可执行 ====================");
-        // 1.43 时 lifthelploud 与 lifthelpspeed 同构；1.48 加了 up|down|door 三项子分支后不再同构，
+        // 1.43 时 lifthelploud 与 lifthelpspeed 同构；1.60 加了 up|down|open|close 四项子分支后不再同构，
         // 同构断言改由上面的逐分支 dump + 这里的三项可执行守住。
-        for (String liftToneLoud : new String[]{"up", "down", "door"}) {
+        for (String liftToneLoud : new String[]{"up", "down", "open", "close"}) {
             failures += expectExecutable(dispatcher, "lifthelploud " + liftToneLoud + " 200");
             failures += expectExecutable(dispatcher, "lifthelploud " + liftToneLoud + " 200 to 300");
             failures += expectExecutable(dispatcher, "lifthelploud -f " + liftToneLoud + " 200");
@@ -477,17 +477,17 @@ public final class CmdTreeCheck {
         failures += expect(dispatcher, "futihelpmusic -f out default to ");
 
         // 【1.42】/lifthelp：与 /futihelp 同形状的 on|off 开关（只是 `-f` 的含义是「所有维度」）。
-        failures += expect(dispatcher, "lifthelp ", "-f", "door", "down", "off", "on", "up");  // 字典序
+        failures += expect(dispatcher, "lifthelp ", "-f", "close", "down", "off", "on", "open", "up");  // 字典序
         failures += expect(dispatcher, "lifthelp on ", "to");
         failures += expect(dispatcher, "lifthelp on to ", "off");
         failures += expect(dispatcher, "lifthelp off ", "to");
         failures += expect(dispatcher, "lifthelp off to ", "on");
         failures += expect(dispatcher, "lifthelp -f ", "off", "on");
         failures += expect(dispatcher, "lifthelp -f on to ", "off");
-        // 【1.15】/lifthelp up|down|door：同一层 = 字面量 -f / off / on + 音频名字字符串参数。
+        // 【1.60】/lifthelp up|down|open|close：同一层 = 字面量 -f / off / on + 音频名字字符串参数。
         //   ★ 字符串参数的补全候选在**这个工具里是空的**（null source，见类头说明），
         //     所以这里只断言三个字面量 —— 候选列表由 check-lift-tone.py 做源码级断言。
-        for (String liftTone : new String[]{"up", "down", "door"}) {
+        for (String liftTone : new String[]{"up", "down", "open", "close"}) {
             failures += expect(dispatcher, "lifthelp " + liftTone + " ", "-f", "off", "on");
             failures += expect(dispatcher, "lifthelp " + liftTone + " on ", "to");
             failures += expect(dispatcher, "lifthelp " + liftTone + " on to ", "off");
@@ -504,16 +504,17 @@ public final class CmdTreeCheck {
             failures += expect(dispatcher, "lifthelp " + liftTone + " -f default ", "to");
             failures += expect(dispatcher, "lifthelp " + liftTone + " -f default to ");
         }
-        // 【1.43】/lifthelploud：数值参数不补全，-f 可补全；【1.48】加了 up|down|door 三个子分支
-        failures += expect(dispatcher, "lifthelploud ", "-f", "door", "down", "up");  // Brigadier 按字典序
+        // 【1.43】/lifthelploud：数值参数不补全，-f 可补全；【1.60】加了 up|down|open|close 四个子分支
+        failures += expect(dispatcher, "lifthelploud ", "-f", "close", "down", "open", "up");  // Brigadier 按字典序
         failures += expect(dispatcher, "lifthelploud 200 ", "to");
         failures += expect(dispatcher, "lifthelploud 200 to ");    // 数值参数不给补全项
-        failures += expect(dispatcher, "lifthelploud -f ", "door", "down", "up");  // 共用音量是数值参数不补全
+        failures += expect(dispatcher, "lifthelploud -f ", "close", "down", "open", "up");  // 共用音量是数值参数不补全
         failures += expect(dispatcher, "lifthelploud -f 200 ", "to");
         failures += expect(dispatcher, "lifthelploud -f 200 to ");
         failures += expect(dispatcher, "lifthelploud -f up 200 ", "to");
         failures += expect(dispatcher, "lifthelploud -f down 200 to ");   // 数值参数不给补全项
-        failures += expect(dispatcher, "lifthelploud -f door ");
+        failures += expect(dispatcher, "lifthelploud -f open ");
+        failures += expect(dispatcher, "lifthelploud -f close ");
 
         // 【1.50】/pbmmusic：顶层 = -f / close / off / on / open（Brigadier 补全按字典序）。
         //   ★ 与 /lifthelp 的差别就在这两个额外子节点 open / close。
@@ -629,8 +630,8 @@ public final class CmdTreeCheck {
         failures += expectExecutable(dispatcher, "lifthelp -f off");
         failures += expectExecutable(dispatcher, "lifthelp -f on to off");
         failures += expectExecutable(dispatcher, "lifthelp -f off to on");
-        // 【1.15】/lifthelp up|down|door：子开关 + 默认素材，两套 × 各 5 种形状都要可执行
-        for (String liftTone : new String[]{"up", "down", "door"}) {
+        // 【1.60】/lifthelp up|down|open|close：子开关 + 默认素材，四套 × 各 5 种形状都要可执行
+        for (String liftTone : new String[]{"up", "down", "open", "close"}) {
             failures += expectExecutable(dispatcher, "lifthelp " + liftTone);
             failures += expectExecutable(dispatcher, "lifthelp " + liftTone + " on");
             failures += expectExecutable(dispatcher, "lifthelp " + liftTone + " off");
@@ -794,18 +795,19 @@ public final class CmdTreeCheck {
         // 【1.42】/lifthelp 的 on|off 是字面量，不存在 on to on（子命令那一层同理）
         failures += expectNotParsed(dispatcher, "lifthelp on to on", "on to on 应无此分支");
         failures += expectNotParsed(dispatcher, "lifthelp up on to on", "up on to on 应无此分支");
-        failures += expectNotParsed(dispatcher, "lifthelp door -f off to off", "door -f off to off 应无此分支");
+        failures += expectNotParsed(dispatcher, "lifthelp open -f off to off", "open -f off to off 应无此分支");
+        failures += expectNotParsed(dispatcher, "lifthelp close -f off to off", "close -f off to off 应无此分支");
         // 说明：「futihelp on off」这类「已匹配到可执行节点后再多打一个词」的输入，Brigadier 会停在
         // 已匹配的节点上、不报异常（下面的 probe 对照可以看到 /futispeed 2 3、/futiloud 200 300
         // 这些**既有**指令行为完全一致），所以这里不算失败项，只在对照区打出来看。
 
         System.out.println();
         System.out.println("==================== 【1.15】字面量优先于字符串参数（注册顺序必须钉住） ====================");
-        // /lifthelp up|down|door 这一层，字面量 on/off/-f 与「音频名字」参数会**同时匹配**
+        // /lifthelp up|down|open|close 这一层，字面量 on/off/-f 与「音频名字」参数会**同时匹配**
         // （StringArgumentType 把 on 也读成一个合法字符串），Brigadier 取的是**先注册**的那个。
         // 所以 `up on` 必须解析成「子开关」，`up default` / `up example.ogg` 必须解析成「音频素材」。
         // 谁把 liftToneBranch 里的 .then(...) 顺序调了，这里立刻红（表现会是「关不掉提示音」）。
-        for (String liftTone : new String[]{"up", "down", "door"}) {
+        for (String liftTone : new String[]{"up", "down", "open", "close"}) {
             failures += expectNode(dispatcher, "lifthelp " + liftTone, liftTone);
             failures += expectNode(dispatcher, "lifthelp " + liftTone + " on", "on");
             failures += expectNode(dispatcher, "lifthelp " + liftTone + " off", "off");
@@ -817,10 +819,11 @@ public final class CmdTreeCheck {
             failures += expectNode(dispatcher, "lifthelp " + liftTone + " -f default", "name");
             failures += expectNode(dispatcher, "lifthelp " + liftTone + " -f default to none", "target");
         }
-        // 顺带守住「/lifthelp 本身」的顶层：on / off 仍然是总开关，没被 up|down|door 抢走
+        // 顺带守住「/lifthelp 本身」的顶层：on / off 仍然是总开关，没被 up|down|open|close 抢走
         failures += expectNode(dispatcher, "lifthelp on", "on");
         failures += expectNode(dispatcher, "lifthelp off", "off");
-        failures += expectNode(dispatcher, "lifthelp door", "door");
+        failures += expectNode(dispatcher, "lifthelp open", "open");
+        failures += expectNode(dispatcher, "lifthelp close", "close");
 
         System.out.println();
         System.out.println("==================== 【1.15】/pbmmusic open|close 同样要钉住字面量优先 ====================");
@@ -906,19 +909,22 @@ public final class CmdTreeCheck {
         String[][] mbmPresets = {
                 {"经典港铁预设",
                         "futimusic -f default", "futihelp -f on", "lifthelp -f on",
-                        "lifthelp door -f on", "lifthelp up -f on", "lifthelp down -f on",
+                        "lifthelp open -f on", "lifthelp close -f on",
+                        "lifthelp up -f on", "lifthelp down -f on",
                         "pbmclosewait -f 1", "pbmmusic open -f default",
                         "pbmmusic close -f default-m",
                         "pbmmusic open -f on", "pbmmusic close -f on"},
                 {"简单港铁预设",
                         "futimusic -f default", "futihelp -f off", "lifthelp -f on",
-                        "lifthelp door -f off", "lifthelp up -f on", "lifthelp down -f on",
+                        "lifthelp open -f off", "lifthelp close -f off",
+                        "lifthelp up -f on", "lifthelp down -f on",
                         "pbmclosewait -f 1", "pbmmusic open -f default",
                         "pbmmusic close -f default-s",
                         "pbmmusic open -f on", "pbmmusic close -f on"},
                 {"空白预设",
                         "futimusic -f off", "futihelp -f off", "lifthelp -f off",
-                        "lifthelp door -f off", "lifthelp up -f off", "lifthelp down -f off",
+                        "lifthelp open -f off", "lifthelp close -f off",
+                        "lifthelp up -f off", "lifthelp down -f off",
                         "pbmclosewait -f 1", "pbmmusic open -f none", "pbmmusic close -f none"},
         };
         for (String[] preset : mbmPresets) {
@@ -927,11 +933,12 @@ public final class CmdTreeCheck {
                 failures += expectExecutable(dispatcher, preset[i]);
             }
         }
-        System.out.println("  ---- 全音量（11 条）----");
+        System.out.println("  ---- 全音量（12 条）----");
         String[] mbmVolumeCommands = {
                 "futiloud -f 300", "futihelploud -f 300",
                 "lifthelploud -f 300", "lifthelploud -f up 300",
-                "lifthelploud -f down 300", "lifthelploud -f door 300",
+                "lifthelploud -f down 300", "lifthelploud -f open 300",
+                "lifthelploud -f close 300",
                 "pbmloud -f 300", "pbmloud -f open 300", "pbmloud -f close 300",
                 "pbmmidiumloud -f 300", "pbmarriveloud -f 300",
         };
@@ -1073,7 +1080,7 @@ public final class CmdTreeCheck {
     /**
      * 【1.15】解析 {@code input} 后，**最后一个节点的名字**必须是 {@code expected}。
      *
-     * <p>用途：`/lifthelp up|down|door` 那一层上，字面量 {@code on} / {@code off} / {@code -f}
+     * <p>用途：`/lifthelp up|down|open|close` 那一层上，字面量 {@code on} / {@code off} / {@code -f}
      * 与「音频名字」字符串参数会**同时匹配**（{@code StringArgumentType} 会把 on 读成合法字符串），
      * Brigadier 取的是**先注册**的那个子节点 ⇒ 「字面量写在参数前面」这条约定必须被机器钉住。
      * 只看「能不能执行」是抓不到这个回归的（两种情况都能执行，只是执行到了另一支）。
@@ -1106,7 +1113,7 @@ public final class CmdTreeCheck {
     private static int expectPsdToneName(String name, String expectId, boolean expectOff) {
         EscalatorSpeedManager.AudioArg arg;
         try {
-            arg = EscalatorSpeedManager.resolvePsdToneName(null, name);
+            arg = EscalatorSpeedManager.resolvePsdToneName(null, EscalatorSpeedManager.CAT_PSD_OPEN, name);
         } catch (RuntimeException e) {
             System.out.println("  FAIL 「" + name + "」解析时抛异常（内置名本该在查音频库之前就返回）：" + e);
             return 1;
@@ -1117,7 +1124,7 @@ public final class CmdTreeCheck {
         } else {
             ok = expectId.equals(arg.id()) && arg.off() == expectOff && arg.error() == null;
         }
-        System.out.println((ok ? "  OK   " : "  FAIL ") + "resolvePsdToneName(null, \"" + name
+        System.out.println((ok ? "  OK   " : "  FAIL ") + "resolvePsdToneName(null, CAT_PSD_OPEN, \"" + name
                 + "\") → id=" + arg.id() + " off=" + arg.off() + " error=" + arg.error()
                 + "（期望 id=" + expectId + (expectId == null ? " 且带错误文案" : " off=" + expectOff) + "）");
         return ok ? 0 : 1;
@@ -1216,13 +1223,13 @@ public final class CmdTreeCheck {
     private static int expectPsdMidiumName(String name, String expectId) {
         String actual;
         try {
-            actual = EscalatorSpeedManager.resolvePsdMidiumName(null, name);
+            actual = EscalatorSpeedManager.resolvePsdMidiumName(null, EscalatorSpeedManager.CAT_PSD_MIDIUM, name);
         } catch (RuntimeException e) {
             System.out.println("  FAIL 「" + name + "」解析时抛异常（off 系本该在查音频库之前就返回）：" + e);
             return 1;
         }
         boolean ok = expectId.equals(actual);
-        System.out.println((ok ? "  OK   " : "  FAIL ") + "resolvePsdMidiumName(null, \"" + name
+        System.out.println((ok ? "  OK   " : "  FAIL ") + "resolvePsdMidiumName(null, CAT_PSD_MIDIUM, \"" + name
                 + "\") = " + (actual == null ? "null" : "\"" + actual + "\"")
                 + "（期望「" + expectId + "」）");
         return ok ? 0 : 1;
@@ -1280,13 +1287,13 @@ public final class CmdTreeCheck {
     private static int expectPsdArriveName(String name, String expectId) {
         String actual;
         try {
-            actual = EscalatorSpeedManager.resolvePsdArriveName(null, name);
+            actual = EscalatorSpeedManager.resolvePsdArriveName(null, EscalatorSpeedManager.CAT_PSD_ARRIVE, name);
         } catch (RuntimeException e) {
             System.out.println("  FAIL [" + name + "] 解析时抛异常（off 系本该在查音频库之前就返回）：" + e);
             return 1;
         }
         boolean ok = expectId.equals(actual);
-        System.out.println((ok ? "  OK   " : "  FAIL ") + "resolvePsdArriveName(null, [" + name
+        System.out.println((ok ? "  OK   " : "  FAIL ") + "resolvePsdArriveName(null, CAT_PSD_ARRIVE, [" + name
                 + "]) = " + (actual == null ? "null" : "[" + actual + "]")
                 + "（期望 [" + expectId + "]）");
         return ok ? 0 : 1;

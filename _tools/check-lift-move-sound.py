@@ -226,8 +226,9 @@ server_main = read(SERVER_MAIN)
 check(re.search(r'literal\(\s*"lifthelpspeed"', server_main) is None,
       "【1.15】/lifthelpspeed 已从指令树里删除（up/down 两项只跟着 /lifthelp 那套走）")
 check(re.search(r'liftToneBranch\(\s*"up"\s*,\s*"up"\s*\)', server_main) is not None
-      and re.search(r'liftToneBranch\(\s*"door"\s*,\s*"chime"\s*\)', server_main) is not None,
-      "对照：脚本确实能读到指令树构造（/lifthelp up|down|door 在）⇒ 上一条断言有鉴别力")
+      and re.search(r'liftToneBranch\(\s*"open"\s*,\s*"open"\s*\)', server_main) is not None
+      and re.search(r'liftToneBranch\(\s*"close"\s*,\s*"close"\s*\)', server_main) is not None,
+      "对照：脚本确实能读到指令树构造（/lifthelp up|down|open|close 在）⇒ 上一条断言有鉴别力")
 
 
 # ----------------------------------------------------------------------

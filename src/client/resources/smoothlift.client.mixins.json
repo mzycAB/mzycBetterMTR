@@ -6,7 +6,10 @@
 		"ExampleClientMixin",
 		"EscalatorSpriteTickerMixin",
 		"LevelBlockChangeMixin",
-		"SoundEngineVolumeMixin"
+		"SoundEngineVolumeMixin",
+		"EscalatorAoStashMixin",
+		"EscalatorAoSampleMixin",
+		"EscalatorFlatLightMixin"
 	],
 	"injectors": {
 		"defaultRequire": 1

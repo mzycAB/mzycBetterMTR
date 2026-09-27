@@ -191,7 +191,7 @@ SCREENS = {
     "扶梯一级（扶梯设置）": ("EscalatorSpeedScreen.java", "esc", "SmoothLift.SYNC_TOP_LEVEL"),
     "扶梯二级（选择扶梯音乐）": ("AudioSetupScreen.java", "esc", "SmoothLift.SYNC_ESC_AUDIO"),
     "扶梯二级（选择无障碍提示音）": ("HelpAudioSetupScreen.java", "esc", "SmoothLift.SYNC_ESC_HELP_AUDIO"),
-    "直梯（主界面 + 三项列表页）": ("LiftToneSetupScreen.java", "lift", "page"),
+    "直梯（一级菜单 + 四项列表页）": ("LiftToneSetupScreen.java", "lift", "page"),
     "屏蔽门（主界面 + 四个二级页）": ("PsdToneSetupScreen.java", "psd", "page"),
 }
 SRC_TEXT = {}
@@ -214,8 +214,8 @@ EXPECT_ARGS = {
     "扶梯一级（扶梯设置）": ("esc", "SmoothLift.SYNC_TOP_LEVEL", "pos.asLong()", "this::applyChanges"),
     "扶梯二级（选择扶梯音乐）": ("esc", "SmoothLift.SYNC_ESC_AUDIO", "pos.asLong()", "null"),
     "扶梯二级（选择无障碍提示音）": ("esc", "SmoothLift.SYNC_ESC_HELP_AUDIO", "pos.asLong()", "null"),
-    "直梯（主界面 + 三项列表页）": ("lift", "page", "key",
-                                     "tone == null ? this::applyDefaultVolume : () -> applyToneVolume(tone)"),
+    "直梯（一级菜单 + 四项列表页）": ("lift", "page", "key",
+                                     "page > 0 ? null : this::applyMainVolumes"),
     "屏蔽门（主界面 + 四个二级页）": ("psd", "page", "runKey", "this::applyMainInputs"),
 }
 
@@ -488,7 +488,7 @@ check(const_int(sl_no, "SYNC_PSD_ARRIVE_PAGE") == 4, "SYNC_PSD_ARRIVE_PAGE = 4",
       str(const_int(sl_no, "SYNC_PSD_ARRIVE_PAGE")))
 
 lift_which = find_array(sl_no, "SYNC_LIFT_WHICH")
-lift_pages = find_array(SRC_TEXT["直梯（主界面 + 三项列表页）"], "PAGES")
+lift_pages = find_array(SRC_TEXT["直梯（一级菜单 + 四项列表页）"], "PAGES")
 check(lift_which is not None, "抠得出服务端 SYNC_LIFT_WHICH")
 check(lift_which == lift_pages,
       "★ 直梯：服务端 SYNC_LIFT_WHICH 与界面 PAGES 同序同内容",
@@ -509,7 +509,7 @@ check(re.search(r"else if \(page == 4\)\s*\{\s*buildArrivePage\(\);", psd_screen
       "屏蔽门界面：page == 4 -> 进站报站页")
 
 # 直梯界面：page >= 1 时取 PAGES[page-1]（与服务端 scope-1 同一套下标）
-check(re.search(r"PAGES\[page - 1\]", strip_comments(SRC_TEXT["直梯（主界面 + 三项列表页）"])) is not None,
+check(re.search(r"PAGES\[page - 1\]", strip_comments(SRC_TEXT["直梯（一级菜单 + 四项列表页）"])) is not None,
       "直梯界面：单项页用 PAGES[page - 1]（与服务端 whichs[scope - 1] 同下标）")
 check(re.search(r"SYNC_LIFT_WHICH\[scope - 1\]", sl_no) is not None,
       "服务端：SYNC_LIFT_WHICH[scope - 1]")
@@ -591,7 +591,7 @@ check(calls("setDefaultPsdToneAudioAll(s, w, i);", "setDefaultPsdToneAudioAll") 
       "calls() 认得出 setDefaultPsdToneAudioAll 本身")
 
 # 10c) 域写错必须变红
-_lift_calls = list(iter_calls(SRC_NO["直梯（主界面 + 三项列表页）"], CALL_NAME))
+_lift_calls = list(iter_calls(SRC_NO["直梯（一级菜单 + 四项列表页）"], CALL_NAME))
 if len(_lift_calls) == 1:
     probe = squash(split_args(_lift_calls[0])[1]).strip('"')
     check(probe == "lift", "直梯界面域字面量已是 lift（基线）", probe)
@@ -609,7 +609,10 @@ check(lift_which is not None and list(reversed(lift_pages)) != lift_which,
 probe_swap = list(lift_pages or [])
 if len(probe_swap) == 3:
     probe_swap[0], probe_swap[2] = probe_swap[2], probe_swap[0]
-check(probe_swap != lift_which, "把 up 与 chime 对调 -> 一致判据变红（对照）", "探针 = %s" % probe_swap)
+elif len(probe_swap) == 4:
+    probe_swap[0], probe_swap[3] = probe_swap[3], probe_swap[0]
+check(probe_swap != lift_which, "把 up 与末项（chime/close）对调 -> 一致判据变红（对照）",
+      "探针 = %s" % probe_swap)
 
 # 10e) 编号常量改错必须变红
 check(const_int(sl_no, "SYNC_PSD_MIDIUM_PAGE") == 3, "到站页 = 3（基线）")
