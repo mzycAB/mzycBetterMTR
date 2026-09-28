@@ -52,6 +52,9 @@ public class SmoothLiftClient implements ClientModInitializer {
         // 【1.24】先读回上次的扶梯阶梯渲染引擎模式（/mtrxr on|off），之后所有门控都读它。
         EscalatorRenderMode.load();
 
+        // 【1.28.1204】先读回上次的「列车报站」总开关（/jsr on|off，默认开）。
+        TrainAnnounceSwitch.load();
+
         // 【1.24】用代码注入透明标记贴图替代 18 个资源覆盖 JSON（MTR 阶梯模型烘烤前替换 #step）
         EscalatorModelOverride.register();
 
@@ -73,6 +76,20 @@ public class SmoothLiftClient implements ClientModInitializer {
                                         .executes(ctx -> EscalatorRenderModeCommand.setOcclusion(ctx, true)))
                                 .then(ClientCommandManager.literal("off")
                                         .executes(ctx -> EscalatorRenderModeCommand.setOcclusion(ctx, false))))));
+
+        // 【1.28.1204】/jsr on|off：讲述人列车报站（文字转语音念站名）的总开关。
+        //   ★【1.29】它只关「讲述人」那一条 —— 自定义进站广播是另一条独立广播
+        //   （设成不播只关它自己），两条可以同时存在；唯一的耦合是起播时刻共用一个
+        //   「到站前 N 秒」窗口（N 读 /pbmarrive 的设置）。详见 TrainAnnounceSwitch。
+        //   默认开：装上模组就念，不依赖游戏 设置→辅助功能→讲述人（那个开关关着也能念，
+        //   因为走的是 MTR 报站用的 text2speech 入口，见 TrainAnnounceNarrator）。
+        ClientCommandRegistrationCallback.EVENT.register((dispatcher, registryAccess) ->
+                dispatcher.register(ClientCommandManager.literal("jsr")
+                        .executes(TrainAnnounceSwitch::show)
+                        .then(ClientCommandManager.literal("on")
+                                .executes(ctx -> TrainAnnounceSwitch.set(ctx, true)))
+                        .then(ClientCommandManager.literal("off")
+                                .executes(ctx -> TrainAnnounceSwitch.set(ctx, false)))));
 
         // 逐条扶梯独立的阶梯动画：注册区块索引 + 世界渲染回调
         EscalatorStepRenderer.register();
@@ -675,6 +692,10 @@ public class SmoothLiftClient implements ClientModInitializer {
             // 【1.23】到站 / 进站播报各自的**可闻范围**（末尾再追加两格，写侧同序）
             int midiumRound = buf.readVarInt();
             int arriveRound = buf.readVarInt();
+            // 【09-28】「进站广播（讲述人）」维度默认：样式（0/1/2）+ 秒数（末尾再追加两格，写侧同序）
+            //   ★ 续：第 1 格由 readBoolean 改成 readVarInt（三档样式）—— 格子数不变，写侧同序改。
+            int narrateMode = buf.readVarInt();
+            int narrateSeconds = buf.readVarInt();
             final ResourceKey<Level> dimKey;
             try {
                 dimKey = EscalatorSpeedManager.parseDimensionKey(dimId);
@@ -686,17 +707,19 @@ public class SmoothLiftClient implements ClientModInitializer {
                         openEnabled, closeEnabled, round, toneVolumeOpen, toneVolumeClose,
                         toneAudioOpen, toneAudioClose, closeWaitSeconds,
                         midiumAudio, midiumWaitSeconds, arriveAudio, arriveSeconds,
-                        midiumVolume, arriveVolume, midiumRound, arriveRound);
+                        midiumVolume, arriveVolume, midiumRound, arriveRound,
+                        narrateMode, narrateSeconds);
                 LOGGER.info("[SmoothLift/PsdChime] 屏蔽门提示音设置已同步（{}）：{}、音量 {}、"
                                 + "子开关 open={} close={}、范围 提示音 {} 格 / 到站 {} 格 / 进站 {} 格、"
                                 + "单项音量 open={} close={} 到站={} 进站={}、"
                                 + "默认素材 open={} close={}、关门强制等待 {} 秒、到站播报 {}（等待 {} 秒）、"
-                                + "进站报站 {}（提前 {} 秒）",
+                                + "进站报站 {}（提前 {} 秒）、讲述人 {}（提前 {} 秒）",
                         dimKey.location(), enabled ? "开" : "关", volume,
                         openEnabled, closeEnabled, round, midiumRound, arriveRound,
                         toneVolumeOpen, toneVolumeClose, midiumVolume, arriveVolume,
                         toneAudioOpen, toneAudioClose, closeWaitSeconds,
-                        midiumAudio, midiumWaitSeconds, arriveAudio, arriveSeconds);
+                        midiumAudio, midiumWaitSeconds, arriveAudio, arriveSeconds,
+                        EscalatorSpeedData.psdNarrateModeName(narrateMode), narrateSeconds);
             });
         });
 
@@ -730,11 +753,16 @@ public class SmoothLiftClient implements ClientModInitializer {
                 // 【1.22】到站 / 进站各自那一项的音量（读序同 buildPsdTonePacket 写序）
                 Integer midiumVolume = EscalatorSpeedManager.readDoorOptInt(buf);
                 Integer arriveVolume = EscalatorSpeedManager.readDoorOptInt(buf);
+                // 【09-28】「进站广播（讲述人）」这一串门的覆盖项（读序同 buildPsdTonePacket 写序）
+                //   ★ 续：样式那一格由 readDoorOptBool 改成 readDoorOptInt（三档 0/1/2）。
+                Integer narrate = EscalatorSpeedManager.readDoorOptInt(buf);
+                Integer narrateSeconds = EscalatorSpeedManager.readDoorOptInt(buf);
                 tones.put(key, new EscalatorSpeedData.PsdToneAudio(open, close,
                         help, openEnabled, closeEnabled,
                         volume, openVolume, closeVolume, openWaitSeconds, closeWaitSeconds,
                         midium, midiumWaitSeconds, midiumVolume,
-                        arrive, arriveSeconds, arriveVolume));
+                        arrive, arriveSeconds, arriveVolume,
+                        narrate, narrateSeconds));
             }
             final ResourceKey<Level> dimKey;
             try {

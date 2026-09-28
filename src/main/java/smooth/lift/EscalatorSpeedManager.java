@@ -187,6 +187,13 @@ public final class EscalatorSpeedManager {
         /** 【1.21】进站报站的镜像：素材 id（{@code off} = 不播）+ 秒数（(-∞, 0]：最近一班车还剩 |X| 秒到站时起播）。 */
         public String psdArriveAudio = EscalatorSpeedData.PSD_ARRIVE_OFF;
         public int psdArriveSeconds = EscalatorSpeedData.DEFAULT_PSD_ARRIVE_SECONDS;
+        /**
+         * 【09-28】「进站广播（讲述人）」的镜像：**样式**（0 关 / 1 上海 / 2 香港）+ 秒数（(-∞, 0]）。
+         * ★ 与 {@link #psdArriveSeconds} 那一对**互相独立**（用户点名「取消借用进站广播」）：
+         *   两条广播各有各的时间窗口，只是恰好都能用「最近一班车还剩 |X| 秒」这套口径。
+         */
+        public int psdNarrateMode = EscalatorSpeedData.DEFAULT_PSD_NARRATE_MODE;
+        public int psdNarrateSeconds = EscalatorSpeedData.DEFAULT_PSD_NARRATE_SECONDS;
         /** 【1.50】每扇门单独设置的素材镜像（门锚点打包坐标 → {open, close}）。 */
         public final Map<Long, EscalatorSpeedData.PsdToneAudio> psdToneAudio = new HashMap<>();
     }
@@ -5807,6 +5814,110 @@ public final class EscalatorSpeedManager {
         data.setDirty();
     }
 
+    /** 【09-28】本维度「进站广播（讲述人）」的**维度默认样式**（0/1/2）。客户端读镜像。 */
+    public static int getPsdNarrateMode(Level level) {
+        if (level == null) {
+            return EscalatorSpeedData.DEFAULT_PSD_NARRATE_MODE;
+        }
+        if (level.isClientSide()) {
+            ClientDimensionData data = CLIENT_DATA.get(level.dimension());
+            return data == null ? EscalatorSpeedData.DEFAULT_PSD_NARRATE_MODE : data.psdNarrateMode;
+        }
+        return getServerData((ServerLevel) level).defaultPsdNarrateMode;
+    }
+
+    /**
+     * 【09-28】本维度的讲述人**是不是开着**（样式 ≠ 关闭）。
+     *
+     * <p>★ 只在「只需要知道开/关」的地方用（例如日志、UI 的状态行）；要**选播报词**就必须用
+     * {@link #getPsdNarrateMode} / {@link #getDoorPsdNarrateMode} —— 开/关 这一位丢掉了
+     * 「上海还是香港」，拿它去选句式会把香港档也念成上海词。
+     */
+    public static boolean isPsdNarrateOn(Level level) {
+        return getPsdNarrateMode(level) != EscalatorSpeedData.PSD_NARRATE_OFF;
+    }
+
+    /** 【09-28】本维度「进站广播（讲述人）」的**维度默认**秒数（(-∞, 0]）。客户端读镜像。 */
+    public static int getPsdNarrateSeconds(Level level) {
+        if (level == null) {
+            return EscalatorSpeedData.DEFAULT_PSD_NARRATE_SECONDS;
+        }
+        if (level.isClientSide()) {
+            ClientDimensionData data = CLIENT_DATA.get(level.dimension());
+            return data == null
+                    ? EscalatorSpeedData.DEFAULT_PSD_NARRATE_SECONDS
+                    : data.psdNarrateSeconds;
+        }
+        return getServerData((ServerLevel) level).defaultPsdNarrateSeconds;
+    }
+
+    /** 【09-28】「同步所有」弹窗：只改**本维度**的讲述人维度默认（样式 + 秒数）。 */
+    public static void setDefaultPsdNarrate(ServerLevel level, int mode, int seconds) {
+        EscalatorSpeedData data = getServerData(level);
+        data.defaultPsdNarrateMode = EscalatorSpeedData.clampPsdNarrateMode(mode);
+        data.defaultPsdNarrateSeconds = EscalatorSpeedData.clampPsdNarrateSeconds(seconds);
+        data.setDirty();
+    }
+
+    /** 【09-28】「强制同步」：讲述人维度默认写给**所有维度**，并抹掉按串覆盖（{@code -f} 口径）。 */
+    public static int setDefaultPsdNarrateAll(MinecraftServer server, int mode, int seconds) {
+        int clamped = EscalatorSpeedData.clampPsdNarrateMode(mode);
+        int sec = EscalatorSpeedData.clampPsdNarrateSeconds(seconds);
+        int changed = 0;
+        for (ServerLevel level : server.getAllLevels()) {
+            EscalatorSpeedData data = getServerData(level);
+            boolean touched = false;
+            if (data.defaultPsdNarrateMode != clamped || data.defaultPsdNarrateSeconds != sec) {
+                data.defaultPsdNarrateMode = clamped;
+                data.defaultPsdNarrateSeconds = sec;
+                touched = true;
+            }
+            // 【09-28】-f = 「修改全部」：这一项的「按串单独设置」也一起抹回跟维度默认。
+            if (remapPsdDoorOverrides(data, t -> (t.narrate() == null && t.narrateSeconds() == null)
+                          ? null
+                          : t.withNarrate(null).withNarrateSeconds(null))) {
+                touched = true;
+            }
+            if (touched) {
+                data.setDirty();
+                changed++;
+            }
+        }
+        return changed;
+    }
+
+    /**
+     * 【09-28 续 2】{@code /pbmnarrate <样式> -f} 用：把**所有维度**的讲述人**样式**写成
+     * {@code mode}，**每一维度的秒数一律不动**；同时抹掉按串覆盖（{@code -f} 口径）。
+     *
+     * <p>★ 为什么不直接调 {@link #setDefaultPsdNarrateAll}：那一个的签名要求**同时给秒数**，
+     * 会把其它维度各自调好的秒数一起冲掉 —— 而 {@code /pbmnarrate} 只谈样式、不谈时间。
+     * 「副产物最小」这条比「少写一个方法」重要（改门速度/音量时踩过同样的坑）。
+     *
+     * @return 真正被改动的维度数
+     */
+    public static int setDefaultPsdNarrateModeAll(MinecraftServer server, int mode) {
+        int clamped = EscalatorSpeedData.clampPsdNarrateMode(mode);
+        int changed = 0;
+        for (ServerLevel level : server.getAllLevels()) {
+            EscalatorSpeedData data = getServerData(level);
+            boolean touched = false;
+            if (data.defaultPsdNarrateMode != clamped) {
+                data.defaultPsdNarrateMode = clamped;
+                touched = true;
+            }
+            // ★ 只抹「样式」那一格（narrate）；narrateSeconds 是另一回事，不碰。
+            if (remapPsdDoorOverrides(data, t -> t.narrate() == null ? null : t.withNarrate(null))) {
+                touched = true;
+            }
+            if (touched) {
+                data.setDirty();
+                changed++;
+            }
+        }
+        return changed;
+    }
+
     /** {@code /pbmmidium <名字> <秒>}：只改**本维度**。 */
     public static void setDefaultPsdMidium(ServerLevel level, String audioId, int seconds) {
         EscalatorSpeedData data = getServerData(level);
@@ -6169,6 +6280,19 @@ public final class EscalatorSpeedManager {
                 .withArriveSeconds(EscalatorSpeedData.clampPsdArriveSeconds(seconds)));
     }
 
+    /**
+     * 【09-28】石斧 UI「进站广播（讲述人）」二级页（关闭 / 开启(上海) / 开启(香港)）：
+     * 只改**这一串门**的**样式**。
+     */
+    public static void setDoorPsdNarrate(ServerLevel level, long key, int mode) {
+        updateDoor(level, key, t -> t.withNarrate(EscalatorSpeedData.clampPsdNarrateMode(mode)));
+    }
+
+    /** 【09-28】石斧 UI「进站广播（讲述人）」主界面的秒数格：只改**这一串门**（(-∞, 0]）。 */
+    public static void setDoorPsdNarrateSeconds(ServerLevel level, long key, int seconds) {
+        updateDoor(level, key, t -> t.withNarrateSeconds(EscalatorSpeedData.clampPsdNarrateSeconds(seconds)));
+    }
+
     // ---- 读数：每一项都是「门的覆盖值 > 维度默认」 ----
 
     /** 这一扇门**生效**的总开关。 */
@@ -6248,6 +6372,28 @@ public final class EscalatorSpeedManager {
     public static int getDoorPsdArriveSeconds(Level level, long key) {
         Integer own = psdDoorRecord(level, key).arriveSeconds();
         return own != null ? own : getPsdArriveSeconds(level);
+    }
+
+    /**
+     * 【09-28】这一串门**生效**的「进站广播（讲述人）」**样式**（门覆盖值 &gt; 维度默认；0/1/2）。
+     *
+     * <p>★ 播放端**必须**用这一个而不是 {@link #isDoorPsdNarrateOn}：选播报词要区分
+     * 「开启(上海)」与「开启(香港)」，只看开/关会把香港档也念成上海词。
+     */
+    public static int getDoorPsdNarrateMode(Level level, long key) {
+        Integer own = psdDoorRecord(level, key).narrate();
+        return own != null ? own : getPsdNarrateMode(level);
+    }
+
+    /** 【09-28】这一串门**生效**的「进站广播（讲述人）」开关（= 样式 ≠ 关闭；门覆盖值 > 维度默认）。 */
+    public static boolean isDoorPsdNarrateOn(Level level, long key) {
+        return getDoorPsdNarrateMode(level, key) != EscalatorSpeedData.PSD_NARRATE_OFF;
+    }
+
+    /** 【09-28】这一串门**生效**的讲述人秒数（门覆盖值 > 维度默认；(-∞, 0]）。 */
+    public static int getDoorPsdNarrateSeconds(Level level, long key) {
+        Integer own = psdDoorRecord(level, key).narrateSeconds();
+        return own != null ? own : getPsdNarrateSeconds(level);
     }
 
     /**
@@ -6620,6 +6766,11 @@ public final class EscalatorSpeedManager {
         // 【1.23】到站 / 进站播报各自的**可闻范围**（末尾再追加两格，读侧同序）
         buf.writeVarInt(data.defaultPsdMidiumRound);
         buf.writeVarInt(data.defaultPsdArriveRound);
+        // 【09-28】「进站广播（讲述人）」维度默认：样式（0/1/2）+ 秒数（末尾再追加两格，读侧同序）
+        //   ★ 续：第 1 格由 Boolean（开关）改成 VarInt（三档样式）—— 格子数不变，类型变了，
+        //   读侧同步改（SmoothLiftClient 那一行 narrateMode = buf.readVarInt()）。
+        buf.writeVarInt(data.defaultPsdNarrateMode);
+        buf.writeVarInt(data.defaultPsdNarrateSeconds);
         return buf;
     }
 
@@ -6672,6 +6823,10 @@ public final class EscalatorSpeedManager {
             // 【1.22】到站 / 进站各自那一项的音量（末尾再追加两格，读侧同序）
             writeDoorOptInt(buf, tone.midiumVolume());
             writeDoorOptInt(buf, tone.arriveVolume());
+            // 【09-28】「进站广播（讲述人）」这一串门的覆盖项：样式（0/1/2）+ 秒数（末尾再追加两格，读侧同序）
+            //   ★ 续：第 1 格由 Boolean（开关）改成可选 int（三档样式）—— 格子数不变，读侧同步改。
+            writeDoorOptInt(buf, tone.narrate());
+            writeDoorOptInt(buf, tone.narrateSeconds());
         }
         return buf;
     }
@@ -6744,7 +6899,8 @@ public final class EscalatorSpeedManager {
                                            String midiumAudio, int midiumWaitSeconds,
                                            String arriveAudio, int arriveSeconds,
                                            int midiumVolume, int arriveVolume,
-                                           int midiumRound, int arriveRound) {
+                                           int midiumRound, int arriveRound,
+                                           int narrateMode, int narrateSeconds) {
         ClientDimensionData data = CLIENT_DATA.computeIfAbsent(dimension, k -> new ClientDimensionData());
         data.psdHelp = enabled;
         data.psdHelpVolume = EscalatorSpeedData.clampLiftHelpVolume(volume);
@@ -6764,6 +6920,8 @@ public final class EscalatorSpeedManager {
         data.psdArriveVolume = EscalatorSpeedData.clampPsdToneVolume(arriveVolume);
         data.psdMidiumRound = EscalatorSpeedData.clampPsdMidiumRound(midiumRound);
         data.psdArriveRound = EscalatorSpeedData.clampPsdArriveRound(arriveRound);
+        data.psdNarrateMode = EscalatorSpeedData.clampPsdNarrateMode(narrateMode);
+        data.psdNarrateSeconds = EscalatorSpeedData.clampPsdNarrateSeconds(narrateSeconds);
         clientPsdChimeGeneration++;
     }
 

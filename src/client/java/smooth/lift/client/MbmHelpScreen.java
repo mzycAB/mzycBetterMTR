@@ -94,11 +94,36 @@ public class MbmHelpScreen extends Screen {
         return EscalatorSpeedManager.getDefaultVolume(mc.level);
     }
 
-    /** 把「应用这个预设」发给服务端（服务端负责依次执行该预设的那几条指令）。 */
+    /**
+     * 把「应用这个预设」发给服务端（服务端负责依次执行该预设的那几条指令）。
+     *
+     * <p>★★【09-28 续 2】港铁预设还会**在客户端顺手动讲述人的全局总闸**
+     * （等价于 {@code /jsr on|off}）：预设里那一条 {@code pbmnarrate <样式> -f} 只设**样式**
+     * （「念哪一句」），而「念不念」的总闸是**客户端**配置
+     * （{@code config/smoothlift-jsr.properties}），服务端那串指令**碰不到**它。
+     * 用户点名「预设也会顺带把它打开」⇒ 由这一下点击在本机打开。
+     *
+     * <p>★★【09-28 续 4】用户把三档定死：**只有经典港铁预设**开讲述人（香港样式），
+     * **简单港铁 / 空白预设都关闭讲述人** ⇒ 这里要**两边都联动**：
+     * <pre>
+     *   经典港铁预设 → /jsr on  + 预设末条 pbmnarrate hongkong -f
+     *   简单港铁预设 → /jsr off + 预设末条 pbmnarrate off -f
+     *   空白预设     → /jsr off + 预设末条 pbmnarrate off -f
+     * </pre>
+     * ★ 为什么「关」也要动总闸：只关样式层同样听不见（两层取「与」），但存档里总闸仍写着「开」
+     * ⇒ 玩家之后去石斧 UI 随手挑一档样式，讲述人会**突然又响**。用户说的是「关闭讲述人」，
+     * 所以两层一起关才叫关干净（与经典预设两层一起开**对称**）。
+     * ★ 认不出的 presetId（不可能走到，服务端会回「未知预设」）**一概不碰**总闸。
+     */
     private void sendPreset(String presetId) {
         FriendlyByteBuf buf = PacketByteBufs.create();
         buf.writeUtf(presetId, 16);
         ClientPlayNetworking.send(SmoothLift.MBM_PRESET_CHANNEL, buf);
+        if (ID_CLASSIC.equals(presetId)) {
+            TrainAnnounceSwitch.enableForPreset();
+        } else if (ID_SIMPLE.equals(presetId) || ID_BLANK.equals(presetId)) {
+            TrainAnnounceSwitch.disableForPreset();
+        }
     }
 
     /** 按 ESC（或回车）退出：把改过的音量发出去，再关界面。 */

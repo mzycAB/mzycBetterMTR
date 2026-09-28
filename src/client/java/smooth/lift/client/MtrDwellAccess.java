@@ -164,6 +164,54 @@ public final class MtrDwellAccess {
      */
     private static final double MAX_HORIZONTAL = 64.0;
 
+    /**
+     * 【09-28 续 6】「这个 MTR 站台 id 还没认出来」的**唯一哨兵**。
+     *
+     * <h2>为什么必须专门给一个值，不能用 0 / -1 当哨兵</h2>
+     * MTR4 的 id 是 {@code new Random().nextLong()}（反汇编
+     * {@code org.mtr.core.generated.data.NameColorDataBaseSchema} 的构造器，铁证：
+     * {@code aload_0; new java/util/Random; invokespecial <init>; invokevirtual nextLong; putfield id:J}）
+     * ⇒ 它均匀覆盖**全部 64 位**，于是：
+     * <ul>
+     *   <li>**站台 id 有一半是负数**（不是异常值，是常态）；</li>
+     *   <li>{@code 0} 和 {@code -1} 同样都是**合法**的 id。</li>
+     * </ul>
+     * 以前到处用 {@code > 0} / {@code <= 0} 当「认到 / 没认到」，后果是
+     * **凡是 id 为负的站台一律被当成「认不到」**：
+     * <ol>
+     *   <li>{@link PsdDoorTracker} 不给它站台身份 ⇒ 那一排门的 {@code runKey} 回落成连通串；</li>
+     *   <li>{@code PsdChimePlayer} 的进站报站/到站播报在「读配置之前」就被挡住 {@code continue}；</li>
+     * </ol>
+     * 现场 LOG12 就长这样（同一个车站、两个方向、同一秒）：
+     * <pre>
+     *   屏蔽门 @[17,29,277] 认到   MTR 站台 id= 4708666155642935879 ⇒ 正常播放
+     *   屏蔽门 @[16,29,265] 认不到 MTR 站台   id=-2292798687084117839 ⇒ 整串静默
+     * </pre>
+     * 用户报的「4 号线开往江苏北路的进站播报正常，开往南区南方向的就没有」就是它 ——
+     * 两个方向的站台各有一个随机 id，正的那个能用、负的那个被哨兵判死。
+     *
+     * <h2>为什么选 {@code Long.MIN_VALUE}</h2>
+     * 因为 id 空间是**全域**的，任何基本类型取值都可能是一个真 id（连 {@code Long.MIN_VALUE}
+     * 本身的概率也是 2^-64，只是极小）。选它的理由：
+     * <ul>
+     *   <li>它**不是** 0/-1 这种「顺手」的值，逼着每个判断点显式写
+     *       {@link #isPlatformKnown(long)}，语义一眼可读；</li>
+     *   <li>{@code PsdDoorTracker.platformKey} 用的偏移量本来就是 {@code Long.MIN_VALUE}
+     *       ⇒ 哨兵在**编码后**恰好落在 0，与「连通串锚点」也是同一个命名空间里最不易撞的一点；</li>
+     *   <li>万一真有站台的 id 正好是 {@code Long.MIN_VALUE}（概率 2^-64），它的表现只是
+     *       「这一个站台没有报站」—— 与修复前**所有负 id 站台**的表现相同，属于 fail-safe，
+     *       不会错认到别的站台上去。</li>
+     * </ul>
+     * ★★ 铁规矩：**站台 id 一律原样透传**（可为负），只在「有没有认出来」这一件事上比哨兵。
+     * 回归脚本里有一条「不许再用 {@code > 0} / {@code <= 0} 判站台 id」的断言盯着这件事。
+     */
+    public static final long PLATFORM_ID_NONE = Long.MIN_VALUE;
+
+    /** 这个站台 id 是不是「认出来了」的（唯一的判据，见 {@link #PLATFORM_ID_NONE}）。 */
+    public static boolean isPlatformKnown(long platformId) {
+        return platformId != PLATFORM_ID_NONE;
+    }
+
     // ------------------------------------------------------------------
     // 反射绑定（只做一次）
     // ------------------------------------------------------------------
@@ -241,6 +289,27 @@ public final class MtrDwellAccess {
     private static Method getMillisOffset;
     /** {@code ArrivalResponse.getArrival()}（到站时刻，ms）。 */
     private static Method arrivalGetArrival;
+    /**
+     * 【09-28】{@code ArrivalResponse.getDestination()} —— **本次列车终点站**。
+     *
+     * <p>★ 取这个字段不是猜的：MTR 自己的站台显示屏 {@code org.mtr.mod.render.RenderPIDS}
+     * 就是把 {@code getDestination()} 印在「开往/终点站」那一位上（对它逐条 javap 核过）。
+     * 所以它 = 玩家在站台上那块屏里看到的终点站。
+     *
+     * <p><b>可选</b>：绑定不到（MTR 改了内部结构）只让报站词少「本次列车终点站：X」那一句，
+     * 不影响「剩几秒到站」那条主链路。
+     */
+    private static Method arrivalGetDestination;
+    /**
+     * 【09-28】{@code ArrivalResponse.getPlatformName()} —— **站台名/编号**。
+     *
+     * <p>它的值就是 {@code Platform.getName()}（对 {@code ArrivalResponse} 构造函数
+     * 逐条 javap 核过：{@code aload 13 → Platform.getName()}），同样是 {@code RenderPIDS}
+     * 印出来的那一个 — 即玩家眼中「这是几站台」。
+     *
+     * <p><b>可选</b>，同 {@link #arrivalGetDestination}。
+     */
+    private static Method arrivalGetPlatformName;
     /** {@code org.mtr.libraries...LongArrayList} 的无参构造 + {@code add(long)}（构造入参用）。 */
     private static java.lang.reflect.Constructor<?> longListCtor;
     private static Method longListAdd;
@@ -386,14 +455,16 @@ public final class MtrDwellAccess {
      * 【1.21】**可选**绑定 MTR 的到达缓存（PIDS / 时刻表传感器用的同一个）。
      *
      * <p>失败是**正常路径**（没装 MTR / 换了 MTR 版本 / 被别的模组换了实现），
-     * 只打一条 info，整层保持 {@code null} ⇒ {@link #nextArrivalRemainingMs} 直接返回
-     * {@link Long#MIN_VALUE}，「进站报站」静默不响，其它功能照常。
+     * 只打一条 info，整层保持 {@code null} ⇒ {@link #nearestArrival} 直接返回 {@code null}，
+     * 「进站报站」静默不响，其它功能照常。
      */
     private static boolean bindArrivals() {
         arrivalsCache = null;
         requestArrivals = null;
         getMillisOffset = null;
         arrivalGetArrival = null;
+        arrivalGetDestination = null;
+        arrivalGetPlatformName = null;
         longListCtor = null;
         longListAdd = null;
         try {
@@ -405,6 +476,10 @@ public final class MtrDwellAccess {
             getMillisOffset = acc.getMethod("getMillisOffset");
             Class<?> response = Class.forName("org.mtr.core.operation.ArrivalResponse");
             arrivalGetArrival = response.getMethod("getArrival");
+            // 【09-28】终点站 / 站台名 —— 讲述人报站词要念的两个值（RenderPIDS 用的同一对）。
+            //   用 method(...) 取（它自己吞异常）⇒ 这两个是**可选**的：缺了只少一句台词。
+            arrivalGetDestination = method(response, "getDestination");
+            arrivalGetPlatformName = method(response, "getPlatformName");
             Class<?> longList = Class.forName(
                     "org.mtr.libraries.it.unimi.dsi.fastutil.longs.LongArrayList");
             longListCtor = longList.getConstructor();
@@ -434,20 +509,22 @@ public final class MtrDwellAccess {
      * {@code MAX_HORIZONTAL} / {@code MAX_DY} 与「优先挑停站时长有效的站台」），
      * 这样「进站报站读的时刻表」与「关门提示音读的停站时长」永远是**同一条站台**的数据。
      *
-     * @return 站台 id；{@code -1} = 认不到（没装 MTR4 / 附近没有够得着的站台）
+     * @return 站台 id（**可为负** —— MTR 的 id 是 {@code Random().nextLong()}，
+     *         见 {@link #PLATFORM_ID_NONE}）；{@link #PLATFORM_ID_NONE} = 认不到
+     *         （没装 MTR4 / 附近没有够得着的站台）
      */
     public static long platformIdAt(double x, double y, double z) {
         if (!available() || getIdMethod == null) {
-            return -1L;
+            return PLATFORM_ID_NONE;
         }
         try {
             Object instance = getInstance.invoke(null);
             if (instance == null) {
-                return -1L;
+                return PLATFORM_ID_NONE;
             }
             Iterable<?> platforms = elementsOf(platformsField.get(instance));
             if (platforms == null) {
-                return -1L;
+                return PLATFORM_ID_NONE;
             }
             boolean segmentMode = position1Field != null && position2Field != null;
             Object bestUsable = null;
@@ -473,15 +550,16 @@ public final class MtrDwellAccess {
             }
             Object chosen = bestUsable != null ? bestUsable : bestAny;
             if (chosen == null) {
-                return -1L;
+                return PLATFORM_ID_NONE;
             }
+            // ★【09-28 续 6】原样透传：id 可以是负数（Random().nextLong()），**不做任何正负判断**。
             Object id = getIdMethod.invoke(chosen);
-            return id instanceof Number n ? n.longValue() : -1L;
+            return id instanceof Number n ? n.longValue() : PLATFORM_ID_NONE;
         } catch (Throwable t) {
             broken = true;
             LOGGER.warn("[SmoothLift/PsdChime] 读 MTR 站台 id 失败，/pbmarrive 改用「认不到就跳过」：{}",
                     t.toString());
-            return -1L;
+            return PLATFORM_ID_NONE;
         }
     }
 
@@ -561,7 +639,9 @@ public final class MtrDwellAccess {
                 return "附近一个站台都读不到位置";
             }
             Object id = getIdMethod.invoke(best);
-            return "最近的站台 id=" + (id instanceof Number n ? n.longValue() : -1L)
+            // ★【09-28 续 6】id 可以是负数，原样打出来（**不要**拿 -1 之类的哨兵去"美化"它）。
+            String idText = id instanceof Number n ? Long.toString(n.longValue()) : "读不到";
+            return "最近的站台 id=" + idText
                     + "，距门 " + String.format("%.1f", bestDist) + " 格（横向上限 4.0 格）";
         } catch (Throwable t) {
             return "读 MTR 站台位置失败（" + t.getClass().getSimpleName() + "）";
@@ -605,31 +685,61 @@ public final class MtrDwellAccess {
     }
 
     /**
-     * 【1.21】这个站台**最近的一班**列车还有多少毫秒到站
-     * （= 玩家设的 {@code -X} 秒用的就是它）。
+     * 【09-28】**最近的一班**车的到站信息（时间 + 终点站 + 站台名）。
+     *
+     * <p>这是 {@link #nearestArrival} 的返回体。三个字段都来自**同一个** {@code ArrivalResponse}
+     * —— 也就是 MTR 站台显示屏正在显示的那一条，所以「念出来的终点站 / 站台」与玩家抬头看到
+     * 的那块屏**永远一致**（不会出现「屏幕写 A、广播念 B」）。
+     */
+    public static final class ArrivalInfo {
+
+        /** 还有多少毫秒到站（只可能落在 {@code [-ARRIVAL_PAST_MS, +∞)}：车刚停稳那几秒是小的负数）。 */
+        public final long remainingMs;
+
+        /** 本次列车**终点站**（{@code ArrivalResponse.getDestination()}）；读不到 = {@code null}。 */
+        public final String destination;
+
+        /** **站台名/编号**（{@code ArrivalResponse.getPlatformName()}）；读不到 = {@code null}。 */
+        public final String platformName;
+
+        private ArrivalInfo(long remainingMs, String destination, String platformName) {
+            this.remainingMs = remainingMs;
+            this.destination = destination;
+            this.platformName = platformName;
+        }
+    }
+
+    /**
+     * 【1.21】这个站台**最近的一班**列车：还有多少毫秒到站，以及它的终点站 / 站台名。
      *
      * <p>对时刻表里每一条算 {@code arrival - millisOffset - System.currentTimeMillis()}，
      * 丢掉「已经过站超过 {@link #ARRIVAL_PAST_MS}」的条目（它们不再算「最近的一班」），
      * 取剩下里**最小**的那一个 —— 也就是下一班车还有多久到站。
      *
-     * @return 毫秒（只可能落在 {@code [-ARRIVAL_PAST_MS, +∞)}：车刚停稳那几秒会是小的负数）；
-     *         {@link Long#MIN_VALUE} = 读不到（没装 MTR4 / 还没同步 / 调用失败）
+     * <p>★【09-28】终点站与站台名**只从被选中的那一条**上取（不是各自再扫一遍）：
+     * 三条信息同属一班车，分开取会在「两条车几乎同时到时」拼出「A 车的终点站 + B 车的站台」。
+     *
+     * @return 最近一班车的信息；{@code null} = 读不到
+     *         （没装 MTR4 / 还没同步 / 调用失败 / 时刻表里一条有效条目都没有）
      */
-    public static long nextArrivalRemainingMs(long platformId) {
-        if (platformId <= 0L || !available() || arrivalsCache == null
+    public static ArrivalInfo nearestArrival(long platformId) {
+        // ★【09-28 续 6】判据是 isPlatformKnown（**不是 platformId <= 0**）—— 站台 id 可以是负数。
+        if (!isPlatformKnown(platformId) || !available() || arrivalsCache == null
                 || requestArrivals == null || getMillisOffset == null || arrivalGetArrival == null) {
-            return Long.MIN_VALUE;
+            return null;
         }
         try {
             Object ids = longListCtor.newInstance();
             longListAdd.invoke(ids, platformId);
             Object list = requestArrivals.invoke(arrivalsCache, ids);
             if (!(list instanceof Iterable<?> responses)) {
-                return Long.MIN_VALUE;
+                return null;
             }
             long offset = ((Number) getMillisOffset.invoke(arrivalsCache)).longValue();
             long now = System.currentTimeMillis();
             long best = Long.MIN_VALUE;
+            String bestDestination = null;
+            String bestPlatform = null;
             for (Object response : responses) {
                 if (response == null) {
                     continue;
@@ -644,13 +754,37 @@ public final class MtrDwellAccess {
                 }
                 if (best == Long.MIN_VALUE || remaining < best) {
                     best = remaining;
+                    bestDestination = textOf(response, arrivalGetDestination);
+                    bestPlatform = textOf(response, arrivalGetPlatformName);
                 }
             }
-            return best;
+            return best == Long.MIN_VALUE ? null : new ArrivalInfo(best, bestDestination, bestPlatform);
         } catch (Throwable t) {
             broken = true;
             LOGGER.warn("[SmoothLift/PsdChime] 查 MTR 时刻表失败，/pbmarrive 暂不响：{}", t.toString());
-            return Long.MIN_VALUE;
+            return null;
+        }
+    }
+
+    /**
+     * 【09-28】对一个对象调一个**可选**的 getter，把结果规整成「非空字符串或 {@code null}」。
+     *
+     * <p>规整的三件事：getter 没绑上 → {@code null}；返回 null → {@code null}；
+     * 只有空白 → {@code null}（拼报站词时少念一句，而不是念出「终点站： 」这种半截话）。
+     */
+    private static String textOf(Object target, Method getter) {
+        if (getter == null) {
+            return null;
+        }
+        try {
+            Object value = getter.invoke(target);
+            if (value == null) {
+                return null;
+            }
+            String text = value.toString().trim();
+            return text.isEmpty() ? null : text;
+        } catch (Throwable ignored) {
+            return null;
         }
     }
 
@@ -928,6 +1062,50 @@ public final class MtrDwellAccess {
         } catch (Throwable ignored) {
             return "?";
         }
+    }
+
+    /**
+     * 【09-28】按**站台 id** 查它属于哪个车站（讲述人报站要念站名，手里只有 platformId）。
+     *
+     * <p>{@code platformId} 是「身份链」那一侧算好的（{@code DoorView.platformId}），
+     * 这里只是拿它去 {@code MinecraftClientData.getInstance().platforms} 里找到那条
+     * {@code Platform}，再走 {@link #stationNameOf} 取车站名 —— 与
+     * {@link #nearestPlatformExplain} 是同一份数据源。
+     *
+     * <p>★ 只在**报站要出口那一刻**调用（不是每 tick）：站台少，一次全扫的代价可以忽略。
+     *
+     * <p>★【09-28 续 6】{@code platformId} **可以是负数**（MTR 的 id 是 {@code Random().nextLong()}），
+     * 所以「认不到」只认 {@link #PLATFORM_ID_NONE}，不认正负 —— 见 {@link #PLATFORM_ID_NONE}。
+     *
+     * @return 车站名；读不到（没装 MTR / 站台还没同步 / 该站台不属于任何车站）返回 {@code null}
+     */
+    public static String stationNameForPlatform(long platformId) {
+        // ★【09-28 续 6】判据是 isPlatformKnown（**不是 platformId <= 0**）—— 站台 id 可以是负数。
+        if (!isPlatformKnown(platformId) || !available() || getIdMethod == null || platformsField == null) {
+            return null;
+        }
+        try {
+            Object instance = getInstance.invoke(null);
+            if (instance == null) {
+                return null;
+            }
+            Iterable<?> platforms = elementsOf(platformsField.get(instance));
+            if (platforms == null) {
+                return null;
+            }
+            for (Object platform : platforms) {
+                if (platform == null) {
+                    continue;
+                }
+                Object id = getIdMethod.invoke(platform);
+                if (id instanceof Number n && n.longValue() == platformId) {
+                    return stationNameOf(platform);
+                }
+            }
+        } catch (Throwable ignored) {
+            // 与整条「可选绑定」一个口径：读不到只是没站名可念，不影响报站本身
+        }
+        return null;
     }
 
     /** 这个站台属于哪个**车站**（{@code platform.area → Station.getName()}）；读不到返回 {@code null}。 */

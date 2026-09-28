@@ -397,6 +397,8 @@ FORCE_SETTERS = [
     "setDefaultPsdMidiumAll", "setDefaultPsdMidiumVolumeAll",
     "setDefaultPsdArriveAll", "setDefaultPsdArriveVolumeAll",
     "setDefaultPsdToneAudioAll",
+    # 【09-28】讲述人（进站广播）维度默认：*All = 强制同步（含抹掉按串覆盖）
+    "setDefaultPsdNarrateAll",
 ]
 PLAIN_SETTERS = [
     "setGlobalRunSpeed", "setGlobalStepSpeed", "setDefaultVolume",
@@ -407,6 +409,8 @@ PLAIN_SETTERS = [
     "setDefaultPsdMidium", "setDefaultPsdMidiumVolume",
     "setDefaultPsdArrive", "setDefaultPsdArriveVolume",
     "setDefaultPsdToneAudio",
+    # 【09-28】讲述人的非强制支（只写本维度默认）
+    "setDefaultPsdNarrate",
 ]
 
 METHODS = {
@@ -486,6 +490,11 @@ check(const_int(sl_no, "SYNC_PSD_MIDIUM_PAGE") == 3, "SYNC_PSD_MIDIUM_PAGE = 3",
       str(const_int(sl_no, "SYNC_PSD_MIDIUM_PAGE")))
 check(const_int(sl_no, "SYNC_PSD_ARRIVE_PAGE") == 4, "SYNC_PSD_ARRIVE_PAGE = 4",
       str(const_int(sl_no, "SYNC_PSD_ARRIVE_PAGE")))
+# 【09-28】讲述人页 = 5（界面 page==5 ↔ 服务端 scope==5 ↔ SYNC_PSD_NARRATE_PAGE）
+check(const_int(sl_no, "SYNC_PSD_NARRATE_PAGE") == 5, "★ SYNC_PSD_NARRATE_PAGE = 5",
+      str(const_int(sl_no, "SYNC_PSD_NARRATE_PAGE")))
+check(re.search(r"if \(scope == SYNC_PSD_NARRATE_PAGE\)", sl_no) is not None,
+      "★ syncPsd 里有 scope == SYNC_PSD_NARRATE_PAGE 的分支（否则第 5 页点同步会落到「未知的页」）")
 
 lift_which = find_array(sl_no, "SYNC_LIFT_WHICH")
 lift_pages = find_array(SRC_TEXT["直梯（一级菜单 + 四项列表页）"], "PAGES")
@@ -507,6 +516,8 @@ check(re.search(r"else if \(page == 3\)\s*\{\s*buildArrivalPage\(\);", psd_scree
       "屏蔽门界面：page == 3 -> 到站播报页")
 check(re.search(r"else if \(page == 4\)\s*\{\s*buildArrivePage\(\);", psd_screen) is not None,
       "屏蔽门界面：page == 4 -> 进站报站页")
+check(re.search(r"else if \(page == 5\)\s*\{\s*buildNarratePage\(\);", psd_screen) is not None,
+      "★ 屏蔽门界面：page == 5 -> 讲述人页（与服务端 scope==5 对上）")
 
 # 直梯界面：page >= 1 时取 PAGES[page-1]（与服务端 scope-1 同一套下标）
 check(re.search(r"PAGES\[page - 1\]", strip_comments(SRC_TEXT["直梯（一级菜单 + 四项列表页）"])) is not None,

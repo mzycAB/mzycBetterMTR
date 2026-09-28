@@ -407,9 +407,12 @@ check(re.search(r"int closeWaitSeconds,\s*String midiumAudio, int midiumWaitSeco
       "★ applyClientPsdChime 形参尾部依次是 closeWaitSeconds → midiumAudio → midiumWaitSeconds"
       " → arriveAudio → arriveSeconds")
 check(re.search(r"toneAudioOpen, toneAudioClose, closeWaitSeconds,\s*"
-                r"midiumAudio, midiumWaitSeconds, arriveAudio, arriveSeconds\)", client) is not None,
+                r"midiumAudio, midiumWaitSeconds, arriveAudio, arriveSeconds,\s*"
+                r"midiumVolume, arriveVolume, midiumRound, arriveRound,\s*"
+                r"narrateMode, narrateSeconds\)", client) is not None,
       "★ 调用点的**实参顺序**与形参一致（这里错位同样不报错，只会把值串到别的字段上）"
-      "—— 含【1.21】追加的 arriveAudio → arriveSeconds")
+      "—— 含【1.21】追加的 arriveAudio → arriveSeconds、"
+      "【09-28】追加的 narrateMode → narrateSeconds（样式那格已由 boolean 改成三档 int）")
 check("data.psdMidiumAudio = EscalatorSpeedData.normalizePsdMidiumAudio(midiumAudio)" in mgr
       and "data.psdMidiumWaitSeconds = EscalatorSpeedData.clampPsdMidiumWaitSeconds(midiumWaitSeconds)"
       in mgr,
@@ -646,13 +649,20 @@ check(mgr.count("writeDoorOptBool(") >= 3 and mgr.count("writeDoorOptInt(") >= 5
 check("applyClientPsdDoorLocal" in mgr,
       "管理端提供 applyClientPsdDoorLocal（客户端本地回显 per-door 的落地实现）")
 
-# ---- 客户端接收：按写入顺序读回 13 个可选字段建记录（顺序错会整条错位） ----
+# ---- 客户端接收：按写入顺序读回 16 个可选字段建记录（顺序错会整条错位） ----
 _client_reads = re.findall(r"readDoorOpt(?:Bool|Int|String)\(", client)
-check(len(_client_reads) == 14 and "new EscalatorSpeedData.PsdToneAudio(" in client,
-      "★ 客户端 PSD_TONE_SYNC 接收端按**写入顺序**读回 14 个可选字段建 16 字段记录"
+check(len(_client_reads) == 16 and "new EscalatorSpeedData.PsdToneAudio(" in client,
+      "★ 客户端 PSD_TONE_SYNC 接收端按**写入顺序**读回 16 个可选字段建 18 字段记录"
       "（顺序错 = 整条记录错位，而且不报错）"
-      "　★【1.23】可选字段 13 → 14（多了开门提示等待秒数）",
+      "　★【1.23】可选字段 13 → 14（多了开门提示等待秒数）"
+      "　★【09-28】可选字段 14 → 16（多了讲述人 narrate / narrateSeconds 两格）",
       "读回可选字段 %d 个" % len(_client_reads))
+_srv_writes = re.findall(r"writeDoorOpt(?:Bool|Int|String)\(",
+                         re.search(r"buildPsdTonePacket\(ServerLevel level\)\s*\{(.*?)\n    \}",
+                                   mgr, re.S).group(1))
+check(len(_srv_writes) == len(_client_reads),
+      "★ 服务端 buildPsdTonePacket 的写次数 == 客户端读次数（写序 = 读序；多一个少一个都会整条错位）",
+      "写 %d 次 / 读 %d 次" % (len(_srv_writes), len(_client_reads)))
 
 print("\n== 7.5 【1.21】进站报站 /pbmarrive + 一串门（runKey） ==")
 
@@ -803,12 +813,15 @@ check("arriveVoice" not in rst,
 check("arriveVoice.clear()" in player and "arrivePlatform.clear()" in player
       and "arriveLastPoll.clear()" in player,
       "onDisconnect 清进站报站那一套（只有换世界才清）")
-check("MtrDwellAccess.nextArrivalRemainingMs" in player,
+check("MtrDwellAccess.nearestArrival" in player,
       "★ 触发读**时刻表**（不是猜列车位置/速度）—— 用户点名「看时刻表啊，不要猜」")
 check("MtrDwellAccess.platformIdAt" in player, "认站台走 MtrDwellAccess.platformIdAt")
 check("ARRIVE_SAME_TRAIN_MS" in player
-      and "Math.abs(arrivalMs - state.firedArrival) <= ARRIVE_SAME_TRAIN_MS" in player,
-      "★ 「同一班车只播一次」的守卫在（没有它，「还剩 |X| 秒到站」那个窗口内会每一 tick 重播一次）")
+      and "Math.abs(arrivalMs - recorded) <= ARRIVE_SAME_TRAIN_MS" in player
+      and "sameTrainAs(state.firedArrival" in player
+      and "sameTrainAs(state.firedArrivalNarrate" in player,
+      "★ 「同一班车只播一次」的守卫在（【09-28】收成 sameTrainAs，两条广播**各传各的**记录 —— "
+      "firedArrival / firedArrivalNarrate）")
 check("ARRIVE_POLL_TICKS" in player and "now - last < ARRIVE_POLL_TICKS" in player,
       "★ 查时刻表有节流（阈值以秒计，不该每 tick 都查）")
 check(player.find("tickArrivalAnnounce(mc)") < player.find("doors.isEmpty()"),
@@ -833,10 +846,12 @@ check("public static final long ARRIVAL_PAST_MS = 5_000L" in dwell,
       "（同一件事只留一个数字，别两头各写一份）")
 check("MtrDwellAccess.ARRIVAL_PAST_MS" in player and "ARRIVE_FIRE_GRACE_MS" not in player,
       "★ 播放端不再自带一份「宽限毫秒」，直接用 MtrDwellAccess.ARRIVAL_PAST_MS")
-check("long thresholdMs = (long) (-thresholdSeconds) * 1000L;" in player
-      and "remainMs > thresholdMs" in player,
-      "★ 触发口径 = 「**最近一班车还剩 |X| 秒到站**」：thresholdMs = -X*1000，"
-      "remainMs ≤ thresholdMs 就起播（X=-10 ⇒ 剩 10 秒到站时起播）")
+check("(long) (-customThresholdSeconds) * 1000L" in player
+      and "remainMs <= (long) (-customThresholdSeconds) * 1000L" in player
+      and "remainMs < -MtrDwellAccess.ARRIVAL_PAST_MS" in player,
+      "★ 触发口径 = 「**最近一班车还剩 |X| 秒到站**」：阈 = -X*1000，remainMs ≤ 阈 就起播"
+      "（X=-10 ⇒ 剩 10 秒到站时起播）；★【09-28】两条广播各算各的阈"
+      "（customThresholdSeconds / narrateThresholdSeconds），不再共用一个 thresholdMs")
 check("leadMs" not in player,
       "★ 旧的 leadMs（把 X 当「提前几秒开门」讲）彻底消失 —— 口径只与**到站剩余时间**有关")
 check("到站前 " in screen and "、到站前 " in main,

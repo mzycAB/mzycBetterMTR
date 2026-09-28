@@ -557,6 +557,11 @@ public final class CmdTreeCheck {
         failures += expect(dispatcher, "pbmclosewait 5 to ");
         failures += expect(dispatcher, "pbmclosewait -f 5 ", "to");
 
+        // 【09-28 续 2】/pbmnarrate：三档样式用**字面量**分支（不是字符串参数）
+        //   ⇒ Tab 补全里必须正好看到这三个候选（加 -f）。顺序 = Brigadier 的字典序。
+        failures += expect(dispatcher, "pbmnarrate ", "-f", "hongkong", "off", "shanghai");
+        failures += expect(dispatcher, "pbmnarrate -f ", "hongkong", "off", "shanghai");
+
         System.out.println();
         System.out.println("==================== 每条完整指令都可执行 ====================");
         failures += expectExecutable(dispatcher, "futihelp");
@@ -708,6 +713,24 @@ public final class CmdTreeCheck {
         failures += expectExecutable(dispatcher, "pbmclosewait 5 to 10");
         failures += expectExecutable(dispatcher, "pbmclosewait -f 5");
         failures += expectExecutable(dispatcher, "pbmclosewait -f 5 to 10");
+        failures += expectExecutable(dispatcher, "pbmnarrate");
+        failures += expectExecutable(dispatcher, "pbmnarrate off");
+        failures += expectExecutable(dispatcher, "pbmnarrate shanghai");
+        failures += expectExecutable(dispatcher, "pbmnarrate hongkong");
+        failures += expectExecutable(dispatcher, "pbmnarrate -f off");
+        failures += expectExecutable(dispatcher, "pbmnarrate -f shanghai");
+        failures += expectExecutable(dispatcher, "pbmnarrate -f hongkong");
+        // ★ 样式只有那三档：既没有旧名 `on`（旧版是布尔开/关），也不收任意字符串。
+        //   ⚠️ 这里必须用 expectTrailingUnconsumed 而不是 expectNotParsed —— 见那个方法的注释
+        //     （带 executes 的节点后面跟多余 token，Brigadier 不留 exception）。
+        failures += expectTrailingUnconsumed(dispatcher, "pbmnarrate on",
+                "样式＝开/关本身，不再另设 on（旧版布尔开关的遗留名，不许悄悄兼容）");
+        failures += expectTrailingUnconsumed(dispatcher, "pbmnarrate hk",
+                "缩写不收 —— 只有 off / shanghai / hongkong 三个字面量");
+        failures += expectTrailingUnconsumed(dispatcher, "pbmnarrate shanghai2",
+                "字面量必须整词匹配（不是前缀匹配）");
+        failures += expectTrailingUnconsumed(dispatcher, "pbmnarrate -f on",
+                "-f 分支同样只收那三个字面量");
         // 【1.50】屏蔽门音量同样是 1~1000、范围同样是 1~128，两端都要当场拒绝/接受。
         failures += expectNotParsed(dispatcher, "pbmloud 0", "音量下限是 1");
         failures += expectNotParsed(dispatcher, "pbmloud 1001", "音量上限是 1000");
@@ -889,15 +912,23 @@ public final class CmdTreeCheck {
         //   ★★ 这里**不能**写 expectNotParsed：`MBM` 根节点自己带执行器（`/MBM` = 帮助），
         //     Brigadier 遇到未知的 `train` 会**停在 `MBM` 并把它执行掉**（不抛异常），
         //     于是「`MBM train` 应当无法执行」永远假红（本文件顶上第 35 行那条注意事项就是这个坑）。
-        //   正确的断言是**子节点表**：`MBM` 的直接子节点只许 [help, music]、
+        //   正确的断言是**子节点表**：`MBM` 的直接子节点只许 [help, music, picture]、
         //     `MBM music` 只许 [delete, in] —— 谁把空壳 `train` 加回来，这里立刻红。
-        failures += expect(dispatcher, "MBM ", "help", "music");
-        failures += expect(dispatcher, "mbm ", "help", "music");
+        //   ★【09-28】补上 `picture`：图片方块那一族（查询 / new / <名字> / delete）是真实功能，
+        //     它加进来之后这条期望一直没跟着改 ⇒ check-all 从那时起就一直红着这一条。
+        //     期望表跟着代码走，别让「一直红」掩掉真正的回归。
+        failures += expect(dispatcher, "MBM ", "help", "music", "picture");
+        failures += expect(dispatcher, "mbm ", "help", "music", "picture");
         failures += expect(dispatcher, "MBM music ", "delete", "in");
         failures += expect(dispatcher, "mbm music ", "delete", "in");
+        //   ★【09-28】`MBM picture <名字>` 那个参数带 suggests 回调（要读存档里的图片库），
+        //     所以**不能**用 expect/dump（它们会真跑一次补全 ⇒ 这里的 source 是 null ⇒ NPE）。
+        //     用 expectNode（只 parse、不跑补全）守子节点就够了。
+        failures += expectNode(dispatcher, "MBM picture new", "new");
+        failures += expectNode(dispatcher, "MBM picture delete", "delete");
 
         System.out.println();
-        System.out.println("========== 【1.53】三个港铁预设 + 全音量：这 35 条指令必须条条可执行 ==========");
+        System.out.println("========== 【1.53】三个港铁预设 + 全音量：预设 37 条指令必须条条可执行 ==========");
         // ★★ 这一段是「界面按钮能不能用」的**离线代理**：
         //   预设 / 全音量的做法是「把这几条指令原样派发」（见 SmoothLift.runCommandBatch），
         //   所以「按钮点了有没有效果」== 「这些指令在指令树里存不存在」。
@@ -906,6 +937,11 @@ public final class CmdTreeCheck {
         //   把「不播」写成 `off` 而不是 `none` … 都会在这里红。
         // ⚠️ 但「解析得通」≠「落在对的那一层」：`pbmmusic open -f off` 也能解析（落到**子开关**，
         //   不是素材），所以那件事由 check-mbm-help.py 的「层判据」守着，不在这一层。
+        // ⚠️⚠️ **这三份清单和 SmoothLift 里的 PRESET_* 数组是两处**（这里不能直接读 private 常量）
+        //   ⇒ 改预设时**两边都要改**，否则就会出现「指令树测的是老清单」的假绿。
+        //   「同一份规则出现在两处就是等着分叉」—— 这里是已知的重复点，改预设时先看这里。
+        //   ★【09-28 续 4】三档的讲述人条目：经典＝hongkong（开），简单 / 空白＝off（关）。
+        //     条数 13 + 13 + 11 = 37。
         String[][] mbmPresets = {
                 {"经典港铁预设",
                         "futimusic -f default", "futihelp -f on", "lifthelp -f on",
@@ -913,19 +949,25 @@ public final class CmdTreeCheck {
                         "lifthelp up -f on", "lifthelp down -f on",
                         "pbmclosewait -f 1", "pbmmusic open -f default",
                         "pbmmusic close -f default-m",
-                        "pbmmusic open -f on", "pbmmusic close -f on"},
+                        "pbmmusic open -f on", "pbmmusic close -f on",
+                        // 【09-28 续 2】进站广播（讲述人）＝开启(香港)
+                        "pbmnarrate hongkong -f"},
                 {"简单港铁预设",
                         "futimusic -f default", "futihelp -f off", "lifthelp -f on",
                         "lifthelp open -f off", "lifthelp close -f off",
                         "lifthelp up -f on", "lifthelp down -f on",
                         "pbmclosewait -f 1", "pbmmusic open -f default",
                         "pbmmusic close -f default-s",
-                        "pbmmusic open -f on", "pbmmusic close -f on"},
+                        "pbmmusic open -f on", "pbmmusic close -f on",
+                        // 【09-28 续 4】进站广播（讲述人）＝**关闭**（用户点名：简单港铁要关讲述人）
+                        "pbmnarrate off -f"},
                 {"空白预设",
                         "futimusic -f off", "futihelp -f off", "lifthelp -f off",
                         "lifthelp open -f off", "lifthelp close -f off",
                         "lifthelp up -f off", "lifthelp down -f off",
-                        "pbmclosewait -f 1", "pbmmusic open -f none", "pbmmusic close -f none"},
+                        "pbmclosewait -f 1", "pbmmusic open -f none", "pbmmusic close -f none",
+                        // 【09-28 续 4】进站广播（讲述人）＝**关闭**（用户点名：空白预设也要关）
+                        "pbmnarrate off -f"},
         };
         for (String[] preset : mbmPresets) {
             System.out.println("  ---- " + preset[0] + "（" + (preset.length - 1) + " 条）----");
@@ -1322,6 +1364,28 @@ public final class CmdTreeCheck {
                     + " totalLen=" + input.length());
         }
         System.out.println((ok ? "  OK   " : "  FAIL ") + "「" + input + "」 应当无法执行（" + why + "）");
+        return ok ? 0 : 1;
+    }
+
+    /**
+     * 【09-28 续 2】断言「这条输入**读不完**」（＝多余 token 不被收下 ⇒ 这行指令不成立）。
+     *
+     * <p>★★ 为什么不能直接用 {@link #expectNotParsed}：那个判据是
+     * 「有 exception ∨ 节点表为空 ∨ 末节点没有命令」。但当**节点本身带 executes** 时
+     * （{@code /pbmnarrate} 就是），Brigadier 解析到那个节点就停住，
+     * **既不抛异常、也不往 {@code getExceptions()} 里放东西**，只是把 reader 停在半路 ——
+     * 于是 {@code expectNotParsed} 会误判成「可执行」。
+     * 这种「字面量枚举之外的 token」只能看 {@code reader.canRead()}：
+     * 读不完就说明这一行在游戏里是**不完整/无法执行**的。
+     * （实测：{@code pbmnarrate on} → {@code exceptions={} readerCursor=11/13}。）
+     */
+    private static int expectTrailingUnconsumed(CommandDispatcher<CommandSourceStack> dispatcher,
+                                                String input, String why) {
+        ParseResults<CommandSourceStack> parsed = dispatcher.parse(input, null);
+        boolean ok = parsed.getReader().canRead();
+        System.out.println((ok ? "  OK   " : "  FAIL ") + "「" + input + "」 应当读不完"
+                + "（多余 token 不被收下）（" + why + "）"
+                + "  readerCursor=" + parsed.getReader().getCursor() + "/" + input.length());
         return ok ? 0 : 1;
     }
 

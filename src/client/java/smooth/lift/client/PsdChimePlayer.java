@@ -746,7 +746,7 @@ public final class PsdChimePlayer {
     //   ★ 触发**只看「最近一班车还剩几秒到站」**（用户点名「看时刻表啊，不要猜」）：
     //   时刻表里下一班的剩余到站毫秒 ≤ |X| 秒 ⇒ 起播（X=-10 ⇒ 剩 10 秒时起播）。
     //   与「门什么时候开」「停站多长」**完全无关** —— 门这一侧只用来认出「这串门属于哪个站台」。
-    //   剩余毫秒见 {@link MtrDwellAccess#nextArrivalRemainingMs}。
+    //   剩余毫秒见 {@link MtrDwellAccess#nearestArrival}。
     //
     //   ★ 与「到站播报」共享的设计（**故意的**）：自己一张表、自己一条 tick 路、
     //   起播之后**没有任何 stop** ⇒ 车进站了也照播到完。
@@ -797,6 +797,15 @@ public final class PsdChimePlayer {
 
         /** 上一次**为哪一班车**播过（到站时刻 ms）；{@link Long#MIN_VALUE} = 从没播过。 */
         private long firedArrival = Long.MIN_VALUE;
+
+        /**
+         * 【09-28】讲述人那一条**自己**的「这一班车念过了」记账。
+         *
+         * <p>★ 必须与 {@link #firedArrival} 分开：两条广播各有各的窗口（用户点名
+         * 「取消借用进站广播」）⇒ 自定义那条的窗口可能是 {@code -30}、讲述人这条是 {@code 0}，
+         * 用同一格记账会让先开窗的那一条把另一条整班车压掉。
+         */
+        private long firedArrivalNarrate = Long.MIN_VALUE;
 
         /** 上一次起播的游戏刻（日志里点明「起播时时刻表还剩多少毫秒」，方便用户核对）。 */
         private long firedTick = Long.MIN_VALUE;
@@ -855,6 +864,7 @@ public final class PsdChimePlayer {
         //   ★ 与到站播报的差别：它**需要**门快照（要拿门的位置当声源），
         //   所以只能排在快照之后；但「车进站了也继续播到完」不靠这条 tick 路 ——
         //   靠的是「起播之后没人停它」（下面 tickArriveAnnounce 里一句 stop 都没有）。
+        //   【1.28.1204】/jsr 总开关关着时，方法开头第一道闸就短路（连时刻表查询都不跑）。
         tickArriveAnnounce(mc, doors);
         if (doors.isEmpty()) {
             // 【1.15】门一下子全没了（走远 / 区块卸载）时，挂起中的关门提示音要先冲出去 ——
@@ -1554,6 +1564,14 @@ public final class PsdChimePlayer {
         if (mc.level == null || doors.isEmpty()) {
             return;
         }
+        // 【1.28.1204】/jsr 总开关。
+        //   ★【1.29】它现在**只管讲述人那一条**（见下面 ③-B），不再把整条进站报站链路一起关掉 ——
+        //   用户原话：「讲述人的进站广播和自定义的进站广播不是一个广播，可以同时存在」。
+        //   ⇒ 关 /jsr 只让讲述人闭嘴，自定义进站广播（音频库素材）照旧；反过来，
+        //     自定义那条设成「不播」也不会再连累讲述人。
+        //   ★【09-28】讲述人从此有**两层**开关：这一层全局 /jsr **与** 每串门自己的
+        //   {@code PsdToneAudio.narrate}（石斧 UI 二级页「关闭 / 开启」），两者取「与」。
+        boolean narrateGlobal = TrainAnnounceSwitch.isEnabled();
         long now = mc.level.getGameTime();
         Vec3 player = mc.player == null ? null : mc.player.position();
         // ★【1.26】先把门快照归并成「每一串里离玩家最近的那一扇」。
@@ -1571,7 +1589,19 @@ public final class PsdChimePlayer {
             long runKey = run.getKey();
             PsdDoorTracker.DoorView door = run.getValue();
             String audio = EscalatorSpeedManager.getDoorPsdArriveAudio(mc.level, runKey);
-            if (EscalatorSpeedData.isPsdArriveOff(audio)) {
+            // 【1.29】「不播」只关**自定义**那一条（= customOff 这个局部标志），
+            //   不再像 1.28 那样把这一串整个 `continue` 掉 —— 讲述人那一条要照念。
+            //   ★【09-28】讲述人也有自己的开关了（门串覆盖 > 维度默认），与 /jsr 取「与」。
+            //   两条都关着时才真的没事可做，此时保持老口径：顺手把状态表清掉。
+            boolean customOff = EscalatorSpeedData.isPsdArriveOff(audio);
+            //   ★【09-28 续】这里取的是**样式**（0 关 / 1 上海 / 2 香港）而不是「开/关」：
+            //   ③-B 要按样式选句式，只看开/关会把香港档也念成上海词。
+            //   全局 /jsr 关着 = 样式当「关闭」处理（「与」的口径不变）。
+            int narrateMode = narrateGlobal
+                    ? EscalatorSpeedManager.getDoorPsdNarrateMode(mc.level, runKey)
+                    : EscalatorSpeedData.PSD_NARRATE_OFF;
+            boolean narrateOn = narrateMode != EscalatorSpeedData.PSD_NARRATE_OFF;
+            if (customOff && !narrateOn) {
                 arriveVoice.remove(runKey);
                 continue;
             }
@@ -1587,15 +1617,19 @@ public final class PsdChimePlayer {
             //   与身份那一侧是**两条并行认亲**：一旦某扇门在 4 格边界上两边判出不同结果，
             //   「身份已是站台、时刻表却认不到」⇒ 这一串**永远不响进站报站**（LOG6 现场：
             //   x 轴 z=43 那排门的身份一直回落连通串，进站报站那边也就一路静默、连日志都没有）。
-            long platformId = arrivePlatform.getOrDefault(runKey, -1L);
-            if (platformId <= 0L) {
+            //   ★【09-28 续 6】「认不到」的哨兵是 PLATFORM_ID_NONE，**不是 0 / 负数**：
+            //   MTR4 站台 id = Random().nextLong()，约一半是负数（LOG12 现场：开往南区南方向
+            //   的 4 号线站台 id 为负 ⇒ 旧判据 platformId <= 0 把「认到了」误判成「认不到」，
+            //   整个方向没有进站播报）。判据一律用 MtrDwellAccess.isPlatformKnown。
+            long platformId = arrivePlatform.getOrDefault(runKey, MtrDwellAccess.PLATFORM_ID_NONE);
+            if (!MtrDwellAccess.isPlatformKnown(platformId)) {
                 platformId = door.platformId();
-                if (platformId > 0L) {
+                if (MtrDwellAccess.isPlatformKnown(platformId)) {
                     arrivePlatform.put(runKey, platformId);
                 } else {
                     // 身份都没认到才退回自己认一次（1.21 的老路；通常只有「站台数据没同步」才会走到）。
                     platformId = MtrDwellAccess.platformIdAt(door.x(), door.y(), door.z());
-                    if (platformId <= 0L) {
+                    if (!MtrDwellAccess.isPlatformKnown(platformId)) {
                         // ★【1.28】诊断（节流：同一串每 60 秒一行）—— 用户报「某些屏蔽门
                         //   arrive 直接没有声音」时，这行会点名**为什么**：站台数据没同步、
                         //   附近没站台、还是站台在 4 格上限外差几格。
@@ -1616,49 +1650,136 @@ public final class PsdChimePlayer {
                 }
             }
             // ② 时刻表：下一班（还没走远的）还有多少毫秒到站
-            long remainMs = MtrDwellAccess.nextArrivalRemainingMs(platformId);
-            if (remainMs == Long.MIN_VALUE) {
+            //   ★【09-28】顺手把这一班车的**终点站 / 站台名**一起取回来（同一个 ArrivalResponse，
+            //   就是 MTR 站台那块屏正在显示的那一条）—— 讲述人报站词要念这两个值。
+            MtrDwellAccess.ArrivalInfo arrival = MtrDwellAccess.nearestArrival(platformId);
+            if (arrival == null) {
                 continue; // 读不到时刻表（没装 MTR4 / 还没同步到）—— 静默跳过，不刷日志
             }
-            // 阈值 = 玩家设的 -X 秒：X=-10 ⇒「最近一班车还剩 10 秒到站」时起播
-            int thresholdSeconds = EscalatorSpeedManager.getDoorPsdArriveSeconds(mc.level, runKey);
-            long thresholdMs = (long) (-thresholdSeconds) * 1000L;
-            if (remainMs > thresholdMs || remainMs < -MtrDwellAccess.ARRIVAL_PAST_MS) {
-                continue; // 还没进窗口 / 车已经过站超过补播宽限（这一轮过去了）
+            long remainMs = arrival.remainingMs;
+            // 【09-28】★★ 两条广播各有**自己的**窗口（用户点名「取消借用进站广播」）：
+            //   自定义那条用 getDoorPsdArriveSeconds，讲述人这条用 getDoorPsdNarrateSeconds。
+            //   阈值口径逐字相同（X=-10 ⇒「最近一班车还剩 10 秒到站」时起播），但两边各存各的值 ——
+            //   所以窗口区间要各算各的，不能像 1.29 那样只算一次共用。
+            int customThresholdSeconds = EscalatorSpeedManager.getDoorPsdArriveSeconds(mc.level, runKey);
+            int narrateThresholdSeconds = EscalatorSpeedManager.getDoorPsdNarrateSeconds(mc.level, runKey);
+            /** 车已经过站超过补播宽限（两条共用：这是「时刻表本身过期」，与听哪条广播无关）。 */
+            boolean late = remainMs < -MtrDwellAccess.ARRIVAL_PAST_MS;
+            /** 自定义那条此刻进没进它自己的窗口（素材设成「不播」时永远 false）。 */
+            boolean customInWindow = !customOff && !late
+                    && remainMs <= (long) (-customThresholdSeconds) * 1000L;
+            /** 讲述人那条此刻进没进它自己的窗口（开关关着时永远 false）。 */
+            boolean narrateInWindow = narrateOn && !late
+                    && remainMs <= (long) (-narrateThresholdSeconds) * 1000L;
+            if (!customInWindow && !narrateInWindow) {
+                continue; // 两条都还没进窗口 / 车已经过站超过补播宽限（这一轮过去了）
             }
-            // ③ 同一班车只播一次：这次算出来的**绝对**到站时刻与上次播的那一班比
+            // ③ 同一班车只播一次：这次算出来的**绝对**到站时刻与上次播的那一班比。
+            //   ★【09-28】记账**分开**（两条各有各的窗口 ⇒ 各记各的，见 Arrive#firedArrivalNarrate）：
+            //   用同一格的话，先开窗的那一条会把另一条整班车压掉。
             long arrivalMs = System.currentTimeMillis() + remainMs;
             Arrive state = arriveVoice.computeIfAbsent(runKey, k -> new Arrive());
-            if (state.firedArrival != Long.MIN_VALUE
-                    && Math.abs(arrivalMs - state.firedArrival) <= ARRIVE_SAME_TRAIN_MS) {
-                continue;
+            /** 自定义那条还要为这一班车播？（进了窗口 **且** 这一班还没为它播过） */
+            boolean customTodo = customInWindow && !sameTrainAs(state.firedArrival, arrivalMs);
+            /** 讲述人那条还要为这一班车念？ */
+            boolean narrateTodo = narrateInWindow && !sameTrainAs(state.firedArrivalNarrate, arrivalMs);
+            if (!customTodo && !narrateTodo) {
+                continue; // 进窗口的那几条都已经为这一班车播过了
             }
-            Tone tone = resolveArriveTone(mc, audio);
-            if (tone == null || tone.durationMs() <= 0) {
-                continue; // 素材不在库里 / 时长量不到 —— resolveArriveTone 已经记过日志
-            }
+            // 【09-28】声源与射程仍然**共用**：同一条串里离玩家最近的那一扇。
+            //   这是两条广播里唯一允许共用的东西 —— **位置**（本来就只有一个声源）。
             double distance = player == null
                     ? 0.0 : player.distanceTo(new Vec3(door.x(), door.y(), door.z()));
-            // 【1.22】同到站播报：只算音量系数，距离增益交给实例每 tick。
-            float volume = volumeFactor(EscalatorSpeedManager.getDoorPsdArriveVolume(mc.level, runKey));
-            if (gain(distance, ROUND_ARRIVE) * volume <= 0.0f) {
-                // 站在可闻范围外：**不**标记「播过」，走近了还能补上这一段
-                continue;
+            /** 这一串的门此刻在不在玩家可闻范围内（两条广播共用的**唯一**距离判据）。 */
+            boolean inRange = gain(distance, ROUND_ARRIVE) > 0.0;
+
+            // ③-A 自定义进站广播（音频库里的素材）—— 只在**它自己**开着**且这一班还没播过**时走。
+            //   ★【1.29】它设成「不播」时下面整个跳过，但**不影响** ③-B（讲述人）。
+            //   ★【09-28】改成 customTodo：还要「这一班车还没为自定义这条播过」。
+            if (customTodo) {
+                Tone tone = resolveArriveTone(mc, audio);
+                if (tone != null && tone.durationMs() > 0) {
+                    // 【1.22】同到站播报：只算音量系数，距离增益交给实例每 tick。
+                    float volume = volumeFactor(
+                            EscalatorSpeedManager.getDoorPsdArriveVolume(mc.level, runKey));
+                    if (gain(distance, ROUND_ARRIVE) * volume > 0.0f) {
+                        PsdMusicInstance inst = play(mc, tone, door, volume, 0, true,
+                                ROUND_ARRIVE, runKey);
+                        state.firedArrival = arrivalMs; // ★ 自定义这条**自己**的记账
+                        state.firedTick = now;
+                        LOGGER.info("[SmoothLift/PsdChime] 进站报站·自定义"
+                                        + "（这一串的门 @{} 里离玩家最近的一扇起播）"
+                                        + " → {}「{}」（{}ms）：配置「剩 {} 秒到站时起播」，"
+                                        + "实际起播时时刻表还剩 {}ms（第 {} tick）；"
+                                        + "★ 不设停止条件：车进站、门开关都照播到完",
+                                posText(door), inst != null ? "播放" : "播不出（素材缺失 / 解码失败）",
+                                toneLabel(tone), tone.durationMs(), -customThresholdSeconds, remainMs, now);
+                    }
+                    // 物质在库里但玩家站在可闻范围外：**不**标记「播过」，走近了还能补上这一段
+                }
             }
-            PsdMusicInstance inst = play(mc, tone, door, volume, 0, true, ROUND_ARRIVE, runKey);
-            state.firedArrival = arrivalMs;
-            state.firedTick = now;
-            LOGGER.info("[SmoothLift/PsdChime] 进站报站（这一串的门 @{} 里离玩家最近的一扇起播）"
-                            + " → {}「{}」（{}ms）：配置「剩 {} 秒到站时起播」，"
-                            + "实际起播时时刻表还剩 {}ms（第 {} tick）；"
-                            + "★ 不设停止条件：车进站、门开关都照播到完",
-                    posText(door), inst != null ? "播放" : "播不出（素材缺失 / 解码失败）",
-                    toneLabel(tone), tone.durationMs(), -thresholdSeconds, remainMs, now);
+
+            // ③-B 【09-28】讲述人进站广播（文字转语音）—— **独立的一条**。
+            //   ★ 判据里**没有** `customOff`：自定义那条不播、素材没导入、音量 0，都不关它的事；
+            //   它只认 ① 全局 /jsr **与** 这一串门自己的开关、② 玩家在不在这一串的可闻范围内。
+            //   ★ 窗口是**它自己**的（getDoorPsdNarrateSeconds），与自定义那条各存各的
+            //   —— 用户点名「取消借用进站广播」。
+            //   ★ 用 MTR 报站的同一个入口念（com.mojang.text2speech.Narrator，不查游戏辅助功能
+            //   设置）—— 详见 TrainAnnounceNarrator。
+            //   ★ 念什么 = 按这一串门**生效的样式**选句式（TrainAnnounceNarrator.arriveTextForStyle）：
+            //     开启(上海) →「乘客们，列车马上就要进站了，本次列车终点站：X，请乘客们在Y站台有序候车」；
+            //     开启(香港) →「前往X的列车即将到达，请先让车上的乘客下车 ⏎ The train to X is arriving…」
+            //   ★★【09-28 续 3】两档**只差句式，不差名源** —— X 都是**本次列车终点站**
+            //     （ArrivalResponse.getDestination()，MTR 的双语 中文|English 就在这个字段上），
+            //     只有上海档**多要一个** Y = 站台名（ArrivalResponse.getPlatformName()）。
+            //     ★ 上一版曾让香港档去吃**车站名**（Station.getName() = 玩家所在那个站）⇒ 把
+            //     「前往江苏北路」念成「前往火车站」（用户报的 bug）；再上一版吃**站台名**
+            //     （「4A」单语）⇒ 只念得出英文半句。两个都不是这里的名源。
+            //   ★ 名字读不到时香港档拼不出话 ⇒ text == null ⇒ 这一条跳过（但仍记账，别每 tick 重试）。
+            if (narrateTodo && inRange) {
+                String text = TrainAnnounceNarrator.arriveTextForStyle(
+                        narrateMode, arrival.destination, arrival.platformName);
+                boolean spoke = text != null && TrainAnnounceNarrator.speak(text);
+                // 走到这里就算「这一班车已处理」：引擎没装 / 这一档没拼出话，都不该每 tick 重试。
+                state.firedArrivalNarrate = arrivalMs; // ★ 讲述人这条**自己**的记账
+                state.firedTick = now;
+                // ★【09-28 续 3】日志里额外附上**本车站名**，只为排查方便 —— 它**不参与**报站词
+                //   （报站词要的是终点站，见上）。这是「报站出口那一刻」才调的低频查询，
+                //   见 MtrDwellAccess.stationNameForPlatform 的注释。
+                String stationName = MtrDwellAccess.stationNameForPlatform(platformId);
+                LOGGER.info("[SmoothLift/PsdChime] 进站报站·讲述人{}"
+                                + "（这一串的门 @{} 里离玩家最近的一扇起播）"
+                                + " → {}「{}」（终点站 {}、站台 {}、本车站 {}）："
+                                + "配置「剩 {} 秒到站时起播」，实际起播时时刻表还剩 {}ms（第 {} tick）；"
+                                + "★ 与自定义进站广播是两条互不相干的广播，可以同时存在",
+                        EscalatorSpeedData.psdNarrateModeName(narrateMode),
+                        posText(door),
+                        text == null ? "跳过（这一档拼不出话，例如终点站读不到）"
+                                : (spoke ? "念出" : "念不出（本机没有可用语音引擎）"),
+                        text == null ? "" : text,
+                        arrival.destination == null ? "读不到" : arrival.destination,
+                        arrival.platformName == null ? "读不到" : arrival.platformName,
+                        stationName == null ? "读不到" : stationName,
+                        -narrateThresholdSeconds, remainMs, now);
+            }
         }
         // 只保留这一帧还看得见的串（这两张表是可重算的缓存，别让它们无限长大）
         arrivePlatform.keySet().retainAll(nearestPerRun.keySet());
         arriveLastPoll.keySet().retainAll(nearestPerRun.keySet());
         arriveFailNextLog.keySet().retainAll(nearestPerRun.keySet());
+    }
+
+    /**
+     * 【09-28】「记录的那一班车」与「这次算出来的这一班」是不是同一班（容差 {@link #ARRIVE_SAME_TRAIN_MS}）。
+     *
+     * <p>两条广播（自定义 / 讲述人）各存各的记录（见 {@link Arrive#firedArrival} /
+     * {@link Arrive#firedArrivalNarrate}），所以判据收成这一个函数 —— 免得两处各写一遍
+     * 「{@code != MIN_VALUE && |差| <= 容差}」而某天改容差时只改一处。
+     *
+     * @param recorded 那一条自己的记录（{@link Long#MIN_VALUE} = 从没播过）
+     */
+    private static boolean sameTrainAs(long recorded, long arrivalMs) {
+        return recorded != Long.MIN_VALUE && Math.abs(arrivalMs - recorded) <= ARRIVE_SAME_TRAIN_MS;
     }
 
     /**

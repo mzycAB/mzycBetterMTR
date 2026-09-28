@@ -177,11 +177,13 @@ m = re.search(r"public record PsdToneAudio\(([^)]*)\)", data, flags=re.S)
 check(m is not None, "找得到 PsdToneAudio record 声明")
 if m:
     params = [p.strip() for p in m.group(1).split(",") if p.strip()]
-    check(len(params) == 16, "★ PsdToneAudio 是 16 字段（1.20 的 13 + 到站/进站 2 + 本轮 1）",
+    check(len(params) == 18,
+          "★ PsdToneAudio 是 18 字段（1.20 的 13 + 到站/进站 2 + 音量 1 + 【09-28】讲述人 2）",
           "得到 %d：%s" % (len(params), ", ".join(params)))
-    check(params[-1] == "Integer arriveVolume",
-          "★ arriveVolume 在末尾（追加式改包的标准姿势：老位置一个都没动）",
-          "得到 %s" % params[-1])
+    check(params[-2] == "Integer narrate" and params[-1] == "Integer narrateSeconds",
+          "★ narrate（三档样式，【09-28 续】由 Boolean 改成 Integer）/ narrateSeconds 在末尾"
+          "（追加式改包的标准姿势：老位置一个都没动）",
+          "得到 %s" % params[-2:])
     check(params[10] == "String midium" and params[11] == "Integer midiumWaitSeconds"
           and params[12] == "Integer midiumVolume",
           "★ midiumVolume 紧跟 midiumWaitSeconds（同一件事的三个字段聚在一起，别散开）",
@@ -273,8 +275,8 @@ if mwrite and mread:
     check([n for _, n in w] == [n for n, _ in r],
           "★★ 读写**字段名序列**逐格一致（连名字都对上，不只是类型）",
           "写在 %s / 读在 %s" % ([n for _, n in w], [n for n, _ in r]))
-    check([n for _, n in w][-2:] == ["midiumVolume", "arriveVolume"],
-          "1.22 的两个新音量在**两条序列的末尾**（追加式改包的标准姿势）")
+    check([n for _, n in w][-2:] == ["narrate", "narrateSeconds"],
+          "★【09-28】讲述人两格在**两条序列的末尾**（追加式改包的标准姿势）")
     # ★【1.23】的两个「淡入淡出范围」**不进这张按门的 record** —— 它们是**维度级**配置
     #   （与 /pbmround / 提示音范围同一层，见 4b 那两条）。这条注释是给下一次改包的人看的：
     #   不要因为「都是到站播报的参数」就把范围也塞进按门覆盖层。
@@ -304,35 +306,43 @@ if m2w and m2r:
     # 读段里包含 readLong? 维度包没有；两边都只取 Utf/Boolean/VarInt
     check(w2 == r2, "★★ 维度包读写类型序列逐格一致",
           "写在 %s / 读在 %s" % (w2, r2))
-    check(len(w2) == 19,
-          "★ 维度包 19 格（1.20 的 13 + 1.16/1.17/1.21 已有的 4 + 1.22 的 2 + 【1.23】的 2）",
+    check(len(w2) == 21,
+          "★ 维度包 21 格（1.20 的 13 + 1.16/1.17/1.21 已有的 4 + 1.22 的 2 + 【1.23】的 2"
+          " + 【09-28】讲述人的 2）",
           "得到 %d" % len(w2))
-    # 末尾四格必须是「两个音量 + 两个范围」，且都是 VarInt
-    check(w2[-4:] == ["VarInt"] * 4,
-          "维度包末尾四格都是 VarInt（两个音量 + 两个范围）", str(w2[-4:]))
+    # 末尾两格 = 「讲述人**样式**（VarInt）+ 秒数（VarInt）」
+    #   ★【09-28 续】第 1 格由 Boolean（开/关）改成 VarInt（三档 0/1/2）—— 格子数没变，
+    #     只是类型变了；下面那条「倒数第二格」的断言也跟着换成 defaultPsdNarrateMode。
+    check(w2[-2:] == ["VarInt", "VarInt"],
+          "维度包末尾两格 = 讲述人样式 + 秒数（都走 VarInt）", str(w2[-2:]))
     writes = [ln.strip() for ln in m2w.group(1).split("\n") if "buf.write" in ln]
-    check(writes and "defaultPsdArriveRound" in writes[-1],
-          "★ 维度包写入的**最后一格**就是 arriveRound（【1.23】追加在最后）",
+    check(writes and "defaultPsdNarrateSeconds" in writes[-1],
+          "★ 维度包写入的**最后一格**就是 defaultPsdNarrateSeconds（【09-28】追加在最后）",
           "最后一格：%s" % (writes[-1] if writes else "?"))
-    check(writes and "defaultPsdMidiumRound" in writes[-2],
-          "★ 倒数第二格是 midiumRound（两个范围成对追加，顺序与读段一致）",
+    check(writes and "defaultPsdNarrateMode" in writes[-2],
+          "★ 倒数第二格是 defaultPsdNarrateMode（样式 + 秒数成对追加，顺序与读段一致）",
           "倒数第二格：%s" % (writes[-2] if len(writes) >= 2 else "?"))
+    check(writes and "defaultPsdArriveRound" in writes[-3],
+          "★ 倒数第三格仍是 arriveRound（【1.23】的那两格位置没动）",
+          "倒数第三格：%s" % (writes[-3] if len(writes) >= 3 else "?"))
 
 # ---- 4c) applyClientPsdChime 的入参 == record 字段数 + 维度/总开关 ----
 m3 = re.search(r"public static void applyClientPsdChime\((.*?)\)\s*\{", mgr, flags=re.S)
 check(m3 is not None, "找得到 applyClientPsdChime 签名")
 if m3:
     params3 = [p.strip() for p in m3.group(1).split(",") if p.strip()]
-    check(len(params3) == 19,
-          "★ applyClientPsdChime 19 入参 = record 15 + dimension + enabled + 【1.23】两个范围"
-          "（维度包多带这两个，包格数 19 也对得上）",
+    check(len(params3) == 21,
+          "★ applyClientPsdChime 21 入参 = record 16 + dimension + enabled + 【1.23】两个范围"
+          " + 【09-28】讲述人的两个（维度包多带的这几格，包格数 21 也对得上）",
           "得到 %d：%s" % (len(params3), ", ".join(params3)))
-    check(params3[-2:] == ["int midiumRound", "int arriveRound"],
-          "【1.23】两个范围在 applyClientPsdChime 入参**末尾**", "得到 %s" % params3[-2:])
-    check(params3[-4:] == ["int midiumVolume", "int arriveVolume",
-                           "int midiumRound", "int arriveRound"],
-          "★ 末尾四格 = 1.22 的音量对 + 1.23 的范围对（顺序与包、与读段三处一致）",
-          "得到 %s" % params3[-4:])
+    check(params3[-2:] == ["int narrateMode", "int narrateSeconds"],
+          "【09-28】讲述人的**样式** / 秒数在 applyClientPsdChime 入参**末尾**"
+          "（样式那格已由 boolean narrateOn 改成 int narrateMode）", "得到 %s" % params3[-2:])
+    check(params3[-6:-2] == ["int midiumVolume", "int arriveVolume",
+                             "int midiumRound", "int arriveRound"],
+          "★ 1.22 的音量对 + 1.23 的范围对仍在（只是讲述人两格接在它们后面）"
+          "（顺序与包、与读段三处一致）",
+          "得到 %s" % params3[-6:-2])
 
 # ---- 4d) 客户端构造实参 == record 参数名（逐个，含名字） ----
 m4 = re.search(r"new EscalatorSpeedData\.PsdToneAudio\((.*?)\)\);", cli, flags=re.S)
@@ -341,7 +351,8 @@ if m4 is None:
 check(m4 is not None, "找得到客户端构造 PsdToneAudio 的地方")
 if m4:
     args4 = [a.strip() for a in m4.group(1).split(",") if a.strip()]
-    check(len(args4) == 16, "★ 客户端构造实参 = 16", "得到 %d" % len(args4))
+    check(len(args4) == 18, "★ 客户端构造实参 = 18（【09-28】多了 narrate / narrateSeconds）",
+          "得到 %d" % len(args4))
     if m:
         rec_names = [p.strip().split()[-1] for p in params]
         # ★★ 这是「服务端写 → 客户端读 → 喂进 record」这条链的最后一段：
@@ -351,8 +362,8 @@ if m4:
         check(args4 == rec_names,
               "★★ 客户端构造实参逐个 == record 参数名（顺序 + 名字全对上）",
               "实参=%s\n             record=%s" % (args4, rec_names))
-        check(set(args4) == set(rec_names) and len(set(args4)) == 16,
-              "16 个实参/参数名互不重复（重名会让上面那条断言失去分辨力）")
+        check(set(args4) == set(rec_names) and len(set(args4)) == 18,
+              "18 个实参/参数名互不重复（重名会让上面那条断言失去分辨力）")
 
 # ======================================================================
 # 5) UI：音量框 + 标签 + 底部合并 + 列表 ≥5 行

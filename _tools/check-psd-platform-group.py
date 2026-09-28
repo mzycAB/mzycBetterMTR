@@ -60,8 +60,10 @@ z=43 那条线还分三段落**不同的 4 格栅格**（首格 mod 4 = 1 / 2 / 
    成连通串身份；若每帧都重试，`accept` 是每扇门每帧都跑的路径，`platformIdAt` 要遍历全部站台
    + 反射读坐标 —— 必须节流。
 2. ★ **换维度 / 断开连接要连站台身份一起作废**（站台 id 是存档级的，跨维度不能复用）。
-3. ★ **两种身份不能撞键**：站台身份编码成 `Long.MIN_VALUE + id`，而连通串是 `BlockPos.asLong`。
-   这条用 Python 复算位布局来钉，不靠注释（见第 3 节）。
+3. ★ **站台 id 可正可负**（MTR4 = `new Random().nextLong()`，字节码实证见第 3 节）：
+   「认不到」只认哨兵 `MtrDwellAccess.PLATFORM_ID_NONE`（`Long.MIN_VALUE`），
+   **绝不许**用 `id > 0` / `id <= 0` 判 —— 旧写法把约一半（负 id）的站台判成「认不到」，
+   那一整个方向没有进站播报（LOG12 现场，见第 3 节 a）。
 4. ★ **1.26 的机器一行都不许再动**：配置 / 去重 / 射程 / 声源四处都按 `runKey` 走，
    身份升到站台后它们**自动**全部变成「按站台」——这正是选「改身份」而不是「给播报打补丁」的原因。
 
@@ -79,6 +81,7 @@ ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 CLIENT = os.path.join(ROOT, "src", "client", "java", "smooth", "lift", "client")
 PLAYER = os.path.join(CLIENT, "PsdChimePlayer.java")
 TRACKER = os.path.join(CLIENT, "PsdDoorTracker.java")
+MTRDWELL = os.path.join(CLIENT, "MtrDwellAccess.java")
 
 FAILS = []
 
@@ -103,6 +106,7 @@ def strip_comments(src):
 
 tracker = strip_comments(read(TRACKER))
 player = strip_comments(read(PLAYER))
+mtrdwell = strip_comments(read(MTRDWELL))
 
 # ======================================================================
 # 1) LOG5 取证：门排布里的「缺口」⇒ 一个站台被切成几段连通串
@@ -238,14 +242,15 @@ check(len(grouped) == 1 and grouped[0][2] > 0.2,
       % (len(grouped), d_all, gain(d_all)))
 
 # ======================================================================
-# 3) 两种身份不能撞键：Long.MIN_VALUE + id  vs  BlockPos.asLong
+# 3) ★【09-28 续 6】站台 id 可正可负 —— 哨兵只认 PLATFORM_ID_NONE
 # ======================================================================
 print()
-print("===== 3) 站台身份与连通串身份在同一命名空间里不撞 =====")
+print("===== 3) 站台 id = Random().nextLong()（可负）；哨兵 = PLATFORM_ID_NONE；platformKey 可逆 =====")
 
 MASK_X = 0x3FFFFFF
 MASK_Z = 0x3FFFFFF
 MASK_Y = 0xFFF
+MIN64 = -(1 << 63)
 
 
 def as_long(x, y, z):
@@ -254,27 +259,99 @@ def as_long(x, y, z):
     return u - (1 << 64) if u >= (1 << 63) else u
 
 
-IDS = [8628274525790577375, 6322577034832674307, 6553035176743660435, 3090871749406205094]
-keys = [-(1 << 63) + i for i in IDS]
-check(all(k < 0 for k in keys), "站台身份 id 全为正 ⇒ 编码出的 key 全为负", "keys=%s" % keys)
+def wrap64(v):
+    v &= (1 << 64) - 1
+    return v - (1 << 64) if v >= (1 << 63) else v
 
-# 站台 key 无量纲区间（按无符号看）
-A = min(k + (1 << 64) for k in keys)
-B = max(k + (1 << 64) for k in keys)
-X_LO = -(-A // (1 << 38))          # ceil(A / 2^38) —— 这一段要求 x&0x3FFFFFF 落在 [X_LO, X_HI]
-X_HI = B >> 38
-x_lo = X_LO - (1 << 26)            # x&0x3FFFFFF = 2^26 + x（x<0）
-x_hi = X_HI - (1 << 26)
-check(x_lo <= x_hi, "撞键需要 (x&0x3FFFFFF) ∈ [%d, %d] ⇒ x ∈ [%d, %d]" % (X_LO, X_HI, x_lo, x_hi))
-check(abs(x_lo) >= 2_000_000 and abs(x_hi) >= 2_000_000,
-      "⇒ 撞键要求 |x| ≥ **%d** 格（离原点两百万格外）—— 真实存档把屏蔽门摆在那里是不可能的"
-      % min(abs(x_lo), abs(x_hi)))
-# 反向核对：本仓世界里出现过的门坐标（|x| ≤ 63）算出来的 asLong 都不在该区间
-worst = max(abs(as_long(x, y, z)) for x in (-63, -58, -3, 0) for y in (-28, -20, -12, 127)
-            for z in (17, 32, 43, 63, 72))
-check(not (A <= worst + (1 << 64) <= B),
-      "反向核对：本仓用过的门坐标（|x| ≤ 63）的 asLong 落在该区间之外",
-      "|asLong|=%d" % worst)
+
+def platform_key(pid):
+    """Java 里 `Long.MIN_VALUE + id` 的回绕语义（= platformKey(...)）。"""
+    return wrap64(MIN64 + pid)
+
+
+# ---- 3a) LOG12 现场：同一个车站、两个方向、同一秒 -------------------------
+#   屏蔽门 @[17,29,277] 认到   MTR 站台 id= 4708666155642935879 ⇒ 正常播放
+#   屏蔽门 @[16,29,265] 认不到 MTR 站台   id=-2292798687084117839 ⇒ 整串静默
+LOG12_POS = 4708666155642935879
+LOG12_NEG = -2292798687084117839
+check(LOG12_NEG < 0,
+      "★ LOG12 里「开往南区南方向」那个站台 id 是**负数**（旧哨兵 id > 0 把它判成「认不到」）",
+      "id=%d" % LOG12_NEG)
+check(all(wrap64(platform_key(i) - MIN64) == i for i in (LOG12_POS, LOG12_NEG)),
+      "★ platformKey 可逆：正 id 与负 id 都能原样还原（id == key - Long.MIN_VALUE，按 64 位回绕）",
+      "keys=%s" % [platform_key(i) for i in (LOG12_POS, LOG12_NEG)])
+check(len({platform_key(i) for i in (LOG12_POS, LOG12_NEG)}) == 2,
+      "★ platformKey 单射：两个不同 id（一正一负）不撞成同一个 key")
+check(platform_key(LOG12_NEG) != platform_key(LOG12_POS) and
+      platform_key(-1) != platform_key(1) and platform_key(0) != platform_key(MIN64),
+      "★ 编码无符号歧义（0 / -1 / 1 / MIN 四种边界样本互不相同）")
+
+# ---- 3b) 旧注释的「恒为负 ⇒ 与 asLong 不撞」是错的（反面对照） ------------
+check(as_long(-1, 0, 0) < 0,
+      "★ 反例：x=-1 的门的 asLong 本身就是负数 ⇒ 旧版「站台 key 恒为负就与 asLong 不撞」不成立"
+      "（已在源码注释里更正为「同域、只靠 2^-64 概率排除」）",
+      "asLong(-1,0,0)=%d" % as_long(-1, 0, 0))
+
+# ---- 3c) 源码：哨兵唯一 + 不许再与 0 比大小 -------------------------------
+check("public static final long PLATFORM_ID_NONE = Long.MIN_VALUE;" in mtrdwell,
+      "★ 哨兵就是 MtrDwellAccess.PLATFORM_ID_NONE = Long.MIN_VALUE")
+check("platformId != PLATFORM_ID_NONE" in mtrdwell,
+      "★ isPlatformKnown 的唯一判据 = `platformId != PLATFORM_ID_NONE`（绝不含正负）")
+check("return id instanceof Number n ? n.longValue() : PLATFORM_ID_NONE;" in mtrdwell,
+      "★★ MtrDwellAccess.platformIdAt **原样透传** id（不允许对 id 做任何正负过滤/夹取）")
+
+# 旧写法（1.27~1.31）把「认到没认到」写成 `id > 0` / `platformId <= 0` —— 在
+# Random().nextLong() 的 id 空间里，约一半站台（负 id）会被误判成「认不到」。
+# 铁规矩：只许用 MtrDwellAccess.isPlatformKnown(...)，且 id 变量（platformId / id / borrowed）
+# 不许与 0 比大小。（注释里的说明已被 strip_comments 剥掉，不会误伤。）
+BAD_ID_SENTINEL = re.compile(
+    r"(?:platformId|borrowed|(?<![A-Za-z0-9_])id)\s*(?:[<>]=?|==|!=)\s*-?0L?\b")
+for _label, _src in (("MtrDwellAccess", mtrdwell), ("PsdDoorTracker", tracker), ("PsdChimePlayer", player)):
+    _hits = BAD_ID_SENTINEL.findall(_src)
+    check(not _hits,
+          "★★ %s 里**不许**再用「站台 id 与 0 比大小」判「认到没认到」（id 可负！）" % _label,
+          "hits=%s" % _hits)
+
+check(tracker.count("MtrDwellAccess.isPlatformKnown(") == 2,
+      "★ PsdDoorTracker 的两处闸门（认到 id / 借到的 id）都改用 isPlatformKnown",
+      "count=%d" % tracker.count("MtrDwellAccess.isPlatformKnown("))
+check(player.count("MtrDwellAccess.isPlatformKnown(") == 3,
+      "★ PsdChimePlayer 进站报站的三道闸门（缓存命中 / 身份自带 / 自己再认）全部改用 isPlatformKnown",
+      "count=%d" % player.count("MtrDwellAccess.isPlatformKnown("))
+check("arrivePlatform.getOrDefault(runKey, MtrDwellAccess.PLATFORM_ID_NONE)" in player,
+      "★ 进站报站的缓存缺省值 = PLATFORM_ID_NONE（不是 -1L）")
+check("recognized == null" in tracker and
+      re.search(r"recognized == null\s*\?\s*MtrDwellAccess\.PLATFORM_ID_NONE", tracker) is not None,
+      "★ DoorView.platformId 的缺省值 = PLATFORM_ID_NONE（不是 0L）")
+
+# ★★【09-28 续 6】借不到时的返回值必须是 PLATFORM_ID_NONE。写成 -1L / 0L 会踩一个静默坑：
+#   调用方是 `if (isPlatformKnown(borrowed))`，而 -1L / 0L 都不是 PLATFORM_ID_NONE
+#   ⇒ 会被当成「借到了站台」⇒ 凭空多出一个 id = -1 的假站台身份（两串误并）。
+_m_borrow = re.search(r"private static long borrowPlatformId\(long doorKey\)\s*\{(.*?)\n    \}",
+                      tracker, re.S)
+check(_m_borrow is not None, "找得到 borrowPlatformId(long doorKey) 的实体")
+_bf = _m_borrow.group(1) if _m_borrow else ""
+check("return MtrDwellAccess.PLATFORM_ID_NONE;" in _bf
+      and "return -1L;" not in _bf and "return 0L;" not in _bf,
+      "★★ 借不到时返回 **PLATFORM_ID_NONE**（返回 -1L/0L 会被 isPlatformKnown 当成「借到了」）")
+
+# ---- 3d) 字节码：MTR4 的 id 真的是 Random().nextLong() --------------------
+#   org.mtr.core.generated.data.NameColorDataBaseSchema 的 (TransportMode, Data) 构造器：
+#     new java/util/Random; invokevirtual java/util/Random.nextLong()J; putfield id:J
+#   ⇒ 新站台的 id 均匀覆盖全部 64 位，约一半是负数。找不到 MTR jar 就 SKIP。
+_mtr_candidates = [
+    os.path.join(ROOT, "..", "[我的世界铁路] MTR-fabric-4.0.5+1.20.4.jar"),
+    os.path.join(ROOT, "..", "_mtr4javap", "mtr4.jar"),
+]
+_mtr_jar = next((p for p in _mtr_candidates if os.path.exists(p)), None)
+if _mtr_jar is None:
+    print("[SKIP] 找不到 MTR4 jar（试过 %s）—— 跳过字节码核对" % _mtr_candidates)
+else:
+    with zipfile.ZipFile(_mtr_jar) as _z:
+        _schema = _z.read("org/mtr/core/generated/data/NameColorDataBaseSchema.class")
+    check(b"java/util/Random" in _schema and b"nextLong" in _schema,
+          "★★ MTR4 字节码实证：NameColorDataBaseSchema 构造器 new Random().nextLong() ⇒ id 可负",
+          "jar=%s" % os.path.basename(_mtr_jar))
 
 # ======================================================================
 # 4) 源码结构：认站台那一支的位置 / 缓存策略 / 生命周期
@@ -314,8 +391,9 @@ check("platformKey(id)" in fn and fn.find("platformKey(id)") < i_ret,
 check("PLATFORM_CACHE.get(flood)" in fn and "PLATFORM_CACHE.put(flood" in fn,
       "★ 站台身份按**连通串**缓存（一串只问一次站台，不是每扇门都问）")
 
-check(re.search(r"if \(id > 0L\) \{.*?PLATFORM_CACHE\.put\(flood, key\);", fn, re.S) is not None,
-      "★★ **认到才写缓存**（PLATFORM_CACHE.put 只在 id > 0 这一支里）")
+check(re.search(r"if \(MtrDwellAccess\.isPlatformKnown\(id\)\) \{.*?PLATFORM_CACHE\.put\(flood, key\);",
+                fn, re.S) is not None,
+      "★★ **认到才写缓存**（PLATFORM_CACHE.put 只在 isPlatformKnown(id) 这一支里）")
 check(re.search(r"PLATFORM_NEXT_TRY\.put\(flood, now \+ PLATFORM_RETRY_TICKS\);", fn) is not None,
       "★★ 认不到 → 只排「%d tick 后再试」，绝不把「认不到」钉成永久结果"
       % int(re.search(r"PLATFORM_RETRY_TICKS = (\d+)", body).group(1)))
@@ -336,9 +414,9 @@ check(n_put == 2,
       "★★ 【1.31】PLATFORM_CACHE 写入口 = 2（认到站台 / 借到相邻站台身份），"
       "都在「拿到平台身份、返回 platformKey」的那两支里 —— 任何无关分支不许写缓存",
       "count=%d" % n_put)
-check(re.search(r"if \(borrowed > 0L\)\s*\{\s*long key = platformKey\(borrowed\);"
+check(re.search(r"if \(MtrDwellAccess\.isPlatformKnown\(borrowed\)\)\s*\{\s*long key = platformKey\(borrowed\);"
                 r"\s*PLATFORM_CACHE\.put\(flood, key\);", body, re.S) is not None,
-      "★ 借用那一支的写缓存紧随 `borrowed > 0`（防串台闸门在前）")
+      "★ 借用那一支的写缓存紧随 `isPlatformKnown(borrowed)`（防串台闸门在前）")
 
 # ======================================================================
 # 5) 1.26 的机器一行没动（配置 / 去重 / 射程 / 声源四处都还按 runKey 走）

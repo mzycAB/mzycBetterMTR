@@ -48,6 +48,11 @@
 #                                 铃声只认门（幕墙/尾部永不发声）—— 四条链路一起守
 #   check-psd-131.py              【1.31】端头两扇门「借」最近已认站台的身份（≤12 格、次近 ≥8 才算唯一近邻）、
 #                                 列车倍率移到**平滑之后**乘（只平滑距离、进出列车立即 -80%/恢复 100%）
+#   check-train-announce.py       【09-28】进站那两条广播必须**各判各的开关**：
+#                                 讲述人（文字转语音念站名，走 MTR 报站用的 text2speech 入口）
+#                                 ≠ 自定义进站广播（音频素材）；「不播」只关后者、
+#                                 /jsr off 只关前者，两条可同时存在、只共用「提前 N 秒」这个窗口。
+#                                 用户报「设了不播之后讲述人又没声音了」就出在这里
 #   check-escalator-step-engine.py 【1.26】扶梯阶梯渲染引擎（/mtrxr）：
 #                                 ★ 根因「/mtrxr off 后阶梯整片消失、退重进才回来」——
 #                                 apply() 只许 invalidate()/**不得** reset()（LOADED 登记表被清空
@@ -152,6 +157,7 @@ run "屏蔽门串身份=站台"     "$PY" _tools/check-psd-platform-group.py
 run "屏蔽门1.28身份迁移与列车倍率" "$PY" _tools/check-psd-128.py
 run "屏蔽门铃声/播报归属"   "$PY" _tools/check-psd-scope.py
 run "屏蔽门1.31借用与列车挡" "$PY" _tools/check-psd-131.py
+run "屏蔽门讲述人/自定义拆开" "$PY" _tools/check-train-announce.py
 run "扶梯阶梯渲染引擎"      "$PY" _tools/check-escalator-step-engine.py
 run "扶梯黑面修复(原版MTR)" "$PY" _tools/check-escalator-light-repair.py
 run "扶梯黑面修复(Sodium兼容)" "$PY" _tools/check-sodium-light-repair.py

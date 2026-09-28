@@ -110,8 +110,21 @@ BOOT_MUST_ENABLE = {
     "classic": ["pbmmusic open -f on", "pbmmusic close -f on"],
     "simple": ["pbmmusic open -f on", "pbmmusic close -f on"],
 }
-# 空白预设不许多出东西（它的语义是「全不播」，靠素材层的 none 表达）
-BLANK_NO_EXTRA = True
+# ★★【09-28 续 2 / 续 4】三个预设的**最后一条** = 进站广播（讲述人）的样式。
+#   续 2 用户点名「进站广播功能增加到 mbmhelp 的『经典港铁预设』里」；
+#   续 4 用户把三档**定死**（原话）：
+#     「mbmhelp里的 简单港铁预设 和 空白预设 都是要关闭讲述人的
+#       经典港铁预设 是讲述人调成香港风格」
+#   ⇒ classic = 开启(香港)；simple = **关闭**；blank = **关闭**。
+#   ★ 续 2 那版曾是 simple=开启(上海)、blank=一条都没有 —— **已被续 4 推翻**。
+#   ★ 一律用 `-f`（所有维度 + 抹掉按串覆盖），与上面几条同口径。
+#   ★ 三档**每档都要有这一条**（没有「不管」的那一档）——「关」必须写成
+#     `pbmnarrate off -f`，而不是把这行删掉（删掉 = 保留玩家/上一条预设留下的样式）。
+NARRATE_TAIL = {
+    "classic": ["pbmnarrate hongkong -f"],
+    "simple": ["pbmnarrate off -f"],
+    "blank": ["pbmnarrate off -f"],
+}
 
 # 界面按钮文字 ↔ presetLabel 的显示名
 LABELS = {
@@ -156,14 +169,108 @@ for pid, arr_name in ARRAYS.items():
           "「%s」的前 %d 条与用户原文**逐字逐序**一致" % (LABELS[pid], len(EXPECTED[pid])),
           "实际前 %d 条 = %s" % (len(EXPECTED[pid]), got[:len(EXPECTED[pid])]))
     boot = BOOT_MUST_ENABLE.get(pid, [])
-    check(got == EXPECTED[pid] + boot,
-          "「%s」= 用户那 10 条 + %d 条" % (LABELS[pid], len(boot)),
+    tail = NARRATE_TAIL.get(pid, [])
+    check(got == EXPECTED[pid] + boot + tail,
+          "「%s」= 用户那 10 条 + %d 条子开关 + %d 条讲述人样式"
+          % (LABELS[pid], len(boot), len(tail)),
           "实际 = %s" % got)
 
 check(find_array("PRESET_CLASSIC_MTR") != find_array("PRESET_BLANK"),
       "经典与空白不是同一份清单（防止复制粘贴改漏）")
 check(find_array("PRESET_SIMPLE_MTR") != find_array("PRESET_BLANK"),
       "简单与空白不是同一份清单")
+
+# ======================================================================
+# 1c) ★★【09-28 续 2 / 续 4】讲述人三档定死：只有经典港铁开（香港），另两档关
+# ======================================================================
+print()
+print("===== 1c) 讲述人：经典港铁＝开启(香港)，简单港铁 / 空白＝关闭 =====")
+
+for pid in ("classic", "simple", "blank"):
+    arr = find_array(ARRAYS[pid]) or []
+    got_tail = [c for c in arr if c.startswith("pbmnarrate")]
+    want = NARRATE_TAIL[pid]
+    check(got_tail == want,
+          "「%s」的讲述人条目 = %s" % (LABELS[pid], want),
+          "实际 = %s" % got_tail)
+
+# ★ 三档**全部**都有那一行（「关」也要写出来，不能靠「不写」来关）
+for pid in ("classic", "simple", "blank"):
+    arr = find_array(ARRAYS[pid]) or []
+    check(arr and arr[-1].startswith("pbmnarrate"),
+          "★「%s」的**最后一条**就是讲述人那一条（三档都不许缺）" % LABELS[pid],
+          "实际末条 = %s" % (arr[-1] if arr else None))
+    check(len([c for c in arr if c.startswith("pbmnarrate")]) == 1,
+          "★「%s」里讲述人条目**恰好一条**（别既设样式又设别的）" % LABELS[pid],
+          "实际 = %s" % [c for c in arr if c.startswith("pbmnarrate")])
+
+check((find_array("PRESET_CLASSIC_MTR") or [])[-1] == "pbmnarrate hongkong -f",
+      "★★ 经典港铁预设的**最后一条** = /pbmnarrate hongkong -f（开启(香港)，用户点名）")
+check((find_array("PRESET_SIMPLE_MTR") or [])[-1] == "pbmnarrate off -f",
+      "★★ 简单港铁预设的**最后一条** = /pbmnarrate off -f（**关闭**讲述人，用户点名）")
+check((find_array("PRESET_BLANK") or [])[-1] == "pbmnarrate off -f",
+      "★★ 空白预设的**最后一条** = /pbmnarrate off -f（**关闭**讲述人，用户点名）")
+check("pbmnarrate shanghai" not in " ".join(find_array("PRESET_SIMPLE_MTR") or []),
+      "★★ 简单港铁**不许**再是开启(上海)（续 2 那版已被续 4 推翻）")
+check("pbmnarrate shanghai" not in " ".join(find_array("PRESET_CLASSIC_MTR") or [])
+      and "pbmnarrate shanghai" not in " ".join(find_array("PRESET_BLANK") or []),
+      "★★ 三个预设里都不许出现 `pbmnarrate shanghai`（上海档只由玩家自己选）")
+
+# 客户端那一下点击：总闸要按预设**两边都联动**（/jsr 是客户端配置，服务端那串指令碰不到它）。
+#   经典港铁 ⇒ 开；简单港铁 / 空白 ⇒ 关。认不出的 id 一概不碰。
+m_send = re.search(r"private void sendPreset\(String presetId\)\s*\{(.*?)\n    \}", screen_no, flags=re.S)
+check(m_send is not None, "抠得出 MbmHelpScreen.sendPreset 方法体")
+if m_send:
+    sb = m_send.group(1)
+    check(re.search(r"if \(ID_CLASSIC\.equals\(presetId\)\)\s*\{\s*"
+                    r"TrainAnnounceSwitch\.enableForPreset\(\);", sb) is not None,
+          "★★ 经典港铁预设 ⇒ 客户端顺手**打开**总闸")
+    check(re.search(r"else if \(ID_SIMPLE\.equals\(presetId\) \|\| ID_BLANK\.equals\(presetId\)\)\s*\{\s*"
+                    r"TrainAnnounceSwitch\.disableForPreset\(\);", sb) is not None,
+          "★★ 简单港铁 / 空白预设 ⇒ 客户端顺手**关闭**总闸（两层一起关才叫关干净）")
+    # ★ 结构性判据：enableForPreset 只挂在「等于 classic」那个分支后面，
+    #   不许再出现「classic || simple」这种旧写法
+    check("ID_CLASSIC.equals(presetId) || ID_SIMPLE.equals(presetId)" not in sb,
+          "★★ sendPreset 里不许再有「classic || simple 一起开总闸」的旧写法"
+          "（那会让简单港铁又去开总闸，与用户点名冲突）")
+
+# ======================================================================
+# 1d) ★★【09-28 续 4 新补】把 CmdTreeCheck 那份**手抄清单**钉回源码
+#
+#   为什么补这一节（先证明了它是空档，再补）：
+#     CmdTreeCheck 里 `String[][] mbmPresets` 是**手抄**的（private 常量读不到），
+#     与 SmoothLift 的 PRESET_* 是**两处**。实测：只改 CmdTreeCheck 那份、
+#     把「简单港铁」的末条写成 `pbmnarrate shanghai -f`，
+#     `check-command-tree.sh` 照样打印「结果：全部通过 ?」——
+#     因为那一段只核「这些指令**解析得通**」，而 shanghai 也是一条合法指令。
+#     ⇒ 「同一份规则出现在两处就是等着分叉」，而且**分叉了没人报警**（假绿）。
+#   ⇒ 本节用「逐字逐序相等」把两处焊在一起：谁改漏了，这里当场红。
+# ======================================================================
+print()
+print("===== 1d) CmdTreeCheck 的手抄预设清单必须与 SmoothLift.PRESET_* **逐字逐序**一致 =====")
+
+CMD_TREE = os.path.join(os.path.dirname(os.path.abspath(__file__)), "CmdTreeCheck.java")
+cmd_src = open(CMD_TREE, encoding="utf-8").read()
+
+
+def cmd_tree_preset(label):
+    """抠出 `{"<label>", "a", "b", ...}` 里的字符串列表（第一个是标签，丢掉）。"""
+    m = re.search(r'\{"' + label + r'",(.*?)\}', cmd_src, flags=re.S)
+    if m is None:
+        return None
+    return re.findall(r'"((?:[^"\\]|\\.)*)"', m.group(1))
+
+
+for pid, arr_name in ARRAYS.items():
+    label = LABELS[pid]
+    hand = cmd_tree_preset(label)
+    check(hand is not None, "CmdTreeCheck 里抠得出「%s」那份手抄清单" % label)
+    if hand is None:
+        continue
+    src = find_array(arr_name) or []
+    check(hand == src,
+          "★★ 手抄清单「%s」与 %s **逐字逐序**一致（两处分叉过就是假绿）" % (label, arr_name),
+          "手抄 %d 条 = %s\n        源码 %d 条 = %s" % (len(hand), hand, len(src), src))
 
 # ======================================================================
 # 1b) ★★【1.58】层判据：「不播」写 none（素材层），不写 off（会落到子开关）

@@ -193,6 +193,25 @@ public class SmoothLift implements ModInitializer {
      */
     public static final ResourceLocation SET_PSD_ARRIVE_LOUD_CHANNEL =
             new ResourceLocation("smoothlift", "set_psd_arrive_loud");
+    /**
+     * 【09-28】客户端 -> 服务端：设置**进站广播（讲述人）**的开关
+     * （石斧 UI 「进站广播(讲述人)」二级页右列「关闭 / 开启」各自那个「选择」按钮）。
+     *
+     * <p>buf 顺序：{@code key(long) → on(boolean)}。
+     */
+    public static final ResourceLocation SET_PSD_NARRATE_CHANNEL =
+            new ResourceLocation("smoothlift", "set_psd_narrate");
+    /**
+     * 【09-28】客户端 -> 服务端：设置**进站广播（讲述人）**的提前秒数
+     * （石斧 UI 主界面「进站广播(讲述人)」行右侧那个秒数框）。
+     *
+     * <p>★ 它是一个**独立**窗口（用户点名「取消借用进站广播」）：范围 (-∞, 0]，
+     * 含义与进站报站逐字相同（最近一班车还剩 |X| 秒到站时开始念），但两边各存各的。
+     *
+     * <p>buf 顺序：{@code key(long) → seconds(varInt)}，与 {@link #SET_PSD_OPEN_WAIT_CHANNEL} 同形。
+     */
+    public static final ResourceLocation SET_PSD_NARRATE_LEAD_CHANNEL =
+            new ResourceLocation("smoothlift", "set_psd_narrate_lead");
 
     // ------------------------------------------------------------------
     // 【1.53】「预设选择」界面（/MBM help）与三个「港铁预设」
@@ -919,6 +938,45 @@ public class SmoothLift implements ModInitializer {
             });
         });
 
+        // 【09-28】石斧 UI「进站广播（讲述人）」二级页右列「关闭 / 开启(上海) / 开启(香港)」
+        //   的「选择」按钮。只改**这一串门**的 {@code PsdToneAudio.narrate}（三档样式），不碰秒数。
+        //   ★ 与 /jsr 的**全局**开关不是一回事：/jsr 是「维度无关」的总闸，
+        //     这里是这一串门的覆盖值（null = 跟维度默认），两层在播放端取「与」。
+        ServerPlayNetworking.registerGlobalReceiver(SET_PSD_NARRATE_CHANNEL,
+                (server, player, handler, buf, responseSender) -> {
+            long key = buf.readLong();
+            // ★ 续：这一格由 Boolean（开/关）改成 VarInt（0 关 / 1 上海 / 2 香港），发送端同序。
+            int mode = buf.readVarInt();
+            server.execute(() -> {
+                ServerLevel level = player.serverLevel();
+                EscalatorSpeedManager.setDoorPsdNarrate(level, key, mode);
+                int applied = EscalatorSpeedManager.getDoorPsdNarrateMode(level, key);
+                player.displayClientMessage(Component.literal(
+                        "这一串屏蔽门的进站广播(讲述人)已设为"
+                                + EscalatorSpeedData.psdNarrateModeName(applied)), true);
+                // 按门设置走**按门那张表**（PSD_TONE_SYNC_CHANNEL），与到站 / 进站同一个口径。
+                EscalatorSpeedManager.syncPsdToneToAll(server);
+            });
+        });
+
+        // 【09-28】石斧 UI 主界面「进站广播(讲述人)」行的提前秒数框（独立窗口 (-∞, 0]）。
+        //   ★ 只改秒数、不碰开关；与 SET_PSD_ARRIVE_CHANNEL 相比少了「素材」那一格
+        //     （讲述人的文本是运行时现拼的，没有可选的素材文件）。
+        //   ★ 与进站报站的秒数**各存各的**（用户点名「取消借用进站广播」）。
+        ServerPlayNetworking.registerGlobalReceiver(SET_PSD_NARRATE_LEAD_CHANNEL,
+                (server, player, handler, buf, responseSender) -> {
+            long key = buf.readLong();
+            int seconds = buf.readVarInt();
+            server.execute(() -> {
+                ServerLevel level = player.serverLevel();
+                EscalatorSpeedManager.setDoorPsdNarrateSeconds(level, key, seconds);
+                int applied = EscalatorSpeedManager.getDoorPsdNarrateSeconds(level, key);
+                player.displayClientMessage(Component.literal(
+                        "这一串屏蔽门的进站广播(讲述人)已设为到站前 " + (-applied) + " 秒"), true);
+                EscalatorSpeedManager.syncPsdToneToAll(server);
+            });
+        });
+
         // 【1.19/1.28】客户端把 **某一分类子文件夹** 里的一段 OGG **只导入存档音频库**（不改设置）。
         //   分类由发送的界面决定（每个界面只导入自己的分类，见发送侧；列车音效也走这一条）。
         //   buf 顺序：category(utf64), name(utf128)
@@ -1062,8 +1120,21 @@ public class SmoothLift implements ModInitializer {
                             "未知预设：" + presetId), false);
                     return;
                 }
+                // ★【09-28 续 2】预设的末条把讲述人样式定死 ⇒ 汇总里点名，
+                //   免得玩家以为「预设没管进站广播」。（总闸 /jsr 是客户端那一侧联动的，见 MbmHelpScreen。）
+                // ★【09-28 续 4】用户点名**三档全定**：只有经典港铁开讲述人（香港样式），
+                //   简单港铁与空白预设**都关闭** ⇒ 三条都要出这一句，不能有「不吭声」的那一档。
+                String narrate;
+                if ("classic".equals(presetId)) {
+                    narrate = "；进站广播(讲述人)＝开启(香港)，全局总闸已打开";
+                } else if ("simple".equals(presetId) || "blank".equals(presetId)) {
+                    narrate = "；进站广播(讲述人)＝关闭，全局总闸已关闭";
+                } else {
+                    narrate = "";
+                }
                 player.displayClientMessage(Component.literal(
-                        "已应用" + presetLabel(presetId) + "（依次执行 " + count + " 条指令）"), false);
+                        "已应用" + presetLabel(presetId) + "（依次执行 " + count + " 条指令）"
+                                + narrate), false);
             });
         });
 
@@ -4279,7 +4350,7 @@ public class SmoothLift implements ModInitializer {
     //     时刻表里下一班车还有 |X| 秒到站 → 播这一段语音，一直播到完。
     //   ★ 与 /pbmmidium 的**唯一本质差别**是触发时刻：到站播报在「开门音之后 + Y 秒」，
     //     进站报站在「开门音**之前** |X| 秒」。相同的是「永远不会被掐断」。
-    //   ★ 触发靠的是**时刻表**（MTR 自己的到达缓存，见 MtrDwellAccess#nextArrivalRemainingMs），
+    //   ★ 触发靠的是**时刻表**（MTR 自己的到达缓存，见 MtrDwellAccess#nearestArrival），
     //     不是靠猜列车位置/速度 —— 用户点名「看时刻表啊，不要猜」。
     //
     //   形状：显示 / <名字> / <名字> <X> / -f <名字> <X>。
@@ -4346,6 +4417,77 @@ public class SmoothLift implements ModInitializer {
         source.sendSuccess(() -> Component.literal(
                 "已把所有维度的进站报站设为 " + (off ? "不播" : "「" + resolved + "」")
                         + "、到站前 " + (-applied) + " 秒"), false);
+        return 1;
+    }
+
+    // ------------------------------------------------------------------
+    // 【09-28 续 2】/pbmnarrate：进站广播（讲述人）的**样式**
+    //   为什么只有样式这一格：讲述人的句子是运行时用文字转语音现拼的 ——
+    //   **没有音频素材、也没有音量**（com.mojang.text2speech 系列库不给音量/速率参数），
+    //   所以与 /pbmmusic、/pbmloud 那几套不同，这里没有「名字」和「音量」两格，
+    //   只有「念哪一句」的三档枚举（关 / 上海 / 香港）。
+    //   ★ 秒数（到站前 N 秒，(-∞, 0]）**不在这条指令里**：它在石斧右键屏蔽门 UI
+    //     主界面「进站广播(讲述人)」那一行的输入框里填。本指令一律**原样保留**秒数；
+    //     `-f` 也不动其它维度各自的秒数（见 setDefaultPsdNarrateModeAll 的注释）。
+    // ------------------------------------------------------------------
+
+    /** 注册 `/pbmnarrate <样式>`：三个样式各一个字面量分支。 */
+    private static LiteralArgumentBuilder<CommandSourceStack> pbmNarrateStyle(String literal, int mode) {
+        return Commands.literal(literal).executes(context -> pbmNarrateGlobal(context, mode));
+    }
+
+    /** 注册 `/pbmnarrate -f <样式>`：三个样式各一个字面量分支（-f = 所有维度 + 抹掉按串覆盖）。 */
+    private static LiteralArgumentBuilder<CommandSourceStack> pbmNarrateForce(String literal) {
+        return Commands.literal(literal)
+                .then(Commands.literal("off").executes(
+                        context -> pbmNarrateForceAll(context, EscalatorSpeedData.PSD_NARRATE_OFF)))
+                .then(Commands.literal("shanghai").executes(
+                        context -> pbmNarrateForceAll(context, EscalatorSpeedData.PSD_NARRATE_SHANGHAI)))
+                .then(Commands.literal("hongkong").executes(
+                        context -> pbmNarrateForceAll(context, EscalatorSpeedData.PSD_NARRATE_HONGKONG)));
+    }
+
+    /** `/pbmnarrate`（不带参数）—— 显示本维度生效的讲述人样式与秒数。 */
+    private static int pbmNarrateShow(CommandContext<CommandSourceStack> context) {
+        CommandSourceStack source = context.getSource();
+        ServerLevel level = source.getLevel();
+        int mode = EscalatorSpeedManager.getPsdNarrateMode(level);
+        int seconds = EscalatorSpeedManager.getPsdNarrateSeconds(level);
+        source.sendSuccess(() -> Component.literal(
+                "本维度进站广播(讲述人)：" + EscalatorSpeedData.psdNarrateModeName(mode)
+                        + "、到站前 " + (-seconds) + " 秒起播"
+                        + "。/pbmnarrate off|shanghai|hongkong 改样式（加 -f = 所有维度），"
+                        + "秒数在石斧右键屏蔽门 UI 的「进站广播(讲述人)」那一行填；"
+                        + "另有 /jsr on|off 是「念不念」的全局总闸"), false);
+        return 1;
+    }
+
+    /** `/pbmnarrate <样式>` —— 设置**本维度**的讲述人样式（★ 秒数原样保留）。 */
+    private static int pbmNarrateGlobal(CommandContext<CommandSourceStack> context, int mode) {
+        CommandSourceStack source = context.getSource();
+        ServerLevel level = source.getLevel();
+        // ★ 秒数不在本指令里 ⇒ 把本维度**当前**的维度默认秒数原样传回去（别顺手清零）。
+        EscalatorSpeedManager.setDefaultPsdNarrate(level, mode,
+                EscalatorSpeedManager.getPsdNarrateSeconds(level));
+        EscalatorSpeedManager.syncPsdChimeToAll(source.getServer());
+        int applied = EscalatorSpeedManager.getPsdNarrateMode(level);
+        source.sendSuccess(() -> Component.literal(
+                "本维度进站广播(讲述人)样式已设为 " + EscalatorSpeedData.psdNarrateModeName(applied)
+                        + "；其它维度不变，单独设过这一项的门串保持不动"), false);
+        return 1;
+    }
+
+    /** `/pbmnarrate -f <样式>` —— **所有维度**都设成该样式，并抹掉按串覆盖。 */
+    private static int pbmNarrateForceAll(CommandContext<CommandSourceStack> context, int mode) {
+        CommandSourceStack source = context.getSource();
+        int changed = EscalatorSpeedManager.setDefaultPsdNarrateModeAll(source.getServer(), mode);
+        EscalatorSpeedManager.syncPsdChimeToAll(source.getServer());
+        int applied = EscalatorSpeedManager.getPsdNarrateMode(source.getLevel());
+        String tail = changed == 0 ? "（本来就都是这一档）" : "";
+        source.sendSuccess(() -> Component.literal(
+                "已把所有维度的进站广播(讲述人)样式设为 "
+                        + EscalatorSpeedData.psdNarrateModeName(applied)
+                        + "，并抹掉按门串的单独设置" + tail + "；各维度各自的秒数未动"), false);
         return 1;
     }
 
@@ -4694,8 +4836,13 @@ public class SmoothLift implements ModInitializer {
     //     见 crossround 教训：同名 token（`off`）在两层上含义不同，解析函数必须交代落在哪。
     // ==================================================================
 
-    /** 【1.58】「经典港铁预设」= 依次执行这 12 条指令（前 10 条 = 用户点名清单；末 2 条见上面 ②）。
-     *  【1.28】直梯 door 拆成 open / close 两条。 */
+    /** 【1.58】「经典港铁预设」= 依次执行这 13 条指令（前 10 条 = 用户点名清单；末 2 条见上面 ②）。
+     *  【1.28】直梯 door 拆成 open / close 两条。
+     *  【09-28 续 2】加第 13 条：进站广播（讲述人）= **开启(香港)** —— 用户点名
+     *  「进站广播功能增加到 mbmhelp 的『经典港铁预设』里」。
+     *  【09-28 续 4】用户点名**三档全定**：只剩本预设开讲述人（**香港**样式）；
+     *  另两个预设（简单港铁 / 空白）**一律关闭讲述人** ⇒ 见 `PRESET_SIMPLE_MTR` /
+     *  `PRESET_BLANK` 的末条。全局总闸 `/jsr` 由客户端那一下点击联动（`MbmHelpScreen`）。 */
     private static final String[] PRESET_CLASSIC_MTR = {
             "futimusic -f default",
             "futihelp -f on",
@@ -4711,9 +4858,17 @@ public class SmoothLift implements ModInitializer {
             //   「子开关被关掉」的存档（见上面 ② 与 LOG8）。
             "pbmmusic open -f on",
             "pbmmusic close -f on",
+            // ★【09-28 续 2】进站广播（讲述人）＝开启(香港)。`-f` 与上面同口径（所有维度 + 抹掉按串覆盖）。
+            //   它只改**样式**，各维度的「到站前 N 秒」原样不动。
+            "pbmnarrate hongkong -f",
     };
 
-    /** 【1.58】「简单港铁预设」= 依次执行这 12 条指令（前 10 条 = 用户点名清单；末 2 条同经典）。 */
+    /** 【1.58】「简单港铁预设」= 依次执行这 13 条指令（前 10 条 = 用户点名清单；末 2 条同经典）。
+     *  【09-28 续 2】第 13 条进来过（当时是 开启(上海)）。
+     *  【09-28 续 4】★★ 用户点名改为 **关闭讲述人**（原话：「简单港铁预设 和 空白预设
+     *  都是要关闭讲述人的，经典港铁预设 是讲述人调成香港风格」）⇒ 第 13 条 = `pbmnarrate off -f`。
+     *  ★ `off` 在**本类指令里就是正名**（= 「样式 = 关闭」那一档的字面量），
+     *  与 `pbmmusic` 那套「素材层 / 子开关层」的两层歧义**无关** —— 讲述人只有这一层。 */
     private static final String[] PRESET_SIMPLE_MTR = {
             "futimusic -f default",
             "futihelp -f off",
@@ -4727,15 +4882,21 @@ public class SmoothLift implements ModInitializer {
             "pbmmusic close -f default-s",
             "pbmmusic open -f on",
             "pbmmusic close -f on",
+            // ★【09-28 续 4】进站广播（讲述人）＝**关闭**（用户点名：简单港铁预设要关闭讲述人）。
+            "pbmnarrate off -f",
     };
 
     /**
-     * 【1.58】「空白预设」= 依次执行这 10 条指令（用户点名清单，逐字照抄）。
+     * 【1.58】「空白预设」= 依次执行这 **11** 条指令（前 10 条 = 用户点名清单，逐字照抄）。
      *
      * <p>★ 只有 PSD 那两条与用户的字面写法不同：用户写的是 {@code pbmmusic open -f off}，
      * 但那会落到**子开关**（字面量优先）而不是「素材设成不播」⇒ 之后配什么素材都不出声。
      * 按上面 ① 改用正名 {@code none}（素材层的不播）；子开关保持不动，于是「港铁预设」
      * 一按就能把声音恢复回来。
+     *
+     * <p>★★ 【09-28 续 4】第 11 条 `pbmnarrate off -f` = **关闭讲述人**，用户点名
+     * 「简单港铁预设 和 空白预设 都是要关闭讲述人的」。★ 上一轮的「空白预设**不加**讲述人那一条」
+     * 已被用户明确推翻 —— 空白预设要的是「**关**」，不是「不管」。
      */
     private static final String[] PRESET_BLANK = {
             "futimusic -f off",
@@ -4748,6 +4909,8 @@ public class SmoothLift implements ModInitializer {
             "pbmclosewait -f 1",
             "pbmmusic open -f none",
             "pbmmusic close -f none",
+            // ★【09-28 续 4】进站广播（讲述人）＝**关闭**。
+            "pbmnarrate off -f",
     };
 
     /**
@@ -4892,6 +5055,8 @@ public class SmoothLift implements ModInitializer {
     /** 【1.55】屏蔽门二级页编号 3 = 到站播报素材，4 = 进站报站素材。 */
     static final int SYNC_PSD_MIDIUM_PAGE = 3;
     static final int SYNC_PSD_ARRIVE_PAGE = 4;
+    /** 【09-28】屏蔽门二级页编号 5 = 进站广播（讲述人）开关 + 秒数。 */
+    static final int SYNC_PSD_NARRATE_PAGE = 5;
 
     /**
      * 【1.55】「同步」的总入口。
@@ -5136,6 +5301,22 @@ public class SmoothLift implements ModInitializer {
             return force
                     ? "已强制同步进站报站：" + audioLabel(id) + " —— 所有门串都照此"
                     : "已同步进站报站：" + audioLabel(id) + " 已设为默认 —— 单独设置过的门串保持不动";
+        }
+        if (scope == SYNC_PSD_NARRATE_PAGE) {
+            // ★ 讲述人没有素材、也没有音量（text2speech 库不给音量参数）⇒ 同步的是「样式 + 秒数」。
+            int mode = EscalatorSpeedManager.getDoorPsdNarrateMode(level, key);
+            int seconds = EscalatorSpeedManager.getDoorPsdNarrateSeconds(level, key);
+            if (force) {
+                EscalatorSpeedManager.setDefaultPsdNarrateAll(server, mode, seconds);
+            } else {
+                EscalatorSpeedManager.setDefaultPsdNarrate(level, mode, seconds);
+            }
+            EscalatorSpeedManager.syncPsdChimeToAll(server);
+            String values = "讲述人 " + EscalatorSpeedData.psdNarrateModeName(mode)
+                    + "、到站前 " + (-seconds) + " 秒";
+            return force
+                    ? "已强制同步讲述人进站广播：" + values + " —— 所有门串都照此"
+                    : "已同步讲述人进站广播：" + values + " 已设为默认 —— 单独设置过的门串保持不动";
         }
         return "同步失败：未知的屏蔽门页 " + scope;
     }
@@ -5731,6 +5912,25 @@ public class SmoothLift implements ModInitializer {
                 .then(Commands.argument("seconds", arriveArg())
                     .executes(SmoothLift::pbmArriveGlobal)))
             .then(pbmArriveForce("-f"))
+        );
+
+        // 【09-28 续 2】/pbmnarrate：**进站广播（讲述人）的样式**（关闭 / 开启(上海) / 开启(香港)）。
+        //   讲述人的句子是运行时现拼的 —— 没有音频素材、也没有音量，所以只有**样式**这一格。
+        //   `/pbmnarrate`            -> 显示本维度生效的样式与秒数
+        //   `/pbmnarrate <样式>`      -> 本维度（off / shanghai / hongkong）
+        //   `/pbmnarrate -f <样式>`   -> 所有维度 + 抹掉按串覆盖（与其它 -f 同口径）
+        //   ★ 秒数（到站前 N 秒）**不在本指令里**（在石斧 UI 那一行填），本指令一律原样保留秒数。
+        //   ★ 两层别混：本指令 = 「念哪一句」；/jsr = 「念不念」的全局总闸（客户端配置）。
+        //   ★ 样式用**字面量**分支（不用字符串参数）⇒ 打错样式时 Brigadier 当场拒绝、
+        //     补全里也能看到三个候选（与 /futihelp on|off 同一口味）。
+        //   ★ 这条指令的意义之一：让「港铁预设」能把它写成**一条普通指令**
+        //     （预设 = 一串指令，见 PRESET_CLASSIC_MTR / PRESET_SIMPLE_MTR）。
+        dispatcher.register(Commands.literal("pbmnarrate")
+            .executes(SmoothLift::pbmNarrateShow)
+            .then(pbmNarrateStyle("off", EscalatorSpeedData.PSD_NARRATE_OFF))
+            .then(pbmNarrateStyle("shanghai", EscalatorSpeedData.PSD_NARRATE_SHANGHAI))
+            .then(pbmNarrateStyle("hongkong", EscalatorSpeedData.PSD_NARRATE_HONGKONG))
+            .then(pbmNarrateForce("-f"))
         );
     }
 

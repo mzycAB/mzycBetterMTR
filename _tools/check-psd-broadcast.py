@@ -191,7 +191,7 @@ check(re.search(r"arrivePlatform\.keySet\(\)\.retainAll\(nearestPerRun\.keySet\(
       and re.search(r"arriveLastPoll\.keySet\(\)\.retainAll\(nearestPerRun\.keySet\(\)\);", player)
       is not None,
       "★ 两张缓存表跟着新的键集合收敛（键集合换了 ⇒ 收敛口径也得换，否则缓存无限长大）")
-check(re.search(r"play\(mc, tone, door, volume, 0, true, ROUND_ARRIVE, runKey\);", player) is not None,
+check(re.search(r"play\(mc, tone, door, volume, 0, true,\s*ROUND_ARRIVE, runKey\);", player) is not None,
       "★★ 起播时把 runKey 一并传下去（站台广播：距离按本串最近的门算）")
 
 # ======================================================================

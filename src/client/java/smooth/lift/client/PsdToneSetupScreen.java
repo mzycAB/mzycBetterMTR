@@ -115,10 +115,11 @@ public class PsdToneSetupScreen extends Screen {
     /**
      * 【1.20】**主界面**状态行的 y（其它页仍用 {@link #STATUS_Y}）。
      *
-     * <p>为什么主界面要单独一档：主界面上面是四行**固定在顶部**的控件
-     * （总开关 → 开门设置… → 关门设置… → 到站播放音频 + 等待几秒后播放），
+     * <p>为什么主界面要单独一档：主界面上面是五行**固定在顶部**的控件
+     * （开门提示 → 关门提示 → 到站播放音频 + 等待几秒后播放 → 进站播放音频 + 到站前几秒
+     * → 【09-28】进站广播(讲述人) + 秒数），
      * 最后一行的下沿是 {@code LIST_TOP + 10 + ROW_H*4 + 20 = 158}（**绝对坐标，不随窗口长**，
-     * 【1.21】多了「进站播放音频」那一行所以从 136 涨到 158）；
+     * 【09-28】讲述人那一行正好补在 {@code ROW_H*4} 这一格上 ⇒ 这个下沿数字**没变**）；
      * 而 {@link #STATUS_Y} = -132 是**相对窗口底部**的。GUI 高度 270（1080p / 缩放 4，很常见）
      * 时 -132 正好落在 y=138 —— **屏幕正中**并压住上面那行「到站播放音频」：
      * 用户原话「屏蔽门ui中间有一行白色小字挡住中间播报了。往下挪」。
@@ -256,7 +257,8 @@ public class PsdToneSetupScreen extends Screen {
 
     /**
      * 当前页：0 = 主界面；1/2 = open / close 单项列表；
-     * 3 = 【1.17】到站播报选择列表；4 = 【1.21】进站报站选择列表。
+     * 3 = 【1.17】到站播报选择列表；4 = 【1.21】进站报站选择列表；
+     * 5 = 【09-28】进站广播（讲述人）：左列空着，右列只有「关闭 / 开启」两行。
      */
     private int page;
 
@@ -285,6 +287,14 @@ public class PsdToneSetupScreen extends Screen {
     private EditBox midiumLoudInput;
     /** 【1.22】「进站播放音频」那行的**音量**输入框（= /pbmarriveloud）。 */
     private EditBox arriveLoudInput;
+    /**
+     * 【09-28】主界面「进站广播(讲述人)」行的秒数框（秒，(-∞, 0]）。
+     *
+     * <p>★ 它是讲述人**自己**的窗口（用户点名「取消借用进站广播」）—— 与
+     * {@link #arriveLeadInput} 各存各的值。讲述人**没有音量框**：text2speech 库不给音量参数
+     * （用户确认「只做开/关」）。
+     */
+    private EditBox narrateLeadInput;
 
     private static volatile PsdToneSetupScreen OPEN;
 
@@ -384,16 +394,19 @@ public class PsdToneSetupScreen extends Screen {
             buildArrivalPage();
         } else if (page == 4) {
             buildArrivePage();
+        } else if (page == 5) {
+            buildNarratePage();
         } else {
             buildTonePage(PAGES[page - 1]);
         }
 
         // 【1.55】右上角「同步所有」：射程跟着当前页走 ——
-        //   0 主界面 = 关门等待 / 开门音量 / 关门音量 / 到站等待+音量 / 进站秒数+音量；
-        //   1/2 = 开门 / 关门提示音素材；3 = 到站播报素材；4 = 进站报站素材。
+        //   0 主界面 = 关门等待 / 开门音量 / 关门音量 / 到站等待+音量 / 进站秒数+音量 / 讲述人秒数；
+        //   1/2 = 开门 / 关门提示音素材；3 = 到站播报素材；4 = 进站报站素材；5 = 讲述人开关+秒数。
         //   ★ 输入框一律先落地（{@link #applyMainInputs} 逐个 null 判断，任何页都能安全调）：
         //   弹窗会把本界面重建一次，服务端读的又是存档 —— 不落地，刚填的数字会丢，
-        //   而且同步出去的还是旧值。3/4 页也有输入框（到站等待 / 进站秒数），所以不能只给 0 页落。
+        //   而且同步出去的还是旧值。3/4/5 页也有输入框（到站等待 / 进站秒数 / 讲述人秒数），
+        //   所以不能只给 0 页落。
         addRenderableWidget(SyncPopupScreen.syncButton(this, "psd", page, runKey,
                 this::applyMainInputs));
     }
@@ -504,6 +517,28 @@ public class PsdToneSetupScreen extends Screen {
         arriveLoudInput.setValue(String.valueOf(EscalatorSpeedManager.getDoorPsdArriveVolume(mcLevel(), runKey)));
         addRenderableWidget(arriveLoudInput);
 
+        // 【09-28】进站广播（讲述人）：**放在进站广播的下面一行**——用户点名「ui 和『进站广播』
+        //   样式一样」。版式与上一行同款，但**少了音量框**：text2speech 库不给音量参数
+        //   （用户确认「只做开/关」）⇒ 这一行只有 [按钮] + 「等待秒数:」框。
+        //   ★ 秒数框是讲述人**自己**的窗口（用户点名「取消借用进站广播」），范围同为 (-∞, 0]。
+        //   ★ 开关（关闭 / 开启）不在这里，在二级页右列（用户点名「讲述人的2级菜单…右侧菜单留着
+        //   『关闭』和『开启』按钮」）。
+        int narrateY = LIST_TOP + 10 + ROW_H * 4;
+        addRenderableWidget(Button.builder(Component.literal("进站广播(讲述人)"), button -> {
+                    applyMainInputs();
+                    page = 5;
+                    scroll = 0;
+                    init();
+                })
+                .bounds(cx - BTN_W / 2, narrateY, 96, 20)
+                .build());
+        narrateLeadInput = new EditBox(this.font, rowWaitBoxX(cx), narrateY, ROW_BOX_W, 20,
+                Component.literal(ROW_WAIT_LABEL));
+        narrateLeadInput.setMaxLength(12); // -2147483648 共 11 位，留一格余量
+        narrateLeadInput.setValue(
+                String.valueOf(EscalatorSpeedManager.getDoorPsdNarrateSeconds(mcLevel(), runKey)));
+        addRenderableWidget(narrateLeadInput);
+
         // 【1.23】底部「默认音量」「强制等待」两框与「总开关：…」状态行已按点名删除：
         //   「强制等待」功能上移到「关门提示」行右侧的等待秒数框；共用默认音量改由 /pbmloud 指令调。
     }
@@ -584,6 +619,16 @@ public class PsdToneSetupScreen extends Screen {
                         + "-10 = 最近一班车还剩 10 秒到站时起播，已忽略");
             } else if (lead != EscalatorSpeedManager.getDoorPsdArriveSeconds(mcLevel(), runKey)) {
                 sendSetArrive(null, lead);
+            }
+        }
+        // 【09-28】讲述人的秒数：范围同为 (-∞, 0]，但**与进站报站各存各的**（独立窗口）。
+        if (narrateLeadInput != null) {
+            Integer lead = parseArriveLead(narrateLeadInput.getValue());
+            if (lead == null) {
+                notifyBadInput("讲述人报站的秒数必须是 0 或负整数，"
+                        + "-10 = 最近一班车还剩 10 秒到站时开始念，已忽略");
+            } else if (lead != EscalatorSpeedManager.getDoorPsdNarrateSeconds(mcLevel(), runKey)) {
+                sendSetNarrateLead(lead);
             }
         }
     }
@@ -727,6 +772,41 @@ public class PsdToneSetupScreen extends Screen {
         if (level != null) {
             EscalatorSpeedManager.applyClientPsdDoorLocal(level.dimension(), runKey,
                     t -> t.withArriveVolume(EscalatorSpeedData.clampPsdToneVolume(v)));
+        }
+    }
+
+    /** 【09-28】把讲述人的提前秒数发出去（= SET_PSD_NARRATE_LEAD_CHANNEL）。 */
+    private void sendSetNarrateLead(int lead) {
+        FriendlyByteBuf buf = PacketByteBufs.create();
+        buf.writeLong(runKey); // 这一串门
+        buf.writeVarInt(lead);
+        ClientPlayNetworking.send(SmoothLift.SET_PSD_NARRATE_LEAD_CHANNEL, buf);
+        setStatus("已把这一串屏蔽门的讲述人报站设为到站前 " + (-lead) + " 秒");
+        Level level = mcLevel();
+        if (level != null) {
+            EscalatorSpeedManager.applyClientPsdDoorLocal(level.dimension(), runKey,
+                    t -> t.withNarrateSeconds(EscalatorSpeedData.clampPsdNarrateSeconds(lead)));
+        }
+    }
+
+    /**
+     * 【09-28】把讲述人的**样式**发出去（= SET_PSD_NARRATE_CHANNEL，二级页三行
+     * 「关闭 / 开启(上海) / 开启(香港)」的「选择」按钮）。
+     *
+     * <p>★ 续：这一格从 boolean（开/关）改成 int（0/1/2），与数据层的
+     * {@code PsdToneAudio.narrate} 同型；发送端与 {@code SmoothLift} 的接收端同序。
+     */
+    private void sendSetNarrate(int mode) {
+        FriendlyByteBuf buf = PacketByteBufs.create();
+        buf.writeLong(runKey); // 这一串门
+        buf.writeVarInt(mode);
+        ClientPlayNetworking.send(SmoothLift.SET_PSD_NARRATE_CHANNEL, buf);
+        setStatus("已把这一串屏蔽门的进站广播(讲述人)设为"
+                + EscalatorSpeedData.psdNarrateModeName(mode));
+        Level level = mcLevel();
+        if (level != null) {
+            EscalatorSpeedManager.applyClientPsdDoorLocal(level.dimension(), runKey,
+                    t -> t.withNarrate(EscalatorSpeedData.clampPsdNarrateMode(mode)));
         }
     }
 
@@ -1121,6 +1201,94 @@ public class PsdToneSetupScreen extends Screen {
                 statusText == null ? 0xFFFFFF : 0xFFFF55);
     }
 
+    // ------------------------------------------------------------------
+    // 【09-28】进站广播（讲述人）：**没有列表**。
+    //   用户点名：「讲述人的2级菜单左侧列表空着就行，因为不用导入什么，右侧菜单留着
+    //   『关闭』和『开启』按钮就行，这2个只保留『选择』按钮」。
+    //   ⇒ 左列不画任何控件（也没有可导入的东西）；右列 = 三行样式，各接一个「选择」。
+    //   ★【09-28 续】用户点名：原来的「开启」改名 **「开启(上海)」**，并**新增一行
+    //   「开启(香港)」**（香港档的报站词见 TrainAnnounceNarrator.arriveTextHongKong）；
+    //   当时页面上自上而下 = 「关闭 / 开启(上海) / 开启(香港)」。
+    //   ★【09-28 续 2】用户点名：**「香港」按钮放在「上海」按钮上面** ⇒
+    //   现在自上而下 = 「关闭 / 开启(香港) / 开启(上海)」。
+    //   ★ 行的顺序**只由下面 names/modes 两个数组的次序决定**；档位编号
+    //     （{@link EscalatorSpeedData#PSD_NARRATE_OFF} = 0 / SHANGHAI = 1 / HONGKONG = 2）
+    //     是**存档格式**，与本页的显示次序**无关** —— 调整显示顺序时**不许动**那两个常量。
+    //   三行**互斥**，当前生效的那一行打 ✓（生效值 = 门覆盖 > 维度默认）。
+    //   讲述人**没有音量**（text2speech 库不给音量参数），所以这里连音量控件都没有。
+    // ------------------------------------------------------------------
+
+    private void buildNarratePage() {
+        int cx = this.width / 2;
+        // 这一页没有列表 ⇒ 也不该有滚动（上一页可能留下 scroll，这里归零）。
+        scroll = 0;
+        maxScroll = 0;
+        addRenderableWidget(Button.builder(Component.literal("返回"), button -> {
+            page = 0;
+            scroll = 0;
+            init();
+        }).bounds(cx - 100, this.height + BTN_Y, 96, 20).build());
+        addRenderableWidget(Button.builder(Component.literal("刷新"), button -> {
+            ClientPlayNetworking.send(SmoothLift.REQUEST_SYNC_CHANNEL, PacketByteBufs.empty());
+            setStatus("已请求刷新，同步回来后自动更新");
+        }).bounds(cx + 4, this.height + BTN_Y, 96, 20).build());
+
+        int mode = EscalatorSpeedManager.getDoorPsdNarrateMode(mcLevel(), runKey);
+        // 三行 = 关闭 / 开启(香港) / 开启(上海)；每行只有「名字」+「选择」两个控件
+        //   （用户点名「这2个只保留『选择』按钮」⇒ 没有「删除」）。
+        //   名字按钮与「选择」做同一件事：顺手点名字就行（与到站 / 进站页同一口味）。
+        //   ★【09-28 续 2】「香港」在上、「上海」在下（用户点名）。
+        //   ★ 这里**只是显示次序**；names[row] 与 modes[row] 必须**成对**，别只换一个数组。
+        String[] names = {"关闭", "开启(香港)", "开启(上海)"};
+        int[] modes = {EscalatorSpeedData.PSD_NARRATE_OFF,
+                EscalatorSpeedData.PSD_NARRATE_HONGKONG,
+                EscalatorSpeedData.PSD_NARRATE_SHANGHAI};
+        for (int row = 0; row < names.length; row++) {
+            int y = rowY(row);
+            if (!fullyVisible(y)) {
+                continue;
+            }
+            int target = modes[row];
+            addRenderableWidget(Button.builder(
+                            Component.literal((mode == target ? "✓" : "") + names[row]),
+                            button -> pickNarrate(target))
+                    .bounds(rightColX(), y, ROW_NAME_W, 20)
+                    .build());
+            addRenderableWidget(Button.builder(Component.literal("选择"),
+                            button -> pickNarrate(target))
+                    .bounds(rightColX() + ROW_NAME_W + ROW_BTN_GAP, y, ROW_BTN_W, 20)
+                    .build());
+        }
+    }
+
+    /** 点「关闭 / 开启(上海) / 开启(香港)」→ 设为这一串门的讲述人样式（秒数不动）。 */
+    private void pickNarrate(int mode) {
+        sendSetNarrate(mode);
+        init();
+    }
+
+    /** 讲述人页：只有标题 + 中间一条竖线 + 状态行（左列空着，用户点名）。 */
+    private void renderNarratePage(GuiGraphics guiGraphics) {
+        int cx = this.width / 2;
+        guiGraphics.drawCenteredString(this.font,
+                Component.literal("进站广播(讲述人)"), cx, 22, 0xFFFFFF);
+        // 中间那条竖线（与其它列表页同款，让「左空 / 右有」在视觉上一眼分明）
+        guiGraphics.fill(cx, listTop, cx + 1, listBottom, 0x80FFFFFF);
+
+        int statusY = this.height + STATUS_Y_LIST;
+        String info = statusText;
+        if (info == null) {
+            Level level = mcLevel();
+            int mode = EscalatorSpeedManager.getDoorPsdNarrateMode(level, runKey);
+            int lead = EscalatorSpeedManager.getDoorPsdNarrateSeconds(level, runKey);
+            info = "这一串门当前：" + EscalatorSpeedData.psdNarrateModeName(mode)
+                    + "　到站前 " + (-lead) + " 秒"
+                    + "（讲述人没有音量、也没有素材）";
+        }
+        guiGraphics.drawCenteredString(this.font, Component.literal(info), cx, statusY,
+                statusText == null ? 0xFFFFFF : 0xFFFF55);
+    }
+
     /** 两列行数取**较大**的那一边算滚动范围（列之间独立，但共用一个滚动偏移）。 */
     private void rebuildArrivalRows() {
         int rowCount = listRowCount();
@@ -1471,6 +1639,8 @@ public class PsdToneSetupScreen extends Screen {
             renderArrivalPage(guiGraphics);
         } else if (page == 4) {
             renderArrivePage(guiGraphics);
+        } else if (page == 5) {
+            renderNarratePage(guiGraphics);
         } else {
             renderTonePage(guiGraphics);
         }
@@ -1488,10 +1658,13 @@ public class PsdToneSetupScreen extends Screen {
         //   ② 底部的「默认音量」与「强制等待」从上下两行并成**同一行**。
         int midiumY = LIST_TOP + 10 + ROW_H * 2;
         int arriveY = LIST_TOP + 10 + ROW_H * 3;
+        // 【09-28】讲述人那一行**只有**「等待秒数:」（没有「音量:」——见 buildMainPage）。
+        int narrateY = LIST_TOP + 10 + ROW_H * 4;
         drawInputLabelAt(guiGraphics, ROW_WAIT_LABEL, cx + 4, midiumY);
         drawInputLabelAt(guiGraphics, ROW_LOUD_LABEL, rowLoudLabelX(cx), midiumY);
         drawInputLabelAt(guiGraphics, ROW_WAIT_LABEL, cx + 4, arriveY);
         drawInputLabelAt(guiGraphics, ROW_LOUD_LABEL, rowLoudLabelX(cx), arriveY);
+        drawInputLabelAt(guiGraphics, ROW_WAIT_LABEL, cx + 4, narrateY);
         // 【1.23】底部「默认音量」「强制等待」标签与「总开关：…」状态行已按点名删除。
         //   开门/关门两行的「等待秒数:」「音量:」标签（与广播两行同款版式）。
         int toneRowY0 = LIST_TOP + 10;

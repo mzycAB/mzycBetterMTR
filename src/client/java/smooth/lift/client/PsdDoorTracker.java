@@ -81,7 +81,9 @@ public final class PsdDoorTracker {
      * @param fraction 开合程度：0 = 全关，1 = 全开
      * @param platformId 【1.28】这一串**认得出来的 MTR 站台 id**（{@link #accept} 从
      *                 {@link #PLATFORM_CACHE} 解出来的，与 {@code runKey} 是同一份数据）；
-     *                 {@code 0} = 还没认到。进站报站查时刻表直接用这份 id ——
+     *                 ★【09-28 续 6】**可正可负**（MTR4 id = {@code Random().nextLong()}），
+     *                 「还没认到」= {@link MtrDwellAccess#PLATFORM_ID_NONE}（**不是 0**）。
+     *                 进站报站查时刻表直接用这份 id ——
      *                 **不再自己再调一次 {@code MtrDwellAccess.platformIdAt}**：
      *                 两条并行的认亲各判一次 4 格边界，会在边界上分叉成
      *                 「身份已是站台、时刻表却认不到 ⇒ 这串永远不响进站报站」。
@@ -124,7 +126,8 @@ public final class PsdDoorTracker {
         final double x;
         final double y;
         final double z;
-        /** 【1.28】认得到的站台 id（0 = 还没认到）；与 runKey 同一份数据，随 runKey 一起刷新。 */
+        /** 【1.28】认得到的站台 id（★【09-28 续 6】可正可负；{@link MtrDwellAccess#PLATFORM_ID_NONE}
+         *  = 还没认到）；与 runKey 同一份数据，随 runKey 一起刷新。 */
         long platformId;
         /** 【1.29】true = 门（铃声 + 播报都参与）；false = 幕墙/幕墙尾部（只参与播报的声源/射程）。 */
         final boolean door;
@@ -213,10 +216,13 @@ public final class PsdDoorTracker {
         // ★★【1.28】把「认得到的站台 id」从认证缓存里解出来，跟 runKey 走同一条链
         //   （不自己再调一次 platformIdAt —— 见 DoorView.platformId 的注释）。
         //   flood 是这一扇门归属连通串的锚点；PLATFORM_CACHE[flood] 里存的 platformKey
-        //   编码了站台 id（= platformKey - Long.MIN_VALUE），认到才写 ⇒ 0 = 认不到。
+        //   编码了站台 id（= platformKey - Long.MIN_VALUE），认到才写。
+        //   ★【09-28 续 6】「认不到」= PLATFORM_ID_NONE，**不是 0**：MTR4 的站台 id 是
+        //   Random().nextLong()，0 和负数都是合法 id（见 MtrDwellAccess.PLATFORM_ID_NONE）。
         long flood = RUN_CACHE.getOrDefault(key, Long.MIN_VALUE);
         Long recognized = flood == Long.MIN_VALUE ? null : PLATFORM_CACHE.get(flood);
-        long platformId = recognized == null ? 0L : recognized - Long.MIN_VALUE;
+        long platformId = recognized == null
+                ? MtrDwellAccess.PLATFORM_ID_NONE : recognized - Long.MIN_VALUE;
         long now = level.getGameTime();
         Entry entry = LIVE.get(key);
         if (entry == null) {
@@ -516,15 +522,23 @@ public final class PsdDoorTracker {
     }
 
     /**
-     * 站台 id → 「配置身份」。{@code id} 由 {@link MtrDwellAccess#platformIdAt} 给出，恒为正。
+     * 站台 id → 「配置身份」。{@code id} 由 {@link MtrDwellAccess#platformIdAt} 给出，
+     * ★【09-28 续 6】**可正可负**（MTR4 是 {@code Random().nextLong()}）—— 所以这里**只能**
+     * 对「已认到」的 id 调用（认不到是 {@link MtrDwellAccess#PLATFORM_ID_NONE}，不该传进来）。
      *
-     * <p>★ 编码成 {@code Long.MIN_VALUE + id}，与「连通串」的 {@code BlockPos.asLong} 同一命名空间
-     * 但不撞：真实方块的 asLong = {@code (x&0x3FFFFFF)<<38 | (z&0x3FFFFFF)<<12 | (y&0xFFF)}，
-     * 与这段区间相交要求 {@code (x&0x3FFFFFF) ∈ [33554432, 57572657]} ⇒
-     * {@code x ∈ [-33554432, -9572904]}（详见回归脚本里那条数值断言）—— 世界边界内存在，
-     * 但没有任何存档会把屏蔽门摆到离原点一千万格的地方。
+     * <p>★ 编码成 {@code Long.MIN_VALUE + id}（64 位回绕）。这是一个**单射**：{@code key} 可逆地
+     * 还原出原 id（{@code id == key - Long.MIN_VALUE}），且 {@code id != PLATFORM_ID_NONE}
+     * ⇔ {@code key != 0} —— 于是「连通串身份」与「站台身份」共用一个 long 命名空间而不互相
+     * 覆盖语义（连通串身份是真实方块的 {@code BlockPos.asLong}）。
      *
-     * @param platformId 站台 id（{@code > 0}）
+     * <p>⚠️【09-28 续 6 更正】旧版注释声称「{@code id > 0} ⇒ key 恒为负 ⇒ 与 asLong 结构上不撞」，
+     * 并给出 {@code x ∈ [-33554432, -9572904]} 的区间。★ 这**本来就不成立**：asLong 的
+     * {@code (x&0x3FFFFFF) >= 2^25} ⇔ {@code x <= -1} 就会让 asLong 变负，任何负 x 的门都能落进
+     * 负 key 区间；而且现在 id 本身可负，这个「区间不相交」的说法更无从谈起。
+     * ⇒ 正确表述：两种身份**同域**，只靠「两个 64 位随机值恰好相等」的概率排除（约
+     * {@code 2^-64} / 对），万一是同一座站台少一次播报 —— 与原实现同等量级，不做结构担保。
+     *
+     * @param platformId 已认到的站台 id（任意 64 位值，可正可负）
      */
     private static long platformKey(long platformId) {
         return Long.MIN_VALUE + platformId;
@@ -601,9 +615,12 @@ public final class PsdDoorTracker {
             // ★ 用**锚点**（doorKey）的坐标去问，不用 raw：同一扇门的上下半格/左右半扇会报到
             //   不同的 raw，用锚点才能保证「一扇门只认一次、每次认的都是同一个位置」，
             //   也才与播放链路（进站报站那侧拿的是 DoorView 的锚点坐标）逐位一致。
+            //   ★【09-28 续 6】判据是 isPlatformKnown，**不是 id > 0**：MTR4 的站台 id 是
+            //   Random().nextLong()，约一半的站台 id 是负数 —— 旧写法把这几座站台整个判成
+            //   「认不到」，它们的进站播报在读配置之前就被 continue 掉（LOG12 实证）。
             long id = MtrDwellAccess.platformIdAt(BlockPos.getX(doorKey) + 0.5,
                     BlockPos.getY(doorKey) + 0.5, BlockPos.getZ(doorKey) + 0.5);
-            if (id > 0L) {
+            if (MtrDwellAccess.isPlatformKnown(id)) {
                 long key = platformKey(id);
                 PLATFORM_CACHE.put(flood, key);
                 PLATFORM_NEXT_TRY.remove(flood);
@@ -618,13 +635,13 @@ public final class PsdDoorTracker {
             // ★★【1.31】认不到站台时，向「最近已经认到站台的连通串」**借用**它的站台身份。
             //   现场（用户原话）：列车行进方向最前面的 2 扇门是独立一串、其它门是另一串 ——
             //   那 2 扇门在站台端头，离站台中轴超过 4 格，platformIdAt 认不到 ⇒ runKey 停留在
-            //   连通串身份 ⇒ 进站报报站（tickArriveAnnounce）在**读配置之前**就被 platformId<=0
-            //   挡住 continue（1.28 的诊断逻辑），于是 UI 按串设置的 pbmarrive 素材/秒数根本
-            //   走不到读取那一步 —— 用户：「UI 设置没有用，指令设置可以」（指令设的是维度默认，
-            //   主串能读到 ⇒ 有效）。借到之后两串并入同一个站台身份 ⇒ 配置 / 去重 / 射程 /
-            //   声源四处自动按整站台走。
+            //   连通串身份 ⇒ 进站报报站（tickArriveAnnounce）在**读配置之前**就被「认不到站台」
+            //   挡住 continue（1.28 的诊断逻辑，判据现在是 isPlatformKnown），于是 UI 按串设置的
+            //   pbmarrive 素材/秒数根本走不到读取那一步 —— 用户：「UI 设置没有用，指令设置可以」
+            //   （指令设的是维度默认，主串能读到 ⇒ 有效）。借到之后两串并入同一个站台身份 ⇒
+            //   配置 / 去重 / 射程 / 声源四处自动按整站台走。
             long borrowed = borrowPlatformId(doorKey);
-            if (borrowed > 0L) {
+            if (MtrDwellAccess.isPlatformKnown(borrowed)) {
                 long key = platformKey(borrowed);
                 PLATFORM_CACHE.put(flood, key);
                 PLATFORM_NEXT_TRY.remove(flood);
@@ -660,7 +677,8 @@ public final class PsdDoorTracker {
      *       （两个候选都差不多近时说明门夹在两个站台之间，不借）。</li>
      * </ul>
      *
-     * @return 借到的站台 id；{@code <= 0} = 没有可借的（保持连通串身份）
+     * @return 借到的站台 id（可正可负）；{@link MtrDwellAccess#PLATFORM_ID_NONE} = 没有可借的
+     *         （保持连通串身份）
      */
     private static final double PLATFORM_BORROW_DIST = 12.0;
     private static final double PLATFORM_BORROW_MARGIN = 8.0;
@@ -691,7 +709,7 @@ public final class PsdDoorTracker {
         }
         if (bestFlood == Long.MIN_VALUE || best > PLATFORM_BORROW_DIST
                 || second - best < PLATFORM_BORROW_MARGIN) {
-            return -1L;
+            return MtrDwellAccess.PLATFORM_ID_NONE;
         }
         return PLATFORM_CACHE.get(bestFlood) - Long.MIN_VALUE;
     }
