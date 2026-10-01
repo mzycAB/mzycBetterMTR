@@ -70,6 +70,16 @@ def join(src, *subs):
     return out
 
 
+def strip_comments(src):
+    """剥掉 `//` 行注释与 `/* */` 块注释。
+
+    ★ 反面断言（「某某**不在**源码里」）必须先剥注释再判：否则新加的解释性注释
+    （「原来那只开关按钮已删」之类）会把它判成「还在」；反过来也一样能骗出假绿。
+    """
+    src = re.sub(r"/\*.*?\*/", "", src, flags=re.S)
+    return re.sub(r"//[^\n]*", "", src)
+
+
 print("== 1. 通道（客户端/服务端各一个收发点） ==")
 main = read(SL)
 client = read(SLC)
@@ -119,6 +129,8 @@ check("isLiftTrackFloor(world.getBlockState" in main and "InteractionResult.FAIL
 check("new LiftToneSetupScreen(pos)" in client and "isLiftTrackFloor(world.getBlockState" in client,
       "客户端石斧右键楼层轨道 → 打开 LiftToneSetupScreen")
 screen = read(SCREEN)
+# 反面断言一律用剥掉注释的版本（见 strip_comments 的说明）
+screen_code = strip_comments(screen)
 for which, title in (("up", "上楼提示音"), ("down", "下楼提示音"),
                      ("open", "开门提示音"), ("close", "关门提示音")):
     check(('"%s"' % which) in read(CHIME) or ('"%s"' % which) in screen,
@@ -190,10 +202,17 @@ check("applyClientLiftToneSwitchLocal" in mgr,
 chime = read(CHIME)
 check("isLiftToneEnabled(mc.level, which)" in chime and "STOP_SENTINEL" in chime,
       "播放端：维度默认子开关关 → 该项静默（总开关之外还能再关一层）")
-check("TOGGLE_SENTINEL" in screen and "toggleToneEnabled" in screen
-      and "SET_LIFT_TONE_SWITCH_CHANNEL" in screen,
-      "UI 每个列表第一行是「开关」按钮（点=切换维度默认子开关）")
-check('"开关："' in screen, "开关行显示当前开/关状态")
+# ★★【09-29 · 二改】用户原话：「『不播』代表关闭，『默认』或者玩家导入的就代表开启，
+#   不需要一个专门的开关按钮」—— 右列那只「开关：开/关 + 切换」**整行删掉**。
+#   ⇒ 反面断言：哨兵与切换方法都不许再出现在**代码**里（注释里提到它们不算，先剥注释）。
+#   ★ 但子开关这一层**不能跟着消失**（播放端第一道门就是它，见上式）——
+#     「选会出声的素材 → 顺带打开闸门」这个出口（ensureToneEnabled）必须还在，否则回到 LOG6。
+check("TOGGLE_SENTINEL" not in screen_code and "toggleToneEnabled" not in screen_code,
+      "★★ 右列「开关」按钮及其哨兵已删净（代码里没有 TOGGLE_SENTINEL / toggleToneEnabled）")
+check('"开关："' not in screen_code and '"切换"' not in screen_code,
+      "★ 开关行那两个控件的文案（「开关：开/关」/「切换」）都不在代码里")
+check("SET_LIFT_TONE_SWITCH_CHANNEL" in screen_code and "ensureToneEnabled" in screen_code,
+      "★★ 子开关仍够得着：选「会出声」的素材时经 ensureToneEnabled 打开（LOG6 的唯一出口）")
 
 print("\n== 6d. 【1.15】直梯音频快捷设置（维度默认素材 + default 命名 + 补全 + 两层查找） ==")
 check("defaultLiftToneAudioUp" in data and "defaultLiftToneAudioDown" in data
@@ -328,22 +347,25 @@ check("SoundListLayout.leftColX(" in screen and "SoundListLayout.rightColX(" in 
       "两列 / 行内三格的 x 与行 y 全部取自 SoundListLayout（不再各算一遍）")
 check("未导入存档" in screen and "已导入存档" in screen,
       "两列表头 = 「未导入存档」/「已导入存档」（与屏蔽门逐字相同）")
-check("private static final int RIGHT_SPECIAL_ROWS = 3;" in screen,
-      "右列特殊行 = 3（开关 / 不播 / 默认）")
+check("private static final int RIGHT_SPECIAL_ROWS = 2;" in screen,
+      "★【09-29 · 二改】右列特殊行 = 2（不播 / 默认）—— 原来是 3，删掉「开关」那一行")
 check("i + RIGHT_SPECIAL_ROWS" in screen,
-      "★ 已存入第 i 条落在第 i + 3 行（前 3 行被特殊行占了）")
+      "★ 已存入第 i 条落在第 i + 2 行（前 2 行被特殊行占了）")
 for _nm in ("ROW_H", "LIST_TOP", "COL_W", "ROW_BTN_W", "ROW_BTN_GAP",
             "ROW_NAME_W", "ROW_NAME_CHARS", "BTN_Y"):
     check(("private static final int %s = SoundListLayout.%s;" % (_nm, _nm)) in screen,
           "直梯界面的 %s 是指向 SoundListLayout 的别名" % _nm)
 _m = re.search(r"private void buildTonePage\(String which\)\s*\{(.*?)\n    \}", screen, re.S)
-_body = _m.group(1) if _m else ""
-check(_body != "", "抠得出 buildTonePage() 方法体")
+# ★ 先剥注释再判：方法体里新加的解释性注释（「原来那只开关按钮已删」）不该被当成控件。
+_body = strip_comments(_m.group(1)) if _m else ""
+check(_body != "", "抠得出 buildTonePage() 方法体（已剥注释）")
 if _body:
-    check("开关" in _body and "不播" in _body and '"默认"' in _body,
-          "右列三个特殊行（开关 / 不播 / 默认）都建了控件")
+    check("不播" in _body and '"默认"' in _body and "开关" not in _body,
+          "★★【09-29 · 二改】右列只剩两个特殊行（不播 / 默认）；「开关」那一行已整行删掉")
+    check("rowY(0)" in _body and "rowY(1)" in _body and "rowY(2)" not in _body,
+          "★ 两个特殊行占 rowY(0)/rowY(1)（原来占 0/1/2）")
     check(_body.count("SoundListLayout.rowDeleteX(") == 1,
-          "★ 「删除」只出现在已存入行（三个特殊行都没有删除键）—— rowDeleteX 恰好 1 处",
+          "★ 「删除」只出现在已存入行（两个特殊行都没有删除键）—— rowDeleteX 恰好 1 处",
           "实际 %d 处" % _body.count("SoundListLayout.rowDeleteX("))
     check("SoundListLayout.leftColX(this.width)" in _body
           and "pending" in _body and "stored" in _body,

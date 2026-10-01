@@ -1,9 +1,12 @@
 package smooth.lift.client;
 
 import com.mojang.text2speech.Narrator;
+import net.minecraft.client.Minecraft;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import smooth.lift.EscalatorSpeedData;
+
+import java.util.List;
 
 /**
  * 【09-28】「讲述人」列车报站 —— 用**文字转语音**把进站广播念出来。
@@ -170,6 +173,11 @@ public final class TrainAnnounceNarrator {
      *       即 {@code Platform.getName()}）。</li>
      * </ul>
      *
+     * <p>★【09-29】X / Y 都先过 {@link #chineseOnlyName}：上海档**只念中文名**
+     * （用户点名「本次列车开往人民路People road」改为「本次列车开往人民路」——
+     * MTR 的双语字段 {@code 中文|English} 整串喂给 TTS 会把英文名也一起念出来）。
+     * 名字里没有中文段时保持原文，不丢名字。
+     *
      * <p>★ 两个值各自读不到时**只删自己那一小句**，剩下的话仍然是一句完整、能念的中文
      * （不会出现「终点站：，请乘客们在」这种读出来像卡带的半截话）：
      * <ol>
@@ -185,17 +193,36 @@ public final class TrainAnnounceNarrator {
         StringBuilder text = new StringBuilder(ARRIVE_OPENING);
         String terminus = trimToNull(destination);
         if (terminus != null) {
-            text.append(TERMINUS_LEAD).append(terminus);
+            text.append(TERMINUS_LEAD).append(chineseOnlyName(terminus));
         }
         String platform = trimToNull(platformName);
         if (platform == null) {
             text.append(NO_PLATFORM_TAIL);
         } else {
+            // 站台名同样只取中文名（双语「1号|No.1」之类的字段整串念会带出英文）。
+            platform = chineseOnlyName(platform);
             text.append(PLATFORM_LEAD).append(platform);
             // 站台名已经自带「站台」二字（「1站台」）时就别再补一遍，否则会念成「1站台站台」。
             text.append(platform.contains("站台") ? PLATFORM_TAIL_BARE : PLATFORM_TAIL);
         }
         return text.toString();
+    }
+
+    /**
+     * 【09-29】从 MTR 的双语名字字段里取**中文名**（上海档专用，用户点名）。
+     *
+     * <p>拆法与 {@link #arriveTextHongKong} 同源（{@code 中文|English} 按 {@code |} 分段），
+     * 但这里**只取第一段中文**、不要英文段。整串里没有中文段（纯英文 / 其它语言）时
+     * 返回原文 —— 宁可念英文，也不能把名字整个丢掉。
+     */
+    private static String chineseOnlyName(String rawName) {
+        for (String part : rawName.split(NAME_SPLIT_REGEX)) {
+            String piece = trimToNull(part);
+            if (piece != null && isChinese(piece)) {
+                return piece;
+            }
+        }
+        return rawName.trim();
     }
 
     /**
@@ -285,6 +312,103 @@ public final class TrainAnnounceNarrator {
         return text.toString();
     }
 
+    // ------------------------------------------------------------------
+    // 【09-30 续】玩家自定义播报词的**占位符**（用户点名）：
+    //
+    //   |     → 换行（写模板时敲一个 | 就是换一行，SAPI 念两句、字幕分两行、聊天框发两条）
+    //   |SC|  → 当前**车站**名字的中文段（S = Station，C = Chinese）
+    //   |SE|  → 当前车站名字的英文段（S = Station，E = English）
+    //   |DC|  → 当前**站台**名（编号）的中文段（D = platform Desk，C = Chinese）
+    //   |DE|  → 当前站台名（编号）的英文段（D = platform Desk，E = English）
+    //
+    //   「当前车站」= 屏蔽门所在的那个 MTR 车站（MtrDwellAccess.stationNameForPlatform），
+    //   **不是**本次列车终点站；「当前站台」= ArrivalResponse.getPlatformName()
+    //   （上海档句式里 Y 那一格，同一个名源）。
+    //   名字按 MTR 的「中文|English」约定拆段；请求的那一段不存在时**替成空串**
+    //   （句子的完整性由写模板的人负责 —— 宁可短一截，也不把英文塞进「中文段」的槽位）。
+    //   ★ 替换顺序是**先长后短**：先换四个长记号、最后把剩下的单个 | 换成换行 ——
+    //     反过来的话 |SC| 会被拆成「换行 SC 换行」，记号就再也认不出来了。
+    // ------------------------------------------------------------------
+
+    /** 占位符：当前车站名字的中文段。 */
+    static final String TOKEN_STATION_CN = "|SC|";
+    /** 占位符：当前车站名字的英文段。 */
+    static final String TOKEN_STATION_EN = "|SE|";
+    /** 占位符：当前站台名（编号）的中文段。 */
+    static final String TOKEN_PLATFORM_CN = "|DC|";
+    /** 占位符：当前站台名（编号）的英文段。 */
+    static final String TOKEN_PLATFORM_EN = "|DE|";
+    /**
+     * 【09-30 续 2】占位符：**本次列车目的地（终点站）**的中文段（W = Where to，C = Chinese）。
+     * 与上海档句式里 X 那一格同一个名源（{@code ArrivalResponse.getDestination()}）。
+     */
+    static final String TOKEN_DEST_CN = "|WC|";
+    /** 【09-30 续 2】占位符：本次列车目的地的英文段。 */
+    static final String TOKEN_DEST_EN = "|WE|";
+    /**
+     * 【09-30 续 2】占位符：**当前线路**名字的中文段（L = Line，C = Chinese）。
+     * 线路 = 目标站台所属的那条 {@code Route}（见 {@code MtrDwellAccess.lineNameForPlatform}）。
+     */
+    static final String TOKEN_LINE_CN = "|LC|";
+    /** 【09-30 续 2】占位符：当前线路名字的英文段。 */
+    static final String TOKEN_LINE_EN = "|LE|";
+    /** 占位符：换行（长记号都换完之后，剩下的单个 | 全是它）。 */
+    static final String TOKEN_LINE_BREAK = "|";
+
+    /**
+     * 【09-30 续】把玩家自定义播报词里的占位符换成**这一班车这一站台**的实际值。
+     *
+     * <p>八个长记号（车站 / 站台 / 目的地 / 线路 × 中英）都换完之后，剩下的单个 |
+     * 全部是用户点名的「换行」。换完之后若整串只剩空白（模板是空的 / 全是没值可替的记号）
+     * 返回 {@code null}，调用方按「这一档拼不出话」跳过。原样文字（不含任何记号）原样通过。
+     *
+     * @param template     玩家写的模板（{@code TrainAnnounceSwitch.userText} 的原文）
+     * @param stationName  当前车站的双语名字（{@code 中文|English}）；读不到 = {@code null}
+     * @param platformName 当前站台名（编号）的双语名字；读不到 = {@code null}
+     * @param destination  本次列车目的地（终点站）的双语名字；读不到 = {@code null}
+     * @param lineName     当前线路的双语名字；读不到 = {@code null}
+     * @return 要念的整句（记号已替换、| 已成换行）；{@code null} = 空模板 / 全空白
+     */
+    public static String expandUserTemplate(String template, String stationName, String platformName,
+                                            String destination, String lineName) {
+        if (template == null || template.isBlank()) {
+            return null;
+        }
+        String text = template;
+        text = text.replace(TOKEN_STATION_CN, namePart(stationName, true));
+        text = text.replace(TOKEN_STATION_EN, namePart(stationName, false));
+        text = text.replace(TOKEN_PLATFORM_CN, namePart(platformName, true));
+        text = text.replace(TOKEN_PLATFORM_EN, namePart(platformName, false));
+        text = text.replace(TOKEN_DEST_CN, namePart(destination, true));
+        text = text.replace(TOKEN_DEST_EN, namePart(destination, false));
+        text = text.replace(TOKEN_LINE_CN, namePart(lineName, true));
+        text = text.replace(TOKEN_LINE_EN, namePart(lineName, false));
+        // 长记号都换完，剩下的单个 | 全部是用户点名的「换行」。
+        text = text.replace(TOKEN_LINE_BREAK, "\n");
+        return trimToNull(text.replace("\r", ""));
+    }
+
+    /**
+     * 【09-30 续】从 MTR 的双语名字字段（{@code 中文|English}）里取**指定语言**的那一段。
+     *
+     * <p>拆法与 {@link #arriveTextHongKong} 同源：按 {@code |} 分段，中文段 = 含汉字且
+     * 不含假名 / 谚文（日韩站名落到英文桶），其余段都算英文段；各取**第一段**。
+     * 请求的那一段不存在时返回**空串**（占位符替成空，见 {@link #expandUserTemplate}）。
+     */
+    private static String namePart(String rawName, boolean chinese) {
+        String raw = trimToNull(rawName);
+        if (raw == null) {
+            return "";
+        }
+        for (String part : raw.split(NAME_SPLIT_REGEX)) {
+            String piece = trimToNull(part);
+            if (piece != null && isChinese(piece) == chinese) {
+                return piece;
+            }
+        }
+        return "";
+    }
+
     /**
      * 【09-28 续】按**样式**选句式 —— 播放端只有这一个入口，免得再各处写一遍 switch。
      *
@@ -297,17 +421,32 @@ public final class TrainAnnounceNarrator {
      *       「请乘客们在{@code Y}站台有序候车」，{@code Y} 必须是**站台**；</li>
      *   <li>香港档的句式里没有站台，所以**不需要**站台名。</li>
      * </ul>
-     * ★ 曾经这里是 4 参、香港档专门去取 {@code MtrDwellAccess.stationNameForPlatform}
-     * （车站名 = 玩家**所在站**）—— 那是**错的**，详见 {@link #arriveTextHongKong} 的
-     * 「别再动这个名源」一节。
+     * ★【09-30】新增**玩家自定义档**（userN，档位号 ≥ {@link EscalatorSpeedData#PSD_NARRATE_USER_BASE}）：
+     * 玩家写的模板先过 {@link #expandUserTemplate} —— {@code |} 换行、{@code |SC|}/{@code |SE|}
+     * 当前车站中英文名、{@code |DC|}/{@code |DE|} 当前站台中英文名、【09-30 续 2】
+     * {@code |WC|}/{@code |WE|} 本次列车目的地中英文名、{@code |LC|}/{@code |LE|} 当前线路中英文名
+     * （都是用户点名）。换完是空的（没写 / 全是没值可替的记号）⇒ 返回 {@code null}，调用方跳过。
      *
      * @param mode         讲述人样式（{@link EscalatorSpeedData#PSD_NARRATE_OFF} /
-     *                     {@code PSD_NARRATE_SHANGHAI} / {@code PSD_NARRATE_HONGKONG}）
+     *                     {@code PSD_NARRATE_SHANGHAI} / {@code PSD_NARRATE_HONGKONG} / userN 档）
      * @param destination  本次列车终点站（**两档共用**；{@code null} / 空白 = 读不到）
-     * @param platformName 站台名/编号（**只上海档用**；{@code null} / 空白 = 读不到）
-     * @return 要念的整句；{@code null} = 这一档拼不出话（例如香港档但终点站读不到）⇒ 调用方跳过
+     * @param platformName 站台名/编号（上海档与 userN 的 {@code |DC|}/{@code |DE|} 用）
+     * @param stationName  当前车站名（**只 userN 的 {@code |SC|}/{@code |SE|} 用**；{@code null} = 读不到）
+     * @param lineName     当前线路名（**只 userN 的 {@code |LC|}/{@code |LE|} 用**；{@code null} = 读不到）
+     * @return 要念的整句；{@code null} = 这一档拼不出话 ⇒ 调用方跳过
      */
-    public static String arriveTextForStyle(int mode, String destination, String platformName) {
+    public static String arriveTextForStyle(int mode, String destination, String platformName,
+                                            String stationName, String lineName, List<String> userTexts) {
+        // 【09-30】玩家自定义档排在最前面判 —— 占位符吃的是**这一班**的实际值。
+        //   【10-01 续】userN 模板**按调用方给的那份列表**取：进站讲述人传进站那份、
+        //   站台讲述人传站台那份 —— 两条广播的文字各自独立（用户点名「不要共用一个文字列表」）。
+        if (EscalatorSpeedData.isPsdNarrateUserStyle(mode)) {
+            int idx = EscalatorSpeedData.psdNarrateUserIndex(mode);
+            String template = userTexts == null || idx < 0 || idx >= userTexts.size()
+                    ? null : userTexts.get(idx);
+            return expandUserTemplate(template,
+                    stationName, platformName, destination, lineName);
+        }
         if (mode == EscalatorSpeedData.PSD_NARRATE_HONGKONG) {
             return arriveTextHongKong(destination);
         }
@@ -397,6 +536,145 @@ public final class TrainAnnounceNarrator {
                         + "后续不再重复报错", t.toString());
             }
             return false;
+        }
+    }
+
+    // ------------------------------------------------------------------
+    // 【09-29】「越界即停」：玩家走出 /jsr round 范围 ⇒ 正在念的话立刻停。
+    //   text2speech 引擎不给回调，但它有 clear()（= 掐掉当前这句，与游戏切讲述人
+    //   档位用的是同一个入口）。谁在念、声源在哪由 speak(text, runKey, x, y, z) 记账，
+    //   tickRangeGuard 每客户端 tick 核一次「到本串最近一扇」的距离
+    //   ★【09-29 续】判据从「起播那扇的固定坐标」改成**现算本串最近门**，理由见下。
+    // ------------------------------------------------------------------
+
+    /**
+     * 这一班正在念的话的声源位置（{@link #speak(String, long, double, double, double)} 记下的）。
+     * ★【09-29 续】它只是**兜底**基准，主基准是下面那个 {@link #activeRunKey}。
+     */
+    private static double activeX;
+    private static double activeY;
+    private static double activeZ;
+
+    /**
+     * 【09-29 续】声源的**身份**（那一串门的 {@code runKey}）——「越界即停」的主基准。
+     *
+     * <p>旧版只认「起播那一刻那一扇门」的固定坐标，于是玩家沿站台走到本串另一头就被判越界、
+     * 当场掐掉（用户报「在一个站台屏蔽门串范围内跑跑跳跳就有可能停止播放」，
+     * LOG1 19:05:33 距声源 16.2 格）。现在每 tick 现算「到本串最近一扇」的距离。
+     */
+    private static long activeRunKey = Long.MIN_VALUE;
+
+    /** 有没有一句话还在念（真的交给了引擎才算 —— 引擎不可用时不给护栏记账）。 */
+    private static boolean active;
+
+    /**
+     * 【09-30 续 4】正在念的这句来自哪条讲述人：{@code false} = 进站广播（用 /jsr round 的范围）、
+     * {@code true} = 站台广播（用 /jsr midium round 的范围）—— 两份范围各管各的。
+     */
+    private static boolean activeFromMidium;
+
+    /**
+     * 【09-29】带声源坐标的念：交给引擎成功后给「越界即停」护栏记账。
+     *
+     * <p>护栏之所以放在这里而不是播放端，是因为「正在念」这件事只有本类知道
+     * （{@code Narrator} 是本类缓存的私有状态）。
+     *
+     * @param runKey 声源那一串门的身份（{@link PsdDoorTracker.DoorView#runKey()}）——
+     *               护栏按「到本串最近一扇」现算距离，见 {@link #tickRangeGuard}
+     * @param x      起播那一刻最近那扇门的锚点 X（这一串不在快照里时兜底）
+     * @param y      同上，Y
+     * @param z      同上，Z
+     * @return {@code true} = 真的交给语音引擎了；{@code false} = 引擎不可用（静默跳过）
+     */
+    public static boolean speak(String text, long runKey, double x, double y, double z) {
+        return speak(text, runKey, x, y, z, false);
+    }
+
+    /**
+     * 【09-30 续 4】带「来自哪条讲述人」标记的念：站台广播（{@code fromMidium = true}）的
+     * 「越界即停」护栏要用它自己的 /jsr midium round 范围，见 {@link #tickRangeGuard}。
+     */
+    public static boolean speak(String text, long runKey, double x, double y, double z, boolean fromMidium) {
+        boolean spoke = speak(text);
+        if (spoke) {
+            activeRunKey = runKey;
+            activeX = x;
+            activeY = y;
+            activeZ = z;
+            active = true;
+            activeFromMidium = fromMidium;
+        }
+        return spoke;
+    }
+
+    /**
+     * 【09-29】每客户端 tick 核一次：玩家到**这一串门此刻最近的一扇**的水平距离 ≥
+     * {@link TrainAnnounceSwitch#narrateRoundXz()} 或垂直距离 ≥
+     * {@link TrainAnnounceSwitch#narrateRoundY()}（/jsr round AAA BBB：AAA = 水平
+     * x、z 轴，BBB = 垂直 y 轴，任一超出即停）⇒ 立刻 clear()，
+     * 用户点名的「一旦玩家超出范围就停止播报」。
+     *
+     * <p>★【09-29 续】判据由 {@link TrainAnnounceSwitch#narrateDistances} 现算 ——
+     * 一串门横跨半个站台，只认「起播那一刻那一扇」的话，玩家沿站台走到本串另一头
+     * （离起播那扇已 &gt; round，却离本串另一扇只有两三格）就会被误判越界、
+     * 当场掐掉正在念的一句（用户报「在站台屏蔽门串范围内跑跑跳跳就停止播放」）。
+     *
+     * <p>由 {@link PsdChimePlayer#onClientTick} 在每 tick 最前面调（进不进世界都调 ——
+     * 没进世界时直接复位）。
+     */
+    public static void tickRangeGuard(Minecraft mc) {
+        if (!active) {
+            return;
+        }
+        if (mc == null || mc.player == null) {
+            active = false;
+            return;
+        }
+        // 【09-30】玩家上了 MTR 列车 ⇒ 正在念的当场掐掉 —— 用户点名「玩家在 mtr 列车上时
+        //   不给该玩家播放讲述人语音和文字，无论设置如何；进列车就停止播放（效果差不多
+        //   等同于走出 /jsr round 范围）」。判据与列车内音量衰减共用同一个反射口
+        //   （PsdChimePlayer.ridingTrain，读 MTR 的 VehicleRidingMovement.ridingVehicleId）。
+        if (PsdChimePlayer.ridingTrain()) {
+            active = false;
+            LOGGER.info("[SmoothLift/TrainAnnounce] 玩家已进入 MTR 列车 ⇒ 停止讲述人播报"
+                    + "（下车后恢复；文字那条由 TrainAnnounceSubtitle.tick 同步撤下）");
+            clearNow();
+            return;
+        }
+        // ① 基准是「这一串门**此刻**离玩家最近的一扇」（现算），不是起播那一刻冻住的那一扇 ——
+        //   否则玩家沿站台走到本串另一头就会被误判越界、当场掐掉（用户报的那个 bug）。
+        //   这一串不在快照里时退回固定坐标（见 TrainAnnounceSwitch#narrateDistances）。
+        // ② 【1.29.1204】水平 / 垂直两维分开比：水平 ≥ 水平范围 或 垂直 ≥ 垂直范围即停（用户点名）。
+        //   【09-30 续 4】进站讲述人用 /jsr round，站台讲述人用 /jsr midium round —— 两份范围。
+        int roundXz = activeFromMidium ? TrainAnnounceSwitch.midiumRoundXz() : TrainAnnounceSwitch.narrateRoundXz();
+        int roundY = activeFromMidium ? TrainAnnounceSwitch.midiumRoundY() : TrainAnnounceSwitch.narrateRoundY();
+        TrainAnnounceSwitch.NarrateDistance d = TrainAnnounceSwitch.narrateDistances(
+                activeRunKey, activeX, activeY, activeZ, mc.player.position());
+        if (d.horizontal() >= roundXz || d.vertical() >= roundY) {
+            active = false;
+            LOGGER.info("[SmoothLift/TrainAnnounce] 玩家距本串最近的门的水平 {} 格 / 垂直 {} 格，"
+                            + "已超出{}的水平 {} 格或垂直 {} 格 ⇒ 停止播报",
+                    String.format("%.1f", d.horizontal()), String.format("%.1f", d.vertical()),
+                    activeFromMidium ? " /jsr midium round" : " /jsr round", roundXz, roundY);
+            clearNow();
+        }
+    }
+
+    /** 断线 / 换世界时复位护栏（声音随世界一起没了，不需要再 clear）。 */
+    public static void onDisconnect() {
+        active = false;
+    }
+
+    /** 掐掉当前正在念的那一句（引擎不可用 / 从没念出过时是空操作）。 */
+    private static void clearNow() {
+        Narrator n = narrator;
+        if (n == null) {
+            return;
+        }
+        try {
+            n.clear();
+        } catch (Throwable t) {
+            LOGGER.warn("[SmoothLift/TrainAnnounce] 停止播报失败（{}）", t.toString());
         }
     }
 

@@ -714,7 +714,7 @@ print()
 print("===== 5) 源码结构 =====")
 check("noteCycle(door, prev, door.fraction(), gameTime)" in player,
       "noteCycle 在 tick 循环里对**所有**门调用（学到周期的唯一入口）")
-check(re.search(r'Playable closePlayable = resolvePlayable\(mc, door, "close", distance\)', player) is not None
+check(re.search(r'Playable closePlayable = resolvePlayable\(mc, door, "close", distanceXz, distanceY\)', player) is not None
       and "planClose(mc, door, closePlayable, openPlayable)" in player,
       "★★★ planClose 收的**第一份**是**按 `\"close\"` 解析出来的**那一份（第七轮根因：曾复用开门那一份 ⇒ "
       "开门素材 splitMs = -1 ⇒ 提前量永远排不出来 ⇒ 每一站都只有嘀嘀）。"
@@ -725,8 +725,8 @@ check(player.count("planClose(mc, door, closePlayable, openPlayable)") == 1
       and "planClose(mc, door, openPlayable" not in player,
       "★★ 反面样本：不许再出现「把开门那一份当成要播的素材喂给 planClose」的写法"
       "（前两个形式必须为 0；第三个形式 —— 把 openPlayable 放在第一参数位 —— 也是 0）")
-check(re.search(r'Playable openPlayable = resolvePlayable\(mc, door, "open", distance\)', player) is not None
-      and player.find('Playable openPlayable = resolvePlayable(mc, door, "open", distance)')
+check(re.search(r'Playable openPlayable = resolvePlayable\(mc, door, "open", distanceXz, distanceY\)', player) is not None
+      and player.find('Playable openPlayable = resolvePlayable(mc, door, "open", distanceXz, distanceY)')
       < player.find("planClose(mc, door, closePlayable, openPlayable)"),
       "★【1.16】开门那一份在 planClose **之前**解析（强制等待的起点是「开门音效播完」，"
       "所以必须先把它的时长拿出来）—— 顺序反过来就会拿到上一次的残留")
@@ -949,7 +949,12 @@ check("globalTravelTicks > 0 ? globalTravelTicks : MtrDwellAccess.DEFAULT_TRAVEL
 check("public static long cycleTicksForDwell(long dwellMs, long travelTicks)" in access_src
       and "Math.max(dwellMs / 2L, dwellMs - CLOSE_LEAD_MS)" in access_src,
       "★★ MtrDwellAccess 里的算式是 max(D/2, D-4200)（不是只写 D-4200 —— 短停站会算成负数）")
-check("Math.abs(py - y) > MAX_DY" in access_src,
+# ★【10-01 订正】原判据锚死字面量 `Math.abs(py - y) > MAX_DY`；当天给 MtrDwellAccess 补
+#   MTR3 绑定时，中点坐标多出了 px/pz 兄弟变量 ⇒ 本地变量改名 `py` → `pyv`
+#   （源码真实形态：`double pyv = py(mid);` 紧跟 `if (Math.abs(pyv - y) > MAX_DY) return NaN;`）。
+#   语义一字未变（同一道纵向窗口、同一个 MAX_DY），只是名字变了 —— 所以断言改成**按语义**匹配
+#   `Math.abs(p<名> - y) > MAX_DY`，不再钉死某一个变量名（钉死名字 = 下次 rename 又假红）。
+check(bool(re.search(r"Math\.abs\(p[a-z]+ - y\) > MAX_DY", access_src)),
       "★ 认站台时有纵向窗口（不让楼上/楼下的站台被误认成同一个）")
 check("dwellMsAt(double x, double y, double z)" in access_src
       and "return -1L" in access_src,

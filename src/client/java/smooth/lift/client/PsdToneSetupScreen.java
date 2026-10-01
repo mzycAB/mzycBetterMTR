@@ -6,10 +6,12 @@ import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.client.gui.components.Button;
 import net.minecraft.client.gui.components.EditBox;
+import net.minecraft.client.gui.components.events.GuiEventListener;
 import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.core.BlockPos;
 import net.minecraft.network.FriendlyByteBuf;
 import net.minecraft.network.chat.Component;
+import net.minecraft.util.Mth;
 import net.minecraft.world.level.Level;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -56,6 +58,9 @@ import java.util.List;
  * {@code pbm/midium}、{@code pbm/arrive}）的待导入 / 已存入（见 {@link #categoryForPage}）。
  */
 public class PsdToneSetupScreen extends Screen {
+
+    /** 【10-01】本次界面会话里是否出现过失败（退出界面时随 UI_CLOSE 上报给服务端）。 */
+    private boolean uiFailed;
 
     private static final Logger LOGGER = LoggerFactory.getLogger("smoothlift");
 
@@ -133,9 +138,10 @@ public class PsdToneSetupScreen extends Screen {
 
     /** 主界面状态行的实际 y：往下挪一档，但上下都不许压到邻居（见 {@link #STATUS_Y_MAIN}）。 */
     private int mainStatusY() {
-        // 固定区最后一行 =「进站播放音频 / 到站前几秒」（y = LIST_TOP+10+ROW_H*4，高 20）
-        // 【1.21】ROW_H*3 → ROW_H*4：主界面又多了「进站播放音频」那一行（在到站播放音频下面）。
-        int fixedBottom = LIST_TOP + 10 + ROW_H * 4 + 20;
+        // 固定区最后一行 =「进站广播(讲述人)」（y = LIST_TOP+10+ROW_H*5，高 20）
+        // 【1.21】ROW_H*3 → ROW_H*4：主界面又多了「进站播放音频」那一行。
+        // 【09-30 续 3】ROW_H*4 → ROW_H*5：多了「站台广播(讲述人)」那一行。
+        int fixedBottom = LIST_TOP + 10 + ROW_H * 5 + 20;
         int y = Math.max(this.height + STATUS_Y_MAIN, fixedBottom + 4);
         // 再往下那一档是「强制等待」输入框（高 20）—— 别把字压到它的边框上。
         // ★ 这两个约束（上限 = 别压强制等待框；下限 = 别压上面四行）在**窗口很矮时会打架**：
@@ -273,6 +279,21 @@ public class PsdToneSetupScreen extends Screen {
         };
     }
 
+    /**
+     * 【09-29】右上角「打开文件夹」要开的那一层分类。
+     *
+     * <p>列表页（1/2/3/4）= 本页自己的分类子文件夹（{@code pbm/arrive} 等）；
+     * 主界面（0）与讲述人页（5）**没有**音频素材目录（讲述人走文字转语音、不读 ogg）
+     * ⇒ 退到 {@code pbm} 这一组，玩家往里看到的还是那四个分类文件夹。
+     *
+     * <p>★ 只此一处映射：「列表读哪个文件夹」与「按钮开哪个文件夹」共用 {@link #categoryForPage}，
+     * 不另抄一份表 —— 否则以后加一页就会「列表读 A、按钮开 B」而两边都不报错。
+     */
+    private static String folderCategoryForPage(int page) {
+        String category = categoryForPage(page);
+        return category == null ? EscalatorSpeedManager.GROUP_PSD : category;
+    }
+
     private EditBox openVolumeInput;
     private EditBox closeVolumeInput;
     /** 【1.23】主界面「开门提示」行等待秒数框（秒，[0,+∞)）。 */
@@ -295,6 +316,13 @@ public class PsdToneSetupScreen extends Screen {
      * （用户确认「只做开/关」）。
      */
     private EditBox narrateLeadInput;
+    /**
+     * 【09-30 续 3】主界面「站台广播(讲述人)」行的等待秒数框（秒，[0,+∞)）。
+     *
+     * <p>★ 它是站台讲述人**自己**的窗口 —— 与 pbmmidium 的等待秒数、进站讲述人的
+     * 「到站前」秒数都各存各的。方向与进站讲述人**相反**：这是开门**之后**再等 Y 秒开念。
+     */
+    private EditBox midiumNarrateLeadInput;
 
     private static volatile PsdToneSetupScreen OPEN;
 
@@ -360,6 +388,11 @@ public class PsdToneSetupScreen extends Screen {
         if (page != 0) {
             // 【1.23】二级菜单（开门/关门/站台/进站广播页）按 Esc = **返回主界面，不落地输入框编辑**；
             //   只有在一级主界面按 Esc 才落地并退出 UI（用户点名：Esc = 返回上一级，没得返回才退出）。
+            //   【09-30 续】唯一例外 = 讲述人页的**左侧编辑器**：它存的是本机配置（不是
+            //   服务端数据），离开本页就要落地 —— 否则「输入完成直接自动保存」就名存实亡。
+            if (page == 5 || page == 6) {
+                saveEditor();
+            }
             page = 0;
             scroll = 0;
             init();
@@ -368,6 +401,8 @@ public class PsdToneSetupScreen extends Screen {
             if (OPEN == this) {
                 OPEN = null;
             }
+            // 【10-01】真正「退出界面」（一级菜单）：让服务端把本次界面会话的结果回一条。
+            SmoothLiftClient.sendUiClose(!uiFailed);
             super.onClose();
         }
     }
@@ -394,7 +429,10 @@ public class PsdToneSetupScreen extends Screen {
             buildArrivalPage();
         } else if (page == 4) {
             buildArrivePage();
-        } else if (page == 5) {
+        } else if (page == 5 || page == 6) {
+            // 【09-30 续 3】两个讲述人二级页共用同一套构建：5 = 进站广播（讲述人）、
+            //   6 = 站台广播（讲述人），narratorTarget 决定它们读写的档位。
+            narratorTarget = page - 5;
             buildNarratePage();
         } else {
             buildTonePage(PAGES[page - 1]);
@@ -409,6 +447,10 @@ public class PsdToneSetupScreen extends Screen {
         //   所以不能只给 0 页落。
         addRenderableWidget(SyncPopupScreen.syncButton(this, "psd", page, runKey,
                 this::applyMainInputs));
+        // 【09-29】右上角「打开文件夹」（在「同步所有」左边）：开的就是**本页列表读的那个**
+        //   分类子文件夹（主界面 / 讲述人页没有分类 ⇒ 开 pbm 这一组，见 folderCategoryForPage）。
+        addRenderableWidget(FolderOpenButton.of(this,
+                FolderOpenButton.audioPath(folderCategoryForPage(page))));
     }
 
     // ------------------------------------------------------------------
@@ -517,13 +559,32 @@ public class PsdToneSetupScreen extends Screen {
         arriveLoudInput.setValue(String.valueOf(EscalatorSpeedManager.getDoorPsdArriveVolume(mcLevel(), runKey)));
         addRenderableWidget(arriveLoudInput);
 
-        // 【09-28】进站广播（讲述人）：**放在进站广播的下面一行**——用户点名「ui 和『进站广播』
-        //   样式一样」。版式与上一行同款，但**少了音量框**：text2speech 库不给音量参数
-        //   （用户确认「只做开/关」）⇒ 这一行只有 [按钮] + 「等待秒数:」框。
-        //   ★ 秒数框是讲述人**自己**的窗口（用户点名「取消借用进站广播」），范围同为 (-∞, 0]。
+        // 【09-30 续 3】站台广播（讲述人）：**放在进站广播(讲述人)的上面一行**（用户点名）。
+        //   版式与进站讲述人那一行同款（[按钮] + 「等待秒数:」框，没有音量框）；秒数是
+        //   站台讲述人**自己**的等待窗口，范围 [0,+∞)：开门音播完之后再等 Y 秒开念
+        //   （方向与进站讲述人的「到站前 X 秒」相反 —— 站台广播是开门之后的事）。
+        int midiumNarrateY = LIST_TOP + 10 + ROW_H * 4;
+        addRenderableWidget(Button.builder(Component.literal("站台广播(讲述人)"), button -> {
+                    applyMainInputs();
+                    page = 6;
+                    scroll = 0;
+                    init();
+                })
+                .bounds(cx - BTN_W / 2, midiumNarrateY, 96, 20)
+                .build());
+        midiumNarrateLeadInput = new EditBox(this.font, rowWaitBoxX(cx), midiumNarrateY, ROW_BOX_W, 20,
+                Component.literal(ROW_WAIT_LABEL));
+        midiumNarrateLeadInput.setMaxLength(10); // 0~2147483647 共 10 位
+        midiumNarrateLeadInput.setValue(
+                String.valueOf(EscalatorSpeedManager.getDoorPsdMidiumNarrateSeconds(mcLevel(), runKey)));
+        addRenderableWidget(midiumNarrateLeadInput);
+
+        // 【09-28】进站广播（讲述人）：原来在 ROW_H*4，【09-30 续 3】被站台讲述人顶到 *5。
+        //   版式：[按钮] + 「等待秒数:」框（没有音量框——text2speech 库不给音量参数）。
+        //   ★ 秒数框是进站讲述人**自己**的窗口（用户点名「取消借用进站广播」），范围 (-∞, 0]。
         //   ★ 开关（关闭 / 开启）不在这里，在二级页右列（用户点名「讲述人的2级菜单…右侧菜单留着
         //   『关闭』和『开启』按钮」）。
-        int narrateY = LIST_TOP + 10 + ROW_H * 4;
+        int narrateY = LIST_TOP + 10 + ROW_H * 5;
         addRenderableWidget(Button.builder(Component.literal("进站广播(讲述人)"), button -> {
                     applyMainInputs();
                     page = 5;
@@ -631,14 +692,27 @@ public class PsdToneSetupScreen extends Screen {
                 sendSetNarrateLead(lead);
             }
         }
+        // 【09-30 续 3】站台讲述人的等待秒数：范围 [0,+∞)（开门音播完后再等 Y 秒开念）。
+        if (midiumNarrateLeadInput != null) {
+            Integer sec = parseMidiumWait(midiumNarrateLeadInput.getValue());
+            if (sec == null) {
+                notifyBadInput("站台广播(讲述人)的等待秒数必须是 0 或更大的整数，"
+                        + "含义 = 开门音播完之后再等 Y 秒开念，已忽略");
+            } else if (sec != EscalatorSpeedManager.getDoorPsdMidiumNarrateSeconds(mcLevel(), runKey)) {
+                sendSetMidiumNarrateLead(sec);
+            }
+        }
+        // 【09-30 续】讲述人页的左侧编辑器也在「同步所有」弹窗弹出前落地
+        //   （弹窗会把本界面重建一次，不收就丢）。其它页调用到这里时编辑器是空的，等于空操作。
+        saveEditor();
     }
 
     /** 输入框里的值不合法、又已经离开界面时的提示（界面里那行状态已经看不到了）。 */
     private void notifyBadInput(String why) {
-        Minecraft mc = Minecraft.getInstance();
-        if (mc.player != null) {
-            mc.player.displayClientMessage(Component.literal("[SmoothLift] " + why), false);
-        }
+        // 【10-01】不再单独往聊天框打长句：记下「本次界面会话失败过」，
+        //   退出界面时由服务端统一回一条「UI执行失败」；细节留在日志里。
+        uiFailed = true;
+        LOGGER.warn("[SmoothLift/UI] {}", why);
     }
 
     /**
@@ -807,6 +881,35 @@ public class PsdToneSetupScreen extends Screen {
         if (level != null) {
             EscalatorSpeedManager.applyClientPsdDoorLocal(level.dimension(), runKey,
                     t -> t.withNarrate(EscalatorSpeedData.clampPsdNarrateMode(mode)));
+        }
+    }
+
+    /** 【09-30 续 3】把**站台**讲述人的样式发出去（= SET_PSD_MIDIUM_NARRATE_CHANNEL，档位共用）。 */
+    private void sendSetMidiumNarrate(int mode) {
+        FriendlyByteBuf buf = PacketByteBufs.create();
+        buf.writeLong(runKey); // 这一串门
+        buf.writeVarInt(mode);
+        ClientPlayNetworking.send(SmoothLift.SET_PSD_MIDIUM_NARRATE_CHANNEL, buf);
+        setStatus("已把这一串屏蔽门的站台广播(讲述人)设为"
+                + EscalatorSpeedData.psdNarrateModeName(mode));
+        Level level = mcLevel();
+        if (level != null) {
+            EscalatorSpeedManager.applyClientPsdDoorLocal(level.dimension(), runKey,
+                    t -> t.withMidiumNarrate(EscalatorSpeedData.clampPsdNarrateMode(mode)));
+        }
+    }
+
+    /** 【09-30 续 3】把**站台**讲述人的等待秒数发出去（= SET_PSD_MIDIUM_NARRATE_LEAD_CHANNEL，[0,+∞)）。 */
+    private void sendSetMidiumNarrateLead(int seconds) {
+        FriendlyByteBuf buf = PacketByteBufs.create();
+        buf.writeLong(runKey); // 这一串门
+        buf.writeVarInt(seconds);
+        ClientPlayNetworking.send(SmoothLift.SET_PSD_MIDIUM_NARRATE_LEAD_CHANNEL, buf);
+        setStatus("已把这一串屏蔽门的站台广播(讲述人)设为开门音播完 " + seconds + " 秒后开念");
+        Level level = mcLevel();
+        if (level != null) {
+            EscalatorSpeedManager.applyClientPsdDoorLocal(level.dimension(), runKey,
+                    t -> t.withMidiumNarrateSeconds(EscalatorSpeedData.clampPsdMidiumNarrateSeconds(seconds)));
         }
     }
 
@@ -1202,27 +1305,124 @@ public class PsdToneSetupScreen extends Screen {
     }
 
     // ------------------------------------------------------------------
-    // 【09-28】进站广播（讲述人）：**没有列表**。
-    //   用户点名：「讲述人的2级菜单左侧列表空着就行，因为不用导入什么，右侧菜单留着
-    //   『关闭』和『开启』按钮就行，这2个只保留『选择』按钮」。
-    //   ⇒ 左列不画任何控件（也没有可导入的东西）；右列 = 三行样式，各接一个「选择」。
-    //   ★【09-28 续】用户点名：原来的「开启」改名 **「开启(上海)」**，并**新增一行
-    //   「开启(香港)」**（香港档的报站词见 TrainAnnounceNarrator.arriveTextHongKong）；
-    //   当时页面上自上而下 = 「关闭 / 开启(上海) / 开启(香港)」。
-    //   ★【09-28 续 2】用户点名：**「香港」按钮放在「上海」按钮上面** ⇒
-    //   现在自上而下 = 「关闭 / 开启(香港) / 开启(上海)」。
-    //   ★ 行的顺序**只由下面 names/modes 两个数组的次序决定**；档位编号
-    //     （{@link EscalatorSpeedData#PSD_NARRATE_OFF} = 0 / SHANGHAI = 1 / HONGKONG = 2）
-    //     是**存档格式**，与本页的显示次序**无关** —— 调整显示顺序时**不许动**那两个常量。
-    //   三行**互斥**，当前生效的那一行打 ✓（生效值 = 门覆盖 > 维度默认）。
-    //   讲述人**没有音量**（text2speech 库不给音量参数），所以这里连音量控件都没有。
+    // 【09-28】进站广播（讲述人）二级页。
+    //   ★【09-28 续 2】右列自上而下 = 「关闭 / 开启(香港) / 开启(上海)」；档位编号
+    //     （PSD_NARRATE_OFF = 0 / SHANGHAI = 1 / HONGKONG = 2 / userN = 3+）
+    //     是**存档格式**，与本页的显示次序**无关** —— 调整显示顺序时**不许动**那些常量。
+    //
+    //   ★★【09-30 续 2】布局改版（用户点名）：
+    //     · **左侧**原来空着的地方 = 一个**巨大输入框**（WrappingEditBox，顶边自动换行
+    //       —— 只是视觉，存进去的字符串没有换行符，真正换行只有 | 记号才算数）；
+    //       输入框下面两排「插入」按钮（换行 / 车站 / 目的地 / 路线 / 站台 × 中英），
+    //       点一下在光标处填进对应记号；
+    //     · **右侧**每条自定义词从输入框改回**按钮**（名字就是 userX），点一下 = 左侧
+    //       大输入框变成这一条的编辑器；右侧还有「选择」（这一串门念它，✓当前）与
+    //       「删除」（删本行这一条）；最下面「添加预设」追加一条空的（= userN+1）；
+    //     · 点「开启(上海) / 开启(香港)」→ 左侧显示**该预设的句式**（只读，改不了；
+    //       句式里的记号和自定义词同一套）；点「关闭」→ 左侧清空；
+    //     · **没有保存按钮**：编辑完成 = 光标离开输入框 / 离开本页 / 关界面，
+    //       那一刻自动写进本机配置（saveEditor）。
+    //   词是**本机**配置（config/smoothlift-jsr.properties，UTF-8），也可用
+    //   /jsr define userN <文字> 写。
     // ------------------------------------------------------------------
+
+    /** 编辑器状态：左侧大输入框没绑任何条目（空、不可改）。 */
+    private static final int EDIT_NONE = -1;
+    /** 编辑器状态：正在预览**上海预设**的句式（只读）。 */
+    private static final int VIEW_SHANGHAI = -2;
+    /** 编辑器状态：正在预览**香港预设**的句式（只读）。 */
+    private static final int VIEW_HONGKONG = -3;
+
+    /**
+     * 【09-30 续 2】上海预设的**句式预览**（只读显示用）。记号与自定义词同一套：
+     * |WC| = 本次列车目的地中文、|DC| = 当前站台中文。
+     */
+    private static final String SHANGHAI_PREVIEW =
+            "乘客们，列车马上就要进站了，本次列车终点站：|WC|，请乘客们在|DC|站台有序候车";
+
+    /**
+     * 【09-30 续 2】香港预设的**句式预览**（只读显示用）：中英两句，中间的 | 就是换行。
+     */
+    private static final String HONGKONG_PREVIEW =
+            "前往|WC|的列车即将到达，请先让车上的乘客下车|The train to |WE| is arriving, "
+                    + "please let passengers exit first.";
+
+    /** 左侧大输入框（自动换行）。 {@code null} = 当前不在讲述人页。 */
+    private WrappingEditBox editor;
+
+    /**
+     * 【09-30 续 3】当前讲述人二级页管谁：0 = 进站广播（讲述人，page 5）、
+     * 1 = 站台广播（讲述人，page 6）。两个二级页共用同一套布局，只差读写哪一份档位。
+     */
+    private int narratorTarget;
+
+    /** 当前讲述人二级页**生效**的样式（进站 / 站台各查各的那一份）。 */
+    private int currentNarrateMode() {
+        return narratorTarget == 0
+                ? EscalatorSpeedManager.getDoorPsdNarrateMode(mcLevel(), runKey)
+                : EscalatorSpeedManager.getDoorPsdMidiumNarrateMode(mcLevel(), runKey);
+    }
+
+    // ---- 【10-01】讲述人自定义文字按目标路由：进站 / 站台两份分开（用户点名）----
+    //   两页共用的同一套界面，只差读写的**那份**列表；增删改发回服务端存进档案。
+
+    /** 当前讲述人二级页那份自定义词条数（进站 / 站台各查各的）。 */
+    private int currentUserTextCount() {
+        return narratorTarget == 0
+                ? TrainAnnounceSwitch.userTextCount()
+                : TrainAnnounceSwitch.midiumUserTextCount();
+    }
+
+    /** 当前讲述人二级页那份自定义词第 {@code idx0} 条的原文。 */
+    private String currentUserTextRaw(int idx0) {
+        return narratorTarget == 0
+                ? TrainAnnounceSwitch.userTextRaw(idx0)
+                : TrainAnnounceSwitch.midiumUserTextRaw(idx0);
+    }
+
+    /** 改当前讲述人二级页那份自定义词的第 {@code idx0} 条（发回服务端存档）。 */
+    private void setCurrentUserText(int idx0, String text) {
+        if (narratorTarget == 0) {
+            TrainAnnounceSwitch.setUserText(idx0, text);
+        } else {
+            TrainAnnounceSwitch.setMidiumUserText(idx0, text);
+        }
+    }
+
+    /** 追加一条当前讲述人二级页那份自定义词；达到上限返回 -1。 */
+    private int addCurrentUserText(String text) {
+        return narratorTarget == 0
+                ? TrainAnnounceSwitch.addUserText(text)
+                : TrainAnnounceSwitch.addMidiumUserText(text);
+    }
+
+    /** 删当前讲述人二级页那份自定义词的第 {@code idx0} 条（序号整体前移）。 */
+    private void deleteCurrentUserText(int idx0) {
+        if (narratorTarget == 0) {
+            TrainAnnounceSwitch.deleteUserText(idx0);
+        } else {
+            TrainAnnounceSwitch.deleteMidiumUserText(idx0);
+        }
+    }
+
+    /**
+     * 左侧大输入框当前绑着谁：&ge; 0 = 正在编辑第 N 条自定义词（0 起）；
+     * {@link #VIEW_SHANGHAI} / {@link #VIEW_HONGKONG} = 只读预览对应预设；
+     * {@link #EDIT_NONE} = 空。
+     */
+    private int editingIndex = EDIT_NONE;
 
     private void buildNarratePage() {
         int cx = this.width / 2;
-        // 这一页没有列表 ⇒ 也不该有滚动（上一页可能留下 scroll，这里归零）。
-        scroll = 0;
-        maxScroll = 0;
+        // 右列总行数 = 内置样式行 + N 条自定义 + 1 行「添加预设」；超出可视区就滚（与广播页同一套滚动）。
+        //   【09-30 续 4】内置行数按页分：进站讲述人 3 行（关闭/香港/上海）、站台讲述人 1 行（关闭）。
+        int builtinRows = narratorTarget == 0 ? 3 : 1;
+        int userCount = currentUserTextCount();
+        int rowCount = builtinRows + 1 + userCount;
+        int total = rowCount * ROW_H;
+        int visible = Math.max(ROW_H, listBottom - listTop);
+        maxScroll = Math.max(0, total - visible);
+        scroll = Math.max(0, Math.min(scroll, maxScroll));
         addRenderableWidget(Button.builder(Component.literal("返回"), button -> {
             page = 0;
             scroll = 0;
@@ -1233,16 +1433,21 @@ public class PsdToneSetupScreen extends Screen {
             setStatus("已请求刷新，同步回来后自动更新");
         }).bounds(cx + 4, this.height + BTN_Y, 96, 20).build());
 
-        int mode = EscalatorSpeedManager.getDoorPsdNarrateMode(mcLevel(), runKey);
-        // 三行 = 关闭 / 开启(香港) / 开启(上海)；每行只有「名字」+「选择」两个控件
-        //   （用户点名「这2个只保留『选择』按钮」⇒ 没有「删除」）。
-        //   名字按钮与「选择」做同一件事：顺手点名字就行（与到站 / 进站页同一口味）。
-        //   ★【09-28 续 2】「香港」在上、「上海」在下（用户点名）。
+        int mode = currentNarrateMode();
+        // 内置行：【09-30 续 4】进站讲述人 = 关闭 / 开启(香港) / 开启(上海)；每行「名字」+「选择」
+        //   两个控件（名字按钮与「选择」做同一件事）。★【09-30 续 2】点上海 / 香港 = 除切样式外，
+        //   左侧大输入框变成**该预设句式的只读预览**；点「关闭」= 左侧清空。
+        //   站台讲述人**只有**「关闭」—— 香港 / 上海预设已删（用户点名：那两句是进站报站的
+        //   句式，站台讲述人只念自定义词 userN）。
         //   ★ 这里**只是显示次序**；names[row] 与 modes[row] 必须**成对**，别只换一个数组。
-        String[] names = {"关闭", "开启(香港)", "开启(上海)"};
-        int[] modes = {EscalatorSpeedData.PSD_NARRATE_OFF,
+        String[] names = narratorTarget == 0
+                ? new String[]{"关闭", "开启(香港)", "开启(上海)"}
+                : new String[]{"关闭"};
+        int[] modes = narratorTarget == 0
+                ? new int[]{EscalatorSpeedData.PSD_NARRATE_OFF,
                 EscalatorSpeedData.PSD_NARRATE_HONGKONG,
-                EscalatorSpeedData.PSD_NARRATE_SHANGHAI};
+                EscalatorSpeedData.PSD_NARRATE_SHANGHAI}
+                : new int[]{EscalatorSpeedData.PSD_NARRATE_OFF};
         for (int row = 0; row < names.length; row++) {
             int y = rowY(row);
             if (!fullyVisible(y)) {
@@ -1259,34 +1464,235 @@ public class PsdToneSetupScreen extends Screen {
                     .bounds(rightColX() + ROW_NAME_W + ROW_BTN_GAP, y, ROW_BTN_W, 20)
                     .build());
         }
+        // 【09-30 续 2】自定义词行：右列每行从输入框改回**按钮**（名字 = userX）——
+        //   点名字 = 左侧大输入框变成这一条的编辑器（用户点名）。
+        //   「选择」= 这一串门念它（✓当前）、「删除」= 删本行这一条。
+        for (int i = 0; i < userCount; i++) {
+            int y = rowY(builtinRows + i);
+            if (!fullyVisible(y)) {
+                continue;
+            }
+            int target = EscalatorSpeedData.psdNarrateUserMode(i);
+            final int idx0 = i;
+            addRenderableWidget(Button.builder(Component.literal("user" + (i + 1)),
+                            button -> openInEditor(idx0))
+                    .bounds(rightColX(), y, ROW_NAME_W, 20)
+                    .build());
+            addRenderableWidget(Button.builder(Component.literal(mode == target ? "✓当前" : "选择"),
+                            button -> pickNarrate(target))
+                    .bounds(rightColX() + ROW_NAME_W + ROW_BTN_GAP, y, ROW_BTN_W, 20)
+                    .build());
+            addRenderableWidget(Button.builder(Component.literal("删除"), button -> deleteUserEntry(idx0))
+                    .bounds(rightColX() + COL_W - ROW_BTN_W, y, ROW_BTN_W, 20)
+                    .build());
+        }
+        // 「添加预设」：与其它按钮一样大（ROW_NAME_W），右侧空着；点一下追加一条空的
+        //   自定义词（= userN+1）并立刻在左侧打开编辑。
+        int addY = rowY(builtinRows + userCount);
+        if (fullyVisible(addY)) {
+            addRenderableWidget(Button.builder(Component.literal("添加预设"), button -> addNewUserSlot())
+                    .bounds(rightColX(), addY, ROW_NAME_W, 20)
+                    .build());
+        }
+
+        // 【09-30 续 2】左侧：巨大输入框（自动换行）+ 两排「插入记号」按钮。
+        //   两排**紧贴**（中文排 listBottom-42 起、英文排 listBottom-20 起，20 高各一行
+        //   —— 用户点名「英文部分太靠下了」：两排之间不留空档）；输入框到按钮排上方为止。
+        int insertTop = listBottom - 42;
+        editor = new WrappingEditBox(this.font, 8, listTop, cx - 2 - 8, insertTop - 4 - listTop,
+                Component.literal("自定义播报词"));
+        editor.setMaxLength(256);
+        switch (editingIndex) {
+            case VIEW_SHANGHAI -> {
+                editor.setEditable(false);
+                editor.setValue(SHANGHAI_PREVIEW);
+            }
+            case VIEW_HONGKONG -> {
+                editor.setEditable(false);
+                editor.setValue(HONGKONG_PREVIEW);
+            }
+            case EDIT_NONE -> {
+                editor.setEditable(false);
+                editor.setValue("");
+                editor.setHint(Component.literal("在右侧点选要编辑的预设"));
+            }
+            default -> {
+                editor.setEditable(true);
+                editor.setValue(currentUserTextRaw(editingIndex));
+                editor.setHint(Component.literal("user" + (editingIndex + 1)));
+            }
+        }
+        addRenderableWidget(editor);
+        buildInsertButtons(8, cx - 2, insertTop, listBottom - 20);
     }
 
-    /** 点「关闭 / 开启(上海) / 开启(香港)」→ 设为这一串门的讲述人样式（秒数不动）。 */
-    private void pickNarrate(int mode) {
-        sendSetNarrate(mode);
+    /**
+     * 【09-30 续 2】输入框下面的两排「插入记号」按钮：
+     * <pre>
+     *   换行   车站(中)  目的地(中)  路线(中)  站台(中)
+     *   （空）  车站(英)  目的地(英)  路线(英)  站台(英)
+     * </pre>
+     * 列在两排之间**左右对齐**（列宽 = 两排里较宽的那个标签 + 内边距）；「换行」下面空着。
+     * 点一下在**光标处**填进对应记号（用户点名）。太窄的窗口自动把内边距压到 1px 再均摊。
+     */
+    private void buildInsertButtons(int x0, int x1, int row1Y, int row2Y) {
+        String[] cn = {"换行", "车站(中)", "目的地(中)", "路线(中)", "站台(中)"};
+        String[] en = {null, "车站(英)", "目的地(英)", "路线(英)", "站台(英)"};
+        // 列 → 记号（列 0 = 换行；中英两排同一列是同一对象的中文名 / 英文名）。
+        String[] cnTokens = {"|", "|SC|", "|WC|", "|LC|", "|DC|"};
+        String[] enTokens = {"|SE|", "|WE|", "|LE|", "|DE|"};
+        int cols = cn.length;
+        int[] widths = new int[cols];
+        int total = 0;
+        for (int i = 0; i < cols; i++) {
+            int label = Math.max(font.width(cn[i]), en[i] == null ? 0 : font.width(en[i]));
+            widths[i] = label + 6; // 左右各 3px 内边距
+            total += widths[i];
+        }
+        int avail = x1 - x0;
+        int gap = 2;
+        if (total + gap * (cols - 1) > avail) {
+            // 太窄：内边距压到 1px、间隙压到 1px 再试（标签可能贴边，能点就行）。
+            for (int i = 0; i < cols; i++) {
+                widths[i] -= 4;
+            }
+            total -= 4 * cols;
+            gap = 1;
+        }
+        // 剩余空间均摊进列宽（保持左右对齐、右侧不超出左区）。
+        int slack = avail - total - gap * (cols - 1);
+        if (slack > 0) {
+            for (int i = 0; i < cols; i++) {
+                widths[i] += slack / cols;
+            }
+        }
+        int x = x0;
+        for (int i = 0; i < cols; i++) {
+            final int col = i;
+            addRenderableWidget(Button.builder(Component.literal(cn[i]),
+                            button -> insertAtCursor(cnTokens[col]))
+                    .bounds(x, row1Y, Math.max(8, widths[i]), 20).build());
+            if (en[i] != null) {
+                addRenderableWidget(Button.builder(Component.literal(en[i]),
+                                button -> insertAtCursor(enTokens[col - 1]))
+                        .bounds(x, row2Y, Math.max(8, widths[i]), 20).build());
+            }
+            x += Math.max(8, widths[i]) + gap;
+        }
+    }
+
+    /** 把左侧输入框当前的字收进配置（只在编辑某条自定义词时有事做；没改不写盘）。 */
+    private void saveEditor() {
+        if (editor != null && editingIndex >= 0 && editor.isTextEditable()) {
+            setCurrentUserText(editingIndex, editor.getValue());
+        }
+    }
+
+    /** 点右侧 userX 按钮：先存好正在编辑的那条，再把左侧输入框切到这一条。 */
+    private void openInEditor(int idx0) {
+        saveEditor();
+        editingIndex = idx0;
         init();
     }
 
-    /** 讲述人页：只有标题 + 中间一条竖线 + 状态行（左列空着，用户点名）。 */
+    /**
+     * 在**光标处**填进一个记号（用户点名：点按钮 = 在文本光标处自动填充）。
+     * 只在编辑某条自定义词时生效；填完立刻自动保存并让焦点回到输入框（接着打字）。
+     * ★【09-30 续 5】没选预设时点按钮**静默忽略** —— 用户点名删掉那行提示黄字。
+     */
+    private void insertAtCursor(String token) {
+        if (editor == null || !editor.isTextEditable() || editingIndex < 0) {
+            return;
+        }
+        String old = editor.getValue();
+        int pos = Mth.clamp(editor.getCursorPosition(), 0, old.length());
+        editor.setValue(old.substring(0, pos) + token + old.substring(pos));
+        editor.setCursorPosition(pos + token.length());
+        editor.setHighlightPos(pos + token.length());
+        saveEditor();
+        setFocused(editor);
+    }
+
+    /** 「添加预设」：追加一条**空**的自定义词（= 新的 userN），并在左侧立刻打开它。 */
+    private void addNewUserSlot() {
+        saveEditor();
+        int index = addCurrentUserText("");
+        if (index < 0) {
+            setStatus("自定义播报词已达上限（" + EscalatorSpeedData.MAX_PSD_NARRATE_USER_STYLES + " 条）");
+            return;
+        }
+        setStatus("已新增 user" + (index + 1) + "：在左侧写播报文字，写完自动保存到存档；点这一行右侧「选择」让这一串门念它");
+        editingIndex = index;
+        init();
+    }
+
+    /** 「删除」（每行一个）：删掉**本行**这一条自定义词，后面的 userN 序号整体前移一位。 */
+    private void deleteUserEntry(int idx0) {
+        saveEditor();
+        deleteCurrentUserText(idx0);
+        // 编辑中的条目被删 / 序号前移 ⇒ 编辑器跟着改绑（绑到已不存在的条目会把字写错行）。
+        if (editingIndex == idx0) {
+            editingIndex = EDIT_NONE;
+        } else if (editingIndex > idx0) {
+            editingIndex--;
+        }
+        setStatus("已删除 user" + (idx0 + 1) + "；后面的序号已整体前移");
+        init();
+    }
+
+    /** 点「关闭 / 开启(上海) / 开启(香港) / userN」→ 设为这一串门的讲述人样式（秒数不动）。 */
+    private void pickNarrate(int mode) {
+        // 先把左侧输入框里刚敲的字存掉（马上要 init() 重建控件）。
+        saveEditor();
+        // 【09-30 续 3】按本页管的那条链路发：进站讲述人 / 站台讲述人各写各的档位。
+        if (narratorTarget == 0) {
+            sendSetNarrate(mode);
+        } else {
+            sendSetMidiumNarrate(mode);
+        }
+        // 【09-30 续 2】左侧编辑器跟着点的东西走：上海 / 香港 = 该预设句式（只读）、
+        //   自定义词 = 打开这一条继续编辑、「关闭」= 清空。
+        if (mode == EscalatorSpeedData.PSD_NARRATE_SHANGHAI) {
+            editingIndex = VIEW_SHANGHAI;
+        } else if (mode == EscalatorSpeedData.PSD_NARRATE_HONGKONG) {
+            editingIndex = VIEW_HONGKONG;
+        } else if (mode == EscalatorSpeedData.PSD_NARRATE_OFF) {
+            editingIndex = EDIT_NONE;
+        } else {
+            editingIndex = EscalatorSpeedData.psdNarrateUserIndex(mode);
+        }
+        init();
+    }
+
+    /** 讲述人页：标题 + 中间一条竖线 + 右列滚动条 + 状态行（左列 = 编辑器，右列 = 样式列表）。 */
     private void renderNarratePage(GuiGraphics guiGraphics) {
         int cx = this.width / 2;
         guiGraphics.drawCenteredString(this.font,
-                Component.literal("进站广播(讲述人)"), cx, 22, 0xFFFFFF);
+                Component.literal(narratorTarget == 0 ? "进站广播(讲述人)" : "站台广播(讲述人)"),
+                cx, 22, 0xFFFFFF);
         // 中间那条竖线（与其它列表页同款，让「左空 / 右有」在视觉上一眼分明）
         guiGraphics.fill(cx, listTop, cx + 1, listBottom, 0x80FFFFFF);
 
-        int statusY = this.height + STATUS_Y_LIST;
-        String info = statusText;
-        if (info == null) {
-            Level level = mcLevel();
-            int mode = EscalatorSpeedManager.getDoorPsdNarrateMode(level, runKey);
-            int lead = EscalatorSpeedManager.getDoorPsdNarrateSeconds(level, runKey);
-            info = "这一串门当前：" + EscalatorSpeedData.psdNarrateModeName(mode)
-                    + "　到站前 " + (-lead) + " 秒"
-                    + "（讲述人没有音量、也没有素材）";
+        // 【09-30】右列滚动条（自定义词多到超出一屏时出现，与广播页同一套）。
+        //   【09-30 续 4】内置行数按页分：进站讲述人 3 行、站台讲述人 1 行。
+        int rowCount = (narratorTarget == 0 ? 3 : 1) + 1 + currentUserTextCount();
+        if (maxScroll > 0 && rowCount > 0) {
+            int barX = rightColX() + COL_W + 8;
+            int trackTop = listTop;
+            int trackH = Math.max(ROW_H, listBottom - listTop);
+            guiGraphics.fill(barX, trackTop, barX + 4, trackTop + trackH, 0x40000000);
+            int thumbH = Math.max(14, trackH * trackH / (rowCount * ROW_H));
+            int thumbY = trackTop + (trackH - thumbH) * scroll / maxScroll;
+            guiGraphics.fill(barX, thumbY, barX + 4, thumbY + thumbH, 0xFFAAAAAA);
         }
-        guiGraphics.drawCenteredString(this.font, Component.literal(info), cx, statusY,
-                statusText == null ? 0xFFFFFF : 0xFFFF55);
+
+        // 【09-30 续 2】常驻的「这一串门当前…」状态行已按点名删掉 —— 只有点按钮产生的
+        //   即时反馈（statusText）才显示。
+        if (statusText == null) {
+            return;
+        }
+        guiGraphics.drawCenteredString(this.font, Component.literal(statusText), cx,
+                this.height + STATUS_Y_LIST, 0xFFFF55);
     }
 
     /** 两列行数取**较大**的那一边算滚动范围（列之间独立，但共用一个滚动偏移）。 */
@@ -1618,12 +2024,49 @@ public class PsdToneSetupScreen extends Screen {
     @Override
     public boolean mouseScrolled(double mouseX, double mouseY, double scrollX, double scrollY) {
         if (page > 0 && maxScroll > 0 && scrollY != 0.0) {
+            // 【09-30 续】讲述人页滚动会重建控件，先把左侧编辑器里的字存掉再滚。
+            if (page == 5 || page == 6) {
+                saveEditor();
+            }
             scroll -= (int) Math.round(scrollY * ROW_H);
             scroll = Math.max(0, Math.min(scroll, maxScroll));
             buildUi();
             return true;
         }
         return super.mouseScrolled(mouseX, mouseY, scrollX, scrollY);
+    }
+
+    // ------------------------------------------------------------------
+    // 【09-30 续 2】左侧编辑器的「自动保存」钩子（用户点名：输入完成直接保存，不用保存按钮）。
+    //   「输入完成」在 Minecraft 里没有现成信号，用四个时机兜底：
+    //   ① 光标离开输入框（点了别的控件）→ setFocused；② 离开本页 / 关界面 → onClose；
+    //   ③ 本界面被整体换掉（打开「同步所有」弹窗等）→ removed；④ 滚动 / 点按钮重建控件前
+    //   → 各自入口里的 saveEditor。每次写盘都先比对（TrainAnnounceSwitch.setUserText 内判），
+    //   没改不写盘。
+    // ------------------------------------------------------------------
+
+    @Override
+    public void setFocused(GuiEventListener listener) {
+        if (getFocused() == editor && listener != editor) {
+            saveEditor();
+        }
+        super.setFocused(listener);
+    }
+
+    /** 本界面被别的界面顶掉（如「同步所有」弹窗）时也要把编辑器里的字存掉。 */
+    @Override
+    public void removed() {
+        saveEditor();
+        super.removed();
+    }
+
+    @Override
+    public void tick() {
+        super.tick();
+        // 光标闪烁计数（WrappingEditBox 自己数，界面每 tick 推它一下）。
+        if (editor != null) {
+            editor.tickBlink();
+        }
     }
 
     @Override
@@ -1639,7 +2082,8 @@ public class PsdToneSetupScreen extends Screen {
             renderArrivalPage(guiGraphics);
         } else if (page == 4) {
             renderArrivePage(guiGraphics);
-        } else if (page == 5) {
+        } else if (page == 5 || page == 6) {
+            narratorTarget = page - 5;
             renderNarratePage(guiGraphics);
         } else {
             renderTonePage(guiGraphics);
@@ -1658,12 +2102,15 @@ public class PsdToneSetupScreen extends Screen {
         //   ② 底部的「默认音量」与「强制等待」从上下两行并成**同一行**。
         int midiumY = LIST_TOP + 10 + ROW_H * 2;
         int arriveY = LIST_TOP + 10 + ROW_H * 3;
-        // 【09-28】讲述人那一行**只有**「等待秒数:」（没有「音量:」——见 buildMainPage）。
-        int narrateY = LIST_TOP + 10 + ROW_H * 4;
+        // 【09-30 续 3】站台广播（讲述人）在 ROW_H*4（只有「等待秒数:」），
+        //   进站广播（讲述人）被顶到 ROW_H*5（同样只有「等待秒数:」）。
+        int midiumNarrateY = LIST_TOP + 10 + ROW_H * 4;
+        int narrateY = LIST_TOP + 10 + ROW_H * 5;
         drawInputLabelAt(guiGraphics, ROW_WAIT_LABEL, cx + 4, midiumY);
         drawInputLabelAt(guiGraphics, ROW_LOUD_LABEL, rowLoudLabelX(cx), midiumY);
         drawInputLabelAt(guiGraphics, ROW_WAIT_LABEL, cx + 4, arriveY);
         drawInputLabelAt(guiGraphics, ROW_LOUD_LABEL, rowLoudLabelX(cx), arriveY);
+        drawInputLabelAt(guiGraphics, ROW_WAIT_LABEL, cx + 4, midiumNarrateY);
         drawInputLabelAt(guiGraphics, ROW_WAIT_LABEL, cx + 4, narrateY);
         // 【1.23】底部「默认音量」「强制等待」标签与「总开关：…」状态行已按点名删除。
         //   开门/关门两行的「等待秒数:」「音量:」标签（与广播两行同款版式）。

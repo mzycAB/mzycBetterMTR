@@ -189,6 +189,10 @@ public class AudioSetupScreen extends Screen {
         //   没有输入框 ⇒ beforeOpen 传 null。
         addRenderableWidget(SyncPopupScreen.syncButton(this, "esc", SmoothLift.SYNC_ESC_AUDIO,
                 pos.asLong(), null));
+        // 【09-29】右上角「打开文件夹」：本页是二级菜单 ⇒ 精确开这条分类的子文件夹
+        //   MBM_Audio/futi/music（把这页左列「未导入存档」的那个文件夹直接摆到玩家面前）。
+        addRenderableWidget(FolderOpenButton.of(this,
+                FolderOpenButton.audioPath(EscalatorSpeedManager.CAT_FUTI)));
 
         // 左列：本分类文件夹里**还没入库**的 OGG —— 点一下 = 导入存档并绑定。
         for (int i = 0; i < pending.size(); i++) {

@@ -167,9 +167,11 @@ if m_a and m_b:
           "★ ③-B 不再直接调 arriveText（那样会把香港档也念成上海词）")
     check(re.search(r"text == null \? \"跳过（这一档拼不出话，例如终点站读不到）\"", b_body) is not None,
           "★ 香港档拼不出话（终点站读不到）时 text == null ⇒ 明说是「跳过」，不是「念不出」")
-    check(re.search(r"boolean spoke = text != null && TrainAnnounceNarrator\.speak\(text\);", b_body)
-          is not None,
-          "★ 空文本不喂给 speak（否则会打一条「念不出」的假诊断）")
+    check(re.search(r"boolean spoke = text != null\s*"
+                    r"&& TrainAnnounceNarrator\.speak\(text, runKey, door\.x\(\), door\.y\(\), door\.z\(\)\);",
+                    b_body) is not None,
+          "★ 空文本不喂给 speak（否则会打一条「念不出」的假诊断）；"
+          "★【09-29】speak 还带**声源身份**（runKey + 坐标）—— 越界即掐那条护栏要用它")
     check("state.firedArrivalNarrate = arrivalMs;" in b_body,
           "★ 念不出声也算处理过这一班车（否则每 tick 重试、日志刷屏）—— 记在**讲述人自己**那一格")
 
@@ -192,7 +194,7 @@ print("===== 2) 窗口 / 去重各自独立，只有声源位置共用 =====")
 i_custom_sec = body.find("getDoorPsdArriveSeconds(mc.level, runKey)")
 i_narr_sec = body.find("getDoorPsdNarrateSeconds(mc.level, runKey)")
 i_a = body.find("if (customTodo) {")
-i_b = body.find("if (narrateTodo && inRange) {")
+i_b = body.find("if (narrateTodo && narrateInRange && runKey == nearestNarrateRun) {")
 check(i_custom_sec != -1 and i_narr_sec != -1 and i_a != -1 and i_b != -1,
       "四个锚点都在",
       "自定义秒数@%d 讲述人秒数@%d ③-A@%d ③-B@%d" % (i_custom_sec, i_narr_sec, i_a, i_b))
@@ -210,10 +212,12 @@ check(body.count("Arrive state = arriveVoice.computeIfAbsent(runKey") == 1,
       "去重状态表只取一次（表本身仍按串锚点）")
 check(body.count("double distance = player == null") == 1,
       "声源距离只算一次（两条共用 —— 本来就只有一个声源）")
-check(body.count("boolean inRange = gain(distance, ROUND_ARRIVE) > 0.0;") == 1,
-      "可闻范围只算一次 = gain(距离)。没有音量项 ⇒ 讲述人不吃自定义那条的音量")
-check(body.count("gain(distance, ROUND_ARRIVE)") == 2,
-      "gain(距离) 正好两处：① 上面那份 inRange；② ③-A 里乘音量 —— ③-B 不再自己算一份")
+check(body.count("boolean narrateInRange = !TrainAnnounceSwitch.isOutsideNarrateRange(") == 1,
+      "★★ 讲述人的可闻范围**只算一次** = 它**自己**的 /jsr round AAA BBB"
+      "（【09-29】不再借用 /pbmarriveround 那份）；讲述人没有音量项 ⇒ 不吃自定义那条的音量")
+check(body.count("gain(distanceXz, distanceY, ROUND_ARRIVE)") == 1,
+      "gain(双维距离, ROUND_ARRIVE) **只剩 ③-A 里那一处**（乘音量）"
+      " —— ③-B 不再自己算一份增益（它的范围走 narrateInRange 那条 /jsr 判据）")
 check(re.search(r"private static boolean sameTrainAs\(long recorded, long arrivalMs\)\s*\{", player)
       is not None,
       "★ 同一班车判定收成一个函数 sameTrainAs（两条各传各的记录，改容差只改一处）")
@@ -261,8 +265,10 @@ check(re.search(r"public static String arriveText\(String destination,\s*"
       "arriveText(destination, platformName) —— 两个入参各自可缺，缺谁删谁那一小句")
 check(re.search(r"String terminus = trimToNull\(destination\);\s*"
                 r"if \(terminus != null\)\s*\{\s*"
-                r"text\.append\(TERMINUS_LEAD\)\.append\(terminus\);", narrator) is not None,
-      "终点站读不到就**整句不接**（不是接一个空值）")
+                r"text\.append\(TERMINUS_LEAD\)\.append\(chineseOnlyName\(terminus\)\);",
+                narrator) is not None,
+      "终点站读不到就**整句不接**（不是接一个空值）；"
+      "★【09-29】接的时候只取**中文名**（chineseOnlyName）—— 双语字段别把英文也念出来")
 check(re.search(r"if \(platform == null\)\s*\{\s*text\.append\(NO_PLATFORM_TAIL\);", narrator)
       is not None,
       "站台名读不到走兜底句（两个分支真的分叉，不是「有值没值都接同一句」）")
@@ -453,8 +459,8 @@ check(re.search(r'putOptInt\(t, "narrate", v\.narrate\(\)\);', data) is not None
       and re.search(r'putOptInt\(t, "narrateSeconds", v\.narrateSeconds\(\)\);', data) is not None,
       "存档写：narrate / narrateSeconds 两键（都走 putOptInt，读侧同名同型）")
 check(re.search(r"public int defaultPsdNarrateMode = DEFAULT_PSD_NARRATE_MODE;", data) is not None
-      and re.search(r"public int defaultPsdNarrateSeconds = DEFAULT_PSD_NARRATE_SECONDS;", data)
-      is not None, "维度默认两格（defaultPsdNarrateMode（int 三档）/ defaultPsdNarrateSeconds）")
+      and re.search(r"public int defaultPsdNarrateSeconds = DEFAULT_PSD_NARRATE_LEAD_SECONDS;", data)
+      is not None, "维度默认两格（defaultPsdNarrateMode（int 三档）/ defaultPsdNarrateSeconds（【10-01】起默认 -20））")
 check(re.search(r'if \(tag\.contains\("defaultPsdNarrateMode"\)\)\s*\{\s*data\.defaultPsdNarrateMode\s*='
                 r'\s*clampPsdNarrateMode\(tag\.getInt\("defaultPsdNarrateMode"\)\);', data) is not None
       and re.search(r'tag\.putInt\("defaultPsdNarrateMode", defaultPsdNarrateMode\);', data) is not None,
@@ -473,9 +479,9 @@ check(re.search(r"public static final int PSD_NARRATE_OFF = 0;", data) is not No
 check(re.search(r"public static final int PSD_NARRATE_MODE_MAX = PSD_NARRATE_HONGKONG;", data)
       is not None,
       "★ 上界写成一个常量（加新样式时只改这一处，不散在 clamp 里）")
-check(re.search(r"public static final int DEFAULT_PSD_NARRATE_MODE = PSD_NARRATE_SHANGHAI;", data)
+check(re.search(r"public static final int DEFAULT_PSD_NARRATE_MODE = PSD_NARRATE_HONGKONG;", data)
       is not None,
-      "★ 默认档 = 开启(上海)（与升级前「默认开」的可见行为一致）")
+      "★ 默认档 = 开启(香港)（【10-01】用户点名：第一次加载模组＝香港预设；旧值上海）")
 check(re.search(r"public static int clampPsdNarrateMode\(int mode\)\s*\{\s*"
                 r"return Math\.max\(PSD_NARRATE_OFF, Math\.min\(PSD_NARRATE_MODE_MAX, mode\)\);", data)
       is not None,

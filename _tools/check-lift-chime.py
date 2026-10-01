@@ -360,8 +360,15 @@ snap4 = access_src[access_src.find("private static List<LiftView> snapshotMtr4")
 snap4 = snap4[:snap4.find("\n    /** 拿直梯 ID")]
 check("elementsOf(" in snap3, "snapshotMtr3 走 elementsOf（MTR3 的 Set 也一起兜住）")
 check("elementsOf(" in snap4, "snapshotMtr4 走 elementsOf（★ 这个才是修 bug 的那处）")
-check("!(raw instanceof Iterable" not in access_src,
-      "不再对容器直接判 instanceof Iterable（那正是 MTR4 上永远为空的写法）")
+# ★ 作用域收窄到**容器那条路径**（elementsOf + 两个快照）：这一句原先扫**全文**，
+#   于是别处任何一次**合法**的 `instanceof Iterable`（例如 MTR3 的 `List<BlockPos> floors`）
+#   都会被误判成回归。断言该盯语义，不该盯 token 出现在哪。（【1.52】踩到过）
+m = re.search(r"private static Iterable<\?> elementsOf\(.*?\n    \}", access_src, re.S)
+_el = m.group(0) if m else ""
+check(bool(_el), "找到 elementsOf 方法体（下一条容器断言的作用域）")
+check("!(raw instanceof Iterable" not in (_el + snap3 + snap4),
+      "容器路径（elementsOf + 两个快照）里不再直接判 instanceof Iterable"
+      "（那正是 MTR4 上永远为空的写法）")
 check("warnCollectionShape" in access_src and "noteCollectionShape" in access_src,
       "容器形态不认识 / 认得出时各有一次诊断日志（下次一眼看出问题）")
 

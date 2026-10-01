@@ -1,11 +1,14 @@
 # -*- coding: utf-8 -*-
 """【09-28 续 4】反向对照：把「三个预设对讲述人的态度」的错法逐个注回去，断言必须变红。
 
-用法：python _tools/_mutate_preset.py <backup|A|B|C|D|restore>
+用法：python _tools/_mutate_preset.py <backup|A|B|C|D|E|F|restore>
   A = 简单港铁的 `pbmnarrate off -f` 换回续 2 那一版 `pbmnarrate shanghai -f`
   B = 空白预设**删掉** `pbmnarrate off -f`（= 续 2 那一版「空白不加戏」）
   C = sendPreset 里把「简单 / 空白 ⇒ 关总闸」那一支删掉（只留经典开总闸）
   D = CmdTreeCheck 那份**手抄清单**只改简单港铁（制造「两处分叉」）—— 单独用 check-command-tree.sh 看
+  E = 【09-29】把简单港铁直梯那两条改回 `-f off`（= 本轮 bug 的字面形态：闸门焊死）—— 期望 1b 红
+  F = 【09-29】把经典港铁末尾那两条 `lifthelp open|close -f default` 删掉
+      （= 只写开关、不写素材 ⇒ 救不回被写成 none 的素材）—— 期望 1b 红
   restore = 从备份还原（★ 备份路径必须是 Windows 形态，见下）
 ★ 备份路径必须写成 Windows 形态（C:/Users/...）：Git Bash 的 /tmp 交给 Windows 版
   Python 会 FileNotFoundError（踩过：restore 静默失败 ⇒ mutation 叠加、红项数逐轮变多）。
@@ -71,6 +74,18 @@ elif ACT == "D":
         '                        "pbmnarrate shanghai -f"},\n'
         '                {"空白预设",',
         "手抄清单里简单港铁没跟着改")
+elif ACT == "E":
+    # 【09-29】简单港铁的直梯两条：把「素材层 none」改回「子开关层 off」= 本轮 bug 的字面形态
+    sub(SL, '            // ★ 用户原文 `-f off` → **素材层**正名 `none`（见上面 ★★★；写 off 会把子开关焊死）\n'
+            '            "lifthelp open -f none",\n',
+        '            "lifthelp open -f off",\n',
+        "简单港铁直梯开门改回 off（闸门焊死）")
+elif ACT == "F":
+    # 【09-29】经典港铁只写开关、不写素材 ⇒ 素材=none 的存档救不回来
+    sub(SL, '            "lifthelp open -f default",\n'
+            '            "lifthelp close -f default",\n',
+        '',
+        "经典港铁不再把直梯素材写回 default")
 else:
     raise SystemExit("unknown action")
 print("mutation %s applied" % ACT)

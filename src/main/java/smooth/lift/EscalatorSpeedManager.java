@@ -155,6 +155,28 @@ public final class EscalatorSpeedManager {
         public final Map<Long, EscalatorSpeedData.LiftToneAudio> liftToneAudio = new HashMap<>();
 
         // ------------------------------------------------------------------
+        // 【09-30】闸机（MTR Ticket Barrier）提示音的镜像
+        //   两层：下面这四个字段 = **维度默认层**；zhajiTone 表 = **逐组层**（石斧右键那一组）。
+        // ------------------------------------------------------------------
+
+        /** 【09-30】进站闸机（{@code mtr:ticket_barrier_entrance_1}）的提示音素材镜像。 */
+        public String zhajiToneAudioIn = EscalatorSpeedData.ZHAJI_TONE_DEFAULT;
+        /** 【09-30】出站闸机（{@code mtr:ticket_barrier_exit_1}）的提示音素材镜像。 */
+        public String zhajiToneAudioOut = EscalatorSpeedData.ZHAJI_TONE_DEFAULT;
+        /** 【09-30】进站闸机提示音音量镜像（1~1000）。 */
+        public int zhajiToneVolumeIn = EscalatorSpeedData.DEFAULT_ZHAJI_VOLUME;
+        /** 【09-30】出站闸机提示音音量镜像（1~1000）。 */
+        public int zhajiToneVolumeOut = EscalatorSpeedData.DEFAULT_ZHAJI_VOLUME;
+
+        /**
+         * 【09-30 续】石斧右键**那一组闸机**的设置镜像（组锚点 asLong → {@link EscalatorSpeedData.ZhajiTone}）。
+         *
+         * <p>播放端按音源坐标算出组锚点后先查这张表，查不到再回落上面那四个「维度默认」字段 ——
+         * 与屏蔽门的 {@code psdToneAudio} 镜像同一套用法。
+         */
+        public final Map<Long, EscalatorSpeedData.ZhajiTone> zhajiTone = new HashMap<>();
+
+        // ------------------------------------------------------------------
         // 【1.50】屏蔽门（MTR PSD / APG）开关门提示音的镜像（形状与直梯那一组对称）
         // ------------------------------------------------------------------
 
@@ -171,11 +193,14 @@ public final class EscalatorSpeedManager {
         /** 【1.22】到站播报 / 进站报站各自那一项音量的镜像（-1 = 跟随共用默认）。 */
         public int psdMidiumVolume = EscalatorSpeedData.PSD_TONE_VOLUME_UNSET;
         public int psdArriveVolume = EscalatorSpeedData.PSD_TONE_VOLUME_UNSET;
-        /** 【1.50】屏蔽门提示音可闻范围镜像（{@code /pbmround}，格）。 */
-        public int psdHelpRound = EscalatorSpeedData.DEFAULT_PSD_HELP_ROUND;
-        /** 【1.23】到站播报 / 进站报站各自的可闻范围镜像（{@code /pbmmidiumround} / {@code /pbmarriveround}，格）。 */
-        public int psdMidiumRound = EscalatorSpeedData.DEFAULT_PSD_MIDIUM_ROUND;
-        public int psdArriveRound = EscalatorSpeedData.DEFAULT_PSD_ARRIVE_ROUND;
+        /** 【09-29】屏蔽门提示音可闻范围镜像（{@code /pbmround}，格）——水平/垂直两维。 */
+        public int psdHelpRoundXz = EscalatorSpeedData.DEFAULT_PSD_HELP_ROUND_XZ;
+        public int psdHelpRoundY = EscalatorSpeedData.DEFAULT_PSD_HELP_ROUND_Y;
+        /** 【09-29】到站播报 / 进站报站各自的可闻范围镜像（水平/垂直两维）。 */
+        public int psdMidiumRoundXz = EscalatorSpeedData.DEFAULT_PSD_MIDIUM_ROUND_XZ;
+        public int psdMidiumRoundY = EscalatorSpeedData.DEFAULT_PSD_MIDIUM_ROUND_Y;
+        public int psdArriveRoundXz = EscalatorSpeedData.DEFAULT_PSD_ARRIVE_ROUND_XZ;
+        public int psdArriveRoundY = EscalatorSpeedData.DEFAULT_PSD_ARRIVE_ROUND_Y;
         /** 【1.16】关门提示音强制等待时长镜像（{@code /pbmclosewait}，秒）。 */
         public int psdCloseWaitSeconds = EscalatorSpeedData.DEFAULT_PSD_CLOSE_WAIT_SECONDS;
         /** 【1.15】两项**维度默认素材**的镜像（{@code /pbmmusic open|close <名字>}）。 */
@@ -194,6 +219,12 @@ public final class EscalatorSpeedManager {
          */
         public int psdNarrateMode = EscalatorSpeedData.DEFAULT_PSD_NARRATE_MODE;
         public int psdNarrateSeconds = EscalatorSpeedData.DEFAULT_PSD_NARRATE_SECONDS;
+        /**
+         * 【09-30 续 3】「站台广播（讲述人）」的镜像：样式（站台讲述人只有「关闭」与 userN ——
+         * SH / HK 预设已删，默认**关闭**）+ 等待秒数（[0,+∞)）。与进站讲述人那一对**互相独立**。
+         */
+        public int psdMidiumNarrateMode = EscalatorSpeedData.PSD_NARRATE_OFF;
+        public int psdMidiumNarrateSeconds = EscalatorSpeedData.DEFAULT_PSD_NARRATE_SECONDS;
         /** 【1.50】每扇门单独设置的素材镜像（门锚点打包坐标 → {open, close}）。 */
         public final Map<Long, EscalatorSpeedData.PsdToneAudio> psdToneAudio = new HashMap<>();
     }
@@ -1772,6 +1803,28 @@ public final class EscalatorSpeedManager {
     public static final String CAT_LIFT_DOWN = "lift/down";
     public static final String CAT_LIFT_OPEN = "lift/open";
     public static final String CAT_LIFT_CLOSE = "lift/close";
+    // 【09-30】闸机（MTR Ticket Barrier）两类：进站 / 出站各一个子文件夹。
+    //   用户点名的自定义素材位置就是 MBM_Audio\zhaji\in 与 MBM_Audio\zhaji\out。
+    public static final String CAT_ZHAJI_IN = "zhaji/in";
+    public static final String CAT_ZHAJI_OUT = "zhaji/out";
+
+    /**
+     * 【09-29】{@code MBM_Audio} 下的四个**分组目录**名（上面那段总览里的 futi / train / pbm / lift）。
+     *
+     * <p>它们本身**不是**分类（判据：没有任何 {@link #ALL_CATEGORIES} 里的字符串恰好等于分组名）
+     * ⇒ 里面不放 ogg，只放下一层分类文件夹。
+     *
+     * <p>★ 用途：界面右上角那个「打开文件夹」按钮（{@link smooth.lift.client.FolderOpenButton}）。
+     * 一级菜单（扶梯主界面 / 直梯一级菜单 / 列车音效一级页 / 屏蔽门主界面）点开的就是这一层 ——
+     * 玩家先看到「这一组下面有哪些分类文件夹」，再进二级页点开对应的**子**文件夹，
+     * 与「已导入 / 未导入」列表读的是同一个目录树，不会出现「按钮开的目录和列表看的目录不是一个」。
+     */
+    public static final String GROUP_FUTI = "futi";
+    public static final String GROUP_TRAIN = "train";
+    public static final String GROUP_PSD = "pbm";
+    public static final String GROUP_LIFT = "lift";
+    /** 【09-30】闸机分组目录 {@code MBM_Audio/zhaji}（里面 in/ out/ 两个分类）。 */
+    public static final String GROUP_ZHAJI = "zhaji";
 
     /** 全部音频分类（顺序 = 存档/同步包的书写顺序，别改；旧存档迁移也按它铺名字）。 */
     public static final String[] ALL_CATEGORIES = {
@@ -1779,6 +1832,7 @@ public final class EscalatorSpeedManager {
             CAT_TRAIN_RUN, CAT_TRAIN_ROUND, CAT_TRAIN_SWITCH, CAT_TRAIN_IN, CAT_TRAIN_OUT,
             CAT_PSD_OPEN, CAT_PSD_CLOSE, CAT_PSD_MIDIUM, CAT_PSD_ARRIVE,
             CAT_LIFT_UP, CAT_LIFT_DOWN, CAT_LIFT_OPEN, CAT_LIFT_CLOSE,
+            CAT_ZHAJI_IN, CAT_ZHAJI_OUT,
     };
 
     /**
@@ -4850,6 +4904,494 @@ public final class EscalatorSpeedManager {
     private static long clientLiftToneGeneration;
 
     // ==================================================================
+    // 【09-30】闸机（MTR Ticket Barrier）提示音：进站 / 出站各一份
+    //
+    // 粒度 = **两层**（【09-30 续】从「只有维度默认」升级成与屏蔽门同一套形状）：
+    //   ① 维度默认层（{@code defaultZhajiToneAudioIn/Out} + `…Volume…`）：整个维度这一侧，
+    //      **只有指令**改它；界面的「同步所有」是「把这一组的值写进这一层」。
+    //   ② 逐组层（{@link EscalatorSpeedData#zhajiTone}，键 = 组锚点 asLong）：
+    //      石斧右键**那一组**闸机（连着的、同一功能的那些）；界面里改的每一项都落这一层，
+    //      没设过的项**回落**到 ①。
+    //   用户原话：「石斧右键…打开 ui…」+（续）「连着的相同功能（进站/出站）闸机为一组，
+    //   可以单独调整一组闸机的音效和音量」「一起调整功能要和屏蔽门差不多」。
+    //   ⇒ 与屏蔽门【1.20】那次改版同一个理由、同一套形状。
+    //
+    //   which：{@code "in"} = 进站闸机 / {@code "out"} = 出站闸机。
+    //   「哪一台闸机算进站」由方块注册名决定：{@code mtr:ticket_barrier_entrance_1} /
+    //   {@code mtr:ticket_barrier_exit_1}（不依赖 MTR 编译期，见 SmoothLift 那两个谓词）。
+    //   组锚点由**客户端**（{@code ZhajiChain.anchorOf}）从方块坐标洪水填充算出，
+    //   随包带上来；服务端只把它当键存，不需要自己遍历世界。
+    //
+    //   ★ 同步包是**独立一条**（ZHAJI_TONE_SYNC_CHANNEL），不往直梯/屏蔽门那两个包里塞 ——
+    //     两个域各自演化，塞在一起就是等着「读写序错位而静默串字段」（回归脚本专门钉过这条）。
+    // ==================================================================
+
+    /**
+     * 【09-30 续】「不在任何一组里」的哨兵 —— 写通道里带它 = 改**维度默认层**。
+     *
+     * <p>为什么不用 {@code 0L}：{@link BlockPos#asLong} 的世界原点 (0,0,0) 恰好就是 0，
+     * 拿它当哨兵会把「原点那一组」和「维度默认」混成一句（本仓那条「一个哨兵同时表达两件事」）。
+     * 真锚点永远不会是 {@link Long#MIN_VALUE}（那是 (x,y,z) 全 {@code -8388608} 那一格，
+     * 在世界外的坐标区里，闸机放不到那儿）。
+     */
+    public static final long ZHAJI_GROUP_NONE = Long.MIN_VALUE;
+
+    /** 闸机方向归一化：只认 {@code out}，其它一律当 {@code in}（拼错时落到最常用的那一侧）。 */
+    public static String zhajiWhich(String which) {
+        return "out".equals(which) ? "out" : "in";
+    }
+
+    /** 闸机方向的显示名（命令回执 / 界面 / 日志**共用这一份**，免得两处各写一遍而分叉）。 */
+    public static String zhajiLabel(String which) {
+        return "out".equals(zhajiWhich(which)) ? "出站闸机" : "进站闸机";
+    }
+
+    /** 闸机方向 → 音频分类（= MBM_Audio 下的子文件夹名）。 */
+    public static String zhajiToneCategory(String which) {
+        return "out".equals(zhajiWhich(which)) ? CAT_ZHAJI_OUT : CAT_ZHAJI_IN;
+    }
+
+    /**
+     * 按分类解析闸机提示音素材名（{@code /zhaji in|out <名字>}）。
+     *
+     * <p>与 {@link #resolveLiftToneName} 同一套写法：{@code default} 跟内置、
+     * {@code off}/{@code none}/{@code mute} 都是「这一侧不播」，其余按名字（少打 {@code .ogg} 兜底）。
+     */
+    public static AudioArg resolveZhajiToneName(ServerLevel level, String which, String name) {
+        if (name == null || name.isEmpty()) {
+            return new AudioArg(null, false, "音频名字不能为空");
+        }
+        String lower = name.toLowerCase(Locale.ROOT);
+        if (EscalatorSpeedData.ZHAJI_TONE_DEFAULT.equals(lower)) {
+            return new AudioArg(EscalatorSpeedData.ZHAJI_TONE_DEFAULT, false, null);
+        }
+        if (EscalatorSpeedData.ZHAJI_TONE_OFF.equals(lower) || "none".equals(lower) || "mute".equals(lower)) {
+            return new AudioArg(EscalatorSpeedData.ZHAJI_TONE_OFF, true, null);
+        }
+        EscalatorSpeedData data = getServerData(level);
+        String category = zhajiToneCategory(which);
+        Set<String> catNames = categoryAudioNames(data, category);
+        if (catNames.contains(name)) {
+            return new AudioArg(name, false, null);
+        }
+        // 玩家少打后缀名时兜底（与 /futimusic、/lifthelp 同一手法）
+        if (!lower.endsWith(".ogg") && catNames.contains(name + ".ogg")) {
+            return new AudioArg(name + ".ogg", false, null);
+        }
+        return new AudioArg(null, false, "「" + category + "」分类里没有叫「" + name + "」的音频。闸机提示音可以用 "
+                + EscalatorSpeedData.ZHAJI_TONE_DEFAULT + " 内置素材、none 不播，或用导入过的 .ogg；"
+                + (catNames.isEmpty()
+                        ? "现在还没有导入过任何音频，玩家需要在石斧界面里导入 .ogg"
+                        : "已有的：" + previewNames(data, category)));
+    }
+
+    private static String serverZhajiToneAudio(EscalatorSpeedData data, String which) {
+        return "out".equals(zhajiWhich(which)) ? data.defaultZhajiToneAudioOut : data.defaultZhajiToneAudioIn;
+    }
+
+    private static void setServerZhajiToneAudio(EscalatorSpeedData data, String which, String audioId) {
+        String id = EscalatorSpeedData.normalizeZhajiToneAudio(audioId);
+        if ("out".equals(zhajiWhich(which))) {
+            data.defaultZhajiToneAudioOut = id;
+        } else {
+            data.defaultZhajiToneAudioIn = id;
+        }
+    }
+
+    private static int serverZhajiToneVolume(EscalatorSpeedData data, String which) {
+        return "out".equals(zhajiWhich(which)) ? data.defaultZhajiToneVolumeOut : data.defaultZhajiToneVolumeIn;
+    }
+
+    private static void setServerZhajiToneVolume(EscalatorSpeedData data, String which, int volume) {
+        int v = EscalatorSpeedData.clampZhajiVolume(volume);
+        if ("out".equals(zhajiWhich(which))) {
+            data.defaultZhajiToneVolumeOut = v;
+        } else {
+            data.defaultZhajiToneVolumeIn = v;
+        }
+    }
+
+    // --- 读（客户端读镜像 / 服务端读 SavedData） ------------------------
+
+    /**
+     * 这一侧闸机**生效**的提示音素材（客户端读镜像，服务端读 SavedData）。
+     * 镜像还没同步过 → {@link EscalatorSpeedData#ZHAJI_TONE_DEFAULT}（= 用 MTR 内置音）。
+     */
+    public static String getZhajiToneAudio(Level level, String which) {
+        if (level.isClientSide()) {
+            ClientDimensionData data = CLIENT_DATA.get(level.dimension());
+            if (data == null) {
+                return EscalatorSpeedData.ZHAJI_TONE_DEFAULT;
+            }
+            return EscalatorSpeedData.normalizeZhajiToneAudio(
+                    "out".equals(zhajiWhich(which)) ? data.zhajiToneAudioOut : data.zhajiToneAudioIn);
+        }
+        return serverZhajiToneAudio(getServerData((ServerLevel) level), which);
+    }
+
+    /** 这一侧闸机**生效**的提示音音量（客户端读镜像，服务端读 SavedData），1~1000。 */
+    public static int getZhajiToneVolume(Level level, String which) {
+        if (level.isClientSide()) {
+            ClientDimensionData data = CLIENT_DATA.get(level.dimension());
+            if (data == null) {
+                return EscalatorSpeedData.DEFAULT_ZHAJI_VOLUME;
+            }
+            return "out".equals(zhajiWhich(which)) ? data.zhajiToneVolumeOut : data.zhajiToneVolumeIn;
+        }
+        return serverZhajiToneVolume(getServerData((ServerLevel) level), which);
+    }
+
+    // --- 【09-30 续】逐组层：读（本组 → 维度默认，两层回落） -------------
+
+    /** 一组闸机的**原始**记录（服务端读 SavedData）；没设置过 → {@code NONE}。 */
+    public static EscalatorSpeedData.ZhajiTone zhajiGroupRecord(ServerLevel level, long groupKey) {
+        EscalatorSpeedData.ZhajiTone t = getServerData(level).zhajiTone.get(groupKey);
+        return t != null ? t : EscalatorSpeedData.ZhajiTone.NONE;
+    }
+
+    /** 一组闸机的**原始**记录（客户端读镜像）；没同步到 → {@code NONE}。 */
+    public static EscalatorSpeedData.ZhajiTone clientZhajiGroupRecord(Level level, long groupKey) {
+        ClientDimensionData data = CLIENT_DATA.get(level.dimension());
+        if (data == null) {
+            return EscalatorSpeedData.ZhajiTone.NONE;
+        }
+        EscalatorSpeedData.ZhajiTone t = data.zhajiTone.get(groupKey);
+        return t != null ? t : EscalatorSpeedData.ZhajiTone.NONE;
+    }
+
+    /**
+     * 这一组、这一侧**生效**的素材（本组设过 → 本组；本组是 {@code default} / 没记过 → 维度默认层）。
+     *
+     * <p>{@code groupKey == }{@link #ZHAJI_GROUP_NONE}（或客户端还没同步到这一组）时直接走默认层 ——
+     * 所以「算不出组」永远退回旧行为，不会静默哑掉。
+     */
+    public static String getZhajiToneAudio(Level level, String which, long groupKey) {
+        if (groupKey != ZHAJI_GROUP_NONE) {
+            EscalatorSpeedData.ZhajiTone t = level.isClientSide()
+                    ? clientZhajiGroupRecord(level, groupKey)
+                    : zhajiGroupRecord((ServerLevel) level, groupKey);
+            String own = t.audioFor(zhajiWhich(which));
+            if (own != null && !EscalatorSpeedData.ZHAJI_TONE_DEFAULT.equals(own)) {
+                return EscalatorSpeedData.normalizeZhajiToneAudio(own);
+            }
+        }
+        return getZhajiToneAudio(level, which);
+    }
+
+    /**
+     * 这一组、这一侧**生效**的音量（本组记过 → 本组；{@code null} → 维度默认层）。
+     *
+     * <p>注意「本组音量跟默认」与「本组音量 = 100」是两件事：前者记 {@code null}、后者记 100，
+     * 所以这里必须判 {@code null} 而不是判「等于默认值」。
+     */
+    public static int getZhajiToneVolume(Level level, String which, long groupKey) {
+        if (groupKey != ZHAJI_GROUP_NONE) {
+            EscalatorSpeedData.ZhajiTone t = level.isClientSide()
+                    ? clientZhajiGroupRecord(level, groupKey)
+                    : zhajiGroupRecord((ServerLevel) level, groupKey);
+            Integer own = t.volumeFor(zhajiWhich(which));
+            if (own != null) {
+                return EscalatorSpeedData.clampZhajiVolume(own);
+            }
+        }
+        return getZhajiToneVolume(level, which);
+    }
+
+    // --- 写（本维度） --------------------------------------------------
+
+    /**
+     * 【09-30 续】石斧界面：给**一组闸机**的某一侧写素材（{@code default} = 本组跟维度默认）。
+     *
+     * <p>校验与指令同源（{@link #zhajiAudioValid}：{@code default} / {@code off} / 该分类里的 ogg），
+     * 免得界面能把一个库外名字写进存档。四项都回到「跟默认」时整条记录删掉（表越干净越好查）。
+     *
+     * @return 写入成功才 true（组哨兵 / 素材非法 → false）
+     */
+    public static boolean setZhajiGroupTone(ServerLevel level, long groupKey, String which, String audioId) {
+        if (groupKey == ZHAJI_GROUP_NONE || !zhajiAudioValid(level, which, audioId)) {
+            return false;
+        }
+        String id = EscalatorSpeedData.normalizeZhajiToneAudio(audioId);
+        updateZhajiGroup(level, groupKey, t -> t.withAudio(zhajiWhich(which), id));
+        return true;
+    }
+
+    /** 【09-30 续】石斧界面：给**一组闸机**的某一侧写音量（{@code null} 走 {@link #clearZhajiGroupVolume}）。 */
+    public static void setZhajiGroupVolume(ServerLevel level, long groupKey, String which, int volume) {
+        if (groupKey == ZHAJI_GROUP_NONE) {
+            return;
+        }
+        int v = EscalatorSpeedData.clampZhajiVolume(volume);
+        updateZhajiGroup(level, groupKey, t -> t.withVolume(zhajiWhich(which), v));
+    }
+
+    /** 【09-30 续】把某组某一侧的音量恢复成「跟维度默认」（界面把输入框清空时用）。 */
+    public static void clearZhajiGroupVolume(ServerLevel level, long groupKey, String which) {
+        if (groupKey == ZHAJI_GROUP_NONE) {
+            return;
+        }
+        updateZhajiGroup(level, groupKey, t -> t.withVolume(zhajiWhich(which), null));
+    }
+
+    /**
+     * 改一条「一组闸机」的记录：改完为「等于没设置过」就整条删掉，否则写回。
+     * 与屏蔽门 {@code updateDoor} 是同一套写法（先取旧的、用它派生新的，绝不重建整条）。
+     */
+    private static void updateZhajiGroup(ServerLevel level, long groupKey,
+                                         java.util.function.UnaryOperator<EscalatorSpeedData.ZhajiTone> fn) {
+        EscalatorSpeedData data = getServerData(level);
+        EscalatorSpeedData.ZhajiTone old = data.zhajiTone.get(groupKey);
+        if (old == null) {
+            old = EscalatorSpeedData.ZhajiTone.NONE;
+        }
+        EscalatorSpeedData.ZhajiTone now = fn.apply(old);
+        if (now.isEmpty()) {
+            data.zhajiTone.remove(groupKey);
+        } else {
+            data.zhajiTone.put(groupKey, now);
+        }
+        data.setDirty();
+    }
+
+    // --- 写（本维度） --------------------------------------------------
+
+    /**
+     * 校验 {@code audioId} 是不是这一侧闸机分类里**合法**的取值。
+     *
+     * <p>合法 = {@code default}（跟 MTR 内置）/ {@code off}（这一侧不播）/ 该分类音频库里已导入的 id。
+     * 与 {@link #setServerLiftTone} 同一套判据，只是闸机没有 {@code -c/-m/-s} 那几个内置别名。
+     */
+    public static boolean zhajiAudioValid(ServerLevel level, String which, String audioId) {
+        String id = EscalatorSpeedData.normalizeZhajiToneAudio(audioId);
+        return EscalatorSpeedData.ZHAJI_TONE_DEFAULT.equals(id)
+                || EscalatorSpeedData.ZHAJI_TONE_OFF.equals(id)
+                || categoryAudioNames(getServerData(level), zhajiToneCategory(which)).contains(id);
+    }
+
+    /**
+     * {@code /zhaji in|out <名字>}：只改**本维度**这一侧的素材。
+     *
+     * @return 素材不存在 → false（不动存档）
+     */
+    public static boolean setZhajiToneAudio(ServerLevel level, String which, String audioId) {
+        if (!zhajiAudioValid(level, which, audioId)) {
+            return false;
+        }
+        EscalatorSpeedData data = getServerData(level);
+        setServerZhajiToneAudio(data, which, audioId);
+        data.setDirty();
+        return true;
+    }
+
+    /** {@code /zhaji in|out <X> to <Y>}：本维度这一侧素材正好是 X 时才改成 Y。 */
+    public static boolean replaceZhajiToneAudio(ServerLevel level, String which, String from, String to) {
+        if (!zhajiAudioValid(level, which, to)) {
+            return false;
+        }
+        EscalatorSpeedData data = getServerData(level);
+        if (!java.util.Objects.equals(serverZhajiToneAudio(data, which), from)) {
+            return false;
+        }
+        setServerZhajiToneAudio(data, which, to);
+        data.setDirty();
+        return true;
+    }
+
+    /** {@code /zhajiloud in|out <音量>}：只改**本维度**这一侧的音量。 */
+    public static void setZhajiToneVolume(ServerLevel level, String which, int volume) {
+        EscalatorSpeedData data = getServerData(level);
+        setServerZhajiToneVolume(data, which, volume);
+        data.setDirty();
+    }
+
+    /** {@code /zhajiloud in|out <X> to <Y>}：本维度这一侧音量正好是 X 时才改成 Y。 */
+    public static boolean replaceZhajiToneVolume(ServerLevel level, String which, int from, int to) {
+        EscalatorSpeedData data = getServerData(level);
+        if (serverZhajiToneVolume(data, which) != from) {
+            return false;
+        }
+        setServerZhajiToneVolume(data, which, to);
+        data.setDirty();
+        return true;
+    }
+
+    // --- 写（所有维度，`-f`） -----------------------------------------
+
+    /**
+     * {@code /zhaji -f in|out <名字>}：把**所有维度**这一侧的素材都设成它。
+     *
+     * @return 实际被改动的维度数（已经是那个值的维度不算）
+     */
+    public static int setZhajiToneAudioAll(MinecraftServer server, String which, String audioId) {
+        String id = EscalatorSpeedData.normalizeZhajiToneAudio(audioId);
+        int changed = 0;
+        for (ServerLevel level : server.getAllLevels()) {
+            EscalatorSpeedData data = getServerData(level);
+            if (!id.equals(serverZhajiToneAudio(data, which))) {
+                setServerZhajiToneAudio(data, which, id);
+                data.setDirty();
+                changed++;
+            }
+        }
+        return changed;
+    }
+
+    /** {@code /zhaji -f in|out <X> to <Y>}：所有维度里这一侧素材正好是 X 的那些改成 Y。 */
+    public static int replaceZhajiToneAudioAll(MinecraftServer server, String which, String from, String to) {
+        String target = EscalatorSpeedData.normalizeZhajiToneAudio(to);
+        int changed = 0;
+        for (ServerLevel level : server.getAllLevels()) {
+            EscalatorSpeedData data = getServerData(level);
+            if (java.util.Objects.equals(serverZhajiToneAudio(data, which), from)) {
+                setServerZhajiToneAudio(data, which, target);
+                data.setDirty();
+                changed++;
+            }
+        }
+        return changed;
+    }
+
+    /**
+     * {@code /zhajiloud -f in|out <音量>}：把**所有维度**这一侧的音量都设成它。
+     *
+     * @return 实际被改动的维度数
+     */
+    public static int setZhajiToneVolumeAll(MinecraftServer server, String which, int volume) {
+        int v = EscalatorSpeedData.clampZhajiVolume(volume);
+        int changed = 0;
+        for (ServerLevel level : server.getAllLevels()) {
+            EscalatorSpeedData data = getServerData(level);
+            if (serverZhajiToneVolume(data, which) != v) {
+                setServerZhajiToneVolume(data, which, v);
+                data.setDirty();
+                changed++;
+            }
+        }
+        return changed;
+    }
+
+    /** {@code /zhajiloud -f in|out <X> to <Y>}：所有维度里这一侧音量正好是 X 的那些改成 Y。 */
+    public static int replaceZhajiToneVolumeAll(MinecraftServer server, String which, int from, int to) {
+        int v = EscalatorSpeedData.clampZhajiVolume(to);
+        int changed = 0;
+        for (ServerLevel level : server.getAllLevels()) {
+            EscalatorSpeedData data = getServerData(level);
+            if (serverZhajiToneVolume(data, which) == from) {
+                setServerZhajiToneVolume(data, which, v);
+                data.setDirty();
+                changed++;
+            }
+        }
+        return changed;
+    }
+
+    // --- 客户端镜像：本地立即翻（UI / 指令回执之后立刻回显，服务端权威值随后覆盖） ---
+
+    /**
+     * 【09-30 续】石斧界面改完**这一组**的素材后本地立即改镜像（服务端随后权威同步覆盖）。
+     *
+     * <p>落值逻辑与服务端 {@link #updateZhajiGroup} 同一套：四项都回到「跟默认」→ 整条删掉。
+     *
+     * <p>★ 为什么没有「改维度默认层」的本地回显：那一层**只有指令**改（服务端权威），
+     * 界面改的全是逐组层 —— 留着两个没人调用的 default 回显方法只会误导后来的人。
+     */
+    public static void applyClientZhajiGroupToneLocal(ResourceKey<Level> dimension, long groupKey,
+                                                      String which, String audioId) {
+        applyClientZhajiGroupLocal(dimension, groupKey,
+                t -> t.withAudio(zhajiWhich(which), EscalatorSpeedData.normalizeZhajiToneAudio(audioId)));
+    }
+
+    /** 【09-30 续】石斧界面改完**这一组**的音量后本地立即改镜像；{@code null} = 恢复「跟维度默认」。 */
+    public static void applyClientZhajiGroupVolumeLocal(ResourceKey<Level> dimension, long groupKey,
+                                                        String which, Integer volume) {
+        Integer v = volume == null ? null : EscalatorSpeedData.clampZhajiVolume(volume);
+        applyClientZhajiGroupLocal(dimension, groupKey, t -> t.withVolume(zhajiWhich(which), v));
+    }
+
+    /** 逐组镜像的唯一写入口（本地翻与服务端同步覆盖都走它，免得两处各写一遍而分叉）。 */
+    private static void applyClientZhajiGroupLocal(ResourceKey<Level> dimension, long groupKey,
+                                                   java.util.function.UnaryOperator<EscalatorSpeedData.ZhajiTone> fn) {
+        if (groupKey == ZHAJI_GROUP_NONE) {
+            return;
+        }
+        ClientDimensionData data = CLIENT_DATA.computeIfAbsent(dimension, k -> new ClientDimensionData());
+        EscalatorSpeedData.ZhajiTone old = data.zhajiTone.get(groupKey);
+        if (old == null) {
+            old = EscalatorSpeedData.ZhajiTone.NONE;
+        }
+        EscalatorSpeedData.ZhajiTone now = fn.apply(old);
+        if (now.isEmpty()) {
+            data.zhajiTone.remove(groupKey);
+        } else {
+            data.zhajiTone.put(groupKey, now);
+        }
+    }
+
+    // --- 同步包（独立一条通道） ---------------------------------------
+
+    /**
+     * 打包「一个维度的闸机提示音设置」=
+     * {@code dimId → in → out → inVol → outVol → 条数 N → (组键, in, out, inVol?, outVol?) × N}。
+     *
+     * <p>★ 读侧（{@code SmoothLiftClient} 的 ZHAJI_TONE_SYNC_CHANNEL 接收器）**必须逐格同序** ——
+     * 逐组那一段的两格音量用 {@link #writeDoorOptInt}（可空）编解码，缺格 = 「跟维度默认」。
+     */
+    public static FriendlyByteBuf buildZhajiPacket(ServerLevel level) {
+        EscalatorSpeedData data = getServerData(level);
+        FriendlyByteBuf buf = PacketByteBufs.create();
+        buf.writeUtf(level.dimension().location().toString(), 256);
+        buf.writeUtf(EscalatorSpeedData.normalizeZhajiToneAudio(data.defaultZhajiToneAudioIn), 128);
+        buf.writeUtf(EscalatorSpeedData.normalizeZhajiToneAudio(data.defaultZhajiToneAudioOut), 128);
+        buf.writeVarInt(data.defaultZhajiToneVolumeIn);
+        buf.writeVarInt(data.defaultZhajiToneVolumeOut);
+        // 【09-30 续】逐组那一段。★ 只发**非空**记录（等于没设置过的不占带宽）。
+        java.util.List<Map.Entry<Long, EscalatorSpeedData.ZhajiTone>> entries = new java.util.ArrayList<>();
+        for (Map.Entry<Long, EscalatorSpeedData.ZhajiTone> e : data.zhajiTone.entrySet()) {
+            if (e.getValue() != null && !e.getValue().isEmpty()) {
+                entries.add(e);
+            }
+        }
+        buf.writeVarInt(entries.size());
+        for (Map.Entry<Long, EscalatorSpeedData.ZhajiTone> e : entries) {
+            EscalatorSpeedData.ZhajiTone t = e.getValue();
+            buf.writeLong(e.getKey());
+            buf.writeUtf(EscalatorSpeedData.normalizeZhajiToneAudio(t.audioIn()), 128);
+            buf.writeUtf(EscalatorSpeedData.normalizeZhajiToneAudio(t.audioOut()), 128);
+            writeDoorOptInt(buf, t.volumeIn() == null ? null : EscalatorSpeedData.clampZhajiVolume(t.volumeIn()));
+            writeDoorOptInt(buf, t.volumeOut() == null ? null : EscalatorSpeedData.clampZhajiVolume(t.volumeOut()));
+        }
+        return buf;
+    }
+
+    /** 把一个维度的闸机提示音设置发给单个玩家。 */
+    public static void sendZhajiSyncTo(ServerPlayer player, ServerLevel level) {
+        ServerPlayNetworking.send(player, SmoothLift.ZHAJI_TONE_SYNC_CHANNEL, buildZhajiPacket(level));
+    }
+
+    /** 把所有维度的闸机提示音设置同步给所有在线玩家。 */
+    public static void syncZhajiToAll(MinecraftServer server) {
+        for (ServerPlayer player : server.getPlayerList().getPlayers()) {
+            for (ServerLevel level : server.getAllLevels()) {
+                sendZhajiSyncTo(player, level);
+            }
+        }
+    }
+
+    /** 客户端：收下服务端权威值，整表覆盖镜像（读侧调它，落值逻辑与本地翻共用一份口径）。 */
+    public static void applyClientZhaji(ResourceKey<Level> dimension,
+                                        String audioIn, String audioOut, int volumeIn, int volumeOut,
+                                        Map<Long, EscalatorSpeedData.ZhajiTone> tones) {
+        ClientDimensionData data = CLIENT_DATA.computeIfAbsent(dimension, k -> new ClientDimensionData());
+        data.zhajiToneAudioIn = EscalatorSpeedData.normalizeZhajiToneAudio(audioIn);
+        data.zhajiToneAudioOut = EscalatorSpeedData.normalizeZhajiToneAudio(audioOut);
+        data.zhajiToneVolumeIn = EscalatorSpeedData.clampZhajiVolume(volumeIn);
+        data.zhajiToneVolumeOut = EscalatorSpeedData.clampZhajiVolume(volumeOut);
+        // 逐组那一段是**整表覆盖**（服务端是权威）：先清再灌，否则删掉的组会留在镜像里。
+        data.zhajiTone.clear();
+        data.zhajiTone.putAll(tones);
+    }
+
+    // ==================================================================
     // 【1.50】列车屏蔽门（MTR PSD / APG）开关门提示音
     //
     // 与上面【1.42】~【1.48】直梯那一整套**一一对应**（同样的「维度默认 + 可选方块粒度」两层，
@@ -5473,41 +6015,60 @@ public final class EscalatorSpeedManager {
     // 可闻范围（/pbmround）
     // ------------------------------------------------------------------
 
-    /** 【1.50】本维度屏蔽门提示音的可闻范围（格）。 */
-    public static int getPsdHelpRound(Level level) {
+    /** 【09-29】本维度屏蔽门提示音的可闻范围（格）——水平分量。客户端读镜像。 */
+    public static int getPsdHelpRoundXz(Level level) {
+        if (level == null) {
+            return EscalatorSpeedData.DEFAULT_PSD_HELP_ROUND_XZ;
+        }
         if (level.isClientSide()) {
             ClientDimensionData data = CLIENT_DATA.get(level.dimension());
-            return data == null ? EscalatorSpeedData.DEFAULT_PSD_HELP_ROUND : data.psdHelpRound;
+            return data == null ? EscalatorSpeedData.DEFAULT_PSD_HELP_ROUND_XZ : data.psdHelpRoundXz;
         }
-        return getServerData((ServerLevel) level).defaultPsdHelpRound;
+        return getServerData((ServerLevel) level).defaultPsdHelpRoundXz;
     }
 
-    /** {@code /pbmround <范围>}：只改**本维度**的范围。 */
-    public static void setDefaultPsdHelpRound(ServerLevel level, int round) {
+    /** 【09-29】本维度屏蔽门提示音的可闻范围（格）——垂直分量。客户端读镜像。 */
+    public static int getPsdHelpRoundY(Level level) {
+        if (level == null) {
+            return EscalatorSpeedData.DEFAULT_PSD_HELP_ROUND_Y;
+        }
+        if (level.isClientSide()) {
+            ClientDimensionData data = CLIENT_DATA.get(level.dimension());
+            return data == null ? EscalatorSpeedData.DEFAULT_PSD_HELP_ROUND_Y : data.psdHelpRoundY;
+        }
+        return getServerData((ServerLevel) level).defaultPsdHelpRoundY;
+    }
+
+    /** {@code /pbmround <水平> <垂直>}：只改**本维度**的范围。 */
+    public static void setDefaultPsdHelpRound(ServerLevel level, int xz, int y) {
         EscalatorSpeedData data = getServerData(level);
-        data.defaultPsdHelpRound = EscalatorSpeedData.clampPsdHelpRound(round);
+        data.defaultPsdHelpRoundXz = EscalatorSpeedData.clampPsdHelpRound(xz);
+        data.defaultPsdHelpRoundY = EscalatorSpeedData.clampPsdHelpRound(y);
         data.setDirty();
     }
 
-    /** {@code /pbmround <X> to <Y>}：本维度范围正好是 X 时才改成 Y。 */
-    public static boolean replaceDefaultPsdHelpRound(ServerLevel level, int from, int to) {
+    /** {@code /pbmround <Xz> <Y> to <新Xz> <新Y>}：本维度范围两维都正好时才改成新值。 */
+    public static boolean replaceDefaultPsdHelpRound(ServerLevel level, int fromXz, int fromY, int toXz, int toY) {
         EscalatorSpeedData data = getServerData(level);
-        if (data.defaultPsdHelpRound != from) {
+        if (data.defaultPsdHelpRoundXz != fromXz || data.defaultPsdHelpRoundY != fromY) {
             return false;
         }
-        data.defaultPsdHelpRound = EscalatorSpeedData.clampPsdHelpRound(to);
+        data.defaultPsdHelpRoundXz = EscalatorSpeedData.clampPsdHelpRound(toXz);
+        data.defaultPsdHelpRoundY = EscalatorSpeedData.clampPsdHelpRound(toY);
         data.setDirty();
         return true;
     }
 
-    /** {@code /pbmround -f <范围>}：**所有维度**都设成该范围。 */
-    public static int setDefaultPsdHelpRoundAll(MinecraftServer server, int round) {
-        int clamped = EscalatorSpeedData.clampPsdHelpRound(round);
+    /** {@code /pbmround -f <水平> <垂直>}：**所有维度**都设成该范围。 */
+    public static int setDefaultPsdHelpRoundAll(MinecraftServer server, int xz, int y) {
+        int clampedXz = EscalatorSpeedData.clampPsdHelpRound(xz);
+        int clampedY = EscalatorSpeedData.clampPsdHelpRound(y);
         int changed = 0;
         for (ServerLevel level : server.getAllLevels()) {
             EscalatorSpeedData data = getServerData(level);
-            if (data.defaultPsdHelpRound != clamped) {
-                data.defaultPsdHelpRound = clamped;
+            if (data.defaultPsdHelpRoundXz != clampedXz || data.defaultPsdHelpRoundY != clampedY) {
+                data.defaultPsdHelpRoundXz = clampedXz;
+                data.defaultPsdHelpRoundY = clampedY;
                 data.setDirty();
                 changed++;
             }
@@ -5515,13 +6076,14 @@ public final class EscalatorSpeedManager {
         return changed;
     }
 
-    /** {@code /pbmround -f <X> to <Y>}：所有维度里范围正好是 X 的那些改成 Y。 */
-    public static int replaceDefaultPsdHelpRoundAll(MinecraftServer server, int from, int to) {
+    /** {@code /pbmround -f <Xz> <Y> to <新Xz> <新Y>}：所有维度里两维都正好时改成新值。 */
+    public static int replaceDefaultPsdHelpRoundAll(MinecraftServer server, int fromXz, int fromY, int toXz, int toY) {
         int changed = 0;
         for (ServerLevel level : server.getAllLevels()) {
             EscalatorSpeedData data = getServerData(level);
-            if (data.defaultPsdHelpRound == from) {
-                data.defaultPsdHelpRound = EscalatorSpeedData.clampPsdHelpRound(to);
+            if (data.defaultPsdHelpRoundXz == fromXz && data.defaultPsdHelpRoundY == fromY) {
+                data.defaultPsdHelpRoundXz = EscalatorSpeedData.clampPsdHelpRound(toXz);
+                data.defaultPsdHelpRoundY = EscalatorSpeedData.clampPsdHelpRound(toY);
                 data.setDirty();
                 changed++;
             }
@@ -5541,74 +6103,104 @@ public final class EscalatorSpeedManager {
     //   十份样板换来「加第四类声音时编译器会逼你把十处补齐」。
     // ------------------------------------------------------------------
 
-    /** 【1.23】本维度「到站播报」的可闻范围（格）。客户端读镜像。 */
-    public static int getPsdMidiumRound(Level level) {
+    /** 【09-29】本维度「到站播报」的可闻范围（格）——水平分量。客户端读镜像。 */
+    public static int getPsdMidiumRoundXz(Level level) {
         if (level == null) {
-            return EscalatorSpeedData.DEFAULT_PSD_MIDIUM_ROUND;
+            return EscalatorSpeedData.DEFAULT_PSD_MIDIUM_ROUND_XZ;
         }
         if (level.isClientSide()) {
             ClientDimensionData data = CLIENT_DATA.get(level.dimension());
-            return data == null ? EscalatorSpeedData.DEFAULT_PSD_MIDIUM_ROUND : data.psdMidiumRound;
+            return data == null ? EscalatorSpeedData.DEFAULT_PSD_MIDIUM_ROUND_XZ : data.psdMidiumRoundXz;
         }
-        return getServerData((ServerLevel) level).defaultPsdMidiumRound;
+        return getServerData((ServerLevel) level).defaultPsdMidiumRoundXz;
     }
 
-    /** 【1.23】本维度「进站报站」的可闻范围（格）。客户端读镜像。 */
-    public static int getPsdArriveRound(Level level) {
+    /** 【09-29】本维度「到站播报」的可闻范围（格）——垂直分量。客户端读镜像。 */
+    public static int getPsdMidiumRoundY(Level level) {
         if (level == null) {
-            return EscalatorSpeedData.DEFAULT_PSD_ARRIVE_ROUND;
+            return EscalatorSpeedData.DEFAULT_PSD_MIDIUM_ROUND_Y;
         }
         if (level.isClientSide()) {
             ClientDimensionData data = CLIENT_DATA.get(level.dimension());
-            return data == null ? EscalatorSpeedData.DEFAULT_PSD_ARRIVE_ROUND : data.psdArriveRound;
+            return data == null ? EscalatorSpeedData.DEFAULT_PSD_MIDIUM_ROUND_Y : data.psdMidiumRoundY;
         }
-        return getServerData((ServerLevel) level).defaultPsdArriveRound;
+        return getServerData((ServerLevel) level).defaultPsdMidiumRoundY;
     }
 
-    /** {@code /pbmmidiumround <范围>}：只改**本维度**的范围。 */
-    public static void setDefaultPsdMidiumRound(ServerLevel level, int round) {
+    /** 【09-29】本维度「进站报站」的可闻范围（格）——水平分量。客户端读镜像。 */
+    public static int getPsdArriveRoundXz(Level level) {
+        if (level == null) {
+            return EscalatorSpeedData.DEFAULT_PSD_ARRIVE_ROUND_XZ;
+        }
+        if (level.isClientSide()) {
+            ClientDimensionData data = CLIENT_DATA.get(level.dimension());
+            return data == null ? EscalatorSpeedData.DEFAULT_PSD_ARRIVE_ROUND_XZ : data.psdArriveRoundXz;
+        }
+        return getServerData((ServerLevel) level).defaultPsdArriveRoundXz;
+    }
+
+    /** 【09-29】本维度「进站报站」的可闻范围（格）——垂直分量。客户端读镜像。 */
+    public static int getPsdArriveRoundY(Level level) {
+        if (level == null) {
+            return EscalatorSpeedData.DEFAULT_PSD_ARRIVE_ROUND_Y;
+        }
+        if (level.isClientSide()) {
+            ClientDimensionData data = CLIENT_DATA.get(level.dimension());
+            return data == null ? EscalatorSpeedData.DEFAULT_PSD_ARRIVE_ROUND_Y : data.psdArriveRoundY;
+        }
+        return getServerData((ServerLevel) level).defaultPsdArriveRoundY;
+    }
+
+    /** {@code /pbmmidiumround <水平> <垂直>}：只改**本维度**的范围。 */
+    public static void setDefaultPsdMidiumRound(ServerLevel level, int xz, int y) {
         EscalatorSpeedData data = getServerData(level);
-        data.defaultPsdMidiumRound = EscalatorSpeedData.clampPsdMidiumRound(round);
+        data.defaultPsdMidiumRoundXz = EscalatorSpeedData.clampPsdMidiumRound(xz);
+        data.defaultPsdMidiumRoundY = EscalatorSpeedData.clampPsdMidiumRound(y);
         data.setDirty();
     }
 
-    /** {@code /pbmarriveround <范围>}：只改**本维度**的范围。 */
-    public static void setDefaultPsdArriveRound(ServerLevel level, int round) {
+    /** {@code /pbmarriveround <水平> <垂直>}：只改**本维度**的范围。 */
+    public static void setDefaultPsdArriveRound(ServerLevel level, int xz, int y) {
         EscalatorSpeedData data = getServerData(level);
-        data.defaultPsdArriveRound = EscalatorSpeedData.clampPsdArriveRound(round);
+        data.defaultPsdArriveRoundXz = EscalatorSpeedData.clampPsdArriveRound(xz);
+        data.defaultPsdArriveRoundY = EscalatorSpeedData.clampPsdArriveRound(y);
         data.setDirty();
     }
 
-    /** {@code /pbmmidiumround <X> to <Y>}：本维度范围正好是 X 时才改成 Y。 */
-    public static boolean replaceDefaultPsdMidiumRound(ServerLevel level, int from, int to) {
+    /** {@code /pbmmidiumround <Xz> <Y> to <新Xz> <新Y>}：本维度范围两维都正好时才改成新值。 */
+    public static boolean replaceDefaultPsdMidiumRound(ServerLevel level, int fromXz, int fromY, int toXz, int toY) {
         EscalatorSpeedData data = getServerData(level);
-        if (data.defaultPsdMidiumRound != from) {
+        if (data.defaultPsdMidiumRoundXz != fromXz || data.defaultPsdMidiumRoundY != fromY) {
             return false;
         }
-        data.defaultPsdMidiumRound = EscalatorSpeedData.clampPsdMidiumRound(to);
+        data.defaultPsdMidiumRoundXz = EscalatorSpeedData.clampPsdMidiumRound(toXz);
+        data.defaultPsdMidiumRoundY = EscalatorSpeedData.clampPsdMidiumRound(toY);
         data.setDirty();
         return true;
     }
 
-    /** {@code /pbmarriveround <X> to <Y>}：本维度范围正好是 X 时才改成 Y。 */
-    public static boolean replaceDefaultPsdArriveRound(ServerLevel level, int from, int to) {
+    /** {@code /pbmarriveround <Xz> <Y> to <新Xz> <新Y>}：本维度范围两维都正好时才改成新值。 */
+    public static boolean replaceDefaultPsdArriveRound(ServerLevel level, int fromXz, int fromY, int toXz, int toY) {
         EscalatorSpeedData data = getServerData(level);
-        if (data.defaultPsdArriveRound != from) {
+        if (data.defaultPsdArriveRoundXz != fromXz || data.defaultPsdArriveRoundY != fromY) {
             return false;
         }
-        data.defaultPsdArriveRound = EscalatorSpeedData.clampPsdArriveRound(to);
+        data.defaultPsdArriveRoundXz = EscalatorSpeedData.clampPsdArriveRound(toXz);
+        data.defaultPsdArriveRoundY = EscalatorSpeedData.clampPsdArriveRound(toY);
         data.setDirty();
         return true;
     }
 
-    /** {@code /pbmmidiumround -f <范围>}：**所有维度**都设成该范围（返回改动个数）。 */
-    public static int setDefaultPsdMidiumRoundAll(MinecraftServer server, int round) {
-        int clamped = EscalatorSpeedData.clampPsdMidiumRound(round);
+    /** {@code /pbmmidiumround -f <水平> <垂直>}：**所有维度**都设成该范围（返回改动个数）。 */
+    public static int setDefaultPsdMidiumRoundAll(MinecraftServer server, int xz, int y) {
+        int clampedXz = EscalatorSpeedData.clampPsdMidiumRound(xz);
+        int clampedY = EscalatorSpeedData.clampPsdMidiumRound(y);
         int changed = 0;
         for (ServerLevel level : server.getAllLevels()) {
             EscalatorSpeedData data = getServerData(level);
-            if (data.defaultPsdMidiumRound != clamped) {
-                data.defaultPsdMidiumRound = clamped;
+            if (data.defaultPsdMidiumRoundXz != clampedXz || data.defaultPsdMidiumRoundY != clampedY) {
+                data.defaultPsdMidiumRoundXz = clampedXz;
+                data.defaultPsdMidiumRoundY = clampedY;
                 data.setDirty();
                 changed++;
             }
@@ -5616,14 +6208,16 @@ public final class EscalatorSpeedManager {
         return changed;
     }
 
-    /** {@code /pbmarriveround -f <范围>}：**所有维度**都设成该范围（返回改动个数）。 */
-    public static int setDefaultPsdArriveRoundAll(MinecraftServer server, int round) {
-        int clamped = EscalatorSpeedData.clampPsdArriveRound(round);
+    /** {@code /pbmarriveround -f <水平> <垂直>}：**所有维度**都设成该范围（返回改动个数）。 */
+    public static int setDefaultPsdArriveRoundAll(MinecraftServer server, int xz, int y) {
+        int clampedXz = EscalatorSpeedData.clampPsdArriveRound(xz);
+        int clampedY = EscalatorSpeedData.clampPsdArriveRound(y);
         int changed = 0;
         for (ServerLevel level : server.getAllLevels()) {
             EscalatorSpeedData data = getServerData(level);
-            if (data.defaultPsdArriveRound != clamped) {
-                data.defaultPsdArriveRound = clamped;
+            if (data.defaultPsdArriveRoundXz != clampedXz || data.defaultPsdArriveRoundY != clampedY) {
+                data.defaultPsdArriveRoundXz = clampedXz;
+                data.defaultPsdArriveRoundY = clampedY;
                 data.setDirty();
                 changed++;
             }
@@ -5631,13 +6225,14 @@ public final class EscalatorSpeedManager {
         return changed;
     }
 
-    /** {@code /pbmmidiumround -f <X> to <Y>}：所有维度里范围正好是 X 的那些改成 Y。 */
-    public static int replaceDefaultPsdMidiumRoundAll(MinecraftServer server, int from, int to) {
+    /** {@code /pbmmidiumround -f <Xz> <Y> to <新Xz> <新Y>}：所有维度里两维都正好时改成新值。 */
+    public static int replaceDefaultPsdMidiumRoundAll(MinecraftServer server, int fromXz, int fromY, int toXz, int toY) {
         int changed = 0;
         for (ServerLevel level : server.getAllLevels()) {
             EscalatorSpeedData data = getServerData(level);
-            if (data.defaultPsdMidiumRound == from) {
-                data.defaultPsdMidiumRound = EscalatorSpeedData.clampPsdMidiumRound(to);
+            if (data.defaultPsdMidiumRoundXz == fromXz && data.defaultPsdMidiumRoundY == fromY) {
+                data.defaultPsdMidiumRoundXz = EscalatorSpeedData.clampPsdMidiumRound(toXz);
+                data.defaultPsdMidiumRoundY = EscalatorSpeedData.clampPsdMidiumRound(toY);
                 data.setDirty();
                 changed++;
             }
@@ -5645,13 +6240,14 @@ public final class EscalatorSpeedManager {
         return changed;
     }
 
-    /** {@code /pbmarriveround -f <X> to <Y>}：所有维度里范围正好是 X 的那些改成 Y。 */
-    public static int replaceDefaultPsdArriveRoundAll(MinecraftServer server, int from, int to) {
+    /** {@code /pbmarriveround -f <Xz> <Y> to <新Xz> <新Y>}：所有维度里两维都正好时改成新值。 */
+    public static int replaceDefaultPsdArriveRoundAll(MinecraftServer server, int fromXz, int fromY, int toXz, int toY) {
         int changed = 0;
         for (ServerLevel level : server.getAllLevels()) {
             EscalatorSpeedData data = getServerData(level);
-            if (data.defaultPsdArriveRound == from) {
-                data.defaultPsdArriveRound = EscalatorSpeedData.clampPsdArriveRound(to);
+            if (data.defaultPsdArriveRoundXz == fromXz && data.defaultPsdArriveRoundY == fromY) {
+                data.defaultPsdArriveRoundXz = EscalatorSpeedData.clampPsdArriveRound(toXz);
+                data.defaultPsdArriveRoundY = EscalatorSpeedData.clampPsdArriveRound(toY);
                 data.setDirty();
                 changed++;
             }
@@ -5908,6 +6504,156 @@ public final class EscalatorSpeedManager {
             }
             // ★ 只抹「样式」那一格（narrate）；narrateSeconds 是另一回事，不碰。
             if (remapPsdDoorOverrides(data, t -> t.narrate() == null ? null : t.withNarrate(null))) {
+                touched = true;
+            }
+            if (touched) {
+                data.setDirty();
+                changed++;
+            }
+        }
+        return changed;
+    }
+
+    // ------------------------------------------------------------------
+    // 【10-01】两条讲述人广播的「玩家自定义文字」—— **按存档存**（用户点名）
+    //   约定同导入的 OGG：文字随存档 NBT 走，存档挪走也能找到；不进 config、不存档间互通。
+    //   两条广播（进站 / 站台）各一份，互不共用。
+    // ------------------------------------------------------------------
+
+    /** 讲述人自定义文字的目标：进站广播（讲述人）。 */
+    public static final int NARRATE_TEXTS_ARRIVE = 0;
+    /** 讲述人自定义文字的目标：站台广播（讲述人）。 */
+    public static final int NARRATE_TEXTS_MIDIUM = 1;
+
+    /** 【10-01】本维度「进站广播（讲述人）」的自定义文字（user1…userN 模板原文，按存档）。 */
+    public static List<String> getPsdNarrateUserTexts(ServerLevel level) {
+        return getServerData(level).defaultPsdArriveNarrateUserTexts;
+    }
+
+    /** 【10-01】本维度「站台广播（讲述人）」的自定义文字（按存档，与进站广播分开一份）。 */
+    public static List<String> getPsdMidiumNarrateUserTexts(ServerLevel level) {
+        return getServerData(level).defaultPsdMidiumNarrateUserTexts;
+    }
+
+    /**
+     * 【10-01】把某条讲述人广播的**整份**自定义文字写成**所有维度**（石斧讲述人页的增删改
+     * 走这里：编辑页把整份列表发来 → 落库 → 全量同步回客户端）。
+     *
+     * <p>★ 为什么「整份替换」而不是按 index 单点改：编辑页增删后 userN 序号会整体挪动，
+     * 逐条打补丁容易错位；整份覆盖天然一致（与 UI 的「保存编辑器」语义对应）。
+     *
+     * @param target {@link #NARRATE_TEXTS_ARRIVE} 或 {@link #NARRATE_TEXTS_MIDIUM}
+     * @return 真正被改动的维度数
+     */
+    public static int setPsdNarrateUserTextsAll(MinecraftServer server, int target, List<String> texts) {
+        List<String> cleaned = new java.util.ArrayList<>(
+                texts == null ? java.util.Collections.emptyList() : texts);
+        int max = EscalatorSpeedData.MAX_PSD_NARRATE_USER_STYLES;
+        while (cleaned.size() > max) {
+            cleaned.remove(cleaned.size() - 1);
+        }
+        int changed = 0;
+        for (ServerLevel level : server.getAllLevels()) {
+            EscalatorSpeedData data = getServerData(level);
+            List<String> dst = target == NARRATE_TEXTS_MIDIUM
+                    ? data.defaultPsdMidiumNarrateUserTexts : data.defaultPsdArriveNarrateUserTexts;
+            java.util.List<String> copy = new java.util.ArrayList<>(cleaned);
+            if (!copy.equals(dst)) {
+                dst.clear();
+                dst.addAll(copy);
+                data.setDirty();
+                changed++;
+            }
+        }
+        return changed;
+    }
+
+    /**
+     * 【10-01】「经典港铁预设」用：把**所有维度**的进站讲述人**秒数**写成 {@code seconds}，
+     * 同时抹掉按串覆盖（{@code -f} 口径；与 {@link #setDefaultPsdNarrateModeAll} 对称 ——
+     * 用户点名「经典港铁预设：进站广播默认 -20 秒、秒数也要一起设过去」）。
+     *
+     * @return 真正被改动的维度数
+     */
+    public static int setDefaultPsdNarrateLeadAll(MinecraftServer server, int seconds) {
+        int sec = EscalatorSpeedData.clampPsdNarrateSeconds(seconds);
+        int changed = 0;
+        for (ServerLevel level : server.getAllLevels()) {
+            EscalatorSpeedData data = getServerData(level);
+            boolean touched = false;
+            if (data.defaultPsdNarrateSeconds != sec) {
+                data.defaultPsdNarrateSeconds = sec;
+                touched = true;
+            }
+            // ★ 只抹「秒数」那一格（narrateSeconds）；样式不碰 —— 预设的样式由 pbmnarrate 那条管。
+            if (remapPsdDoorOverrides(data,
+                    t -> t.narrateSeconds() == null ? null : t.withNarrateSeconds(null))) {
+                touched = true;
+            }
+            if (touched) {
+                data.setDirty();
+                changed++;
+            }
+        }
+        return changed;
+    }
+
+    // ------------------------------------------------------------------
+    // 【09-30 续 3】「站台广播（讲述人）」—— 与进站讲述人**完全同构**的一套维度默认，
+    //   只是它管 pbmmidium（站台播报，开门后起念）那条链路的讲述人。档位共用 PSD_NARRATE_*。
+    // ------------------------------------------------------------------
+
+    /** 【09-30 续 3】本维度「站台广播（讲述人）」的**维度默认样式**（默认关闭）。客户端读镜像。 */
+    public static int getPsdMidiumNarrateMode(Level level) {
+        if (level == null) {
+            return EscalatorSpeedData.PSD_NARRATE_OFF;
+        }
+        if (level.isClientSide()) {
+            ClientDimensionData data = CLIENT_DATA.get(level.dimension());
+            return data == null ? EscalatorSpeedData.PSD_NARRATE_OFF : data.psdMidiumNarrateMode;
+        }
+        return getServerData((ServerLevel) level).defaultPsdMidiumNarrateMode;
+    }
+
+    /** 【09-30 续 3】本维度「站台广播（讲述人）」的**维度默认**等待秒数（[0,+∞)）。客户端读镜像。 */
+    public static int getPsdMidiumNarrateSeconds(Level level) {
+        if (level == null) {
+            return EscalatorSpeedData.DEFAULT_PSD_NARRATE_SECONDS;
+        }
+        if (level.isClientSide()) {
+            ClientDimensionData data = CLIENT_DATA.get(level.dimension());
+            return data == null
+                    ? EscalatorSpeedData.DEFAULT_PSD_NARRATE_SECONDS
+                    : data.psdMidiumNarrateSeconds;
+        }
+        return getServerData((ServerLevel) level).defaultPsdMidiumNarrateSeconds;
+    }
+
+    /** 【09-30 续 3】「同步所有」弹窗（站台讲述人页）：只改**本维度**的维度默认（样式 + 秒数）。 */
+    public static void setDefaultPsdMidiumNarrate(ServerLevel level, int mode, int seconds) {
+        EscalatorSpeedData data = getServerData(level);
+        data.defaultPsdMidiumNarrateMode = EscalatorSpeedData.clampPsdNarrateMode(mode);
+        data.defaultPsdMidiumNarrateSeconds = EscalatorSpeedData.clampPsdMidiumNarrateSeconds(seconds);
+        data.setDirty();
+    }
+
+    /** 【09-30 续 3】「强制同步」（站台讲述人页）：维度默认写给**所有维度**，并抹掉按串覆盖。 */
+    public static int setDefaultPsdMidiumNarrateAll(MinecraftServer server, int mode, int seconds) {
+        int clamped = EscalatorSpeedData.clampPsdNarrateMode(mode);
+        int sec = EscalatorSpeedData.clampPsdMidiumNarrateSeconds(seconds);
+        int changed = 0;
+        for (ServerLevel level : server.getAllLevels()) {
+            EscalatorSpeedData data = getServerData(level);
+            boolean touched = false;
+            if (data.defaultPsdMidiumNarrateMode != clamped || data.defaultPsdMidiumNarrateSeconds != sec) {
+                data.defaultPsdMidiumNarrateMode = clamped;
+                data.defaultPsdMidiumNarrateSeconds = sec;
+                touched = true;
+            }
+            // -f = 「修改全部」：这一项的「按串单独设置」也一起抹回跟维度默认。
+            if (remapPsdDoorOverrides(data, t -> (t.midiumNarrate() == null && t.midiumNarrateSeconds() == null)
+                    ? null
+                    : t.withMidiumNarrate(null).withMidiumNarrateSeconds(null))) {
                 touched = true;
             }
             if (touched) {
@@ -6293,6 +7039,17 @@ public final class EscalatorSpeedManager {
         updateDoor(level, key, t -> t.withNarrateSeconds(EscalatorSpeedData.clampPsdNarrateSeconds(seconds)));
     }
 
+    /** 【09-30 续 3】石斧 UI「站台广播（讲述人）」二级页：只改**这一串门**的**样式**（档位共用）。 */
+    public static void setDoorPsdMidiumNarrate(ServerLevel level, long key, int mode) {
+        updateDoor(level, key, t -> t.withMidiumNarrate(EscalatorSpeedData.clampPsdNarrateMode(mode)));
+    }
+
+    /** 【09-30 续 3】石斧 UI「站台广播（讲述人）」主界面的秒数格：只改**这一串门**（[0,+∞)）。 */
+    public static void setDoorPsdMidiumNarrateSeconds(ServerLevel level, long key, int seconds) {
+        updateDoor(level, key,
+                t -> t.withMidiumNarrateSeconds(EscalatorSpeedData.clampPsdMidiumNarrateSeconds(seconds)));
+    }
+
     // ---- 读数：每一项都是「门的覆盖值 > 维度默认」 ----
 
     /** 这一扇门**生效**的总开关。 */
@@ -6394,6 +7151,21 @@ public final class EscalatorSpeedManager {
     public static int getDoorPsdNarrateSeconds(Level level, long key) {
         Integer own = psdDoorRecord(level, key).narrateSeconds();
         return own != null ? own : getPsdNarrateSeconds(level);
+    }
+
+    /**
+     * 【09-30 续 3】这一串门**生效**的「站台广播（讲述人）」**样式**（门覆盖值 &gt; 维度默认；
+     * 档位与进站讲述人共用：0 关 / 1 上海 / 2 香港 / 3+ userN）。
+     */
+    public static int getDoorPsdMidiumNarrateMode(Level level, long key) {
+        Integer own = psdDoorRecord(level, key).midiumNarrate();
+        return own != null ? own : getPsdMidiumNarrateMode(level);
+    }
+
+    /** 【09-30 续 3】这一串门**生效**的「站台广播（讲述人）」等待秒数（门覆盖值 &gt; 维度默认；[0,+∞)）。 */
+    public static int getDoorPsdMidiumNarrateSeconds(Level level, long key) {
+        Integer own = psdDoorRecord(level, key).midiumNarrateSeconds();
+        return own != null ? own : getPsdMidiumNarrateSeconds(level);
     }
 
     /**
@@ -6746,7 +7518,9 @@ public final class EscalatorSpeedManager {
         buf.writeVarInt(data.defaultPsdHelpVolume);
         buf.writeBoolean(data.defaultPsdToneOpenEnabled);
         buf.writeBoolean(data.defaultPsdToneCloseEnabled);
-        buf.writeVarInt(data.defaultPsdHelpRound);
+        // 【09-29】范围拆双维：第 1 格水平（x、z 轴）原位，第 2 格垂直（y 轴）紧跟
+        buf.writeVarInt(data.defaultPsdHelpRoundXz);
+        buf.writeVarInt(data.defaultPsdHelpRoundY);
         buf.writeVarInt(data.defaultPsdToneVolumeOpen);
         buf.writeVarInt(data.defaultPsdToneVolumeClose);
         // 【1.15】两项的维度默认素材（末尾追加，读侧同序）
@@ -6763,14 +7537,24 @@ public final class EscalatorSpeedManager {
         // 【1.22】到站 / 进站播报各自那一项的音量（末尾再追加两格，读侧同序）
         buf.writeVarInt(data.defaultPsdMidiumVolume);
         buf.writeVarInt(data.defaultPsdArriveVolume);
-        // 【1.23】到站 / 进站播报各自的**可闻范围**（末尾再追加两格，读侧同序）
-        buf.writeVarInt(data.defaultPsdMidiumRound);
-        buf.writeVarInt(data.defaultPsdArriveRound);
+        // 【1.23】【09-29】到站 / 进站播报各自的**可闻范围**（末尾再追加，读侧同序）：
+        //   范围拆双维 —— 每项第 1 格水平（x、z 轴）原位，第 2 格垂直（y 轴）紧跟
+        buf.writeVarInt(data.defaultPsdMidiumRoundXz);
+        buf.writeVarInt(data.defaultPsdMidiumRoundY);
+        buf.writeVarInt(data.defaultPsdArriveRoundXz);
+        buf.writeVarInt(data.defaultPsdArriveRoundY);
         // 【09-28】「进站广播（讲述人）」维度默认：样式（0/1/2）+ 秒数（末尾再追加两格，读侧同序）
         //   ★ 续：第 1 格由 Boolean（开关）改成 VarInt（三档样式）—— 格子数不变，类型变了，
         //   读侧同步改（SmoothLiftClient 那一行 narrateMode = buf.readVarInt()）。
         buf.writeVarInt(data.defaultPsdNarrateMode);
         buf.writeVarInt(data.defaultPsdNarrateSeconds);
+        // 【09-30 续 3】「站台广播（讲述人）」维度默认（末尾再追加两格，读侧同序）
+        buf.writeVarInt(data.defaultPsdMidiumNarrateMode);
+        buf.writeVarInt(data.defaultPsdMidiumNarrateSeconds);
+        // 【10-01】两条讲述人广播的玩家自定义文字（末尾再追加：条数 + 按序 utf；读侧同序）。
+        //   ★ 文字随维度同步包发给客户端 —— 客户端讲述人/编辑页念的就是这份按存档存的词。
+        writeNarrateUserTexts(buf, data.defaultPsdArriveNarrateUserTexts);
+        writeNarrateUserTexts(buf, data.defaultPsdMidiumNarrateUserTexts);
         return buf;
     }
 
@@ -6827,6 +7611,9 @@ public final class EscalatorSpeedManager {
             //   ★ 续：第 1 格由 Boolean（开关）改成可选 int（三档样式）—— 格子数不变，读侧同步改。
             writeDoorOptInt(buf, tone.narrate());
             writeDoorOptInt(buf, tone.narrateSeconds());
+            // 【09-30 续 3】「站台广播（讲述人）」这一串门的覆盖项（末尾再追加两格，读侧同序）
+            writeDoorOptInt(buf, tone.midiumNarrate());
+            writeDoorOptInt(buf, tone.midiumNarrateSeconds());
         }
         return buf;
     }
@@ -6852,6 +7639,26 @@ public final class EscalatorSpeedManager {
         if (v != null) {
             buf.writeUtf(v, 128);
         }
+    }
+
+    // ---- 【10-01】讲述人自定义文字列表的包读写（与 buildPsdChimePacket 末尾成对）----
+
+    private static void writeNarrateUserTexts(FriendlyByteBuf buf, List<String> texts) {
+        int n = Math.min(texts == null ? 0 : texts.size(), EscalatorSpeedData.MAX_PSD_NARRATE_USER_STYLES);
+        buf.writeVarInt(n);
+        for (int i = 0; i < n; i++) {
+            buf.writeUtf(texts.get(i) == null ? "" : texts.get(i), 256);
+        }
+    }
+
+    /** 客户端读一段「讲述人自定义文字」列表（与 {@link #writeNarrateUserTexts} 成对）。 */
+    public static List<String> readNarrateUserTexts(FriendlyByteBuf buf) {
+        int n = Math.min(buf.readVarInt(), EscalatorSpeedData.MAX_PSD_NARRATE_USER_STYLES);
+        List<String> out = new java.util.ArrayList<>(n);
+        for (int i = 0; i < n; i++) {
+            out.add(buf.readUtf(256));
+        }
+        return out;
     }
 
     /** 客户端读一个「可选 boolean」；与 {@link #writeDoorOptBool} 成对。 */
@@ -6892,21 +7699,25 @@ public final class EscalatorSpeedManager {
      * 入参顺序 = {@link #buildPsdChimePacket} 的写序。
      */
     public static void applyClientPsdChime(ResourceKey<Level> dimension, boolean enabled, int volume,
-                                           boolean openEnabled, boolean closeEnabled, int round,
+                                           boolean openEnabled, boolean closeEnabled,
+                                           int roundXz, int roundY,
                                            int toneVolumeOpen, int toneVolumeClose,
                                            String toneAudioOpen, String toneAudioClose,
                                            int closeWaitSeconds,
                                            String midiumAudio, int midiumWaitSeconds,
                                            String arriveAudio, int arriveSeconds,
                                            int midiumVolume, int arriveVolume,
-                                           int midiumRound, int arriveRound,
-                                           int narrateMode, int narrateSeconds) {
+                                           int midiumRoundXz, int midiumRoundY,
+                                           int arriveRoundXz, int arriveRoundY,
+                                           int narrateMode, int narrateSeconds,
+                                           int midiumNarrateMode, int midiumNarrateSeconds) {
         ClientDimensionData data = CLIENT_DATA.computeIfAbsent(dimension, k -> new ClientDimensionData());
         data.psdHelp = enabled;
         data.psdHelpVolume = EscalatorSpeedData.clampLiftHelpVolume(volume);
         data.psdToneOpenEnabled = openEnabled;
         data.psdToneCloseEnabled = closeEnabled;
-        data.psdHelpRound = EscalatorSpeedData.clampPsdHelpRound(round);
+        data.psdHelpRoundXz = EscalatorSpeedData.clampPsdHelpRound(roundXz);
+        data.psdHelpRoundY = EscalatorSpeedData.clampPsdHelpRound(roundY);
         data.psdToneVolumeOpen = EscalatorSpeedData.clampPsdToneVolume(toneVolumeOpen);
         data.psdToneVolumeClose = EscalatorSpeedData.clampPsdToneVolume(toneVolumeClose);
         data.psdToneAudioOpen = EscalatorSpeedData.normalizePsdToneAudio(toneAudioOpen);
@@ -6918,10 +7729,14 @@ public final class EscalatorSpeedManager {
         data.psdArriveSeconds = EscalatorSpeedData.clampPsdArriveSeconds(arriveSeconds);
         data.psdMidiumVolume = EscalatorSpeedData.clampPsdToneVolume(midiumVolume);
         data.psdArriveVolume = EscalatorSpeedData.clampPsdToneVolume(arriveVolume);
-        data.psdMidiumRound = EscalatorSpeedData.clampPsdMidiumRound(midiumRound);
-        data.psdArriveRound = EscalatorSpeedData.clampPsdArriveRound(arriveRound);
+        data.psdMidiumRoundXz = EscalatorSpeedData.clampPsdMidiumRound(midiumRoundXz);
+        data.psdMidiumRoundY = EscalatorSpeedData.clampPsdMidiumRound(midiumRoundY);
+        data.psdArriveRoundXz = EscalatorSpeedData.clampPsdArriveRound(arriveRoundXz);
+        data.psdArriveRoundY = EscalatorSpeedData.clampPsdArriveRound(arriveRoundY);
         data.psdNarrateMode = EscalatorSpeedData.clampPsdNarrateMode(narrateMode);
         data.psdNarrateSeconds = EscalatorSpeedData.clampPsdNarrateSeconds(narrateSeconds);
+        data.psdMidiumNarrateMode = EscalatorSpeedData.clampPsdNarrateMode(midiumNarrateMode);
+        data.psdMidiumNarrateSeconds = EscalatorSpeedData.clampPsdMidiumNarrateSeconds(midiumNarrateSeconds);
         clientPsdChimeGeneration++;
     }
 

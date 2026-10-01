@@ -85,8 +85,14 @@ import java.lang.reflect.Method;
  * 返回 {@code -1}、打一条日志、之后彻底静默，播放器照旧走实测学习那条路，
  * 行为与加这个类之前**完全一样**。绝不会把反射异常抛进客户端 tick。
  *
- * <p>MTR3 没有 {@code org.mtr.core.data.Platform}（也没有屏蔽门提示音这一套数据面），
- * 探测失败即整体停用 —— 这正是期望行为。
+ * <p>★ 双版本支持（2026-10 补充）：原来只绑 MTR4（{@code org.mtr.*，4.0.x}），装 MTR3
+ * （{@code mtr.*，3.2.2-hotfix-1}）时 {@code platformIdAt} 会返回哨兵 {@link #PLATFORM_ID_NONE}
+ * ⇒ {@code PsdDoorTracker} 的 runKey 回落成连通串 ⇒ {@code PsdChimePlayer} 在「读配置之前」就把
+ * 站台讲述人 / 进站讲述人 continue 掉，整段静默。这一版把 MTR3 也当成与 MTR4 并列的第二条
+ * 反射绑定路径接进来（同样全程反射、同样「任何一步失败只打日志不打异常」）。两条路径共用同一套
+ * 对外接口，调用方无感；判据阈值（{@link #MAX_LATERAL} / {@link #MAX_HORIZONTAL} / {@link #MAX_DY}、
+ * 「优先挑 dwellTime &gt; 0 的」）也完全同构。历史说明：本类最初（1.15 第八轮）确实只为 MTR4 而写，
+ * MTR3 那句「没有 org.mtr.core.data.Platform ⇒ 整体停用」已作废，改为上面的双版本事实。
  */
 public final class MtrDwellAccess {
 
@@ -232,6 +238,78 @@ public final class MtrDwellAccess {
      */
     private static String lastPick = "";
 
+    /**
+     * 当前绑定的 MTR 大版本：{@link #MODE_NONE}=未绑定，{@link #MODE_MTR4}=MTR4（org.mtr.*），
+     * {@link #MODE_MTR3}=MTR3（mtr.*，3.2.2-hotfix-1）。两种实现互不共存（运行期只可能装一种），
+     * 探测一次后缓存。所有「对外只读接口」都按这个 mode 分发到下面两条并列的反射绑定，
+     * 调用方完全无感（签名 / 语义不变）。
+     */
+    private static int mode;
+    private static final int MODE_NONE = 0;
+    private static final int MODE_MTR4 = 4;
+    private static final int MODE_MTR3 = 3;
+
+    // ------------------------------------------------------------------
+    // MTR3 绑定（mtr.* 前缀，3.2.2-hotfix-1）—— 与 MTR4 并列的第二条路径
+    //
+    //   ★ 为什么要有它：原来只绑 MTR4，装 MTR3 时 platformIdAt 返回哨兵
+    //   PLATFORM_ID_NONE ⇒ PsdDoorTracker 的 runKey 回落成连通串 ⇒
+    //   PsdChimePlayer 在「读配置之前」就把站台讲述人/进站讲述人 continue 掉 ⇒ 全静默。
+    //   现在把 MTR3 也当成一等公民绑进来（同样是全程反射、同样「任何一步失败只打日志不抛异常」）。
+    //
+    //   ★ 与 MTR4 的关键差异（已在 _mtr322 里逐条 javap 核过）：
+    //     1. 站台集合是 {@code mtr.client.ClientData} 的 **public static final** 字段
+    //        （PLATFORMS / STATIONS / ROUTES / SCHEDULES_FOR_PLATFORM / DATA_CACHE），
+    //        没有 MTR4 那种 MinecraftClientData.getInstance()；
+    //     2. {@code SavedRailBase} **没有** position1/position2 字段 ⇒ 认站台只能用「中点模式」
+    //        （MAX_HORIZONTAL / MAX_DY），不走高版本的「到中轴线段」模式（MAX_LATERAL）；
+    //     3. id / name 是 {@code NameColorDataBase} 的 **字段**（不是 getId()/getName()）；
+    //     4. getMidPos() 返回的是 Minecraft 的 BlockPos（mid 坐标用 getX/getY/getZ）；
+    //     5. platform→station 没有现成链接，用几何：station.inArea(中点X, 中点Z) 命中即所属车站；
+    //     6. 时刻表在 {@code SCHEDULES_FOR_PLATFORM}，终点站用
+    //        {@code ClientCache.DATA_CACHE.getFormattedRouteDestination(Route, int, String)}
+    //        （站台显示屏 PIDS 用的同一个函数）。
+    // ------------------------------------------------------------------
+
+    /** 【MTR3】{@code mtr.client.ClientData.PLATFORMS}（public static final Set<Platform>）。 */
+    private static Field mtr3PlatformsField;
+    /** 【MTR3】{@code mtr.client.ClientData.STATIONS}（public static final Set<Station>）。 */
+    private static Field mtr3StationsField;
+    /** 【MTR3】{@code mtr.client.ClientData.SCHEDULES_FOR_PLATFORM}（Map<Long,Set<ScheduleEntry>>）。 */
+    private static Field mtr3SchedulesField;
+    /** 【MTR3】{@code mtr.client.ClientData.ROUTES}（public static final Set<Route>，站台→线路用）。 */
+    private static Field mtr3RoutesField;
+    /** 【MTR3】{@code mtr.client.ClientData.DATA_CACHE}（public static final ClientCache，拼终点站）。 */
+    private static Field mtr3DataCacheField;
+    /** 【MTR3】{@code SavedRailBase.getMidPos()}（public，返回 BlockPos）。 */
+    private static Method mtr3GetMidPos;
+    /** 【MTR3】{@code SavedRailBase.getDwellTime()}（public int）。 */
+    private static Method mtr3GetDwellTime;
+    /** 【MTR3】{@code NameColorDataBase.id}（public final long **字段**，不是 getId()）。 */
+    private static Field mtr3IdField;
+    /** 【MTR3】{@code NameColorDataBase.name}（public String **字段**，不是 getName()）。 */
+    private static Field mtr3NameField;
+    /** 【MTR3】{@code AreaBase.getCenter()}（public，返回 BlockPos，几何找车站备用）。 */
+    private static Method mtr3GetCenter;
+    /** 【MTR3】{@code AreaBase.inArea(int,int)}（public，platform 中点是否落在车站范围内）。 */
+    private static Method mtr3InArea;
+    /** 【MTR3】BlockPos.getX/getY/getZ（getReturnType 拿，避免硬编码 MC 映射名 class_2338）。 */
+    private static Method mtr3PosGetX;
+    private static Method mtr3PosGetY;
+    private static Method mtr3PosGetZ;
+    /** 【MTR3】{@code Route.platformIds}（public final List<RoutePlatform>，站台→线路用）。 */
+    private static Field mtr3RoutePlatformIdsField;
+    /** 【MTR3】{@code Route$RoutePlatform.platformId}（public final long）。 */
+    private static Field mtr3RoutePlatformIdField;
+    /** 【MTR3】{@code ScheduleEntry.arrivalMillis}（public final long，到站时刻，epoch ms）。 */
+    private static Field mtr3ArrivalMillisField;
+    /** 【MTR3】{@code ScheduleEntry.routeId}（public final long）。 */
+    private static Field mtr3ScheduleRouteIdField;
+    /** 【MTR3】{@code ScheduleEntry.currentStationIndex}（public final int）。 */
+    private static Field mtr3ScheduleStationIndexField;
+    /** 【MTR3】{@code ClientCache.getFormattedRouteDestination(Route, int, String)}（PIDS 同函数）。 */
+    private static Method mtr3GetFormattedDest;
+
     /** {@code MinecraftClientData.getInstance()}（MTR4）。 */
     private static Method getInstance;
     /** {@code Data.platforms}（public final，声明在 {@code Data} 上，MTR4）。 */
@@ -255,6 +333,17 @@ public final class MtrDwellAccess {
      */
     private static Field areaField;
     private static Method getNameMethod;
+    /** 【09-30 续 9】可选绑定：{@code Station.getId()} —— 门串身份升到「车站级」要用
+     *  （{@code platform.area → Station}，取车站自己的 id）。 */
+    private static Method stationIdMethod;
+    /**
+     * 【09-30 续 2】**可选**绑定：{@code Data.routes}（线路集合）+ {@code Route.routeData}
+     * （线路-站台关系列表）+ {@code RouteData.getPlatformId()} —— 讲述人自定义词的
+     * {@code |LC|} / {@code |LE|}（当前线路名中英文）用。任一格读不到都只是占位符替空。
+     */
+    private static Field routesField;
+    private static Field routeDataField;
+    private static Method routeDataGetPlatformId;
     /** {@code Position.getX/getY/getZ()}（public）。 */
     private static Method posGetX;
     private static Method posGetY;
@@ -352,7 +441,101 @@ public final class MtrDwellAccess {
         return bound && !broken;
     }
 
+    /**
+     * 探测当前运行期装的是哪一版 MTR：先试 MTR4（org.mtr.*），没有再试 MTR3（mtr.*）。
+     * 两个都失败才返回 false（既没装 MTR 也没装兼容版本）。
+     */
     private static boolean bind() {
+        if (bindMtr4()) {
+            mode = MODE_MTR4;
+            return true;
+        }
+        // 没装 MTR4（装的是 MTR3 或压根没装 MTR）—— 试着走 MTR3 那条并列绑定。
+        try {
+            if (bindMtr3()) {
+                mode = MODE_MTR3;
+                return true;
+            }
+        } catch (Throwable t) {
+            LOGGER.info("[SmoothLift/PsdChime] 读不到 MTR3 站台数据层（{}），"
+                    + "停站时长只能靠上一轮实测学习（功能照常，只是第一次停站没人声）", t.toString());
+        }
+        return false;
+    }
+
+    /**
+     * 【MTR3】探测并绑定 {@code mtr.client.ClientData} 这一整套（mtr.*，3.2.2-hotfix-1）。
+     *
+     * <p>与 MTR4 同一套「任何一步失败都只打日志、不抛异常」的降级风格；返回 true 即启用
+     * 站台讲述人 / 进站讲述人 / 停站时长预测。没装 MTR3（或 MTR 改了内部类名）时返回 false，
+     * 下游照旧走实测学习那条路。
+     */
+    private static boolean bindMtr3() {
+        try {
+            Class<?> clientData = Class.forName("mtr.client.ClientData");
+            mtr3PlatformsField = clientData.getField("PLATFORMS");
+            mtr3StationsField = clientData.getField("STATIONS");
+            mtr3SchedulesField = clientData.getField("SCHEDULES_FOR_PLATFORM");
+            mtr3RoutesField = clientData.getField("ROUTES");
+            mtr3DataCacheField = clientData.getField("DATA_CACHE");
+            setAccessible(mtr3PlatformsField, mtr3StationsField, mtr3SchedulesField,
+                    mtr3RoutesField, mtr3DataCacheField);
+            Class<?> savedRail = Class.forName("mtr.data.SavedRailBase");
+            mtr3GetMidPos = method(savedRail, "getMidPos");
+            mtr3GetDwellTime = method(savedRail, "getDwellTime");
+            if (mtr3GetMidPos == null || mtr3GetDwellTime == null) {
+                throw new NoSuchMethodException("SavedRailBase.getMidPos/getDwellTime");
+            }
+            // ★ 拿到 BlockPos 的真实 Class（运行期可能是 class_2338，也可能是 Mojang 名），避免硬编码映射。
+            Class<?> blockPos = mtr3GetMidPos.getReturnType();
+            mtr3PosGetX = blockPos.getMethod("getX");
+            mtr3PosGetY = blockPos.getMethod("getY");
+            mtr3PosGetZ = blockPos.getMethod("getZ");
+            setAccessible(mtr3PosGetX, mtr3PosGetY, mtr3PosGetZ);
+            Class<?> named = Class.forName("mtr.data.NameColorDataBase");
+            mtr3IdField = fieldInHierarchy(named, "id");
+            mtr3NameField = fieldInHierarchy(named, "name");
+            if (mtr3IdField == null || mtr3NameField == null) {
+                throw new NoSuchFieldException("NameColorDataBase.id/name");
+            }
+            setAccessible(mtr3IdField, mtr3NameField);
+            Class<?> area = Class.forName("mtr.data.AreaBase");
+            mtr3GetCenter = method(area, "getCenter");
+            mtr3InArea = method(area, "inArea", int.class, int.class);
+            Class<?> route = Class.forName("mtr.data.Route");
+            mtr3RoutePlatformIdsField = fieldInHierarchy(route, "platformIds");
+            Class<?> routePlatform = Class.forName("mtr.data.Route$RoutePlatform");
+            mtr3RoutePlatformIdField = fieldInHierarchy(routePlatform, "platformId");
+            Class<?> scheduleEntry = Class.forName("mtr.data.ScheduleEntry");
+            mtr3ArrivalMillisField = fieldInHierarchy(scheduleEntry, "arrivalMillis");
+            mtr3ScheduleRouteIdField = fieldInHierarchy(scheduleEntry, "routeId");
+            mtr3ScheduleStationIndexField = fieldInHierarchy(scheduleEntry, "currentStationIndex");
+            Class<?> clientCache = Class.forName("mtr.client.ClientCache");
+            mtr3GetFormattedDest = method(clientCache, "getFormattedRouteDestination", route, int.class, String.class);
+            LOGGER.info("[SmoothLift/PsdChime] 检测到 MTR3 站台数据层（mtr.* 3.2.2）—— "
+                    + "可以直接读时刻表的停站时长；认站台方式 = 门到站台中点的水平距离（≤ "
+                    + MAX_HORIZONTAL + " 格，MTR3 无 position1/position2 端点字段，不走高版本的「中轴线段」模式）");
+            return true;
+        } catch (Throwable t) {
+            LOGGER.info("[SmoothLift/PsdChime] 读不到 MTR3 站台数据层（{}），"
+                    + "停站时长只能靠上一轮实测学习（功能照常，只是第一次停站没人声）", t.toString());
+            return false;
+        }
+    }
+
+    private static void setAccessible(java.lang.reflect.AccessibleObject... members) {
+        for (java.lang.reflect.AccessibleObject m : members) {
+            if (m != null) {
+                try {
+                    m.setAccessible(true);
+                } catch (Throwable ignored) {
+                    // 某些环境禁止 setAccessible，跳过多读一次无妨（绑定已成功，只是读可能失败）
+                }
+            }
+        }
+    }
+
+    private static boolean bindMtr4() {
         try {
             Class<?> mcd = Class.forName("org.mtr.mod.client.MinecraftClientData");
             getInstance = method(mcd, "getInstance");
@@ -393,9 +576,31 @@ public final class MtrDwellAccess {
                 areaField = fieldInHierarchy(savedRail, "area");
                 Class<?> named = Class.forName("org.mtr.core.data.NameColorDataBase");
                 getNameMethod = method(named, "getName");
+                // 【09-30 续 9】车站 id（同上，门串身份升「车站级」用）。
+                Class<?> station = Class.forName("org.mtr.core.data.Station");
+                stationIdMethod = method(station, "getId");
             } catch (Throwable ignored) {
                 areaField = null;
                 getNameMethod = null;
+                stationIdMethod = null;
+            }
+            // 【09-30 续 2】**可选**绑定：站台 → 所属**线路**（讲述人自定义词的 |LC| / |LE| 占位符）。
+            //   找法 = 扫每条 Route 的 routeData，谁的 platformId 等于目标站台就是哪条线；
+            //   Route extends NameColorDataBase ⇒ 线路名用上面同一个 getNameMethod。
+            //   任一格绑定失败都只是 |LC|/|LE| 替成空串，不影响其它功能。
+            try {
+                routesField = fieldInHierarchy(data, "routes");
+                Class<?> route = Class.forName("org.mtr.core.data.Route");
+                routeDataField = fieldInHierarchy(route, "routeData");
+                Class<?> routeData = Class.forName("org.mtr.core.data.RouteData");
+                routeDataGetPlatformId = method(routeData, "getPlatformId");
+                if (routesField == null || routeDataField == null || routeDataGetPlatformId == null) {
+                    throw new NoSuchMethodException("Route.routeData / RouteData.getPlatformId");
+                }
+            } catch (Throwable ignored) {
+                routesField = null;
+                routeDataField = null;
+                routeDataGetPlatformId = null;
             }
             // 【1.21】**可选**绑定：站台 id（进站报站要靠它去查时刻表）。
             getIdMethod = method(platform, "getId");
@@ -447,6 +652,313 @@ public final class MtrDwellAccess {
         }
         if (raw instanceof Iterable<?> iterable) {
             return iterable;
+        }
+        return null;
+    }
+
+    // ------------------------------------------------------------------
+    // 双版本数据访问代理（对外只读接口不变，按 mode 分发到 MTR4 / MTR3）
+    // ------------------------------------------------------------------
+
+    /** 当前是不是「门到站台中轴线段」的认亲模式（只有 MTR4 且有端点字段时才成立）。 */
+    private static boolean segmentMode() {
+        return mode == MODE_MTR4 && position1Field != null && position2Field != null;
+    }
+
+    /** 取出「客户端手里的全部站台」集合（MTR4 走 getInstance().platforms；MTR3 走静态字段）。 */
+    private static Object mtrPlatforms() {
+        try {
+            if (mode == MODE_MTR3) {
+                return mtr3PlatformsField.get(null);
+            }
+            Object instance = getInstance.invoke(null);
+            return instance == null ? null : platformsField.get(instance);
+        } catch (Throwable t) {
+            return null;
+        }
+    }
+
+    /** 站台中点坐标对象（MTR4 = Position；MTR3 = BlockPos），调用方再用 px/py/pz 取分量。 */
+    private static Object midPosOf(Object platform) {
+        try {
+            return (mode == MODE_MTR3 ? mtr3GetMidPos : getMidPosition).invoke(platform);
+        } catch (Throwable t) {
+            return null;
+        }
+    }
+
+    /** 中点坐标的 X 分量（按版本选 Position / BlockPos 的 getX）。 */
+    private static double px(Object pos) {
+        try {
+            return ((Number) (mode == MODE_MTR3 ? mtr3PosGetX : posGetX).invoke(pos)).doubleValue();
+        } catch (Throwable t) {
+            return Double.NaN;
+        }
+    }
+
+    /** 中点坐标的 Y 分量。 */
+    private static double py(Object pos) {
+        try {
+            return ((Number) (mode == MODE_MTR3 ? mtr3PosGetY : posGetY).invoke(pos)).doubleValue();
+        } catch (Throwable t) {
+            return Double.NaN;
+        }
+    }
+
+    /** 中点坐标的 Z 分量。 */
+    private static double pz(Object pos) {
+        try {
+            return ((Number) (mode == MODE_MTR3 ? mtr3PosGetZ : posGetZ).invoke(pos)).doubleValue();
+        } catch (Throwable t) {
+            return Double.NaN;
+        }
+    }
+
+    /** 站台 id（MTR4 = getId()；MTR3 = id 字段；都可为负，原样透传）。 */
+    private static long idOf(Object platform) {
+        try {
+            if (mode == MODE_MTR3) {
+                Object id = mtr3IdField.get(platform);
+                return id instanceof Number n ? n.longValue() : PLATFORM_ID_NONE;
+            }
+            Object id = getIdMethod.invoke(platform);
+            return id instanceof Number n ? n.longValue() : PLATFORM_ID_NONE;
+        } catch (Throwable t) {
+            return PLATFORM_ID_NONE;
+        }
+    }
+
+    /**
+     * 【MTR3】按几何找「这个站台属于哪个车站」：取站台中点，遍历 STATIONS 命中
+     * {@code Station.inArea(中点X, 中点Z)} 的那个就是（MTR3 没有 platform.area 链接）。
+     */
+    private static String mtr3StationNameOf(Object platform) {
+        if (mtr3StationsField == null || mtr3GetMidPos == null || mtr3InArea == null
+                || mtr3PosGetX == null || mtr3PosGetZ == null) {
+            return null;
+        }
+        try {
+            Object mid = mtr3GetMidPos.invoke(platform);
+            if (mid == null) {
+                return null;
+            }
+            int mx = (int) Math.floor(px(mid));
+            int mz = (int) Math.floor(pz(mid));
+            Iterable<?> stations = elementsOf(mtr3StationsField.get(null));
+            if (stations == null) {
+                return null;
+            }
+            for (Object st : stations) {
+                if (st == null) {
+                    continue;
+                }
+                Object res = mtr3InArea.invoke(st, mx, mz);
+                if (res instanceof Boolean b && b) {
+                    Object name = mtr3NameField.get(st);
+                    return name == null ? null : name.toString();
+                }
+            }
+        } catch (Throwable ignored) {
+            // 读不到只是没站名可念，不影响报站本身
+        }
+        return null;
+    }
+
+    /**
+     * 【MTR3】站台 id → 所属车站 id：与 {@link #mtr3StationNameOf} 同一套几何命中，
+     * 命中后取 {@code Station.id} 字段。
+     */
+    private static long mtr3StationIdForPlatform(long platformId) {
+        if (mtr3StationsField == null || mtr3PlatformsField == null
+                || mtr3GetMidPos == null || mtr3InArea == null) {
+            return PLATFORM_ID_NONE;
+        }
+        try {
+            Iterable<?> platforms = elementsOf(mtr3PlatformsField.get(null));
+            if (platforms == null) {
+                return PLATFORM_ID_NONE;
+            }
+            for (Object platform : platforms) {
+                if (platform == null || idOf(platform) != platformId) {
+                    continue;
+                }
+                Object mid = mtr3GetMidPos.invoke(platform);
+                if (mid == null) {
+                    break;
+                }
+                int mx = (int) Math.floor(px(mid));
+                int mz = (int) Math.floor(pz(mid));
+                Iterable<?> stations = elementsOf(mtr3StationsField.get(null));
+                if (stations != null) {
+                    for (Object st : stations) {
+                        if (st == null) {
+                            continue;
+                        }
+                        Object res = mtr3InArea.invoke(st, mx, mz);
+                        if (res instanceof Boolean b && b) {
+                            Object sid = mtr3IdField.get(st);
+                            return sid instanceof Number n ? n.longValue() : PLATFORM_ID_NONE;
+                        }
+                    }
+                }
+                break;
+            }
+        } catch (Throwable ignored) {
+            // 读不到只是拿不到车站 id，不影响其它功能
+        }
+        return PLATFORM_ID_NONE;
+    }
+
+    /**
+     * 【MTR3】站台 id → 线路名：扫 ROUTES，谁的 platformIds 里含这个站台 id，那条 Route 就是答案
+     * （一条站台被多条线共用时取扫到的第一条；共线段各有各的说法，挑哪条都算对）。
+     */
+    private static String mtr3LineNameForPlatform(long platformId) {
+        if (mtr3RoutesField == null || mtr3RoutePlatformIdsField == null
+                || mtr3RoutePlatformIdField == null || mtr3NameField == null) {
+            return null;
+        }
+        try {
+            Iterable<?> routes = elementsOf(mtr3RoutesField.get(null));
+            if (routes == null) {
+                return null;
+            }
+            for (Object route : routes) {
+                if (route == null) {
+                    continue;
+                }
+                Iterable<?> rps = elementsOf(mtr3RoutePlatformIdsField.get(route));
+                if (rps == null) {
+                    continue;
+                }
+                for (Object rp : rps) {
+                    if (rp == null) {
+                        continue;
+                    }
+                    Object pid = mtr3RoutePlatformIdField.get(rp);
+                    if (pid instanceof Number n && n.longValue() == platformId) {
+                        Object name = mtr3NameField.get(route);
+                        return name == null ? null : name.toString();
+                    }
+                }
+            }
+        } catch (Throwable ignored) {
+            // 读不到只是没线路名可念，不影响报站本身
+        }
+        return null;
+    }
+
+    /** 【MTR3】站台 id → 站台名（platform.name 字段，讲述人报站词要念的「几站台」）。 */
+    private static String mtr3PlatformNameForPlatform(long platformId) {
+        if (mtr3PlatformsField == null || mtr3NameField == null) {
+            return null;
+        }
+        try {
+            Iterable<?> platforms = elementsOf(mtr3PlatformsField.get(null));
+            if (platforms == null) {
+                return null;
+            }
+            for (Object platform : platforms) {
+                if (platform == null) {
+                    continue;
+                }
+                if (idOf(platform) == platformId) {
+                    Object name = mtr3NameField.get(platform);
+                    return name == null ? null : name.toString();
+                }
+            }
+        } catch (Throwable ignored) {
+            // 读不到只是没站台名可念
+        }
+        return null;
+    }
+
+    /**
+     * 【MTR3】下一班车信息：从 {@code SCHEDULES_FOR_PLATFORM} 取这一站的时刻表，
+     * 算「还有几秒到站」；终点站走 {@code ClientCache.getFormattedRouteDestination}（PIDS 同函数）。
+     */
+    private static ArrivalInfo mtr3NearestArrival(long platformId) {
+        if (mtr3SchedulesField == null || mtr3ArrivalMillisField == null) {
+            LOGGER.info("[SmoothLift/PsdChime] MTR3 读不到 SCHEDULES_FOR_PLATFORM（时刻表），"
+                    + "/pbmarrive（进站报站）不会响；其余功能不受影响");
+            return null;
+        }
+        try {
+            Object map = mtr3SchedulesField.get(null);
+            if (!(map instanceof java.util.Map<?, ?> scheduleMap)) {
+                return null;
+            }
+            Object set = scheduleMap.get(platformId);
+            if (!(set instanceof Iterable<?> entries)) {
+                return null;
+            }
+            long now = System.currentTimeMillis();
+            long best = Long.MIN_VALUE;
+            String bestDest = null;
+            // 【10-01】站台名过一遍 PIDS 掩码：MTR3 的名字是 public 字段 `Platform.name`，
+            //   **不经过任何 getter** ⇒ Mtr3PidsNameMixin 只拦得下 PIDS 那次 Map.put，
+            //   拦不住我们自己念的报站词。用户点名「讲述人念的站台名要跟屏蔽门一致」，
+            //   所以在这里（ArrivalInfo.platformName 的唯一出口）掩一次。
+            String bestPlatform = PlatformNameMask.mask(mtr3PlatformNameForPlatform(platformId));
+            for (Object entry : entries) {
+                if (entry == null) {
+                    continue;
+                }
+                Object am = mtr3ArrivalMillisField.get(entry);
+                if (!(am instanceof Number n)) {
+                    continue;
+                }
+                long remaining = n.longValue() - now;
+                if (remaining < -ARRIVAL_PAST_MS) {
+                    continue;
+                }
+                if (best == Long.MIN_VALUE || remaining < best) {
+                    best = remaining;
+                    bestDest = mtr3DestinationFor(entry);
+                }
+            }
+            return best == Long.MIN_VALUE ? null : new ArrivalInfo(best, bestDest, bestPlatform);
+        } catch (Throwable t) {
+            LOGGER.warn("[SmoothLift/PsdChime] MTR3 查时刻表失败，/pbmarrive 暂不响：{}", t.toString());
+            return null;
+        }
+    }
+
+    /** 【MTR3】ScheduleEntry → 终点站名（PIDS 同款：routeId 命中 ROUTES，再格式化）。 */
+    private static String mtr3DestinationFor(Object entry) {
+        if (mtr3DataCacheField == null || mtr3GetFormattedDest == null || mtr3RoutesField == null
+                || mtr3ScheduleRouteIdField == null || mtr3ScheduleStationIndexField == null) {
+            return null;
+        }
+        try {
+            Object routeId = mtr3ScheduleRouteIdField.get(entry);
+            long rid = routeId instanceof Number n ? n.longValue() : -1L;
+            Object idx = mtr3ScheduleStationIndexField.get(entry);
+            int stationIndex = idx instanceof Number n ? n.intValue() : 0;
+            Iterable<?> routes = elementsOf(mtr3RoutesField.get(null));
+            if (routes == null) {
+                return null;
+            }
+            for (Object route : routes) {
+                if (route == null) {
+                    continue;
+                }
+                Object id = mtr3IdField.get(route);
+                if (id instanceof Number n && n.longValue() == rid) {
+                    Object cache = mtr3DataCacheField.get(null);
+                    if (cache == null) {
+                        return null;
+                    }
+                    Object dest = mtr3GetFormattedDest.invoke(cache, route, stationIndex, "");
+                    if (dest == null) {
+                        return null;
+                    }
+                    String text = dest.toString().trim();
+                    return text.isEmpty() ? null : text;
+                }
+            }
+        } catch (Throwable ignored) {
+            // 读不到只是少念一句「终点站」，其它照常
         }
         return null;
     }
@@ -511,22 +1023,18 @@ public final class MtrDwellAccess {
      *
      * @return 站台 id（**可为负** —— MTR 的 id 是 {@code Random().nextLong()}，
      *         见 {@link #PLATFORM_ID_NONE}）；{@link #PLATFORM_ID_NONE} = 认不到
-     *         （没装 MTR4 / 附近没有够得着的站台）
+     *         （没装 MTR / 附近没有够得着的站台）
      */
     public static long platformIdAt(double x, double y, double z) {
-        if (!available() || getIdMethod == null) {
+        if (!available()) {
             return PLATFORM_ID_NONE;
         }
         try {
-            Object instance = getInstance.invoke(null);
-            if (instance == null) {
-                return PLATFORM_ID_NONE;
-            }
-            Iterable<?> platforms = elementsOf(platformsField.get(instance));
+            Iterable<?> platforms = elementsOf(mtrPlatforms());
             if (platforms == null) {
                 return PLATFORM_ID_NONE;
             }
-            boolean segmentMode = position1Field != null && position2Field != null;
+            boolean segmentMode = segmentMode();
             Object bestUsable = null;
             double bestUsableDist = Double.MAX_VALUE;
             Object bestAny = null;
@@ -553,7 +1061,7 @@ public final class MtrDwellAccess {
                 return PLATFORM_ID_NONE;
             }
             // ★【09-28 续 6】原样透传：id 可以是负数（Random().nextLong()），**不做任何正负判断**。
-            Object id = getIdMethod.invoke(chosen);
+            Object id = idOf(chosen);
             return id instanceof Number n ? n.longValue() : PLATFORM_ID_NONE;
         } catch (Throwable t) {
             broken = true;
@@ -583,18 +1091,21 @@ public final class MtrDwellAccess {
                 double distance = pointToSegmentXZ(x, z, seg[0], seg[2], seg[3], seg[5]);
                 return distance > MAX_LATERAL ? Double.NaN : distance;
             }
-            Object mid = getMidPosition.invoke(platform);
+            Object mid = midPosOf(platform);
             if (mid == null) {
                 return Double.NaN;
             }
-            double px = ((Number) posGetX.invoke(mid)).doubleValue();
-            double py = ((Number) posGetY.invoke(mid)).doubleValue();
-            double pz = ((Number) posGetZ.invoke(mid)).doubleValue();
-            if (Math.abs(py - y) > MAX_DY) {
+            double pxv = px(mid);
+            double pyv = py(mid);
+            double pzv = pz(mid);
+            if (Double.isNaN(pxv) || Double.isNaN(pyv) || Double.isNaN(pzv)) {
                 return Double.NaN;
             }
-            double dx = px - x;
-            double dz = pz - z;
+            if (Math.abs(pyv - y) > MAX_DY) {
+                return Double.NaN;
+            }
+            double dx = pxv - x;
+            double dz = pzv - z;
             double distance = Math.sqrt(dx * dx + dz * dz);
             return distance > MAX_HORIZONTAL ? Double.NaN : distance;
         } catch (Throwable ignored) {
@@ -610,19 +1121,15 @@ public final class MtrDwellAccess {
      * 有站台但离门超过 4 格（差多远）。三种的修法完全不同，不能混在一句「认不到」里。
      */
     public static String nearestPlatformExplain(double x, double y, double z) {
-        if (!available() || getIdMethod == null) {
+        if (!available()) {
             return "读不到 MTR 站台数据";
         }
         try {
-            Object instance = getInstance.invoke(null);
-            if (instance == null) {
-                return "读不到 MTR 站台数据";
-            }
-            Iterable<?> platforms = elementsOf(platformsField.get(instance));
+            Iterable<?> platforms = elementsOf(mtrPlatforms());
             if (platforms == null) {
                 return "读不到 MTR 站台数据";
             }
-            boolean segmentMode = position1Field != null && position2Field != null;
+            boolean segmentMode = segmentMode();
             Object best = null;
             double bestDist = Double.MAX_VALUE;
             for (Object platform : platforms) {
@@ -638,7 +1145,7 @@ public final class MtrDwellAccess {
             if (best == null) {
                 return "附近一个站台都读不到位置";
             }
-            Object id = getIdMethod.invoke(best);
+            Object id = idOf(best);
             // ★【09-28 续 6】id 可以是负数，原样打出来（**不要**拿 -1 之类的哨兵去"美化"它）。
             String idText = id instanceof Number n ? Long.toString(n.longValue()) : "读不到";
             return "最近的站台 id=" + idText
@@ -665,19 +1172,22 @@ public final class MtrDwellAccess {
                 }
                 return pointToSegmentXZ(x, z, seg[0], seg[2], seg[3], seg[5]);
             }
-            Object mid = getMidPosition.invoke(platform);
+            Object mid = midPosOf(platform);
             if (mid == null) {
                 return Double.NaN;
             }
-            double px = ((Number) posGetX.invoke(mid)).doubleValue();
-            double py = ((Number) posGetY.invoke(mid)).doubleValue();
-            double pz = ((Number) posGetZ.invoke(mid)).doubleValue();
-            // 诊断与认亲同一套 Y 上限：认到的门肯定过得了这关，这里只回答「XZ 上差多远」。
-            if (Math.abs(py - y) > MAX_DY) {
+            double pxv = px(mid);
+            double pyv = py(mid);
+            double pzv = pz(mid);
+            if (Double.isNaN(pxv) || Double.isNaN(pyv) || Double.isNaN(pzv)) {
                 return Double.NaN;
             }
-            double dx = px - x;
-            double dz = pz - z;
+            // 诊断与认亲同一套 Y 上限：认到的门肯定过得了这关，这里只回答「XZ 上差多远」。
+            if (Math.abs(pyv - y) > MAX_DY) {
+                return Double.NaN;
+            }
+            double dx = pxv - x;
+            double dz = pzv - z;
             return Math.sqrt(dx * dx + dz * dz);
         } catch (Throwable ignored) {
             return Double.NaN;
@@ -724,7 +1234,13 @@ public final class MtrDwellAccess {
      */
     public static ArrivalInfo nearestArrival(long platformId) {
         // ★【09-28 续 6】判据是 isPlatformKnown（**不是 platformId <= 0**）—— 站台 id 可以是负数。
-        if (!isPlatformKnown(platformId) || !available() || arrivalsCache == null
+        if (!isPlatformKnown(platformId)) {
+            return null;
+        }
+        if (mode == MODE_MTR3) {
+            return mtr3NearestArrival(platformId);
+        }
+        if (!available() || arrivalsCache == null
                 || requestArrivals == null || getMillisOffset == null || arrivalGetArrival == null) {
             return null;
         }
@@ -755,7 +1271,11 @@ public final class MtrDwellAccess {
                 if (best == Long.MIN_VALUE || remaining < best) {
                     best = remaining;
                     bestDestination = textOf(response, arrivalGetDestination);
-                    bestPlatform = textOf(response, arrivalGetPlatformName);
+                    // 【10-01】与 MTR3 那一支走**同一个出口**：MTR4 的 getPlatformName 其实
+                    //   已被 Mtr4PidsNameMixin 掩过（mask 幂等：不含 % 时原样返回同一实例，
+                    //   这里等于零成本），再掩一次只是让「有没有装 MTR / 装的是哪版」都不影响
+                    //   讲述人念出来的站台名 —— 用户点名「跟屏蔽门一致」。
+                    bestPlatform = PlatformNameMask.mask(textOf(response, arrivalGetPlatformName));
                 }
             }
             return best == Long.MIN_VALUE ? null : new ArrivalInfo(best, bestDestination, bestPlatform);
@@ -806,15 +1326,11 @@ public final class MtrDwellAccess {
             return -1L;
         }
         try {
-            Object instance = getInstance.invoke(null);
-            if (instance == null) {
-                return -1L;
-            }
-            Iterable<?> platforms = elementsOf(platformsField.get(instance));
+            Iterable<?> platforms = elementsOf(mtrPlatforms());
             if (platforms == null) {
                 return -1L;
             }
-            boolean segmentMode = position1Field != null && position2Field != null;
+            boolean segmentMode = segmentMode();
             Object bestAny = null;
             double bestAnyDist = Double.MAX_VALUE;
             String bestAnyAt = "";
@@ -863,18 +1379,21 @@ public final class MtrDwellAccess {
                         continue;
                     }
                 } else {
-                    Object mid = getMidPosition.invoke(platform);
+                    Object mid = midPosOf(platform);
                     if (mid == null) {
                         continue;
                     }
-                    double px = ((Number) posGetX.invoke(mid)).doubleValue();
-                    double py = ((Number) posGetY.invoke(mid)).doubleValue();
-                    double pz = ((Number) posGetZ.invoke(mid)).doubleValue();
-                    if (Math.abs(py - y) > MAX_DY) {
+                    double pxv = px(mid);
+                    double pyv = py(mid);
+                    double pzv = pz(mid);
+                    if (Double.isNaN(pxv) || Double.isNaN(pyv) || Double.isNaN(pzv)) {
                         continue;
                     }
-                    double dx = px - x;
-                    double dz = pz - z;
+                    if (Math.abs(pyv - y) > MAX_DY) {
+                        continue;
+                    }
+                    double dx = pxv - x;
+                    double dz = pzv - z;
                     distance = Math.sqrt(dx * dx + dz * dz);
                     if (distance > MAX_HORIZONTAL) {
                         if (distance < bestRejectedDist) {
@@ -999,7 +1518,7 @@ public final class MtrDwellAccess {
     /** 读这个站台的停站时长；读不出来返回 {@link Long#MIN_VALUE}（不是 0 —— 0 是「没配过」）。 */
     private static long dwellOf(Object platform) {
         try {
-            Object dwell = getDwellTime.invoke(platform);
+            Object dwell = (mode == MODE_MTR3 ? mtr3GetDwellTime : getDwellTime).invoke(platform);
             return dwell instanceof Number n ? n.longValue() : Long.MIN_VALUE;
         } catch (Throwable ignored) {
             return Long.MIN_VALUE;
@@ -1051,14 +1570,11 @@ public final class MtrDwellAccess {
     /** 日志用的「这个站台在哪」——读它的中点坐标。 */
     private static String midText(Object platform) {
         try {
-            Object mid = getMidPosition.invoke(platform);
+            Object mid = midPosOf(platform);
             if (mid == null) {
                 return "?";
             }
-            return String.format("%.0f,%.0f,%.0f",
-                    ((Number) posGetX.invoke(mid)).doubleValue(),
-                    ((Number) posGetY.invoke(mid)).doubleValue(),
-                    ((Number) posGetZ.invoke(mid)).doubleValue());
+            return String.format("%.0f,%.0f,%.0f", px(mid), py(mid), pz(mid));
         } catch (Throwable ignored) {
             return "?";
         }
@@ -1081,15 +1597,11 @@ public final class MtrDwellAccess {
      */
     public static String stationNameForPlatform(long platformId) {
         // ★【09-28 续 6】判据是 isPlatformKnown（**不是 platformId <= 0**）—— 站台 id 可以是负数。
-        if (!isPlatformKnown(platformId) || !available() || getIdMethod == null || platformsField == null) {
+        if (!isPlatformKnown(platformId) || !available()) {
             return null;
         }
         try {
-            Object instance = getInstance.invoke(null);
-            if (instance == null) {
-                return null;
-            }
-            Iterable<?> platforms = elementsOf(platformsField.get(instance));
+            Iterable<?> platforms = elementsOf(mtrPlatforms());
             if (platforms == null) {
                 return null;
             }
@@ -1097,8 +1609,7 @@ public final class MtrDwellAccess {
                 if (platform == null) {
                     continue;
                 }
-                Object id = getIdMethod.invoke(platform);
-                if (id instanceof Number n && n.longValue() == platformId) {
+                if (idOf(platform) == platformId) {
                     return stationNameOf(platform);
                 }
             }
@@ -1110,6 +1621,9 @@ public final class MtrDwellAccess {
 
     /** 这个站台属于哪个**车站**（{@code platform.area → Station.getName()}）；读不到返回 {@code null}。 */
     private static String stationNameOf(Object platform) {
+        if (mode == MODE_MTR3) {
+            return mtr3StationNameOf(platform);
+        }
         if (areaField == null || getNameMethod == null) {
             return null;
         }
@@ -1123,6 +1637,128 @@ public final class MtrDwellAccess {
         } catch (Throwable ignored) {
             return null;
         }
+    }
+
+    /**
+     * 【09-30 续 9】站台 id → 它所属**车站**的 id（{@code platform.area → Station.getId()}）。
+     *
+     * <p>门串身份升「车站级」用：MTR 把一个车站的**每一侧**建成独立的站台对象
+     * （LOG11 现场：同名「世纪广场」的两个站台 @(-26,-21,41) 与 @(-33,-21,34)，
+     * 各对应一侧门线）—— 以站台 id 当门串身份，两侧就永远各自一半（用户点名的 bug）。
+     * 以**车站**为身份，两侧门串自然合并；而时刻表查询仍按每侧自己的站台 id
+     * （{@code DoorView.platformId}，见 PsdChimePlayer），上 / 下行到站信息不会串。
+     *
+     * <p>结果按站台 id 缓存（映射稳定；{@code onDisconnect} 不清 —— 同一世界的映射不变）。
+     *
+     * @return 车站 id；读不到（没装 MTR / 站台不在任何车站里 / 绑定失败）返回 {@link #PLATFORM_ID_NONE}
+     */
+    public static long stationIdForPlatform(long platformId) {
+        if (!isPlatformKnown(platformId) || !available()) {
+            return PLATFORM_ID_NONE;
+        }
+        if (mode == MODE_MTR3) {
+            return mtr3StationIdForPlatform(platformId);
+        }
+        if (getIdMethod == null || areaField == null || stationIdMethod == null) {
+            return PLATFORM_ID_NONE;
+        }
+        Long cached = STATION_ID_CACHE.get(platformId);
+        if (cached != null) {
+            return cached;
+        }
+        long result = PLATFORM_ID_NONE;
+        try {
+            Object instance = getInstance.invoke(null);
+            if (instance == null) {
+                return PLATFORM_ID_NONE;
+            }
+            Iterable<?> platforms = elementsOf(platformsField.get(instance));
+            if (platforms != null) {
+                for (Object platform : platforms) {
+                    if (platform == null) {
+                        continue;
+                    }
+                    Object id = getIdMethod.invoke(platform);
+                    if (id instanceof Number n && n.longValue() == platformId) {
+                        Object area = areaField.get(platform);
+                        if (area != null) {
+                            Object stationId = stationIdMethod.invoke(area);
+                            if (stationId instanceof Number sn) {
+                                result = sn.longValue();
+                            }
+                        }
+                        break;
+                    }
+                }
+            }
+        } catch (Throwable ignored) {
+            // 与整条「可选绑定」一个口径：读不到只是拿不到车站 id，不影响其它功能
+        }
+        STATION_ID_CACHE.put(platformId, result);
+        return result;
+    }
+
+    /** 【09-30 续 9】站台 id → 车站 id 的缓存（映射稳定，进程内有效）。 */
+    private static final java.util.Map<Long, Long> STATION_ID_CACHE = new java.util.HashMap<>();
+
+    /**
+     * 【09-30 续 2】按**站台 id** 查它属于哪条**线路**（讲述人自定义词的 {@code |LC|} / {@code |LE|}
+     * 占位符要念线路名，手里只有 platformId）。
+     *
+     * <p>找法：扫 {@code Data.routes} 里每条 {@code Route} 的 {@code routeData} 列表，
+     * 谁的 {@code RouteData.getPlatformId()} 等于目标站台，那条 {@code Route} 就是答案
+     * （一条站台被多条线共用时取**扫到的第一条** —— 共线段本来就各有各的说法，挑哪条都算对）。
+     * 线路名走 {@code NameColorDataBase.getName()}（与车站名同一个方法），双语仍是 MTR 的
+     * {@code 中文|English} 约定，拆中英段的事交给 {@code TrainAnnounceNarrator.namePart}。
+     *
+     * <p>★ 只在**报站要出口那一刻**调用（不是每 tick）；绑定失败 / 数据没同步时返回
+     * {@code null}（占位符替成空串），不影响报站本身。
+     *
+     * @return 线路名；读不到返回 {@code null}
+     */
+    public static String lineNameForPlatform(long platformId) {
+        if (!isPlatformKnown(platformId) || !available()) {
+            return null;
+        }
+        if (mode == MODE_MTR3) {
+            return mtr3LineNameForPlatform(platformId);
+        }
+        if (routesField == null || routeDataField == null
+                || routeDataGetPlatformId == null || getNameMethod == null) {
+            return null;
+        }
+        try {
+            Object instance = getInstance.invoke(null);
+            if (instance == null) {
+                return null;
+            }
+            Iterable<?> routes = elementsOf(routesField.get(instance));
+            if (routes == null) {
+                return null;
+            }
+            for (Object route : routes) {
+                if (route == null) {
+                    continue;
+                }
+                Iterable<?> routeData = elementsOf(routeDataField.get(route));
+                if (routeData == null) {
+                    continue;
+                }
+                for (Object rd : routeData) {
+                    if (rd == null) {
+                        continue;
+                    }
+                    Object id = routeDataGetPlatformId.invoke(rd);
+                    if (id instanceof Number n && n.longValue() == platformId) {
+                        Object name = getNameMethod.invoke(route);
+                        return name == null ? null : name.toString();
+                    }
+                }
+            }
+        } catch (Throwable ignored) {
+            // 与整条「可选绑定」一个口径：读不到只是没线路名可念，不影响报站本身
+        }
+        return null;
     }
 
     /**

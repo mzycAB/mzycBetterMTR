@@ -9,7 +9,8 @@
 		"SoundEngineVolumeMixin",
 		"EscalatorAoStashMixin",
 		"EscalatorAoSampleMixin",
-		"EscalatorFlatLightMixin"
+		"EscalatorFlatLightMixin",
+		"ZhajiSoundMixin"
 	],
 	"injectors": {
 		"defaultRequire": 1

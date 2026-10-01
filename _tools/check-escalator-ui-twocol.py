@@ -621,6 +621,10 @@ check(not has(c_speed, "改扶梯速度会同步阶梯速度") and not has(c_spe
       "★★ EscalatorSpeedScreen.class 里**没有**那四行灰字（不是只改了注释）")
 check(not has(c_lift, "默认音量 ") and not has(c_lift, "｜"),
       "★★ LiftToneSetupScreen.class 里**没有**「默认音量…｜…」那一行")
+# ★★【09-29 · 二改】直梯右列那只「开关：开/关 + 切换」按用户点名整行删掉 ——
+#   与扶梯页（c_help「开关：」）同一口径，这里也钉到**字节码**上：注释里删干净不算数。
+check(not has(c_lift, "开关：") and not has(c_lift, "切换"),
+      "★★【09-29 · 二改】字节码里**没有**「开关：」/「切换」（直梯那只开关按钮确实没进产物）")
 
 # ======================================================================
 if FAILS:

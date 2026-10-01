@@ -160,12 +160,16 @@ check(re.search(r"planArrivalAnnounce\(mc, door, openPlayable\);", player) is no
       "★ detect 的调用点跟着去掉第四个实参")
 check(re.search(r"PsdDoorTracker\.nearestInRun\(runKey, player\)", player) is not None,
       "★★ 声源 = 本串里离玩家最近的那一扇（PsdDoorTracker.nearestInRun）")
-check(re.search(r"double distance = player == null \? 0\.0\s*"
-                r": player\.distanceTo\(new Vec3\(source\.x\(\), source\.y\(\), source\.z\(\)\)\);",
+check(re.search(r"double distanceXz = player == null \? 0\.0\s*"
+                r": Math\.hypot\(player\.x\(\) - source\.x\(\), player\.z\(\) - source\.z\(\)\);",
+                player) is not None
+      and re.search(r"double distanceY = player == null \? 0\.0\s*"
+                    r": Math\.abs\(player\.y\(\) - source\.y\(\)\);", player) is not None,
+      "★★ 射程判据用的**双维**距离也来自**那一扇**（source），不是这一扇（door）"
+      "（【09-29】三维欧氏 → 水平 hypot / 垂直 abs）")
+check(re.search(r"if \(gain\(distanceXz, distanceY, ROUND_MIDIUM\) \* volume <= 0\.0f\)",
                 player) is not None,
-      "★★ 射程判据用的距离也来自**那一扇**（source），不是这一扇（door）")
-check(re.search(r"if \(gain\(distance, ROUND_MIDIUM\) \* volume <= 0\.0f\)", player) is not None,
-      "★ 到站播报的射程判据仍在（类别 ROUND_MIDIUM）—— 改的只是「距离是谁的距离」")
+      "★ 到站播报的射程判据仍在（类别 ROUND_MIDIUM）—— 改的只是「距离是谁的距离」+ 拆成双维")
 check("getDoorPsdMidiumAudio(mc.level, runKey)" in player
       and "getDoorPsdMidiumVolume(mc.level, runKey)" in player,
       "★ 顺带把两个「这一扇门的口径」改成直接用 runKey（原本传的就是 door.runKey()）")
@@ -187,12 +191,14 @@ check(re.search(r"if \(cur == null \|\| closerThan\(player, d, cur\)\)", player)
 check(re.search(r"private static boolean closerThan\(Vec3 player, PsdDoorTracker\.DoorView cand,\s*"
                 r"PsdDoorTracker\.DoorView cur\)", player) is not None,
       "★ closerThan(player, cand, cur) 存在（player == null ⇒ false，保持先来的那一扇）")
-check(re.search(r"arrivePlatform\.keySet\(\)\.retainAll\(nearestPerRun\.keySet\(\)\);", player) is not None
-      and re.search(r"arriveLastPoll\.keySet\(\)\.retainAll\(nearestPerRun\.keySet\(\)\);", player)
+check(re.search(r"arriveLastPoll\.keySet\(\)\.retainAll\(nearestPerRun\.keySet\(\)\);", player) is not None
+      and re.search(r"arriveFailNextLog\.keySet\(\)\.retainAll\(nearestPerRun\.keySet\(\)\);", player)
       is not None,
-      "★ 两张缓存表跟着新的键集合收敛（键集合换了 ⇒ 收敛口径也得换，否则缓存无限长大）")
-check(re.search(r"play\(mc, tone, door, volume, 0, true,\s*ROUND_ARRIVE, runKey\);", player) is not None,
-      "★★ 起播时把 runKey 一并传下去（站台广播：距离按本串最近的门算）")
+      "★ 两张缓存表（arriveLastPoll / arriveFailNextLog）跟着新的键集合收敛"
+      "（键集合换了 ⇒ 收敛口径也得换，否则缓存无限长大）"
+      " —— ★【09-30 续 9】原 arrivePlatform 那张已删：键集合从「认到的站台 id」换成「串锚点」")
+check(re.search(r"play\(mc, tone, door, volume, 0, true,\s*ROUND_ARRIVE, runKey, true\);", player) is not None,
+      "★★ 起播时把 runKey + chainDoubleDim=true 一并传下去（站台广播：距离按本串最近的门算）")
 
 # ======================================================================
 # 4) 「本串最近门」的口径：只读不删 + 两个口
@@ -254,18 +260,26 @@ check(abs(get_x(banned)) > 29999984,
       "（只与**绝对值**有关，符号不重要）")
 check(get_x(-1 & ((1 << 64) - 1)) == -1,
       "★★ 对照：`-1L` 是**合法**坐标（= 方块 x=%d）⇒ 拿它当哨兵会真撞" % neg_one_x)
-check(re.search(r"private static final long NO_BROADCAST_RUN = Long\.MIN_VALUE;", player)
-      is not None,
-      "★★ 所以哨兵取 NO_BROADCAST_RUN = Long.MIN_VALUE（不是 -1）")
-check(re.search(r"if \(chainRunKey == NO_BROADCAST_RUN\)", player) is not None
-      and re.search(r"d = PsdDoorTracker\.nearestDistanceInRun\(chainRunKey, p\);", player)
-      is not None,
-      "★★ PsdMusicInstance.refreshVolume 按 chainRunKey 分两种口径"
-      "（位置音 = 到 pos；站台广播 = 到本串最近的门）")
-check(re.search(r"boolean trainAttenuated, int roundKind, long chainRunKey,", player) is not None,
-      "★ play(...) 与构造里 chainRunKey 是**独立的第 8 格**"
-      " —— 不用 `roundKind != ROUND_TONE` 推出来：范围类别与「是不是广播」是两个判据，"
-      "合并 ⇔ 以后新加一类范围会**悄悄**变成广播（本项目栽过「一个哨兵表达两件事」）")
+check(re.search(r"NO_BROADCAST_RUN", player) is None,
+      "★★【09-30 续 10】「按 pos 算（位置音）」的哨兵 NO_BROADCAST_RUN 已**整个删除**"
+      " —— 提示音并进「按串算」之后它一个调用点都没有了，"
+      "留着就是一条「看着还在、其实没人走」的死路径")
+check(re.search(r"if \(chainRunKey == NO_BROADCAST_RUN\)", player) is None
+      and re.search(r"PsdDoorTracker\.DoorView nearest = MtrDwellAccess\.isPlatformKnown\(chainPlatformId\)"
+                    r"\s*\n\s*\? PsdDoorTracker\.nearestOnPlatform\(chainPlatformId, p\)"
+                    r"\s*\n\s*: PsdDoorTracker\.nearestInRun\(chainRunKey, p\);",
+                    player) is not None,
+      "★★【10-01】PsdMusicInstance.refreshVolume 的距离口径 = **按声音类别**两条"
+      "（铃声 nearestOnPlatform 收窄到同一 MTR 站台 / 播报 nearestInRun 保持车站级），"
+      "判据是 isPlatformKnown(chainPlatformId)；"
+      "★ 仍**不许**回到 NO_BROADCAST_RUN 那种「再拿一个哨兵分两支」的写法 ——"
+      "现场 LOG013：runKey 升到**车站级**后，世纪广场一个车站 3 层 6~7 个站台、"
+      "两条门线只隔 11 格，别的站台关门也按玩家脚边那扇门的音量响满 ⇒ 用户报「多出来的提示音」")
+check(re.search(r"boolean trainAttenuated, int roundKind, long chainRunKey,\s*\n\s*"
+                r"boolean chainDoubleDim,", player) is not None,
+      "★ play(...) 与构造里 chainRunKey 是**独立的第 8 格**、chainDoubleDim 是**第 9 格**"
+      " —— 都**不**用 `roundKind != ROUND_TONE` 推出来：范围类别与「按哪套口径换算」是两个判据，"
+      "合并 ⇔ 以后新加一类范围会**悄悄**换掉口径（本项目栽过「一个哨兵表达两件事」）")
 
 # ======================================================================
 # 5) 最近门的选择：纯逻辑复算（与 Java 侧同一条算式）
@@ -328,10 +342,12 @@ else:
     for tok in (b"closerThan", b"chainRunKey", b"nearestPerRun"):
         check(tok in blob_player,
               "PsdChimePlayer.class 里编进了 %s" % tok.decode())
-    check(b"chainRunKey" in blob_inner,
-          "★★ PsdMusicInstance 内嵌类里编进了 chainRunKey —— 距离口径真的传到了每 tick 那条路")
-    # 注：NO_BROADCAST_RUN 是 `static final long`，javac 会**内联成字面量**，
-    #   常量池里没有它的名字（与 check-psd-volume.py 里 ROUND_* 同一条坑，别拿它去查）。
+    check(b"chainRunKey" in blob_inner and b"chainDoubleDim" in blob_inner,
+          "★★ PsdMusicInstance 内嵌类里编进了 chainRunKey + chainDoubleDim —— "
+          "「按哪一串算距离」与「单维/双维」都真的传到了每 tick 那条路")
+    # 注：从前那个 NO_BROADCAST_RUN 是 `static final long`，javac 会**内联成字面量**，
+    #   常量池里也没有它的名字（与 check-psd-volume.py 里 ROUND_* 同一条坑）；
+    #   ★【09-30 续 10】它已整个删除，所以这里改成断言**它不在源码里**（见第 4 节）。
 
 # ======================================================================
 if FAILS:

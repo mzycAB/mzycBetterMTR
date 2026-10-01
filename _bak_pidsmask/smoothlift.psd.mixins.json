@@ -1,0 +1,14 @@
+{
+  "required": false,
+  "minVersion": "0.8",
+  "package": "smooth.lift.client.mixin",
+  "compatibilityLevel": "JAVA_17",
+  "plugin": "smooth.lift.mixin.mtr.PsdDoorMixinPlugin",
+  "client": [
+    "Mtr3PsdDoorMixin",
+    "Mtr4PsdDoorMixin"
+  ],
+  "injectors": {
+    "defaultRequire": 1
+  }
+}

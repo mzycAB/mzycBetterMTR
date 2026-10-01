@@ -233,6 +233,9 @@ public class HelpAudioSetupScreen extends Screen {
         //   进 / 出两端一起同步（服务端那一支自己会跑两端）。没有输入框 ⇒ beforeOpen 传 null。
         addRenderableWidget(SyncPopupScreen.syncButton(this, "esc", SmoothLift.SYNC_ESC_HELP_AUDIO,
                 pos.asLong(), null));
+        // 【09-29】右上角「打开文件夹」：本页是二级菜单 ⇒ 精确开 MBM_Audio/futi/help。
+        addRenderableWidget(FolderOpenButton.of(this,
+                FolderOpenButton.audioPath(EscalatorSpeedManager.CAT_HELP)));
 
         // 左列：本分类文件夹里**还没入库**的 OGG —— 点一下 = 导入存档并设为这一头的提示音。
         for (int i = 0; i < pending.size(); i++) {

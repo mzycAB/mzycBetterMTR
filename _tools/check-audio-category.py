@@ -3,13 +3,16 @@
 
 ## 设计要点（脚本要钉住的不变量）
 
-1. **分类常量齐全**：15 个分类（futi/music 底噪、futi/help 提示音、
+1. **分类常量齐全**：17 个分类（futi/music 底噪、futi/help 提示音、
    train run/round/switch/in/out 列车五项、pbm open/close/midium/arrive、
-   lift up/down/open/close），全部在 ALL_CATEGORIES 里；分类 = 子文件夹名（MBM_Audio/<分类>）。
+   lift up/down/open/close、zhaji in/out 闸机两侧），全部在 ALL_CATEGORIES 里；
+   分类 = 子文件夹名（MBM_Audio/<分类>）。
    ★ 目录 2026-09-27 改版（第一版）：扶梯两类提到 MBM_Audio/futi 下；
      futi/ 只是**分组目录**、本身不是分类（判据：没有任何分类字符串恰好 == "futi"）⇒ 里面不放 ogg。
    ★★ 同日二次改版：旧的 `pbm/music`（列车音效）**已删**，拆成 `train/run|round|switch|in|out`
      五项（`train/` 同样只是分组目录）；老键 `pbm/music` 由 migrateCategoryKey 迁到 `train/run`。
+   ★【09-30】新增闸机两类 `zhaji/in|out`（分组目录 `zhaji/`）——这是**纯新增**，
+     没有任何旧键要迁（闸机提示音是这一版才有的功能）。
    旧存档里的旧键（pbm/futi、pbm/help、pbm/music、以及一轮中间的 futi）由 migrateCategoryKey 迁到新键；
    屏蔽门 / 直梯路径未动，无需迁移。
 2. **客户端两列表按分类取**：每个界面 init 里 getClientAudioLibraryKeys / getClientFolderAudioKeys
@@ -73,8 +76,9 @@ print("== 1. 分类常量 ==")
 CATS = ["CAT_FUTI", "CAT_HELP",
         "CAT_TRAIN_RUN", "CAT_TRAIN_ROUND", "CAT_TRAIN_SWITCH", "CAT_TRAIN_IN", "CAT_TRAIN_OUT",
         "CAT_PSD_OPEN", "CAT_PSD_CLOSE", "CAT_PSD_MIDIUM", "CAT_PSD_ARRIVE",
-        "CAT_LIFT_UP", "CAT_LIFT_DOWN", "CAT_LIFT_OPEN", "CAT_LIFT_CLOSE"]
-check(all(c in mgr_no for c in CATS), "15 个分类常量都在 Manager 里定义")
+        "CAT_LIFT_UP", "CAT_LIFT_DOWN", "CAT_LIFT_OPEN", "CAT_LIFT_CLOSE",
+        "CAT_ZHAJI_IN", "CAT_ZHAJI_OUT"]
+check(all(c in mgr_no for c in CATS), "17 个分类常量都在 Manager 里定义")
 check('ALL_CATEGORIES' in mgr_no, "ALL_CATEGORIES 数组存在")
 check('"futi/music"' in mgr_no and '"futi/help"' in mgr_no
       and '"train/run"' in mgr_no and '"train/out"' in mgr_no,
@@ -85,20 +89,24 @@ check(_pbm_music_hits == 2,
       "命中 %d 次" % _pbm_music_hits)
 _cats_declared = re.findall(r'public static final String (CAT_[A-Z_]+)\s*=\s*"([^"]*)"', mgr_no)
 _vals = set(v for _, v in _cats_declared)
-check("futi" not in _vals and "train" not in _vals and "pbm" not in _vals and "lift" not in _vals,
-      '★ futi/ train/ pbm/ lift/ 只是分组目录：没有任何分类恰好等于分组名（里面不放 ogg）',
+check("futi" not in _vals and "train" not in _vals and "pbm" not in _vals
+      and "lift" not in _vals and "zhaji" not in _vals,
+      '★ futi/ train/ pbm/ lift/ zhaji/ 只是分组目录：没有任何分类恰好等于分组名（里面不放 ogg）',
       "分类值 = %s" % sorted(_vals))
 check(_vals == {"futi/music", "futi/help",
                 "train/run", "train/round", "train/switch", "train/in", "train/out",
                 "pbm/open", "pbm/close", "pbm/midium", "pbm/arrive",
-                "lift/up", "lift/down", "lift/open", "lift/close"},
-      "15 个分类值 = 用户 2026-09-27 定的目录树（futi/* ×2、train/* ×5、pbm/* ×4、lift/* ×4）",
+                "lift/up", "lift/down", "lift/open", "lift/close",
+                "zhaji/in", "zhaji/out"},
+      "17 个分类值 = 目录树（futi/* ×2、train/* ×5、pbm/* ×4、lift/* ×4、zhaji/* ×2）",
       "实际 = %s" % sorted(_vals))
 check('"pbm/open"' in mgr_no and '"pbm/close"' in mgr_no
       and '"pbm/midium"' in mgr_no and '"pbm/arrive"' in mgr_no,
       "屏蔽门四分类仍在 pbm/ 下")
 check('"lift/up"' in mgr_no and '"lift/open"' in mgr_no,
       "直梯四分类仍在 lift/ 下")
+check('"zhaji/in"' in mgr_no and '"zhaji/out"' in mgr_no,
+      "★【09-30】闸机两分类在 zhaji/ 下（进站 / 出站各一个子文件夹）")
 # ★ 旧分类键迁移：改名后旧存档那几个分类的「已存入」注册表要能接上（否则列表看着像没导入过）。
 _mig = re.search(r"public static String migrateCategoryKey\(String legacyKey\)\s*\{(.*?)\n    \}",
                  mgr_no, re.S)
@@ -124,7 +132,7 @@ check('endsWith(".ogg")' in mgr_no and "Files.move(" in mgr_no
 m = re.search(r"public static final String\[\] ALL_CATEGORIES\s*=\s*\{(.*?)\};", mgr_no, re.S)
 if m:
     listed = re.findall(r"CAT_[A-Z_]+", m.group(1))
-    check(listed == CATS, "ALL_CATEGORIES 顺序 = 全部 15 个（与同步包书写顺序一致）",
+    check(listed == CATS, "ALL_CATEGORIES 顺序 = 全部 17 个（与同步包书写顺序一致）",
           "实际 %s" % listed)
 check('CAT_MUSIC' not in mgr_no,
       "★ 常量名 CAT_MUSIC 已彻底移除（换成 CAT_TRAIN_RUN 等五个）")
@@ -155,9 +163,10 @@ check('category = buf.readUtf(64)' in recv and 'audioId = buf.readUtf(128)' in r
       "服务端 DELETE 接收器先读分类(utf64) 再读名字(utf128)")
 check("deleteAudio(level, category, audioId)" in recv,
       "按分类删（deleteAudio(level, category, id)）")
-# 客户端四个发送点都要先写分类
+# 客户端发送点都要先写分类
 for f in ("AudioSetupScreen.java", "HelpAudioSetupScreen.java",
-          "PsdToneSetupScreen.java", "TrainSoundScreen.java"):
+          "PsdToneSetupScreen.java", "TrainSoundScreen.java",
+          "ZhajiToneSetupScreen.java"):
     src = read(os.path.join(CLIENT, f))
     if "DELETE_AUDIO_CHANNEL" not in src:
         continue

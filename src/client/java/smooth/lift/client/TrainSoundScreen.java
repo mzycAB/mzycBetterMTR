@@ -325,6 +325,10 @@ public class TrainSoundScreen extends Screen {
         int scope = page == 0 ? SmoothLift.SYNC_TOP_LEVEL : PAGE_SCOPES[page - 1];
         addRenderableWidget(SyncPopupScreen.syncButton(this, "train", scope, sidingKey,
                 this::applyInputs));
+        // 【09-29】右上角「打开文件夹」：二级页开自己那一项的分类子文件夹
+        //   （train/run|round|switch|in|out，与 PAGE_CATEGORIES 同序同源），一级页开 train/ 这一组。
+        addRenderableWidget(FolderOpenButton.of(this, FolderOpenButton.audioPath(
+                page > 0 ? PAGE_CATEGORIES[page - 1] : EscalatorSpeedManager.GROUP_TRAIN)));
     }
 
     private void buildTopPage() {
@@ -560,6 +564,8 @@ public class TrainSoundScreen extends Screen {
         if (OPEN == this) {
             OPEN = null;
         }
+        // 【10-01】真正「退出界面」：让服务端把本次界面会话的结果回一条（成功 / 失败）。
+        SmoothLiftClient.sendUiClose(true);
         // Screen.onClose() 内部就是 minecraft.setScreen(null)。
         super.onClose();
     }
