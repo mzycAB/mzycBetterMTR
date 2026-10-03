@@ -1,0 +1,53 @@
+﻿
+> Configure project :
+Fabric Loom: 1.6.12
+Not publishing sources jar as it was not found. Use java.withSourcesJar() to fix.
+
+> Task :compileJava UP-TO-DATE
+> Task :processResources UP-TO-DATE
+> Task :classes UP-TO-DATE
+
+> Task :compileClientJava
+.\gradlew : C:\Users\user\Desktop\2\mzycBetterMTR-1.20.4\src\client\java\smooth\lift\client\mixin\sodium\LightDataAcces
+sCafMixin.java:38: ����: Unable to locate obfuscation mapping for @Shadow method
+所在位置 行:1 字符: 261
++ ... TR-1.20.4'; .\gradlew build --offline -x test --console=plain 2>&1 |  ...
++                 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : NotSpecified: (C:\Users\user\D... @Shadow method:String) [], RemoteException
+    + FullyQualifiedErrorId : NativeCommandError
+ 
+    @Shadow
+    ^
+C:\Users\user\Desktop\2\mzycBetterMTR-1.20.4\src\client\java\smooth\lift\client\mixin\sodium\LightDataAccessCafMixin.ja
+va:41: ����: Unable to locate obfuscation mapping for @Shadow method
+    @Shadow
+    ^
+C:\Users\user\Desktop\2\mzycBetterMTR-1.20.4\src\client\java\smooth\lift\client\mixin\sodium\LightDataAccessJellyMixin.
+java:44: ����: Unable to locate obfuscation mapping for @Shadow method
+    @Shadow
+    ^
+C:\Users\user\Desktop\2\mzycBetterMTR-1.20.4\src\client\java\smooth\lift\client\mixin\sodium\LightDataAccessJellyMixin.
+java:47: ����: Unable to locate obfuscation mapping for @Shadow method
+    @Shadow
+    ^
+ע: ĳЩ�����ļ�ʹ�û򸲸����ѹ�ʱ�� API��
+ע: �й���ϸ��Ϣ, ��ʹ�� -Xlint:deprecation ���±��롣
+4 ������
+
+> Task :processClientResources UP-TO-DATE
+> Task :jar
+> Task :validateAccessWidener UP-TO-DATE
+> Task :check
+> Task :remapJar
+> Task :remapSourcesJar SKIPPED
+> Task :assemble
+> Task :build
+
+Deprecated Gradle features were used in this build, making it incompatible with Gradle 9.0.
+
+You can use '--warning-mode all' to show the individual deprecation warnings and determine if they come from your own scripts or plugins.
+
+For more on this, please refer to https://docs.gradle.org/8.10.2/userguide/command_line_interface.html#sec:command_line_warnings in the Gradle documentation.
+
+BUILD SUCCESSFUL in 7s
+7 actionable tasks: 3 executed, 4 up-to-date

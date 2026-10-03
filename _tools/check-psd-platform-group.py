@@ -315,9 +315,23 @@ for _label, _src in (("MtrDwellAccess", mtrdwell), ("PsdDoorTracker", tracker), 
 check(tracker.count("MtrDwellAccess.isPlatformKnown(") == 2,
       "★ PsdDoorTracker 的两处闸门（认到 id / 借到的 id）都改用 isPlatformKnown",
       "count=%d" % tracker.count("MtrDwellAccess.isPlatformKnown("))
-check(player.count("MtrDwellAccess.isPlatformKnown(") == 3,
-      "★ PsdChimePlayer 进站报站的三道闸门（缓存命中 / 身份自带 / 自己再认）全部改用 isPlatformKnown",
-      "count=%d" % player.count("MtrDwellAccess.isPlatformKnown("))
+# ★★【10-01】这里原来数的是**全文件**出现次数（`== 3`）。新版在 `refreshVolume` 里又加了
+#   一处 `isPlatformKnown`（铃声/播报**两把尺子的闸**，属**另一个域**）⇒ 全局计数必然**假红**
+#   （本项目记过这条规矩：扫描范围要按域切割）。改成**按域点名**，语义不变，
+#   且以后别处再新增 isPlatformKnown 不会误伤这一项。
+_arrival_gates = player.count("if (!MtrDwellAccess.isPlatformKnown(platformId)) {")
+check(_arrival_gates == 2
+      and re.search(r"MtrDwellAccess\.ArrivalInfo arrival = MtrDwellAccess\.isPlatformKnown\(plan\.platformId\)",
+                    player) is not None,
+      "★ PsdChimePlayer 进站报站的三道闸门（缓存命中 / 身份自带 / 自己再认）全部改用 isPlatformKnown"
+      " —— 【10-01】改成按域点名（不再全文件计数）",
+      "if(!...platformId) 闸=%d 处；plan.platformId 闸=%s"
+      % (_arrival_gates,
+         re.search(r"MtrDwellAccess\.ArrivalInfo arrival = MtrDwellAccess\.isPlatformKnown\(",
+                   player) is not None))
+check(re.search(r"MtrDwellAccess\.isPlatformKnown\(chainPlatformId\)", player) is not None,
+      "★【10-01】另有**第 4 处** isPlatformKnown：铃声/播报**两把尺子**那道闸"
+      "（在 refreshVolume，属另一域；由 check-psd-midium-once.py 第 2 节专门守）")
 check("arrivePlatform.getOrDefault(runKey, MtrDwellAccess.PLATFORM_ID_NONE)" in player,
       "★ 进站报站的缓存缺省值 = PLATFORM_ID_NONE（不是 -1L）")
 check("recognized == null" in tracker and
@@ -429,7 +443,7 @@ for label, pat in (
     ("读配置（进站报站）", r"getDoorPsdArriveAudio\(mc\.level, runKey\)"),
     ("去重（一串只排一条）", r"arrivalVoice\.containsKey\(runKey\)"),
     ("声源 + 射程（整串最近门）", r"PsdDoorTracker\.nearestInRun\(runKey, player\)"),
-    ("每 tick 的距离口径", r"nearestDistanceInRun\(chainRunKey"),
+    ("每 tick 的距离口径", r"nearestInRun\(chainRunKey"),
 ):
     check(re.search(pat, player) is not None, "%s 仍按 runKey（粒度自动升为站台）" % label)
 

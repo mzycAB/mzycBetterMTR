@@ -520,7 +520,8 @@ check(re.search(r"split = \(int\) Math\.round\(1000\.0 \* runStart / rate\)", ap
 
 # ---- 4a) 提前量必须在**开门**那一瞬排 ----
 _det = re.search(r"private static void detect\(Minecraft mc, PsdDoorTracker\.DoorView door,"
-                 r" float prev, double distance\)\s*\{(.*?)\n    \}", player, re.S)
+                 r" float prev,\s*double distanceXz, double distanceY\)\s*\{(.*?)\n    \}",
+                 player, re.S)
 dbody = _det.group(1) if _det else ""
 check(bool(dbody), "找到 detect(...) 的方法体（下面的结构断言都基于它）")
 i_open = dbody.find("if (opening)")
@@ -535,8 +536,8 @@ check(0 <= i_open < i_plan,
 
 # ---- ★★【1.15 · 第七轮】提前量必须按**关门**那一项解析，不能复用开门那一份 ----
 # 这是用户连报三次「停站再久也只有嘀嘀」的**真正根因**，所以单独钉一段。
-_i_open_res = dbody.find('resolvePlayable(mc, door, "open", distance)')
-_i_close_res = dbody.find('resolvePlayable(mc, door, "close", distance)')
+_i_open_res = dbody.find('resolvePlayable(mc, door, "open", distanceXz, distanceY)')
+_i_close_res = dbody.find('resolvePlayable(mc, door, "close", distanceXz, distanceY)')
 check(0 <= _i_close_res < i_plan,
       "★★★ 排提前量之前**先用 `\"close\"` 解析出关门那一项**（closePlayable）—— "
       "提前量服务的是关门那一段声音，时长/分界点都必须是关门素材的",
@@ -683,7 +684,7 @@ check(0 <= i_tfv < i_fpc and 0 <= i_tfv < i_rc,
       "tickForcedVoice@%d firePlannedClose@%d resumeClose@%d" % (i_tfv, i_fpc, i_rc))
 # 门一开始关就掐断：cutForcedVoice 在 detect 关门端、且**在关门那次 resolvePlayable 之前**
 i_cut = dbody.find("cutForcedVoice(mc, door.key(),")
-i_close_res2 = dbody.find('resolvePlayable(mc, door, "close", distance)', i_cut) if i_cut >= 0 else -1
+i_close_res2 = dbody.find('resolvePlayable(mc, door, "close", distanceXz, distanceY)', i_cut) if i_cut >= 0 else -1
 check(i_cut >= 0 and i_close_res2 > i_cut,
       "★★【1.16】门一动就掐断兜底人声（detect 关门端），且**排在关门那次 resolvePlayable 之前** —— "
       "关门音被关掉时这段人声照样要断（它与「关门这一项此刻播不播」无关）",
@@ -762,7 +763,8 @@ check("it.remove()" in tick_body and "now >= plan.endTick" in tick_body,
 # ★★ 排计划必须排在 detect 开门端、且**在 `openPlayable == null` 早退之前**：
 #   站台广播与「本维度开不开门音」是两个独立配置，关掉一个不该把另一个也取消。
 _m_det = re.search(r"private static void detect\(Minecraft mc, PsdDoorTracker\.DoorView door,"
-                   r" float prev, double distance\)\s*\{(.*?)\n    \}", player, re.S)
+                   r" float prev,\s*double distanceXz, double distanceY\)\s*\{(.*?)\n    \}",
+                 player, re.S)
 detect_body2 = _m_det.group(1) if _m_det else ""
 i_plan_arr = detect_body2.find("planArrivalAnnounce(mc, door,")
 i_open_null = detect_body2.find("if (openPlayable == null)")

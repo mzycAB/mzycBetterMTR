@@ -356,7 +356,10 @@ if _lm:
     check("detect(mc, door, prev" in _loop,
           "★★ 循环体里对**每一扇**门都调 detect（各自带这一扇的距离）"
           " —— 不再是「只有最近那一扇」")
-    check("Vec3(door.x(), door.y(), door.z())" in _loop,
+    # ★【09-29】距离改成**双维**口径（水平 hypot(dx,dz) / 垂直 |dy|，见 /jsr round），
+    #   断言不钉变量名，只看「这一扇门自己的 x/z/y 参与算距离」这件事。
+    check(re.search(r"Math\.hypot\([^;]*door\.x\(\)[^;]*door\.z\(\)", _loop) is not None
+          and re.search(r"Math\.abs\([^;]*door\.y\(\)", _loop) is not None,
           "★ 距离是按**这一扇门自己**的坐标算的（不是把最近门的距离复用到所有门）")
     check(_loop.index("noteCycle(") < _loop.index("detect("),
           "noteCycle 排在 detect 之前（先学周期再判跳变，顺序反了会晚一拍）")
@@ -364,8 +367,13 @@ if _lm:
 # ★【1.26】`nearest*` 现在有了**新的合法含义**（「这一串里离玩家最近的那一扇」，
 #   见 PsdDoorTracker.nearestInRun / PsdChimePlayer.nearestPerRun）—— 所以不能再整体禁掉这个词。
 #   要禁的是**旧的闸门**：「先求出离玩家最近的那一扇门、然后只对它发声」。
-#   那个闸门必然表现为一个**局部变量**（`DoorView nearest` / `== nearest` / `nearestDist`）。
-_old_gate = re.search(r"(DoorView\s+nearest\b|==\s*nearest\b|\bnearestDist\b)", _pcode)
+#   ★★【09-29】判据收紧到**闸门的真实形态**：`nearest` 出现在
+#     `if (door == nearest)`（只放最近那扇过）或 `detect(mc, nearest…)`（只对最近那扇发声）。
+#     只写 `DoorView nearest = …nearestInRun(…)` 是**合法的**（1.26 起：站台广播的射程
+#     就按「本串最近那一扇」量，见 PsdChimePlayer 的 refreshVolume）—— 上一版把它一起禁了，
+#     于是把这条合法用法误判成旧闸门（假红）。
+_old_gate = re.search(r"(if\s*\(\s*door\s*==\s*nearest\b|detect\(\s*mc\s*,\s*nearest\b"
+                      r"|detectMove\(\s*mc\s*,\s*nearest\b)", _pcode)
 check(_old_gate is None,
       "★★ 旧的「只给离玩家最近的那一扇发声」闸门已**彻底不存在**"
       "（留着它 ⇒ 症状照旧：整条屏蔽门只有一个点在响）；"
@@ -379,10 +387,12 @@ for _n in ("psd_glass", "psd_glass_2", "psd_glass_end", "psd_glass_end_2",
           "幕墙类 %-18s 进不了快照 ⇒ 结构上不可能发声" % _n)
 
 # ★ 反向对照：断言本身有效吗？把「逐门」改回「只给最近一扇」，上面那条必须能抓到。
-_neg = _pcode.replace("            detect(mc, door, prev, dist);",
-                      "            if (door == nearest) { detect(mc, door, prev, dist); }")
-check("nearest" in _neg and _neg != _pcode,
-      "反向对照：改回「最近门」闸门后，判据检测得到它（说明判的是代码，不是注释）")
+_neg = _pcode.replace("            detect(mc, door, prev, distXz, distY);",
+                      "            if (door == nearest) { detect(mc, door, prev, distXz, distY); }")
+_neg_gate = re.search(r"if\s*\(\s*door\s*==\s*nearest\b", _neg)
+check(_neg != _pcode and _neg_gate is not None,
+      "反向对照：改回「最近门」闸门后，判据检测得到它（说明判的是代码，不是注释）",
+      "替换生效=%s 判据命中=%s" % (_neg != _pcode, _neg_gate is not None))
 
 print()
 if FAILS:

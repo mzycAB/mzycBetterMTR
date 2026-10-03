@@ -69,7 +69,10 @@ read_keys |= nested_reads
 # 【09-28 续】同理：1.28.1204 的讲述人只有布尔开关 `defaultPsdNarrateOn`，
 #   现在升级成 int 三档 `defaultPsdNarrateMode` ⇒ 旧键只在**读侧**做一次
 #   「byte ⇒ 样式」的翻译（true=开启(上海)/false=关闭），新档永远只写新键 ⇒ 同样豁免。
-LEGACY_READ_ONLY_KEYS = {"chime", "defaultPsdNarrateOn"}
+# 【10-03 五改 修订】同理：`departDelaySeconds` 第一版写在车站级
+#   psdToneAudio 元素里，第二版搬到门串级 psdRunSettings 表 —— 旧元素里这个键只在**读侧**
+#   做迁移（搬进 psdRunSettings），新档永远只写 psdRunSettings 里的同名键 ⇒ 同样豁免。
+LEGACY_READ_ONLY_KEYS = {"chime", "defaultPsdNarrateOn", "departDelaySeconds"}
 only_read_raw = read_keys - write_keys
 only_read = sorted(k for k in only_read_raw if k not in LEGACY_READ_ONLY_KEYS)
 

@@ -50,17 +50,39 @@ import java.util.Map;
  * <h3>二级菜单（{@code page == 1..4}）—— 只负责选素材</h3>
  * <pre>
  *   未导入存档        ┆   已导入存档
- *   &lt;ogg 名&gt;[全宽]    ┆   [开关…][切换]        ← 占 {@link #RIGHT_SPECIAL_ROWS}=3 行
- *   …                ┆   [不播][选用] / [默认][选用]
- *                    ┆   [名字][选用][删除]    ← 已存入第 i 条落在第 i + 3 行
+ *   &lt;ogg 名&gt;[全宽]    ┆   [不播][选用]          ← 右列第 0 行
+ *   …                ┆   [默认][选用]          ← 右列第 1 行
+ *                    ┆   [名字][选用][删除]    ← 已存入第 i 条落在第 i + {@link #RIGHT_SPECIAL_ROWS} 行
  *   返回 / 刷新
  * </pre>
+ * <ul>
+ *   <li>★★【09-29 · 二改】原来右列最顶端那只「开关：开/关」按钮**整行删掉** —— 用户原话：
+ *       「『不播』代表关闭，『默认』或者玩家导入的就代表开启，不需要一个专门的开关按钮」。
+ *       与扶梯那一页（{@link HelpAudioSetupScreen}【09-27 六改】）同一处理、同一版式；</li>
+ *   <li>★ 删掉之后：「关」这一半由**第 0 行的「不播」**承担，「开」那一半由**第 1 行的「默认」
+ *       与已存入的素材**承担。但**这两层的粒度不同**，删按钮前必须分清，否则会写出
+ *       「点一条竖井列、整个维度都哑了」的 bug：
+ *       <ol>
+ *         <li><b>素材层</b>（{@code LIFT_TONE_OFF} / {@code DEFAULT} / 某段 ogg）的粒度 =
+ *             <b>本竖井列</b>（{@link EscalatorSpeedManager#liftToneKey(int, int)}）；
+ *             界面点「不播」/「默认」/ 已存入的某段都落这一层。</li>
+ *         <li><b>子开关层</b>（{@code isLiftToneEnabled}）的粒度 = <b>整个维度</b>
+ *             （客户端镜像 {@code ClientDimensionData} 按 dimension 存）。</li>
+ *       </ol></li>
+ *   <li>⇒ 所以「不播」**只写素材层**（只哑掉这一条竖井列，**不许**顺手把整个维度关掉 ——
+ *       那会连带把同维度其它直梯也弄哑）；而「默认」/ 玩家导入的素材会
+ *       <b>顺带把子开关打开</b>（{@link #ensureToneEnabled}）—— 否则预设里那句
+ *       {@code lifthelp open -f off} 会把闸门焊死，界面显示 ✓ 却不出声（LOG6 的观感）。
+ *       子开关层的「关」现在只剩指令 {@code /lifthelp <项> off} 这一条路。</li>
+ * </ul>
+ *
  * <ul>
  *   <li>★ **底部那行状态字与音量输入框都删了** —— 这一页不再有输入框，也就没有「中间那行字」；</li>
  *   <li>★ **列表长度按「6 个选项」算**：底部预留取 {@link SoundListLayout#BOTTOM_RESERVE_LIST}
  *       (= 44，与屏蔽门同一份常量)，表头仍占一行 ⇒ 240 px 高的画布下恰好可见 **6** 行；</li>
- *   <li>唯一的例外：**操作反馈**（{@code statusText}）非空时仍会在 {@link SoundListLayout#STATUS_Y_LIST}
- *       那行画一下 —— 否则「点删除 / 点刷新」会**没有任何回执**。平时这一行是空的。</li>
+ *   <li>★★【1.30】用户点名「所有 UI 里按完按钮出现在下方的黄色和白色小字全部删掉」⇒
+ *       连原来那行**操作反馈**（{@code statusText}）也不再画：本页从此**一个字都不多**。
+ *       {@code setStatus()} 仍保留（同步与聊天回执照旧），只是界面上不显示。</li>
  * </ul>
  *
  * <h2>两列版式的几何：**全部**取自 {@link SoundListLayout}（唯一来源）</h2>
@@ -73,6 +95,9 @@ import java.util.Map;
  * <p>【1.28】音频隔离：每个单项页只列自己分类的子文件夹（{@code MBM_Audio/lift/<项>}）。
  */
 public class LiftToneSetupScreen extends Screen {
+
+    /** 【10-01】本次界面会话里是否出现过失败（退出界面时随 UI_CLOSE 上报给服务端）。 */
+    private boolean uiFailed;
 
     private static final Logger LOGGER = LoggerFactory.getLogger("smoothlift");
 
@@ -89,11 +114,12 @@ public class LiftToneSetupScreen extends Screen {
     private static final int BTN_Y = SoundListLayout.BTN_Y;
 
     /**
-     * 右列**特殊行**的行数（开关 / 不播 / 默认）⇒ 已存入第 i 条落在第 {@code i + 3} 行。
+     * 右列**特殊行**的行数（不播 / 默认）⇒ 已存入第 i 条落在第 {@code i + 2} 行。
      *
-     * <p>★ 与屏蔽门的 {@code RIGHT_COL_FIRST_STORED_ROW}(1) 不同，只因为直梯多一行「开关」。
+     * <p>★【09-29 · 二改】原来是 3（开关 / 不播 / 默认）—— 用户点名把那只「开关」按钮删掉后剩 2，
+     * 从此与扶梯页（{@code HelpAudioSetupScreen.RIGHT_SPECIAL_ROWS} = 2）**同一口径**。
      */
-    private static final int RIGHT_SPECIAL_ROWS = 3;
+    private static final int RIGHT_SPECIAL_ROWS = 2;
 
     // ------------------------------------------------------------------
     // 固定区
@@ -120,9 +146,6 @@ public class LiftToneSetupScreen extends Screen {
     private static final int MAIN_INPUT_W = 70;
     /** 一级页每行输入框左边那个标签的文字（画出来的，不是按钮）。 */
     private static final String VOLUME_LABEL = "音量";
-
-    /** 【1.46】「开关行」的值哨兵（与真正的 audioId 区分开：它不代表任何素材）。 */
-    private static final String TOGGLE_SENTINEL = "\u0000TOGGLE";
 
     private static final String[] PAGES = {"up", "down", "open", "close"};
 
@@ -224,6 +247,8 @@ public class LiftToneSetupScreen extends Screen {
             if (OPEN == this) {
                 OPEN = null;
             }
+            // 【10-01】真正「退出界面」（一级菜单）：让服务端把本次界面会话的结果回一条。
+            SmoothLiftClient.sendUiClose(!uiFailed);
             super.onClose();
         }
     }
@@ -254,6 +279,10 @@ public class LiftToneSetupScreen extends Screen {
         //     二级页没有输入框 ⇒ 传 null（屏蔽门那几个页也是这么传的）。
         addRenderableWidget(SyncPopupScreen.syncButton(this, "lift", page, key,
                 page > 0 ? null : this::applyMainVolumes));
+        // 【09-29】右上角「打开文件夹」：二级页开自己那一项的分类子文件夹（lift/up|down|open|close），
+        //   一级菜单开 lift/ 这一组（玩家一眼看到四个分类文件夹）。
+        addRenderableWidget(FolderOpenButton.of(this, FolderOpenButton.audioPath(
+                page > 0 ? categoryFor(PAGES[page - 1]) : EscalatorSpeedManager.GROUP_LIFT)));
     }
 
     // ------------------------------------------------------------------
@@ -325,10 +354,10 @@ public class LiftToneSetupScreen extends Screen {
      * 界面里那行状态已经没人看得见了。
      */
     private void notifyBadInput(String why) {
-        Minecraft mc = Minecraft.getInstance();
-        if (mc.player != null) {
-            mc.player.displayClientMessage(Component.literal("[SmoothLift] " + why), false);
-        }
+        // 【10-01】不再单独往聊天框打长句：记下「本次界面会话失败过」，
+        //   退出界面时由服务端统一回一条「UI执行失败」；细节留在日志里。
+        uiFailed = true;
+        LOGGER.warn("[SmoothLift/UI] {}", why);
     }
 
     /**
@@ -406,49 +435,38 @@ public class LiftToneSetupScreen extends Screen {
 
         String cur = currentValue(mcLevel(), which);
 
-        // 右列第 0 行：开关（这一项在本维度的子开关）—— 名字 + 「切换」两个控件。
+        // ★【09-29 · 二改】右列第 0 行原来那只「开关：开/关 + 切换」**整行删掉**（用户点名）。
+        //   「关」由下面的「不播」承担（素材层，只哑这一条竖井列）；
+        //   「开」由「默认」/ 已存入的素材承担（顺带把维度的子开关打开，见 ensureToneEnabled）。
+
+        // 右列第 0 行：不播（只有「选用」、没有「删除」—— 它不是一个文件，删无可删）。
         int y0 = rowY(0);
         if (fullyVisible(y0)) {
-            boolean on = isToneEnabled(which);
-            addRenderableWidget(Button.builder(
-                            Component.literal((on ? "✓" : "") + "开关：" + (on ? "开" : "关")),
-                            button -> toggleToneEnabled(which))
-                    .bounds(SoundListLayout.rightColX(this.width), y0, ROW_NAME_W, 20)
-                    .build());
-            addRenderableWidget(Button.builder(Component.literal("切换"),
-                            button -> toggleToneEnabled(which))
-                    .bounds(SoundListLayout.rowPickX(this.width), y0, ROW_BTN_W, 20)
-                    .build());
-        }
-
-        // 右列第 1 行：不播（只有「选用」、没有「删除」—— 它不是一个文件，删无可删）。
-        int y1 = rowY(1);
-        if (fullyVisible(y1)) {
             boolean offNow = EscalatorSpeedData.LIFT_TONE_OFF.equals(cur);
             addRenderableWidget(Button.builder(
                             Component.literal((offNow ? "✓" : "") + "不播"),
                             button -> pick(which, EscalatorSpeedData.LIFT_TONE_OFF, false))
-                    .bounds(SoundListLayout.rightColX(this.width), y1, ROW_NAME_W, 20)
+                    .bounds(SoundListLayout.rightColX(this.width), y0, ROW_NAME_W, 20)
                     .build());
             addRenderableWidget(Button.builder(Component.literal("选用"),
                             button -> pick(which, EscalatorSpeedData.LIFT_TONE_OFF, false))
-                    .bounds(SoundListLayout.rowPickX(this.width), y1, ROW_BTN_W, 20)
+                    .bounds(SoundListLayout.rowPickX(this.width), y0, ROW_BTN_W, 20)
                     .build());
         }
 
-        // 右列第 2 行：默认 —— 同上，只有「选用」。
+        // 右列第 1 行：默认 —— 同上，只有「选用」。
         //   ★【09-27 三改】文案从「默认（跟维度默认）」缩成 **「默认」**（用户点名；与屏蔽门那页同一叫法）。
-        int y2 = rowY(2);
-        if (fullyVisible(y2)) {
+        int y1 = rowY(1);
+        if (fullyVisible(y1)) {
             boolean isDefault = EscalatorSpeedData.LIFT_TONE_DEFAULT.equals(cur);
             addRenderableWidget(Button.builder(
                             Component.literal((isDefault ? "✓" : "") + "默认"),
                             button -> pick(which, EscalatorSpeedData.LIFT_TONE_DEFAULT, false))
-                    .bounds(SoundListLayout.rightColX(this.width), y2, ROW_NAME_W, 20)
+                    .bounds(SoundListLayout.rightColX(this.width), y1, ROW_NAME_W, 20)
                     .build());
             addRenderableWidget(Button.builder(Component.literal("选用"),
                             button -> pick(which, EscalatorSpeedData.LIFT_TONE_DEFAULT, false))
-                    .bounds(SoundListLayout.rowPickX(this.width), y2, ROW_BTN_W, 20)
+                    .bounds(SoundListLayout.rowPickX(this.width), y1, ROW_BTN_W, 20)
                     .build());
         }
 
@@ -493,8 +511,22 @@ public class LiftToneSetupScreen extends Screen {
     // 公共
     // ------------------------------------------------------------------
 
-    /** 当前竖井列、这一项实际生效的 audioId（镜像里没有 → 默认）。 */
+    /**
+     * 当前竖井列、这一项**实际生效**的 audioId（界面拿它打 ✓）。
+     *
+     * <p>★【09-29 · 二改】多一层**闸门折返**：本维度这项子开关关着时（指令
+     * {@code /lifthelp <项> off}，或预设里那句 {@code lifthelp <项> -f off} 关掉的），
+     * 播放端第一道门就整项跳过（{@code LiftChimePlayer#liftToneCustomId}）——
+     * 此时**素材设成什么都不会出声**，界面就该如实显示成「不播」，
+     * 而不是让「默认」打着 ✓ 却不响（这正是 LOG6 那个观感）。
+     *
+     * <p>⇒ 子开关关 → 返回 {@link EscalatorSpeedData#LIFT_TONE_OFF}；否则返回素材层的值
+     * （镜像里没有 → 默认）。
+     */
     private String currentValue(Level level, String which) {
+        if (level != null && !EscalatorSpeedManager.isLiftToneEnabled(level, which)) {
+            return EscalatorSpeedData.LIFT_TONE_OFF;
+        }
         EscalatorSpeedData.LiftToneAudio tone =
                 level == null ? EscalatorSpeedData.LiftToneAudio.NONE
                         : EscalatorSpeedManager.getClientLiftTone(level, key);
@@ -507,6 +539,42 @@ public class LiftToneSetupScreen extends Screen {
         };
     }
 
+    /**
+     * 【09-29】★★ 在 UI 里给某一项选了**会出声**的素材 = 用户想听这一项。
+     *
+     * <p>但「能不能出声」还取决于**本维度该项的子开关**（= 闸门）：它关着时，播放端
+     * 第一道门就把这一项整个跳过（见 {@code LiftChimePlayer#liftToneCustomId}），
+     * 素材设成什么都不会响。而这个闸门可能被**旧版预设**的写法关掉
+     * （简单/空白港铁预设里那句 `lifthelp open -f off` 落到的是子开关层，不是素材层；
+     * 用户报的「直梯 ui 调整开关门声音无反应」就是这个，LOG5 实证）。
+     *
+     * <p>⇒ 选素材时若闸门是关的，**就一并把它打开**。状态行会如实写出这一动作，
+     * 不做静默魔法。
+     *
+     * <p>★★【09-29 · 二改】那只手动的「开关」按钮删掉之后，**这里是界面把闸门打开的
+     * 唯一出口**（另一个出口是「不播」—— 但它只写素材层，不碰闸门）。想再关回整个维度，
+     * 用指令 {@code /lifthelp <项> off}；界面只负责把「选了素材就该出声」这条路铺平。
+     *
+     * <p>★ 与「不播」的区别：「不播」是**素材层**的一个取值（这一条竖井列没东西可播），
+     * 它**不动**闸门 —— 所以 {@code pick(..., LIFT_TONE_OFF, ...)} 不调本方法。
+     * 两层粒度不同（素材层 = 本竖井列、子开关层 = 整个维度），详见类注释。
+     *
+     * @return 真的替用户打开了闸门 → true（调用方据此改状态行）
+     */
+    private boolean ensureToneEnabled(String which) {
+        Level level = mcLevel();
+        if (level == null || isToneEnabled(which)) {
+            return false;
+        }
+        FriendlyByteBuf buf = PacketByteBufs.create();
+        buf.writeUtf(which, 32);
+        buf.writeBoolean(true);
+        ClientPlayNetworking.send(SmoothLift.SET_LIFT_TONE_SWITCH_CHANNEL, buf);
+        // 本地镜像立即跟上（服务端的权威值随后整表覆盖回来）
+        EscalatorSpeedManager.applyClientLiftToneSwitchLocal(level.dimension(), which, true);
+        return true;
+    }
+
     /** 点左列某一行：从文件夹导入并设为这一项。 */
     private void importPending(String which, String audioId) {
         FriendlyByteBuf buf = PacketByteBufs.create();
@@ -514,15 +582,20 @@ public class LiftToneSetupScreen extends Screen {
         buf.writeUtf(which, 32);
         buf.writeUtf(audioId, 128);
         ClientPlayNetworking.send(SmoothLift.IMPORT_FOLDER_LIFT_TONE_CHANNEL, buf);
-        setStatus("正在从文件夹导入并设为「" + liftToneTitle(which) + "」：" + truncate(audioId, 16));
+        boolean unblocked = ensureToneEnabled(which);
+        setStatus("正在从文件夹导入并设为「" + liftToneTitle(which) + "」：" + truncate(audioId, 16)
+                + (unblocked ? "（这一项在本维度原本是关的，已一并打开开关）" : ""));
     }
 
-    /** 点右列某一行：开关哨兵 → 切换子开关；否则把这一项设为 {code audioId}（默认 / 不播 / 某段音频）。 */
+    /**
+     * 点右列某一行：把这一项设为 {@code audioId}（默认 / 不播 / 某段已存入的音频）。
+     *
+     * <p>★【09-29 · 二改】原来这里还有一个「开关哨兵」分支（{@code TOGGLE_SENTINEL} →
+     * 切换子开关）—— 那只按钮已随用户点名整行删掉，哨兵与 {@code toggleToneEnabled} 一并清除。
+     * 现在「关」＝ 选「不播」（素材层，只哑这一条竖井列），「开」＝ 选「默认」/导入素材
+     * （顺带把维度的子开关打开，见 {@link #ensureToneEnabled}）。
+     */
     private void pick(String which, String audioId, boolean fromFolder) {
-        if (TOGGLE_SENTINEL.equals(audioId)) {
-            toggleToneEnabled(which);
-            return;
-        }
         if (fromFolder) {
             importPending(which, audioId);
             return;
@@ -533,7 +606,11 @@ public class LiftToneSetupScreen extends Screen {
         buf.writeUtf(audioId, 128);
         ClientPlayNetworking.send(SmoothLift.SET_LIFT_TONE_CHANNEL, buf);
         String label = audioLabel(audioId);
-        setStatus("已选择「" + liftToneTitle(which) + "」：" + truncate(label, 20));
+        // 【09-29】选「会出声」的素材 = 要听这一项 ⇒ 闸门若关着就一并打开（详见 ensureToneEnabled）。
+        //   ★「不播」走的是素材层、**不动**闸门 —— 它只哑这一条竖井列，不该连带其它直梯。
+        boolean unblocked = !EscalatorSpeedData.LIFT_TONE_OFF.equals(audioId) && ensureToneEnabled(which);
+        setStatus("已选择「" + liftToneTitle(which) + "」：" + truncate(label, 20)
+                + (unblocked ? "（这一项在本维度原本是关的，已一并打开开关）" : ""));
         refreshAllAfterPick(which, audioId);
     }
 
@@ -552,21 +629,6 @@ public class LiftToneSetupScreen extends Screen {
     private boolean isToneEnabled(String which) {
         Minecraft mc = Minecraft.getInstance();
         return mc.level == null || EscalatorSpeedManager.isLiftToneEnabled(mc.level, which);
-    }
-
-    /** 【1.46】切换维度默认子开关（发到服务端，镜像等同步回来刷新）。 */
-    private void toggleToneEnabled(String which) {
-        boolean next = !isToneEnabled(which);
-        FriendlyByteBuf buf = PacketByteBufs.create();
-        buf.writeUtf(which, 32);
-        buf.writeBoolean(next);
-        ClientPlayNetworking.send(SmoothLift.SET_LIFT_TONE_SWITCH_CHANNEL, buf);
-        setStatus("已请求把「" + liftToneTitle(which) + "」" + (next ? "开启" : "关闭") + "（同步回来后生效）");
-        Level level = mcLevel();
-        if (level != null) {
-            EscalatorSpeedManager.applyClientLiftToneSwitchLocal(level.dimension(), which, next);
-        }
-        init();
     }
 
     private Level mcLevel() {
@@ -643,10 +705,8 @@ public class LiftToneSetupScreen extends Screen {
         }
     }
 
-    /** 一级菜单：只画状态行 + 每行那个「音量」小标签（都是画出来的，不是按钮）。 */
+    /** 一级菜单：只画每行那个「音量」小标签（画出来的，不是按钮）；底部不再有任何状态字。 */
     private void renderMainPage(GuiGraphics guiGraphics) {
-        int cx = this.width / 2;
-
         // 每行按钮右边的「音量」标签
         int y = LIST_TOP + 10;
         for (int i = 0; i < PAGES.length; i++) {
@@ -654,13 +714,9 @@ public class LiftToneSetupScreen extends Screen {
                     mainRowLabelX(), y + 6, 0xFFFFFF, false);
             y += ROW_H;
         }
-
-        // 【七改】按用户点名：「默认音量 … ｜ 上楼 … ｜ 下楼 … ｜ 开门 … ｜ 关门 …」那一行**整段删掉**。
-        //   现在只在有操作反馈（statusText 非空）时才画一行黄色的；平时这一页不再有常驻信息行。
-        if (statusText != null) {
-            guiGraphics.drawCenteredString(this.font, Component.literal(statusText), cx,
-                    this.height + STATUS_Y, 0xFFFF55);
-        }
+        // ★【1.30】用户点名「所有 UI 里按完按钮出现在下方的黄色和白色小字全部删掉」⇒
+        //   上一版【七改】删掉的常驻信息行之外，**连仅有的一行黄字操作反馈也不再画**。
+        //   setStatus()/statusText 仍保留（改动照旧走同步与聊天回执），只是界面上不画字。
     }
 
     /**
@@ -696,11 +752,8 @@ public class LiftToneSetupScreen extends Screen {
             guiGraphics.fill(barX, thumbY, barX + 4, thumbY + thumbH, 0xFFAAAAAA);
         }
 
-        // ★ 操作反馈（点删除 / 点刷新 / 选了素材）仍然要能看见 —— 平时这一行是空的。
-        if (statusText != null) {
-            guiGraphics.drawCenteredString(this.font, Component.literal(statusText), cx,
-                    this.height + SoundListLayout.STATUS_Y_LIST, 0xFFFF55);
-        }
+        // ★【1.30】用户点名「按完按钮出现在下方的黄色和白色小字全部删掉」⇒
+        //   点删除 / 点刷新 / 选素材之后那行黄字反馈也不再画（setStatus 仍记着，只是不显示）。
     }
 
     private static String liftToneTitle(String which) {

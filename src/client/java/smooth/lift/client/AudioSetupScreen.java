@@ -189,6 +189,10 @@ public class AudioSetupScreen extends Screen {
         //   没有输入框 ⇒ beforeOpen 传 null。
         addRenderableWidget(SyncPopupScreen.syncButton(this, "esc", SmoothLift.SYNC_ESC_AUDIO,
                 pos.asLong(), null));
+        // 【09-29】右上角「打开文件夹」：本页是二级菜单 ⇒ 精确开这条分类的子文件夹
+        //   MBM_Audio/futi/music（把这页左列「未导入存档」的那个文件夹直接摆到玩家面前）。
+        addRenderableWidget(FolderOpenButton.of(this,
+                FolderOpenButton.audioPath(EscalatorSpeedManager.CAT_FUTI)));
 
         // 左列：本分类文件夹里**还没入库**的 OGG —— 点一下 = 导入存档并绑定。
         for (int i = 0; i < pending.size(); i++) {
@@ -399,27 +403,10 @@ public class AudioSetupScreen extends Screen {
             guiGraphics.fill(barX, thumbY, barX + 4, thumbY + thumbH, 0xFFAAAAAA);
         }
 
-        // 无反馈时这一行显示当前绑定状态；有反馈时换成黄色反馈文字。
-        String info = statusText;
-        if (info == null) {
-            if (individualAudio && EscalatorSpeedData.FUTI_AUDIO_OFF.equals(boundAudioId)) {
-                // 【09-27 五改】「不播」不是「没绑定」也不是某段素材，单独给一句话，别显示成「当前绑定：off」。
-                info = "不播（这条扶梯静音）";
-            } else if (boundAudioId == null) {
-                info = "未绑定（扶梯保持静音）";
-            } else {
-                // 单独绑定 → 「当前绑定」；走默认音频（/futimusic -f default 之后）→ 写明「默认音乐」，
-                // 否则玩家会以为绑定丢了（其实有声音）。
-                // ★【七改】「默认」层现在恒解析成**内置底噪**（见 EscalatorSpeedManager#normaliseDefaultAudio）
-                //   ⇒ 这里改走 displayName()，显示成「内置 · 地铁自动扶梯」而不是裸 ID「builtin:subway_…」。
-                String prefix = individualAudio ? "当前绑定：" : "使用默认音乐：";
-                info = prefix + truncate(EscalatorSpeedManager.displayName(boundAudioId), 18)
-                        + "　音量 " + boundVolume + "%";
-            }
-        }
-        guiGraphics.drawCenteredString(this.font, Component.literal(info), cx,
-                this.height + SoundListLayout.STATUS_Y_LIST,
-                statusText == null ? 0xFFFFFF : 0xFFFF55);
+        // ★【1.30】用户点名「所有 UI 里按完按钮出现在下方的黄色和白色小字全部删掉」⇒
+        //   底部这一行**状态 / 反馈字整段删除**：白字常驻状态（当前绑定 / 使用默认音乐…）
+        //   与黄字操作反馈都不再画。setStatus()/statusText 仍保留（改动照旧走同步与聊天回执），
+        //   只是界面上不再画字。
     }
 
     private static String truncate(String s, int max) {

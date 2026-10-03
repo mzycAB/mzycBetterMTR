@@ -6,7 +6,15 @@
   "plugin": "smooth.lift.mixin.mtr.PsdDoorMixinPlugin",
   "client": [
     "Mtr3PsdDoorMixin",
-    "Mtr4PsdDoorMixin"
+    "Mtr4PsdDoorMixin",
+    "Mtr3PidsNameMixin",
+    "Mtr4PidsNameMixin",
+    "Mtr4NameMaskMixin",
+    "Mtr4SavedRailRawMixin",
+    "Mtr4EditNameRawMixin",
+    "Mtr4DashboardRawMixin",
+    "Mtr4RouteArrowAliasMixin",
+    "Mtr4RouteMapNameMixin"
   ],
   "injectors": {
     "defaultRequire": 1

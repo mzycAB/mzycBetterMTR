@@ -178,7 +178,9 @@ check(m is not None, "找得到 PsdToneAudio record 声明")
 if m:
     params = [p.strip() for p in m.group(1).split(",") if p.strip()]
     check(len(params) == 18,
-          "★ PsdToneAudio 是 18 字段（1.20 的 13 + 到站/进站 2 + 音量 1 + 【09-28】讲述人 2）",
+          "★ PsdToneAudio 是 18 字段（1.20 的 13 + 到站/进站 2 + 音量 1 + 【09-28】讲述人 2）"
+          "　★【10-03 五改】「发车等待」**不在**这里：它是**门串级**的"
+          "（另起 PsdRunSetting 表），塞进这张**车站级**记录会让同站各串互相串味",
           "得到 %d：%s" % (len(params), ", ".join(params)))
     check(params[-2] == "Integer narrate" and params[-1] == "Integer narrateSeconds",
           "★ narrate（三档样式，【09-28 续】由 Boolean 改成 Integer）/ narrateSeconds 在末尾"
@@ -276,7 +278,9 @@ if mwrite and mread:
           "★★ 读写**字段名序列**逐格一致（连名字都对上，不只是类型）",
           "写在 %s / 读在 %s" % ([n for _, n in w], [n for n, _ in r]))
     check([n for _, n in w][-2:] == ["narrate", "narrateSeconds"],
-          "★【09-28】讲述人两格在**两条序列的末尾**（追加式改包的标准姿势）")
+          "★【09-28】讲述人两格在**两条序列的末尾**（追加式改包的标准姿势）"
+          "　★【10-03 五改】门串级那两项走**同一份包末尾追加的另一段**，"
+          "不在这张车站级序列里")
     # ★【1.23】的两个「淡入淡出范围」**不进这张按门的 record** —— 它们是**维度级**配置
     #   （与 /pbmround / 提示音范围同一层，见 4b 那两条）。这条注释是给下一次改包的人看的：
     #   不要因为「都是到站播报的参数」就把范围也塞进按门覆盖层。
@@ -306,9 +310,9 @@ if m2w and m2r:
     # 读段里包含 readLong? 维度包没有；两边都只取 Utf/Boolean/VarInt
     check(w2 == r2, "★★ 维度包读写类型序列逐格一致",
           "写在 %s / 读在 %s" % (w2, r2))
-    check(len(w2) == 21,
-          "★ 维度包 21 格（1.20 的 13 + 1.16/1.17/1.21 已有的 4 + 1.22 的 2 + 【1.23】的 2"
-          " + 【09-28】讲述人的 2）",
+    check(len(w2) == 24,
+          "★ 维度包 24 格（比 21 多 3 = 【09-29】把三份范围各拆成**水平 / 垂直**两格："
+          "提示音 helpRound + 到站 midiumRound + 进站 arriveRound）",
           "得到 %d" % len(w2))
     # 末尾两格 = 「讲述人**样式**（VarInt）+ 秒数（VarInt）」
     #   ★【09-28 续】第 1 格由 Boolean（开/关）改成 VarInt（三档 0/1/2）—— 格子数没变，
@@ -331,18 +335,22 @@ m3 = re.search(r"public static void applyClientPsdChime\((.*?)\)\s*\{", mgr, fla
 check(m3 is not None, "找得到 applyClientPsdChime 签名")
 if m3:
     params3 = [p.strip() for p in m3.group(1).split(",") if p.strip()]
-    check(len(params3) == 21,
-          "★ applyClientPsdChime 21 入参 = record 16 + dimension + enabled + 【1.23】两个范围"
-          " + 【09-28】讲述人的两个（维度包多带的这几格，包格数 21 也对得上）",
+    check(len(params3) == 24,
+          "★ applyClientPsdChime 仍是 24 入参 = **维度默认那一层** + 【1.23】两个范围"
+          " + 【09-28】讲述人两个；【09-29】三份范围各拆双维 ⇒ 比 21 多 3"
+          "。★【10-03 五改】新加的「关门后等待发车」**故意不进来**："
+          "它只有按串那一层、没有维度默认（改的是列车，不是音频）",
           "得到 %d：%s" % (len(params3), ", ".join(params3)))
     check(params3[-2:] == ["int narrateMode", "int narrateSeconds"],
           "【09-28】讲述人的**样式** / 秒数在 applyClientPsdChime 入参**末尾**"
           "（样式那格已由 boolean narrateOn 改成 int narrateMode）", "得到 %s" % params3[-2:])
-    check(params3[-6:-2] == ["int midiumVolume", "int arriveVolume",
-                             "int midiumRound", "int arriveRound"],
-          "★ 1.22 的音量对 + 1.23 的范围对仍在（只是讲述人两格接在它们后面）"
+    check(params3[-8:-2] == ["int midiumVolume", "int arriveVolume",
+                             "int midiumRoundXz", "int midiumRoundY",
+                             "int arriveRoundXz", "int arriveRoundY"],
+          "★ 1.22 的音量对 + 1.23 的范围对仍在（只是讲述人两格接在它们后面；"
+          "【09-29】每个范围后半又多一格垂直 ⇒ 共 8 格）"
           "（顺序与包、与读段三处一致）",
-          "得到 %s" % params3[-6:-2])
+          "得到 %s" % params3[-8:-2])
 
 # ---- 4d) 客户端构造实参 == record 参数名（逐个，含名字） ----
 m4 = re.search(r"new EscalatorSpeedData\.PsdToneAudio\((.*?)\)\);", cli, flags=re.S)
@@ -518,27 +526,33 @@ check(re.search(r"public void tick\(\)\s*\{.*?refreshVolume\(Minecraft\.getInsta
       "★★ tick() 里**现算**音量（淡入淡出的成立前提）")
 check(re.search(r"void refreshVolume\(Minecraft mc\)", player) is not None,
       "有 refreshVolume(mc)")
-check(re.search(r"float v = gain\(d, roundKind\) \* baseVolume;", player) is not None,
-      "★★【1.23】现算 = gain(距离, **这条声音自己的类别**) × baseVolume"
+check(re.search(r"float v = gain\(dxz, dy, roundKind\) \* baseVolume;", player) is not None,
+      "★★【1.23】【09-29】现算 = gain(**双维**距离, 这条声音自己的类别) × baseVolume"
       "（不再是三类共用提示音那一份范围）")
 
 # gain 公式复算：【1.25 起改为线性】1 - d/r（旧：平方 (1-d/r)^2），d >= r ⇒ 0，单调不增；
 # ★【1.23】范围按类别取。
-mg = re.search(r"private static float gain\(double distance, int roundKind\)\s*\{(.*?)\n    \}",
-               player, flags=re.S)
-check(mg is not None, "★★【1.23】找得到 gain(distance, roundKind) —— 范围是**按类别**传进去的")
-check(re.search(r"private static float gain\(double distance\)\s*\{", player) is None,
-      "★★ 单参重载 gain(distance) **故意不存在** —— 逼每个调用点写清「我算哪一类」，"
-      "而不是顺手用提示音那一份（本项目栽过「调用点漏改」）")
+mg = re.search(r"private static float gain\(double distanceXz, double distanceY, int roundKind\)"
+               r"\s*\{(.*?)\n    \}", player, flags=re.S)
+check(mg is not None, "★★【1.23】【09-29】找得到 gain(distanceXz, distanceY, roundKind)"
+      " —— 范围是**按类别**传进去的，且距离是**双维**")
+check(re.search(r"private static float gain\(double distance\)\s*\{", player) is None
+      and re.search(r"private static float gain\(double distance, int roundKind\)\s*\{", player) is None,
+      "★★ 单参 / 三维单值重载 gain(...) **故意不存在** —— 逼每个调用点写清「我算哪一类、"
+      "两个方向各自多远」，而不是顺手用提示音那一份（本项目栽过「调用点漏改」）")
 if mg:
     gbody = mg.group(1)
-    check(re.search(r"double round = roundFor\(roundKind\);", gbody) is not None,
-          "★ 范围由 roundFor(roundKind) 现取（改完指令下一 tick 就生效，不存快照）")
-    check(re.search(r"if \(!\(distance < round\)\)\s*\{\s*return 0\.0f;", gbody) is not None,
-          "★ d >= 范围 ⇒ 0（走远无声；用 !(d < r) 而不是 d > r，NaN 也归到 0）")
-    check("1.0 - distance / round" in gbody and "f * f" not in gbody,
-          "★★【1.25】公式 = **线性** 1 - d/r（**不是**扶梯那套平方掉块曲线）"
-          " —— 屏蔽门是一串同声、要整串都听得见；平方曲线 8 格只剩 25%、15 格 0.4%")
+    check(re.search(r"double roundXz = roundXzFor\(roundKind\);", gbody) is not None
+          and re.search(r"double roundY = roundYFor\(roundKind\);", gbody) is not None,
+          "★ 范围由 roundXzFor / roundYFor(roundKind) 现取（改完指令下一 tick 就生效，不存快照）")
+    check(re.search(r"if \(!\(distanceXz < roundXz\) \|\| !\(distanceY < roundY\)\)\s*\{"
+                    r"\s*return 0\.0f;", gbody) is not None,
+          "★ 任一维 d >= 该维范围 ⇒ 0（走远无声；用 !(d < r) 而不是 d > r，NaN 也归到 0）")
+    check("1.0 - distanceXz / roundXz" in gbody and "1.0 - distanceY / roundY" in gbody
+          and "f * f" not in gbody,
+          "★★【1.25】【09-29】公式 = 两维各算**线性** 1 - d/r，取**较小**的那个"
+          "（★【10-03】扶梯提示音 / 直梯提示音也统一成线性了 ⇒ 全项目的距离淡出现在同一条口径）"
+          "—— 屏蔽门是一串同声、要整串都听得见；当初平方曲线 8 格只剩 25%、15 格 0.4%")
     check("Math.max(0.0" in gbody,
           "★ 线性值再兜一次 Math.max(0, ...)（d 贴近范围时不出现 -0.0 / 负音量）")
 # 三类的身份 + roundFor 的三分支
@@ -546,32 +560,47 @@ check(re.search(r"private static final int ROUND_TONE = 0;", player) is not None
       and re.search(r"private static final int ROUND_MIDIUM = 1;", player) is not None
       and re.search(r"private static final int ROUND_ARRIVE = 2;", player) is not None,
       "【1.23】三类范围的身份常量 ROUND_TONE / ROUND_MIDIUM / ROUND_ARRIVE")
-check(re.search(r"case ROUND_MIDIUM -> cachedMidiumRound;\s*case ROUND_ARRIVE -> cachedArriveRound;",
-                player) is not None,
-      "★★ roundFor 把两类报站音分别落到 cachedMidiumRound / cachedArriveRound"
-      "（都落回 cachedRound ⇒ 三条指令里有两条是死配置）")
+check(re.search(r"private static double roundXzFor\(int roundKind\)\s*\{\s*"
+                r"return switch \(roundKind\) \{\s*"
+                r"case ROUND_MIDIUM -> cachedMidiumRoundXz;\s*"
+                r"case ROUND_ARRIVE -> cachedArriveRoundXz;", player) is not None
+      and re.search(r"private static double roundYFor\(int roundKind\)\s*\{\s*"
+                    r"return switch \(roundKind\) \{\s*"
+                    r"case ROUND_MIDIUM -> cachedMidiumRoundY;\s*"
+                    r"case ROUND_ARRIVE -> cachedArriveRoundY;", player) is not None,
+      "★★ roundXzFor / roundYFor 把两类报站音分别落到 cachedMidium·Arrive\"RoundXz / RoundY\""
+      "（都落回 cachedRoundXz / cachedRoundY ⇒ 三条指令里有两条是死配置）")
 # ★ 四个调用点各自写对了类别 —— 这条是本轮最容易漏的地方
 check(re.search(r"float volume = volumeFactor\(toneVolume\);", player) is not None
-      and re.search(r"gain\(distance, ROUND_TONE\) \* volume <= 0\.0f", player) is not None,
+      and re.search(r"gain\(distanceXz, distanceY, ROUND_TONE\) \* volume <= 0\.0f", player) is not None,
       "★★【1.25】resolvePlayable（开关门提示音）只取**音量系数**、射程判定用 ROUND_TONE"
       " —— 距离增益**不在起播那一刻算死**（那正是「门开时站得远 ⇒ 走近了也不变响」的根因）")
-check(re.search(r"gain\(distance, ROUND_MIDIUM\)", player) is not None,
+check(re.search(r"gain\(distanceXz, distanceY, ROUND_MIDIUM\)", player) is not None,
       "planArrivalAnnounce（到站播报）用 ROUND_MIDIUM")
-check(re.search(r"gain\(distance, ROUND_ARRIVE\)", player) is not None,
+check(re.search(r"gain\(distanceXz, distanceY, ROUND_ARRIVE\)", player) is not None,
       "tickArriveAnnounce（进站报站）用 ROUND_ARRIVE")
-check(re.search(r"if \(gain\(distance\) \*", player) is None,
-      "★ 没有漏改的 gain(distance) 单参调用点")
+check(re.search(r"gain\(distance\)", player) is None
+      and re.search(r"gain\(d, roundKind\)", player) is None,
+      "★ 没有漏改的 gain(distance) / gain(d, roundKind) 调用点")
 # 两个缓存的刷新与复位
-check(re.search(r"cachedMidiumRound = EscalatorSpeedManager\.getPsdMidiumRound\(mc\.level\);",
+check(re.search(r"cachedMidiumRoundXz = EscalatorSpeedManager\.getPsdMidiumRoundXz\(mc\.level\);",
                 player) is not None
-      and re.search(r"cachedArriveRound = EscalatorSpeedManager\.getPsdArriveRound\(mc\.level\);",
+      and re.search(r"cachedMidiumRoundY = EscalatorSpeedManager\.getPsdMidiumRoundY\(mc\.level\);",
+                    player) is not None
+      and re.search(r"cachedArriveRoundXz = EscalatorSpeedManager\.getPsdArriveRoundXz\(mc\.level\);",
+                    player) is not None
+      and re.search(r"cachedArriveRoundY = EscalatorSpeedManager\.getPsdArriveRoundY\(mc\.level\);",
                     player) is not None,
-      "refreshSettings 里两份范围都跟着代次刷新（改完指令下一个 tick 生效）")
-check(re.search(r"cachedMidiumRound = EscalatorSpeedData\.DEFAULT_PSD_MIDIUM_ROUND;", player)
+      "refreshSettings 里两份范围（水平 + 垂直各一格）都跟着代次刷新（改完指令下一个 tick 生效）")
+check(re.search(r"cachedMidiumRoundXz = EscalatorSpeedData\.DEFAULT_PSD_MIDIUM_ROUND_XZ;", player)
       is not None
-      and re.search(r"cachedArriveRound = EscalatorSpeedData\.DEFAULT_PSD_ARRIVE_ROUND;", player)
+      and re.search(r"cachedMidiumRoundY = EscalatorSpeedData\.DEFAULT_PSD_MIDIUM_ROUND_Y;", player)
+      is not None
+      and re.search(r"cachedArriveRoundXz = EscalatorSpeedData\.DEFAULT_PSD_ARRIVE_ROUND_XZ;", player)
+      is not None
+      and re.search(r"cachedArriveRoundY = EscalatorSpeedData\.DEFAULT_PSD_ARRIVE_ROUND_Y;", player)
       is not None,
-      "onDisconnect 里两份范围都复位成各自默认（不是复用提示音那个常量）")
+      "onDisconnect 里两份范围（水平 + 垂直）都复位成各自默认（不是复用提示音那个常量）")
 
 
 def gain(d, r):
@@ -619,12 +648,17 @@ check(re.search(r"static void updateTrainRamp\(Minecraft mc\)", player) is not N
       "倍率刷新方法 updateTrainRamp() 存在")
 check(re.search(r"trainRamp = ridingTrain\(\) \? TRAIN_VOLUME_FACTOR : 1\.0f;", player) is not None,
       "★ 每 tick 直接把当前车厢状态投影成倍率 —— 上下车下一 tick 就到位（阶跃本来就不需要状态机）")
-check(re.search(r"public static void onClientTick\(Minecraft mc\)\s*\{"
-                r"\s*if \(mc\.level == null \|\| mc\.player == null\)"
-                r"\s*\{\s*reset\(mc\);\s*return;\s*\}\s*updateTrainRamp\(mc\);", player,
-                flags=re.S) is not None,
-      "★★ onClientTick 的**第一件事**就是刷新列车倍率（且排在所有早退分支之前）"
-      " ⇒ 哪怕这一刻没有声音在播，倍率也已是当前值；下一声起播直接拿对")
+# ★【09-29】现在 onClientTick 最前面还有两条不看门快照、也不吃倍率的护栏
+#   （TrainAnnounceSubtitle.tick / TrainAnnounceNarrator.tickRangeGuard），
+#   所以判据改成**结构位置**：倍率刷新必须排在「逐门循环 / 所有与声音有关的早退分支」之前。
+_i_ramp2 = player.find("updateTrainRamp(mc);")
+_i_enabled2 = player.find("boolean enabled = psdHelpEnabled(mc);")
+_i_tfv4 = player.find("tickForcedVoice(mc, doors)")
+check(0 <= _i_ramp2 < _i_enabled2 and 0 <= _i_ramp2 < _i_tfv4,
+      "★★ onClientTick 里刷新列车倍率排在**逐门循环与所有与声音有关的早退分支之前**"
+      "（唯二排在它前面的字幕 / 讲述人护栏都不看门快照、也不吃倍率）"
+      " ⇒ 哪怕这一刻没有声音在播，倍率也已是当前值；下一声起播直接拿对",
+      "倍率@%d 使能判据@%d 逐门 tick@%d" % (_i_ramp2, _i_enabled2, _i_tfv4))
 check(re.search(r"public static void onDisconnect\(\)\s*\{.*?trainRamp = 1\.0f;", player,
                 flags=re.S) is not None,
       "换世界时把倍率复位成 1.0 ⇒ 下一 tick 由 updateTrainRamp 投影到新的车厢状态"
@@ -678,22 +712,36 @@ if mrf:
 # 只有到站 / 进站两处报站音才吃列车衰减（开关门提示音不吃 —— 它跟「在不在车里」无关）
 # ★【1.23】末尾带着「哪一类范围」这一格；★【1.25】factorOnly 已整个删除；
 # ★【1.26】再末尾多一格「按哪一串门算距离」（站台广播）
-fire = re.findall(r"play\(mc, [^;]*?,\s*true,\s*ROUND_(MIDIUM|ARRIVE),\s*([^;]*?)\);", player)
+# ★【09-30 续 10】play() 末尾再加一格 chainDoubleDim（true=双维播报 / false=单维提示音）
+#   ⇒ 报站这两处的最后一格必须是 true（双维：水平 16 / 垂直 5），提示音那处是 false（单维）。
+fire = re.findall(r"play\(mc, [^;]*?,\s*true,\s*ROUND_(MIDIUM|ARRIVE),\s*"
+                  r"([^,;]*?)\s*,\s*(true|false)\s*\);", player)
 check(len(fire) == 2,
       "★ 恰好 2 处报站音传 trainAttenuated=true：到站 + 进站",
       "得到 %d 处：%s" % (len(fire), fire))
-check(sorted(k for k, _ in fire) == ["ARRIVE", "MIDIUM"],
+check(sorted(k for k, _, _ in fire) == ["ARRIVE", "MIDIUM"],
       "★★ 这两处**各自**带对了范围类别（到站 ROUND_MIDIUM / 进站 ROUND_ARRIVE）"
       " —— 两处都写 ROUND_MIDIUM 就是「/pbmarriveround 完全没反应」",
       "得到 %s" % fire)
-check(fire and all(t.strip() in ("plan.runKey", "runKey") for _, t in fire),
+check(fire and all(t.strip() in ("plan.runKey", "runKey") for _, t, _ in fire),
       "★★【1.26】两处报站音都把**串锚点**当最后一格传进去 = 站台广播（距离按本串最近的门算）"
-      " —— 传 NO_BROADCAST_RUN 就退回「每扇门各自 16 格」，一串 55 格的门又只剩中间几扇听得见",
-      "得到 %s" % [t.strip() for _, t in fire])
+      " —— 传哨兵就退回「每扇门各自 16 格」，一串 55 格的门又只剩中间几扇听得见",
+      "得到 %s" % [t.strip() for _, t, _ in fire])
+check(fire and all(f == "true" for _, _, f in fire),
+      "★★【09-30 续 10】这两处报站音的第 9 格链式双维标志是 true"
+      " —— 站台广播走上天桥 / 楼梯几格不该被判越界",
+      "得到 %s" % [f for _, _, f in fire])
 check(re.search(r"return play\(mc, tone, door, volume, startMs, false, ROUND_TONE, "
-                r"NO_BROADCAST_RUN\);", player) is not None,
-      "★★【1.25/1.26】开关门提示音也走「音量系数 + 每 tick 现算距离增益」，"
-      "只剩「不吃列车衰减 + 距离按本扇门算」这两个「不」；范围走 ROUND_TONE")
+                r"door\.runKey\(\), false,\s*\n\s*door\.platformId\(\)\);", player) is not None,
+      "★★【09-30 续 10】开关门提示音也走「音量系数 + 每 tick 现算距离增益」，"
+      "还剩两个「不」：不吃列车衰减 + 走**单维**（第 9 格 false）；"
+      "★★【10-01】第 10 格改传 **door.platformId()**：距离基准从「本串（= 车站级 runKey）"
+      "最近门」收窄到「**同一个 MTR 站台**最近门」—— LOG013 世纪广场 6~7 个站台跨 3 层、"
+      "两条门线只隔 11 格，不收窄就等于「别的站台关门按你脚边那扇门的音量响满 100%」，"
+      "正是用户报的「多出来的提示音」。站台广播（报站音）那两处仍传车站级口径。")
+check(player.count("NO_BROADCAST_RUN") == 0,
+      "★★【09-30 续 10】「按本扇门算（位置音）」的哨兵 NO_BROADCAST_RUN 已**整个删除**"
+      "（留着它 = 一条没人走的死路径）")
 check(player.count("factorOnly") == 0,
       "★★【1.25】factorOnly **整个删掉**（它的 false 分支 = 距离增益在起播那一刻算死 ⇒"
       "「门开时玩家站得远，这条声音就永远只剩 0.4% 音量、走近也不变响」）。"
@@ -797,18 +845,22 @@ else:
         blob_outer = z.read("smooth/lift/client/PsdChimePlayer.class")
         for tok in (b"ridingVehicleId", b"TRAIN_VOLUME_FACTOR", b"ridingTrain",
                     b"updateTrainRamp", b"trainRamp",
-                    b"cachedMidiumRound", b"cachedArriveRound", b"roundFor"):
+                    b"cachedMidiumRound", b"cachedArriveRound",
+                    b"roundXzFor", b"roundYFor"):
             check(tok in blob_outer,
                   "PsdChimePlayer.class 里编进了 %s" % tok.decode())
         check(b"TRAIN_RAMP_TICKS" not in blob_outer,
               "★【1.28】PsdChimePlayer.class 里**没有** TRAIN_RAMP_TICKS（1 秒斜坡已删）")
         # ★ 字节码比 grep 强：常量池里能证明「ridingVehicleId 是**字符串**」（反射要的是串）
         check(b"ridingVehicleId" in blob_outer, "★ 反射字段名以**字符串**进了常量池")
-        # 【1.23】★ 查的是 roundFor / cached*Round 这些**方法名 / 字段名** ——
+        # 【1.23】★ 查的是 roundXzFor / roundYFor / cached*Round 这些**方法名 / 字段名** ——
         #   ROUND_TONE/MIDIUM/ARRIVE 是 `static final int`，javac 会**内联成字面量**，
         #   常量池里根本没有它们的名字（拿它们去查会假红，别改回去）。
-        check(b"roundFor" in blob_outer and b"cachedArriveRound" in blob_outer,
-              "★★【1.23】roundFor / cachedArriveRound 进了常量池 —— 三条 range 指令不是死配置")
+        #   ★【09-29】roundFor 一个方法拆成 roundXzFor + roundYFor 两个 ⇒ 名字跟着换。
+        check(b"roundXzFor" in blob_outer and b"roundYFor" in blob_outer
+              and b"cachedArriveRoundXz" in blob_outer,
+              "★★【1.23】roundXzFor / roundYFor / cachedArriveRoundXz 进了常量池"
+              " —— 三条 range 指令不是死配置")
         check("smooth/lift/client/PsdToneSetupScreen.class" in names,
               "jar 内含 PsdToneSetupScreen.class")
         blob_ui = z.read("smooth/lift/client/PsdToneSetupScreen.class")

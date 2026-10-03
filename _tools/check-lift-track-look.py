@@ -405,8 +405,10 @@ mj = {}
 if os.path.isfile(MIXINS_JSON):
     with open(MIXINS_JSON, encoding="utf-8") as fh:
         mj = json.load(fh)
-check(sorted(mj.get("mixins") or []) == ["Mtr3LiftDoorMixin", "Mtr4LiftTrackFloorShapeMixin"],
-      "【1.44】mixins.json 同时注册了两条 mixin",
+check(sorted(mj.get("mixins") or []) == ["Mtr3LiftDoorMixin", "Mtr4LiftTrackFloorShapeMixin",
+                                        "Mtr4TrainDepartHoldMixin"],
+      "【1.44】mixins.json 注册了三条 mixin（★【10-03 五改】多了「关门后等待 X 秒发车」"
+      "那条 Mtr4TrainDepartHoldMixin —— 它与楼层轨道无关，但共用这一份配置",
       "实际 %s" % (mj.get("mixins")))
 
 plug = ""

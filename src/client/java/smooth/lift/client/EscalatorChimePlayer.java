@@ -160,7 +160,8 @@ import java.util.Set;
  * 两端一样响、混成一团，判不出方向。这里关掉 OpenAL 的距离增益
  * （{@code Attenuation.NONE} → {@code AL_DISTANCE_MODEL=AL_NONE}，注意这只关**增益**，
  * 声源坐标依旧生效、依旧做声像），改由
- * {@link #gain(double, double)} 按「到**该端头**的距离」逐端算（默认 4 格内平方衰减到 0），两端各自衰减。
+ * {@link #gain(double, double)} 按「到**该端头**的距离」逐端算（默认 4 格内**按比例线性**衰减到 0，
+ * ★【10-03】原为平方，用户点名改为按比例），两端各自衰减。
  *
  * <p><b>静音条件</b>（两个，任一成立就不响，都在 {@link #onClientTick} 里**逐 tick 现算**）：
  * <ol>
@@ -222,17 +223,23 @@ public final class EscalatorChimePlayer {
      *       默认作用范围只有 **4 格** —— 站到下客端三四格开外就听不见了。正因为它是点状的、局部的，
      *       才有「哪一头在响 = 该往哪边走」的导向意义。</li>
      *   <li><b>扶梯运行底噪（{@link EscalatorAudioPlayer}）</b>：整条扶梯一起响，
-     *       默认作用范围 **16 格**、按**到整条扶梯**的距离衰减 —— 那是「扶梯在运行」的环境音，
-     *       本来就应该坐一整程都听得见。</li>
+     *       默认作用范围 **水平 10 / 垂直 5 格**（★【10-03】由 16 改小）、按**到整条扶梯**的距离衰减
+     *       —— 那是「扶梯在运行」的环境音，本来就应该坐一整程都听得见。</li>
      * </ul>
      * 早先这里错用了 16 格（照抄底噪那套），结果**坐一整程都只听得见上客端那一路急促滴答**，
      * 端头导向的意义没了。**改回 4 格**。
+     *
+     * <p>★【10-03】拆双维：水平（xz）默认 4、垂直（y）默认 5（见 {@link #DEFAULT_RANGE_Y}），
+     * 两维各算一次线性衰减、取较小；任一维越界即静音。
      *
      * <p><b>4 格就是默认的全部规则，不再额外收窄</b>：扶梯长于 8 格时两端天然不相交、中段安静；
      * 扶梯短于 8 格时站在中间会同时听到两头的声音 —— 这**正是想要的**（真实世界的短扶梯也是如此）。
      * 「只在首尾两块方块上放音源」+「射程范围内」两条已经足够，别再为「中段必须静音」去砍半径。
      */
     public static final double DEFAULT_RANGE = EscalatorSpeedData.DEFAULT_HELP_ROUND;
+
+    /** ★【10-03】提示音**垂直（y 轴）**默认射程（格）= {@link EscalatorSpeedData#DEFAULT_HELP_ROUND_Y} = 5。 */
+    public static final double DEFAULT_RANGE_Y = EscalatorSpeedData.DEFAULT_HELP_ROUND_Y;
 
     /**
      * 五个**素材**（都是 2 秒一循环的「咔啪」细金属声，只有速率不同）。选哪个看
@@ -315,10 +322,14 @@ public final class EscalatorChimePlayer {
     private static long cachedVolumeGeneration = -1L;
     private static float cachedVolumeFactor = 1.0f;
 
-    /** 【1.24】提示音**范围**的上次查询结果 + 代次（见 {@link #helpRange}），缓存策略与音量相同。 */
+    /**
+     * 【1.24】提示音**范围**的上次查询结果 + 代次（见 {@link #helpRange}），缓存策略与音量相同。
+     * ★【10-03】双维：同一组 anchor / 代次同时缓存**水平（xz）**与**垂直（y）**两份值。
+     */
     private static BlockPos cachedRangeAnchor;
     private static long cachedRangeGeneration = -1L;
     private static double cachedRangeValue = DEFAULT_RANGE;
+    private static double cachedRangeYValue = DEFAULT_RANGE_Y;
 
     /** 【1.24】算 {@link #currentTarget} 时用的范围代次：范围一改就让 TTL 缓存立刻作废。 */
     private static long cachedRoundGeneration = -1L;
@@ -446,8 +457,9 @@ public final class EscalatorChimePlayer {
         Vec3 player = mc.player.position();
         // 【1.18】提示音音量百分比（1~1000 → 0.01~10.0），同样逐 tick 现算（带代次缓存）。
         float volumeFactor = helpVolumeFactor(mc, target.anchor);
-        // 【1.24】可闻范围（格，默认 4）也逐 tick 现算：/futihelpround 改完不用重进世界。
-        double range = helpRange(mc, target.anchor);
+        // 【1.24】可闻范围（格，★【10-03】水平默认 4 / 垂直默认 5）也逐 tick 现算：改完不用重进世界。
+        double rangeXz = helpRange(mc, target.anchor);
+        double rangeY = helpRangeY(mc, target.anchor);
         // 【1.31】两个端头的速率（Hz）同样逐 tick 现算带代次缓存：/futihelpspeed 改完立刻换速度。
         Rates rates = helpRates(mc, target.anchor);
         // 【1.41】这两头**各放什么声音**同样逐 tick 现算带代次缓存
@@ -455,9 +467,9 @@ public final class EscalatorChimePlayer {
         //   自定义音频 = 原速循环；某一头是 `off` = **只静掉那一头**（另一头照常响，见 updateEnd）。
         AudioIds ids = helpAudioIds(mc, target.anchor);
         updateEnd(mc, End.BOARD, target.boardPos, ids.in(), rates.in(),
-                player, "上客端（进入", volumeFactor, range);
+                player, "上客端（进入", volumeFactor, rangeXz, rangeY);
         updateEnd(mc, End.ALIGHT, target.alightPos, ids.out(), rates.out(),
-                player, "落客端（离开", volumeFactor, range);
+                player, "落客端（离开", volumeFactor, rangeXz, rangeY);
     }
 
     /**
@@ -536,14 +548,26 @@ public final class EscalatorChimePlayer {
      * 保证「范围一改、那 0.5 秒的几何缓存立刻作废」，而不是等 TTL 自然过期。
      */
     private static double helpRange(Minecraft mc, BlockPos anchor) {
+        refreshRangeCache(mc, anchor);
+        return cachedRangeValue;
+    }
+
+    /** ★【10-03】同 {@link #helpRange}，但取**垂直（y 轴）**维（初始 5 格）。 */
+    private static double helpRangeY(Minecraft mc, BlockPos anchor) {
+        refreshRangeCache(mc, anchor);
+        return cachedRangeYValue;
+    }
+
+    /** ★【10-03】一次把**两维**范围都查到缓存里（链上有单独设置时要展开整条链，别分两次查）。 */
+    private static void refreshRangeCache(Minecraft mc, BlockPos anchor) {
         long generation = EscalatorSpeedManager.clientHelpRoundGeneration();
         if (anchor.equals(cachedRangeAnchor) && generation == cachedRangeGeneration) {
-            return cachedRangeValue;
+            return;
         }
         cachedRangeAnchor = anchor;
         cachedRangeGeneration = generation;
         cachedRangeValue = EscalatorSpeedManager.getHelpRound(mc.level, anchor);
-        return cachedRangeValue;
+        cachedRangeYValue = EscalatorSpeedManager.getHelpRoundY(mc.level, anchor);
     }
 
     /**
@@ -626,14 +650,15 @@ public final class EscalatorChimePlayer {
      * @param endLabel 日志 / 文案里的端头名（不含右括号）：「上客端（进入」/「落客端（离开」
      */
     private static void updateEnd(Minecraft mc, End kind, Vec3 pos, String audioId, int hz,
-                                  Vec3 player, String endLabel, float volumeFactor, double range) {
+                                  Vec3 player, String endLabel, float volumeFactor,
+                                  double rangeXz, double rangeY) {
         if (EscalatorSpeedData.HELP_AUDIO_OFF.equals(audioId)) {
             stopEnd(mc, kind, endLabel);
             return;
         }
         Sample sample = sampleFor(audioId, hz);
         update(mc, kind, pos, sample, player,
-                endLabel + "，" + describeSample(sample, hz) + "）", volumeFactor, range);
+                endLabel + "，" + describeSample(sample, hz) + "）", volumeFactor, rangeXz, rangeY);
     }
 
     /** 【1.41】停掉某一个端头那一路（这一头被设成 {@code off}）。本来就没在播则什么也不做。 */
@@ -761,8 +786,12 @@ public final class EscalatorChimePlayer {
             return null;
         }
         // 【1.24】范围按「这条扶梯」算（anchor 已定，链上若有单独设置也能取到）。
-        double range = helpRange(mc, anchor);
-        if (best > range) {
+        // ★【10-03】双维：改用 anchor 的**水平 / 垂直**分量两维各判一次（同 update() 的口径）。
+        double rangeXz = helpRange(mc, anchor);
+        double rangeY = helpRangeY(mc, anchor);
+        double axz = horizontalDistanceToBlock(mc.player.position(), anchor);
+        double ay = verticalDistanceToBlock(mc.player.position(), anchor);
+        if (!(axz < rangeXz) || !(ay < rangeY)) {
             return null;
         }
         if (anchor.equals(cachedAnchor) && cachedTarget != null) {
@@ -781,10 +810,10 @@ public final class EscalatorChimePlayer {
             // 还是其实听到的是别的声音（例如整条一起响的运行底噪）。
             // 【1.21】再加上定位依据（阶梯块数 / 两条水平轴跨度 / 运行轴 / 上行下行）——
             // 「只有一端有声音」这类反馈，靠这一行就能判断是不是链条没展开全。
-            LOGGER.info("[SmoothLift/Chime] 端头定位：{}；上客端 {} 落客端 {}（两端相距 {} 格，射程 {} 格）",
+            LOGGER.info("[SmoothLift/Chime] 端头定位：{}；上客端 {} 落客端 {}（两端相距 {} 格，射程 水平 {} / 垂直 {} 格）",
                     target.debug(), format(target.boardPos()), format(target.alightPos()),
                     String.format("%.1f", target.boardPos().distanceTo(target.alightPos())),
-                    String.format("%.0f", range));
+                    String.format("%.0f", rangeXz), String.format("%.0f", rangeY));
         }
         cachedAnchor = anchor;
         return target;
@@ -1072,6 +1101,18 @@ public final class EscalatorChimePlayer {
         return Math.sqrt(dx * dx + dy * dy + dz * dz);
     }
 
+    /** ★【10-03】点到方块实心体的**水平（xz）**分量，格（{@link #distanceToBlock} 的 dx/dz 那一半）。 */
+    private static double horizontalDistanceToBlock(Vec3 p, BlockPos pos) {
+        double dx = Math.max(0.0, Math.max(pos.getX() - p.x, p.x - (pos.getX() + 1.0)));
+        double dz = Math.max(0.0, Math.max(pos.getZ() - p.z, p.z - (pos.getZ() + 1.0)));
+        return Math.sqrt(dx * dx + dz * dz);
+    }
+
+    /** ★【10-03】点到方块实心体的**垂直（y）**分量，格。 */
+    private static double verticalDistanceToBlock(Vec3 p, BlockPos pos) {
+        return Math.max(0.0, Math.max(pos.getY() - p.y, p.y - (pos.getY() + 1.0)));
+    }
+
     // ------------------------------------------------------------------
     // 播放
     // ------------------------------------------------------------------
@@ -1085,9 +1126,11 @@ public final class EscalatorChimePlayer {
      * @param range        【1.24】这条扶梯的可闻范围（格，见 {@link #helpRange}），逐 tick 现算
      */
     private static void update(Minecraft mc, End kind, Vec3 pos, Sample sample, Vec3 player,
-                               String what, float volumeFactor, double range) {
-        double dist = player.distanceTo(pos);
-        float target = gain(dist, range) * volumeFactor;
+                               String what, float volumeFactor, double rangeXz, double rangeY) {
+        // ★【10-03】距离拆双维：水平 = hypot(dx, dz)、垂直 = |dy|；两维各算线性、取较小。
+        double dxz = Math.hypot(player.x - pos.x, player.z - pos.z);
+        double dy = Math.abs(player.y - pos.y);
+        float target = gain(dxz, dy, rangeXz, rangeY) * volumeFactor;
         ChimeInstance inst = ACTIVE.get(kind);
         if (inst != null && !inst.matches(sample)) {
             // 【1.31】速率跨了素材档（如 8 → 9 Hz）要换素材；
@@ -1100,8 +1143,9 @@ public final class EscalatorChimePlayer {
             if (inst != null) {
                 mc.getSoundManager().stop(inst);
                 ACTIVE.remove(kind);
-                LOGGER.info("[SmoothLift/Chime] 离开扶梯{}（到该端头 {} 格 ≥ 射程 {} 格），停掉这一路",
-                        what, String.format("%.1f", dist), String.format("%.0f", range));
+                LOGGER.info("[SmoothLift/Chime] 离开扶梯{}（到该端头 水平 {} / 垂直 {} 格 ≥ 射程 {}/{} 格），停掉这一路",
+                        what, String.format("%.1f", dxz), String.format("%.1f", dy),
+                        String.format("%.0f", rangeXz), String.format("%.0f", rangeY));
             }
             return;
         }
@@ -1155,8 +1199,8 @@ public final class EscalatorChimePlayer {
                     AL10.alSourcef(ch.source, AL10.AL_MAX_GAIN, EscalatorAudioPlayer.MAX_GAIN);
                 });
             }
-            LOGGER.info("[SmoothLift/Chime] 开始播放扶梯{}提示音（到该端头 {} 格）",
-                    what, String.format("%.1f", dist));
+            LOGGER.info("[SmoothLift/Chime] 开始播放扶梯{}提示音（到该端头 水平 {} / 垂直 {} 格）",
+                    what, String.format("%.1f", dxz), String.format("%.1f", dy));
             ACTIVE.put(kind, inst);
         }
         // 【1.31】同一素材档内的速率变化（如 9 → 12 Hz 都在 10 Hz 素材档）不必重建实例：
@@ -1169,27 +1213,31 @@ public final class EscalatorChimePlayer {
     }
 
     /**
-     * 距离增益：{@code range}（默认 4 格，可被 {@code /futihelpround} 改）内从 1 衰减到 0，
-     * 且做成**平方**衰减。
+     * 距离增益：{@code range}（默认 4 格，可被 {@code /futihelpround} 改）内**按比例线性**衰减：
+     * {@code 1 - d/range} —— 站在 0 格处 = 100%，每远 1 格减 {@code 100/range}%，
+     * 到 {@code range} 格正好 0（出界硬切 0）。
      *
      * <p>本函数**只管距离**；【1.18】用户设的提示音音量由 {@link #helpVolumeFactor}
      * 在调用处再乘上去（{@code target = gain(dist, range) * volumeFactor}）。
      *
-     * <p>为什么平方：提示音是「哒、哒」的短促脉冲，比连续底噪更容易被远处听到；
-     * 线性衰减会让半条扶梯外的另一端也听得挺清楚，两端就分不出方向了。平方衰减更「贴块」，
-     * 走到下一块阶梯上就明显弱一截，于是「声音从哪头来」非常明确。
+     * <p>★★【10-03 用户点名改】原来这里是**平方**衰减 {@code (1-d/r)²}，理由是「脉冲音更『贴块』、
+     * 走到下一块阶梯就明显弱一截，好分辨声音从哪头来」。用户点名要求**所有淡入淡出都按比例**
+     * （原话例子：「`/futiround` 设 10 ⇒ 距离 0 格 100%、1 格 90%，以此类推」）⇒ 改成线性。
+     * ★ 注意这个 `range` 是**提示音自己**的 {@code /futihelpround}，与底噪的 {@code /futiround}
+     * 是两套数据（见项目记忆「底噪与提示音两套互不影响」）—— 但曲线形状两边现在一致了。
      *
      * <p>默认射程 4 格时**不做别的收窄**：扶梯长于 8 格时两端天然不相交、中段安静；
      * 扶梯短于 8 格时两端会同时听得见 —— 这是**故意的**（真实世界里的短扶梯也是这样，
      * 站在中间确实两头的声音都能听到）。别为了「中段一定要静音」去砍半径（试过，被否了）。
      * 1.24 起半径由玩家用 {@code /futihelpround} 决定，调大后两端重叠更多，同样是玩家自己的选择。
      */
-    private static float gain(double distance, double range) {
-        if (range <= 0.0 || distance >= range) {
+    private static float gain(double distanceXz, double distanceY, double rangeXz, double rangeY) {
+        if (!(rangeXz > 0.0) || !(rangeY > 0.0)
+                || !(distanceXz < rangeXz) || !(distanceY < rangeY)) {
             return 0.0f;
         }
-        double f = 1.0 - distance / range;
-        return (float) (f * f);
+        return (float) Math.max(0.0,
+                Math.min(1.0 - distanceXz / rangeXz, 1.0 - distanceY / rangeY));
     }
 
     // 【1.34】这里原来有一个 fadeInGain(...)（抄 EscalatorAudioPlayer 的 6 tick 指数淡入）。
@@ -1221,6 +1269,7 @@ public final class EscalatorChimePlayer {
         cachedRangeAnchor = null;
         cachedRangeGeneration = -1L;
         cachedRangeValue = DEFAULT_RANGE;
+        cachedRangeYValue = DEFAULT_RANGE_Y;
         cachedRoundGeneration = -1L;
         // 【1.31】速率缓存也要清，否则断线重连后沿用旧速率
         cachedRatesAnchor = null;

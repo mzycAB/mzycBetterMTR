@@ -132,7 +132,24 @@ public class Mtr3LiftMixinPlugin implements IMixinConfigPlugin {
         if (mixinClassName.endsWith("Mtr4LiftTrackFloorShapeMixin")) {
             return mtr4TrackFloorPresent();
         }
+        // 【10-03 五改】「关门后等待 X 秒发车」：目标 = org.mtr.core.data.Vehicle（MTR4 独有 ——
+        //   MTR3 的列车叫 mtr.data.Train，所以判据同样只按「这个目标类在不在」，绝不 load 类）。
+        if (mixinClassName.endsWith("Mtr4TrainDepartHoldMixin")) {
+            return mtr4VehiclePresent();
+        }
         return mtr3Present();
+    }
+
+    /** MTR4 的 {@code org.mtr.core.data.Vehicle} 在不在 —— 决定发车等待那条 mixin 要不要应用。 */
+    private static Boolean mtr4Vehicle;
+
+    private static boolean mtr4VehiclePresent() {
+        if (mtr4Vehicle == null) {
+            mtr4Vehicle = classPresent("org.mtr.core.data.Vehicle");
+            LOGGER.info("[SmoothLift/PsdDepart] 关门后等待发车（MTR4 的 org.mtr.core.data.Vehicle）：{}",
+                    mtr4Vehicle ? "目标类在，已启用" : "目标类不在（没装 MTR4），跳过");
+        }
+        return mtr4Vehicle;
     }
 
     @Override
