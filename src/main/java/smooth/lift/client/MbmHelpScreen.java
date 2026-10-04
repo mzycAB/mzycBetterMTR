@@ -1,0 +1,237 @@
+package smooth.lift.client;
+
+import smooth.lift.compat.ButtonBuilder;
+
+import smooth.lift.net.SLNet;
+
+import net.minecraft.client.Minecraft;
+import smooth.lift.compat.GuiGraphics;
+import net.minecraft.client.gui.components.Button;
+import net.minecraft.client.gui.components.EditBox;
+import net.minecraft.client.gui.screens.Screen;
+import net.minecraft.network.FriendlyByteBuf;
+import net.minecraft.network.chat.Component;
+import org.lwjgl.glfw.GLFW;
+import smooth.lift.EscalatorSpeedData;
+import smooth.lift.EscalatorSpeedManager;
+import smooth.lift.SmoothLift;
+
+import java.util.List;
+
+/**
+ * 【1.53】`/MBM help`（或裸 `/MBM`）打开的「预设选择」界面。
+ *
+ * <p>两块内容：
+ * <ul>
+ *   <li><b>三个港铁预设按钮</b>：经典港铁 / 简单港铁 / 空白。点一下**立刻**发到服务端，
+ *       服务端把该预设那几条指令**依次执行**一遍（见 {@code SmoothLift.PRESET_*} 与
+ *       {@code runCommandBatch}）。所以「界面上按一下」与「自己把那几条敲一遍」效果完全相同 ——
+ *       界面不复制那些指令的语义，只复制它们的**文本**（预设各自的条数见 {@code PRESET_*}）。</li>
+ *   <li><b>最下方一个全音量输入框</b>（1~1000，100 = 原始音量）：把模组**所有**音量一起设成
+ *       同一个值。没有确认按钮，**按 ESC 退出界面时自动应用**。</li>
+ * </ul>
+ *
+ * <p>★ 输入框的语义与模组其它界面一致（见 {@link EscalatorSpeedScreen} 的类注释）：
+ * <b>没改动就不发</b>。否则「只是进来点个预设、随手 ESC 退出」都会把所有音量改成框里那个值，
+ * 变成一个很难解释的副作用。
+ *
+ * <p>点预设按钮**不关闭**界面：方便连着点几个比较（预设是「整批设置」的覆盖操作，
+ * 后点的会盖掉先点的，玩家可以自己试）。
+ *
+ * <p>【1.54】用户点名：<b>界面里所有小字全部删掉</b>，标题由「MBM 帮助」改为「预设选择」；
+ * 随后又点名在音量框**左边**加一个「音量」标签。
+ * 于是本界面**只剩下**：标题、三个按钮、最下方「音量 + 输入框」一行。
+ * ★ 这条是硬约束 —— {@code render()} 里**只允许画两处文字**（标题 + 「音量」标签），
+ * 再往里加任何提示行都是回退。{@code _tools/check-mbm-help.py} 第 6 节会数文字绘制次数
+ * （`drawCenteredString` + `drawString` 合计必须 == 2）、并断言那个标签确实画在**框左边**，
+ * 多一处或挪到右边都红。
+ * 音量框那种「只能靠屏幕阅读器播报」的 narration 文案不算可见小字，保留（照旧是「全音量」）。
+ */
+public class MbmHelpScreen extends Screen {
+
+    /** 【10-01】本次界面会话里是否出现过失败（退出界面时随 UI_CLOSE 上报给服务端）。 */
+    private boolean uiFailed;
+
+    /** 【1.53】预设按钮的文字与 id —— 文字必须与 {@code SmoothLift.presetLabel} 一致。 */
+    private static final String ID_CLASSIC = "classic";
+    private static final String ID_SIMPLE = "simple";
+    private static final String ID_BLANK = "blank";
+
+    /** 最下方那个「全音量」输入框。 */
+    private EditBox volumeInput;
+    /** 打开界面时框里的基准值（= 本维度当前的默认扶梯音量），用来判断玩家到底改了没有。 */
+    private int openVolume;
+
+    public MbmHelpScreen() {
+        super(new net.minecraft.network.chat.TextComponent("预设选择"));
+    }
+
+    @Override
+    protected void init() {
+        Minecraft mc = Minecraft.getInstance();
+        openVolume = currentVolume(mc);
+
+        // 三个预设按钮：宽 200（与模组其它界面的输入框同宽）、间距 6。
+        addRenderableWidget(ButtonBuilder.builder(new net.minecraft.network.chat.TextComponent("经典港铁预设"), button -> sendPreset(ID_CLASSIC))
+                .bounds(this.width / 2 - 100, 46, 200, 20)
+                .build());
+        addRenderableWidget(ButtonBuilder.builder(new net.minecraft.network.chat.TextComponent("简单港铁预设"), button -> sendPreset(ID_SIMPLE))
+                .bounds(this.width / 2 - 100, 72, 200, 20)
+                .build());
+        addRenderableWidget(ButtonBuilder.builder(new net.minecraft.network.chat.TextComponent("空白预设"), button -> sendPreset(ID_BLANK))
+                .bounds(this.width / 2 - 100, 98, 200, 20)
+                .build());
+
+        // 最下方的「全音量」输入框：1~1000，只允许数字（与 EscalatorSpeedScreen 的音量框同款）。
+        volumeInput = new EditBox(this.font, this.width / 2 - 100, this.height - 42, 200, 20,
+                new net.minecraft.network.chat.TextComponent("全音量"));
+        volumeInput.setMaxLength(4);
+        volumeInput.setValue(String.valueOf(openVolume));
+        volumeInput.setFilter(text -> text.isEmpty() || text.chars().allMatch(Character::isDigit));
+        addRenderableWidget(volumeInput);
+
+        // 【09-30 续 2】右上角「兼容模式」：与各界面右上角那排按钮**同尺寸同位置**
+        //   （76×20、贴右上角、距边缘 4px）。点开的小面板与「同步所有」弹窗同一套 UI，
+        //   按钮是「打开 / 关闭 / 取消」：
+        //     打开 = /mtrxr on（MTR 原版渲染，兼容性最好）；
+        //     关闭 = /mtrxr off（SmoothLift 优化引擎）之后再 /mtrxr occ on（顺手把遮挡剔除开回来）。
+        //   打开弹窗前先把音量输入框落地（弹窗会把本界面重建一次，不落刚填的数会丢）。
+        addRenderableWidget(SyncPopupScreen.entryButton(this, "兼容模式", "兼容模式",
+                List.of(
+                        new SyncPopupScreen.Option("打开",
+                                () -> showFeedback(EscalatorRenderModeCommand.applyMode(false))),
+                        new SyncPopupScreen.Option("关闭", () -> {
+                            showFeedback(EscalatorRenderModeCommand.applyMode(true));
+                            showFeedback(EscalatorRenderModeCommand.applyOcclusionMode(true));
+                        })),
+                this::applyVolume));
+
+        setInitialFocus(volumeInput);
+    }
+
+    /** 【09-30 续 2】把一条反馈打进聊天栏（「兼容模式」弹窗按钮的执行结果）。 */
+    private void showFeedback(String text) {
+        // 【10-01】界面内部不再单独提示；只记结果，退出界面时统一回一条。
+        if (text != null && text.contains("失败")) {
+            uiFailed = true;
+        }
+    }
+
+    /** 本维度当前的默认扶梯音量（客户端镜像是有的；拿不到就退回 100）。 */
+    private int currentVolume(Minecraft mc) {
+        if (mc.level == null) {
+            return EscalatorSpeedData.DEFAULT_AUDIO_VOLUME;
+        }
+        return EscalatorSpeedManager.getDefaultVolume(mc.level);
+    }
+
+    /**
+     * 把「应用这个预设」发给服务端（服务端负责依次执行该预设的那几条指令）。
+     *
+     * <p>★★【09-28 续 2】港铁预设还会**在客户端顺手动讲述人的全局总闸**
+     * （等价于 {@code /jsr on|off}）：预设里那一条 {@code pbmnarrate <样式> -f} 只设**样式**
+     * （「念哪一句」），而「念不念」的总闸是**客户端**配置
+     * （{@code config/smoothlift-jsr.properties}），服务端那串指令**碰不到**它。
+     * 用户点名「预设也会顺带把它打开」⇒ 由这一下点击在本机打开。
+     *
+     * <p>★★【09-28 续 4】用户把三档定死：**只有经典港铁预设**开讲述人（香港样式），
+     * **简单港铁 / 空白预设都关闭讲述人** ⇒ 这里要**两边都联动**：
+     * <pre>
+     *   经典港铁预设 → /jsr on  + 预设末条 pbmnarrate hongkong -f
+     *   简单港铁预设 → /jsr off + 预设末条 pbmnarrate off -f
+     *   空白预设     → /jsr off + 预设末条 pbmnarrate off -f
+     * </pre>
+     * ★ 为什么「关」也要动总闸：只关样式层同样听不见（两层取「与」），但存档里总闸仍写着「开」
+     * ⇒ 玩家之后去石斧 UI 随手挑一档样式，讲述人会**突然又响**。用户说的是「关闭讲述人」，
+     * 所以两层一起关才叫关干净（与经典预设两层一起开**对称**）。
+     * ★ 认不出的 presetId（不可能走到，服务端会回「未知预设」）**一概不碰**总闸。
+     */
+    private void sendPreset(String presetId) {
+        FriendlyByteBuf buf = SLNet.buf();
+        buf.writeUtf(presetId, 16);
+        SLNet.sendToServer(SmoothLift.MBM_PRESET_CHANNEL, buf);
+        // 【09-30 续 4】三个预设都**不要站台讲述人广播**（用户点名）—— 一律顺带把
+        // 「站台广播（讲述人）」的全局总闸关掉（与进站讲述人的总闸各管各的）。
+        TrainAnnounceSwitch.disableMidiumForPreset();
+        if (ID_CLASSIC.equals(presetId)) {
+            TrainAnnounceSwitch.enableForPreset();
+            // 【10-01】经典港铁预设 ＝ 讲述人文字开成**聊天框**（chat）—— 用户点名
+            //   「经典港铁预设：进站广播 … 聊天框播报」（旧版是屏幕字幕 word，已替换）。
+            //   同样是客户端配置，服务端那串指令碰不到，由这一下点击顺手打开。
+            TrainAnnounceSwitch.enableChatForPreset();
+        } else if (ID_SIMPLE.equals(presetId) || ID_BLANK.equals(presetId)) {
+            TrainAnnounceSwitch.disableForPreset();
+            // 【09-29】另两个预设顺带**关闭**屏幕字幕（等价 /jsr arrive on <样式> off），
+            //   关的那一下顺手撤掉正在显示的字幕。
+            TrainAnnounceSwitch.disableWordForPreset();
+        }
+    }
+
+    /** 按 ESC（或回车）退出：把改过的音量发出去，再关界面。 */
+    @Override
+    public void onClose() {
+        applyVolume();
+        // 【10-01】真正「退出界面」：让服务端把本次界面会话的结果回一条（成功 / 失败）。
+        SmoothLiftClient.sendUiClose(!uiFailed);
+        // Screen.onClose() 内部就是 minecraft.setScreen(null)。
+        super.onClose();
+    }
+
+    /** 全音量：只有真的改了才发（与模组其它界面同一条约定：没改动就什么都不发）。 */
+    private void applyVolume() {
+        Minecraft mc = Minecraft.getInstance();
+        if (mc.level == null || volumeInput == null) {
+            return;
+        }
+        Integer volume = parseVolume(volumeInput.getValue());
+        if (volume == null || volume == openVolume) {
+            return;
+        }
+        FriendlyByteBuf buf = SLNet.buf();
+        buf.writeVarInt(volume);
+        SLNet.sendToServer(SmoothLift.MBM_ALL_VOLUME_CHANNEL, buf);
+        openVolume = volume;
+    }
+
+    /** 回车 = 与应用并退出同义（与 {@link EscalatorSpeedScreen} 保持一致）。 */
+    @Override
+    public boolean keyPressed(int keyCode, int scanCode, int modifiers) {
+        if (keyCode == GLFW.GLFW_KEY_ENTER || keyCode == GLFW.GLFW_KEY_KP_ENTER) {
+            onClose();
+            return true;
+        }
+        return super.keyPressed(keyCode, scanCode, modifiers);
+    }
+
+    @Override
+    public void render(com.mojang.blaze3d.vertex.PoseStack poseStack, int mouseX, int mouseY, float partialTick) {
+        GuiGraphics guiGraphics = new GuiGraphics(poseStack);
+        this.renderBackground(guiGraphics);
+        super.render(guiGraphics, mouseX, mouseY, partialTick);
+
+        // 【1.54】全界面只允许**两处**文字：标题、以及最下方音量框**左边**那个「音量」标签。
+        // 这以前还有 6 行说明小字（预设做了什么 / 音量框怎么用），用户点名全部删掉，别再补回来
+        // （check-mbm-help.py 第 6 节会数文字绘制次数，多一处就红）。
+        guiGraphics.drawCenteredString(this.font, this.title, this.width / 2, 12, 0xFFFFFF);
+
+        // 【1.54】音量框的字段名，紧贴在框**左沿**外侧 4 px（按字体实测宽度右对齐 ——
+        // CJK 在 MC 字体里不是正方形，写死偏移会歪）；纵向与 20 px 高的框居中对齐。
+        guiGraphics.drawString(this.font, new net.minecraft.network.chat.TextComponent("音量"),
+                this.width / 2 - 100 - 4 - this.font.width("音量"),
+                this.height - 42 + (20 - this.font.lineHeight) / 2, 0xA0A0A0, false);
+    }
+
+    @Override
+    public boolean isPauseScreen() {
+        return false;
+    }
+
+    /** 解析音量输入框（1~1000，越界夹取）；空/非法返回 null（视为未改动）。 */
+    private static Integer parseVolume(String text) {
+        try {
+            return EscalatorSpeedData.clampVolume(Integer.parseInt(text.trim()));
+        } catch (NumberFormatException e) {
+            return null;
+        }
+    }
+}

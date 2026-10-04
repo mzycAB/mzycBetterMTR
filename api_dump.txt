@@ -1,0 +1,372 @@
+﻿===== net.minecraft.client.gui.screens.Screen =====
+Compiled from "Screen.java"
+public abstract class net.minecraft.client.gui.screens.Screen extends net.minecraft.client.gui.components.events.AbstractContainerEventHandler implements net.minecraft.client.gui.components.Widget {
+  protected final net.minecraft.network.chat.Component title;
+  protected net.minecraft.client.Minecraft minecraft;
+  protected net.minecraft.client.renderer.entity.ItemRenderer itemRenderer;
+  public int width;
+  public int height;
+  public final java.util.List<net.minecraft.client.gui.components.Widget> renderables;
+  public boolean passEvents;
+  protected net.minecraft.client.gui.Font font;
+  protected net.minecraft.client.gui.screens.Screen(net.minecraft.network.chat.Component);
+  public net.minecraft.network.chat.Component getTitle();
+  public net.minecraft.network.chat.Component getNarrationMessage();
+  public void render(com.mojang.blaze3d.vertex.PoseStack, int, int, float);
+  public boolean keyPressed(int, int, int);
+  public boolean shouldCloseOnEsc();
+  public void onClose();
+  protected <T extends net.minecraft.client.gui.components.events.GuiEventListener & net.minecraft.client.gui.components.Widget & net.minecraft.client.gui.narration.NarratableEntry> T addRenderableWidget(T);
+  protected <T extends net.minecraft.client.gui.components.Widget> T addRenderableOnly(T);
+  protected <T extends net.minecraft.client.gui.components.events.GuiEventListener & net.minecraft.client.gui.narration.NarratableEntry> T addWidget(T);
+  protected void removeWidget(net.minecraft.client.gui.components.events.GuiEventListener);
+  protected void clearWidgets();
+  protected void renderTooltip(com.mojang.blaze3d.vertex.PoseStack, net.minecraft.world.item.ItemStack, int, int);
+  public void renderTooltip(com.mojang.blaze3d.vertex.PoseStack, java.util.List<net.minecraft.network.chat.Component>, java.util.Optional<net.minecraft.world.inventory.tooltip.TooltipComponent>, int, int, net.minecraft.world.item.ItemStack);
+  public void renderTooltip(com.mojang.blaze3d.vertex.PoseStack, java.util.List<net.minecraft.network.chat.Component>, java.util.Optional<net.minecraft.world.inventory.tooltip.TooltipComponent>, int, int, net.minecraft.client.gui.Font);
+  public void renderTooltip(com.mojang.blaze3d.vertex.PoseStack, java.util.List<net.minecraft.network.chat.Component>, java.util.Optional<net.minecraft.world.inventory.tooltip.TooltipComponent>, int, int, net.minecraft.client.gui.Font, net.minecraft.world.item.ItemStack);
+  public void renderTooltip(com.mojang.blaze3d.vertex.PoseStack, java.util.List<net.minecraft.network.chat.Component>, java.util.Optional<net.minecraft.world.inventory.tooltip.TooltipComponent>, int, int);
+  public java.util.List<net.minecraft.network.chat.Component> getTooltipFromItem(net.minecraft.world.item.ItemStack);
+  public void renderTooltip(com.mojang.blaze3d.vertex.PoseStack, net.minecraft.network.chat.Component, int, int);
+  public void renderComponentTooltip(com.mojang.blaze3d.vertex.PoseStack, java.util.List<net.minecraft.network.chat.Component>, int, int);
+  public void renderComponentTooltip(com.mojang.blaze3d.vertex.PoseStack, java.util.List<? extends net.minecraft.network.chat.FormattedText>, int, int, net.minecraft.world.item.ItemStack);
+  public void renderComponentTooltip(com.mojang.blaze3d.vertex.PoseStack, java.util.List<? extends net.minecraft.network.chat.FormattedText>, int, int, net.minecraft.client.gui.Font);
+  public void renderComponentTooltip(com.mojang.blaze3d.vertex.PoseStack, java.util.List<? extends net.minecraft.network.chat.FormattedText>, int, int, net.minecraft.client.gui.Font, net.minecraft.world.item.ItemStack);
+  public void renderTooltip(com.mojang.blaze3d.vertex.PoseStack, java.util.List<? extends net.minecraft.util.FormattedCharSequence>, int, int);
+  public void renderTooltip(com.mojang.blaze3d.vertex.PoseStack, java.util.List<? extends net.minecraft.util.FormattedCharSequence>, int, int, net.minecraft.client.gui.Font);
+  protected void renderComponentHoverEffect(com.mojang.blaze3d.vertex.PoseStack, net.minecraft.network.chat.Style, int, int);
+  protected void insertText(java.lang.String, boolean);
+  public boolean handleComponentClicked(net.minecraft.network.chat.Style);
+  public void sendMessage(java.lang.String);
+  public void sendMessage(java.lang.String, boolean);
+  public final void init(net.minecraft.client.Minecraft, int, int);
+  public java.util.List<? extends net.minecraft.client.gui.components.events.GuiEventListener> children();
+  protected void init();
+  public void tick();
+  public void removed();
+  public void renderBackground(com.mojang.blaze3d.vertex.PoseStack);
+  public void renderBackground(com.mojang.blaze3d.vertex.PoseStack, int);
+  public void renderDirtBackground(int);
+  public boolean isPauseScreen();
+  public static boolean hasControlDown();
+  public static boolean hasShiftDown();
+  public static boolean hasAltDown();
+  public static boolean isCut(int);
+  public static boolean isPaste(int);
+  public static boolean isCopy(int);
+  public static boolean isSelectAll(int);
+  public void resize(net.minecraft.client.Minecraft, int, int);
+  public static void wrapScreenError(java.lang.Runnable, java.lang.String, java.lang.String);
+  protected boolean isValidCharacterForName(java.lang.String, char, int);
+  public boolean isMouseOver(double, double);
+  public void onFilesDrop(java.util.List<java.nio.file.Path>);
+  public net.minecraft.client.Minecraft getMinecraft();
+  public void afterMouseMove();
+  public void afterMouseAction();
+  public void afterKeyboardAction();
+  public void handleDelayedNarration();
+  protected void triggerImmediateNarration(boolean);
+  protected void updateNarrationState(net.minecraft.client.gui.narration.NarrationElementOutput);
+  protected void updateNarratedWidget(net.minecraft.client.gui.narration.NarrationElementOutput);
+  public static net.minecraft.client.gui.screens.Screen$NarratableSearchResult findNarratableWidget(java.util.List<? extends net.minecraft.client.gui.narration.NarratableEntry>, net.minecraft.client.gui.narration.NarratableEntry);
+  public void narrationEnabled();
+  protected static void hideWidgets(net.minecraft.client.gui.components.AbstractWidget...);
+  static {};
+}
+===== net.minecraft.client.renderer.texture.Tickable =====
+Compiled from "Tickable.java"
+public interface net.minecraft.client.renderer.texture.Tickable {
+  public abstract void tick();
+}
+===== net.minecraft.client.renderer.chunk.ChunkRenderDispatcher =====
+Compiled from "ChunkRenderDispatcher.java"
+public class net.minecraft.client.renderer.chunk.ChunkRenderDispatcher {
+  final net.minecraft.client.renderer.ChunkBufferBuilderPack fixedBuffers;
+  net.minecraft.client.multiplayer.ClientLevel level;
+  final net.minecraft.client.renderer.LevelRenderer renderer;
+  public net.minecraft.client.renderer.chunk.ChunkRenderDispatcher(net.minecraft.client.multiplayer.ClientLevel, net.minecraft.client.renderer.LevelRenderer, java.util.concurrent.Executor, boolean, net.minecraft.client.renderer.ChunkBufferBuilderPack);
+  public net.minecraft.client.renderer.chunk.ChunkRenderDispatcher(net.minecraft.client.multiplayer.ClientLevel, net.minecraft.client.renderer.LevelRenderer, java.util.concurrent.Executor, boolean, net.minecraft.client.renderer.ChunkBufferBuilderPack, int);
+  public void setLevel(net.minecraft.client.multiplayer.ClientLevel);
+  public java.lang.String getStats();
+  public int getToBatchCount();
+  public int getToUpload();
+  public int getFreeBufferCount();
+  public void setCamera(net.minecraft.world.phys.Vec3);
+  public net.minecraft.world.phys.Vec3 getCameraPosition();
+  public void uploadAllPendingUploads();
+  public void rebuildChunkSync(net.minecraft.client.renderer.chunk.ChunkRenderDispatcher$RenderChunk, net.minecraft.client.renderer.chunk.RenderRegionCache);
+  public void blockUntilClear();
+  public void schedule(net.minecraft.client.renderer.chunk.ChunkRenderDispatcher$RenderChunk$ChunkCompileTask);
+  public java.util.concurrent.CompletableFuture<java.lang.Void> uploadChunkLayer(com.mojang.blaze3d.vertex.BufferBuilder, com.mojang.blaze3d.vertex.VertexBuffer);
+  public boolean isQueueEmpty();
+  public void dispose();
+  static {};
+}
+===== net.minecraft.client.renderer.chunk.ChunkRenderDispatcher$RenderChunk =====
+Compiled from "ChunkRenderDispatcher.java"
+public class net.minecraft.client.renderer.chunk.ChunkRenderDispatcher$RenderChunk {
+  public static final int SIZE;
+  public final int index;
+  public final java.util.concurrent.atomic.AtomicReference<net.minecraft.client.renderer.chunk.ChunkRenderDispatcher$CompiledChunk> compiled;
+  final java.util.concurrent.atomic.AtomicInteger initialCompilationCancelCount;
+  final net.minecraft.core.BlockPos$MutableBlockPos origin;
+  final net.minecraft.client.renderer.chunk.ChunkRenderDispatcher this$0;
+  public net.minecraft.client.renderer.chunk.ChunkRenderDispatcher$RenderChunk(net.minecraft.client.renderer.chunk.ChunkRenderDispatcher, int, int, int, int);
+  public boolean hasAllNeighbors();
+  public net.minecraft.world.phys.AABB getBoundingBox();
+  public com.mojang.blaze3d.vertex.VertexBuffer getBuffer(net.minecraft.client.renderer.RenderType);
+  public void setOrigin(int, int, int);
+  protected double getDistToPlayerSqr();
+  void beginLayer(com.mojang.blaze3d.vertex.BufferBuilder);
+  public net.minecraft.client.renderer.chunk.ChunkRenderDispatcher$CompiledChunk getCompiledChunk();
+  public void releaseBuffers();
+  public net.minecraft.core.BlockPos getOrigin();
+  public void setDirty(boolean);
+  public void setNotDirty();
+  public boolean isDirty();
+  public boolean isDirtyFromPlayer();
+  public net.minecraft.core.BlockPos getRelativeOrigin(net.minecraft.core.Direction);
+  public boolean resortTransparency(net.minecraft.client.renderer.RenderType, net.minecraft.client.renderer.chunk.ChunkRenderDispatcher);
+  protected boolean cancelTasks();
+  public net.minecraft.client.renderer.chunk.ChunkRenderDispatcher$RenderChunk$ChunkCompileTask createCompileTask(net.minecraft.client.renderer.chunk.RenderRegionCache);
+  public void rebuildChunkAsync(net.minecraft.client.renderer.chunk.ChunkRenderDispatcher, net.minecraft.client.renderer.chunk.RenderRegionCache);
+  void updateGlobalBlockEntities(java.util.Set<net.minecraft.world.level.block.entity.BlockEntity>);
+  public void compileSync(net.minecraft.client.renderer.chunk.RenderRegionCache);
+}
+===== net.minecraft.client.renderer.LevelRenderer =====
+Compiled from "LevelRenderer.java"
+public class net.minecraft.client.renderer.LevelRenderer implements net.minecraft.server.packs.resources.ResourceManagerReloadListener,java.lang.AutoCloseable {
+  public static final int CHUNK_SIZE;
+  public static final net.minecraft.core.Direction[] DIRECTIONS;
+  public final it.unimi.dsi.fastutil.objects.ObjectArrayList<net.minecraft.client.renderer.LevelRenderer$RenderChunkInfo> renderChunksInFrustum;
+  public net.minecraft.client.renderer.LevelRenderer(net.minecraft.client.Minecraft, net.minecraft.client.renderer.RenderBuffers);
+  public void tickRain(net.minecraft.client.Camera);
+  public void close();
+  public void onResourceManagerReload(net.minecraft.server.packs.resources.ResourceManager);
+  public void initOutline();
+  public void doEntityOutline();
+  protected boolean shouldShowEntityOutlines();
+  public void setLevel(net.minecraft.client.multiplayer.ClientLevel);
+  public void graphicsChanged();
+  public void allChanged();
+  public void resize(int, int);
+  public java.lang.String getChunkStatistics();
+  public net.minecraft.client.renderer.chunk.ChunkRenderDispatcher getChunkRenderDispatcher();
+  public double getTotalChunks();
+  public double getLastViewDistance();
+  public int countRenderedChunks();
+  public java.lang.String getEntityStatistics();
+  public void addRecentlyCompiledChunk(net.minecraft.client.renderer.chunk.ChunkRenderDispatcher$RenderChunk);
+  public void prepareCullFrustum(com.mojang.blaze3d.vertex.PoseStack, net.minecraft.world.phys.Vec3, com.mojang.math.Matrix4f);
+  public void renderLevel(com.mojang.blaze3d.vertex.PoseStack, float, long, boolean, net.minecraft.client.Camera, net.minecraft.client.renderer.GameRenderer, net.minecraft.client.renderer.LightTexture, com.mojang.math.Matrix4f);
+  public void captureFrustum();
+  public void killFrustum();
+  public void tick();
+  public void renderSky(com.mojang.blaze3d.vertex.PoseStack, com.mojang.math.Matrix4f, float, net.minecraft.client.Camera, boolean, java.lang.Runnable);
+  public void renderClouds(com.mojang.blaze3d.vertex.PoseStack, com.mojang.math.Matrix4f, float, double, double, double);
+  public static void renderVoxelShape(com.mojang.blaze3d.vertex.PoseStack, com.mojang.blaze3d.vertex.VertexConsumer, net.minecraft.world.phys.shapes.VoxelShape, double, double, double, float, float, float, float);
+  public static void renderLineBox(com.mojang.blaze3d.vertex.VertexConsumer, double, double, double, double, double, double, float, float, float, float);
+  public static void renderLineBox(com.mojang.blaze3d.vertex.PoseStack, com.mojang.blaze3d.vertex.VertexConsumer, net.minecraft.world.phys.AABB, float, float, float, float);
+  public static void renderLineBox(com.mojang.blaze3d.vertex.PoseStack, com.mojang.blaze3d.vertex.VertexConsumer, double, double, double, double, double, double, float, float, float, float);
+  public static void renderLineBox(com.mojang.blaze3d.vertex.PoseStack, com.mojang.blaze3d.vertex.VertexConsumer, double, double, double, double, double, double, float, float, float, float, float, float, float);
+  public static void addChainedFilledBoxVertices(com.mojang.blaze3d.vertex.BufferBuilder, double, double, double, double, double, double, float, float, float, float);
+  public void blockChanged(net.minecraft.world.level.BlockGetter, net.minecraft.core.BlockPos, net.minecraft.world.level.block.state.BlockState, net.minecraft.world.level.block.state.BlockState, int);
+  public void setBlocksDirty(int, int, int, int, int, int);
+  public void setBlockDirty(net.minecraft.core.BlockPos, net.minecraft.world.level.block.state.BlockState, net.minecraft.world.level.block.state.BlockState);
+  public void setSectionDirtyWithNeighbors(int, int, int);
+  public void setSectionDirty(int, int, int);
+  public void playStreamingMusic(net.minecraft.sounds.SoundEvent, net.minecraft.core.BlockPos);
+  public void playStreamingMusic(net.minecraft.sounds.SoundEvent, net.minecraft.core.BlockPos, net.minecraft.world.item.RecordItem);
+  public void addParticle(net.minecraft.core.particles.ParticleOptions, boolean, double, double, double, double, double, double);
+  public void addParticle(net.minecraft.core.particles.ParticleOptions, boolean, boolean, double, double, double, double, double, double);
+  public void clear();
+  public void globalLevelEvent(int, net.minecraft.core.BlockPos, int);
+  public void levelEvent(net.minecraft.world.entity.player.Player, int, net.minecraft.core.BlockPos, int);
+  public void destroyBlockProgress(int, net.minecraft.core.BlockPos, int);
+  public boolean hasRenderedAllChunks();
+  public void needsUpdate();
+  public void updateGlobalBlockEntities(java.util.Collection<net.minecraft.world.level.block.entity.BlockEntity>, java.util.Collection<net.minecraft.world.level.block.entity.BlockEntity>);
+  public static int getLightColor(net.minecraft.world.level.BlockAndTintGetter, net.minecraft.core.BlockPos);
+  public static int getLightColor(net.minecraft.world.level.BlockAndTintGetter, net.minecraft.world.level.block.state.BlockState, net.minecraft.core.BlockPos);
+  public boolean isChunkCompiled(net.minecraft.core.BlockPos);
+  public com.mojang.blaze3d.pipeline.RenderTarget entityTarget();
+  public com.mojang.blaze3d.pipeline.RenderTarget getTranslucentTarget();
+  public com.mojang.blaze3d.pipeline.RenderTarget getItemEntityTarget();
+  public com.mojang.blaze3d.pipeline.RenderTarget getParticlesTarget();
+  public com.mojang.blaze3d.pipeline.RenderTarget getWeatherTarget();
+  public com.mojang.blaze3d.pipeline.RenderTarget getCloudsTarget();
+  static {};
+}
+===== com.mojang.blaze3d.vertex.PoseStack =====
+Compiled from "PoseStack.java"
+public class com.mojang.blaze3d.vertex.PoseStack {
+  public com.mojang.blaze3d.vertex.PoseStack();
+  public void translate(double, double, double);
+  public void scale(float, float, float);
+  public void mulPose(com.mojang.math.Quaternion);
+  public void pushPose();
+  public void popPose();
+  public com.mojang.blaze3d.vertex.PoseStack$Pose last();
+  public boolean clear();
+  public void setIdentity();
+  public void mulPoseMatrix(com.mojang.math.Matrix4f);
+}
+===== net.minecraft.client.renderer.RenderType =====
+Compiled from "RenderType.java"
+public abstract class net.minecraft.client.renderer.RenderType extends net.minecraft.client.renderer.RenderStateShard {
+  public static final int BIG_BUFFER_SIZE;
+  public static final int MEDIUM_BUFFER_SIZE;
+  public static final int SMALL_BUFFER_SIZE;
+  public static final int TRANSIENT_BUFFER_SIZE;
+  public static final net.minecraft.client.renderer.RenderType$CompositeRenderType LINES;
+  public static final net.minecraft.client.renderer.RenderType$CompositeRenderType LINE_STRIP;
+  public static net.minecraft.client.renderer.RenderType solid();
+  public static net.minecraft.client.renderer.RenderType cutoutMipped();
+  public static net.minecraft.client.renderer.RenderType cutout();
+  public static net.minecraft.client.renderer.RenderType translucent();
+  public static net.minecraft.client.renderer.RenderType translucentMovingBlock();
+  public static net.minecraft.client.renderer.RenderType translucentNoCrumbling();
+  public static net.minecraft.client.renderer.RenderType armorCutoutNoCull(net.minecraft.resources.ResourceLocation);
+  public static net.minecraft.client.renderer.RenderType entitySolid(net.minecraft.resources.ResourceLocation);
+  public static net.minecraft.client.renderer.RenderType entityCutout(net.minecraft.resources.ResourceLocation);
+  public static net.minecraft.client.renderer.RenderType entityCutoutNoCull(net.minecraft.resources.ResourceLocation, boolean);
+  public static net.minecraft.client.renderer.RenderType entityCutoutNoCull(net.minecraft.resources.ResourceLocation);
+  public static net.minecraft.client.renderer.RenderType entityCutoutNoCullZOffset(net.minecraft.resources.ResourceLocation, boolean);
+  public static net.minecraft.client.renderer.RenderType entityCutoutNoCullZOffset(net.minecraft.resources.ResourceLocation);
+  public static net.minecraft.client.renderer.RenderType itemEntityTranslucentCull(net.minecraft.resources.ResourceLocation);
+  public static net.minecraft.client.renderer.RenderType entityTranslucentCull(net.minecraft.resources.ResourceLocation);
+  public static net.minecraft.client.renderer.RenderType entityTranslucent(net.minecraft.resources.ResourceLocation, boolean);
+  public static net.minecraft.client.renderer.RenderType entityTranslucent(net.minecraft.resources.ResourceLocation);
+  public static net.minecraft.client.renderer.RenderType entitySmoothCutout(net.minecraft.resources.ResourceLocation);
+  public static net.minecraft.client.renderer.RenderType beaconBeam(net.minecraft.resources.ResourceLocation, boolean);
+  public static net.minecraft.client.renderer.RenderType entityDecal(net.minecraft.resources.ResourceLocation);
+  public static net.minecraft.client.renderer.RenderType entityNoOutline(net.minecraft.resources.ResourceLocation);
+  public static net.minecraft.client.renderer.RenderType entityShadow(net.minecraft.resources.ResourceLocation);
+  public static net.minecraft.client.renderer.RenderType dragonExplosionAlpha(net.minecraft.resources.ResourceLocation);
+  public static net.minecraft.client.renderer.RenderType eyes(net.minecraft.resources.ResourceLocation);
+  public static net.minecraft.client.renderer.RenderType energySwirl(net.minecraft.resources.ResourceLocation, float, float);
+  public static net.minecraft.client.renderer.RenderType leash();
+  public static net.minecraft.client.renderer.RenderType waterMask();
+  public static net.minecraft.client.renderer.RenderType outline(net.minecraft.resources.ResourceLocation);
+  public static net.minecraft.client.renderer.RenderType armorGlint();
+  public static net.minecraft.client.renderer.RenderType armorEntityGlint();
+  public static net.minecraft.client.renderer.RenderType glintTranslucent();
+  public static net.minecraft.client.renderer.RenderType glint();
+  public static net.minecraft.client.renderer.RenderType glintDirect();
+  public static net.minecraft.client.renderer.RenderType entityGlint();
+  public static net.minecraft.client.renderer.RenderType entityGlintDirect();
+  public static net.minecraft.client.renderer.RenderType crumbling(net.minecraft.resources.ResourceLocation);
+  public static net.minecraft.client.renderer.RenderType text(net.minecraft.resources.ResourceLocation);
+  public static net.minecraft.client.renderer.RenderType textIntensity(net.minecraft.resources.ResourceLocation);
+  public static net.minecraft.client.renderer.RenderType textPolygonOffset(net.minecraft.resources.ResourceLocation);
+  public static net.minecraft.client.renderer.RenderType textIntensityPolygonOffset(net.minecraft.resources.ResourceLocation);
+  public static net.minecraft.client.renderer.RenderType textSeeThrough(net.minecraft.resources.ResourceLocation);
+  public static net.minecraft.client.renderer.RenderType textIntensitySeeThrough(net.minecraft.resources.ResourceLocation);
+  public static net.minecraft.client.renderer.RenderType lightning();
+  public static net.minecraft.client.renderer.RenderType tripwire();
+  public static net.minecraft.client.renderer.RenderType endPortal();
+  public static net.minecraft.client.renderer.RenderType endGateway();
+  public static net.minecraft.client.renderer.RenderType lines();
+  public static net.minecraft.client.renderer.RenderType lineStrip();
+  public net.minecraft.client.renderer.RenderType(java.lang.String, com.mojang.blaze3d.vertex.VertexFormat, com.mojang.blaze3d.vertex.VertexFormat$Mode, int, boolean, boolean, java.lang.Runnable, java.lang.Runnable);
+  static net.minecraft.client.renderer.RenderType$CompositeRenderType create(java.lang.String, com.mojang.blaze3d.vertex.VertexFormat, com.mojang.blaze3d.vertex.VertexFormat$Mode, int, net.minecraft.client.renderer.RenderType$CompositeState);
+  public static net.minecraft.client.renderer.RenderType$CompositeRenderType create(java.lang.String, com.mojang.blaze3d.vertex.VertexFormat, com.mojang.blaze3d.vertex.VertexFormat$Mode, int, boolean, boolean, net.minecraft.client.renderer.RenderType$CompositeState);
+  public void end(com.mojang.blaze3d.vertex.BufferBuilder, int, int, int);
+  public java.lang.String toString();
+  public static java.util.List<net.minecraft.client.renderer.RenderType> chunkBufferLayers();
+  public int bufferSize();
+  public com.mojang.blaze3d.vertex.VertexFormat format();
+  public com.mojang.blaze3d.vertex.VertexFormat$Mode mode();
+  public java.util.Optional<net.minecraft.client.renderer.RenderType> outline();
+  public boolean isOutline();
+  public boolean affectsCrumbling();
+  public java.util.Optional<net.minecraft.client.renderer.RenderType> asOptional();
+  static {};
+}
+===== net.minecraft.client.renderer.ShaderInstance =====
+Compiled from "ShaderInstance.java"
+public class net.minecraft.client.renderer.ShaderInstance implements com.mojang.blaze3d.shaders.Shader,java.lang.AutoCloseable {
+  static final org.slf4j.Logger LOGGER;
+  public final com.mojang.blaze3d.shaders.Uniform MODEL_VIEW_MATRIX;
+  public final com.mojang.blaze3d.shaders.Uniform PROJECTION_MATRIX;
+  public final com.mojang.blaze3d.shaders.Uniform INVERSE_VIEW_ROTATION_MATRIX;
+  public final com.mojang.blaze3d.shaders.Uniform TEXTURE_MATRIX;
+  public final com.mojang.blaze3d.shaders.Uniform SCREEN_SIZE;
+  public final com.mojang.blaze3d.shaders.Uniform COLOR_MODULATOR;
+  public final com.mojang.blaze3d.shaders.Uniform LIGHT0_DIRECTION;
+  public final com.mojang.blaze3d.shaders.Uniform LIGHT1_DIRECTION;
+  public final com.mojang.blaze3d.shaders.Uniform FOG_START;
+  public final com.mojang.blaze3d.shaders.Uniform FOG_END;
+  public final com.mojang.blaze3d.shaders.Uniform FOG_COLOR;
+  public final com.mojang.blaze3d.shaders.Uniform FOG_SHAPE;
+  public final com.mojang.blaze3d.shaders.Uniform LINE_WIDTH;
+  public final com.mojang.blaze3d.shaders.Uniform GAME_TIME;
+  public final com.mojang.blaze3d.shaders.Uniform CHUNK_OFFSET;
+  public net.minecraft.client.renderer.ShaderInstance(net.minecraft.server.packs.resources.ResourceProvider, java.lang.String, com.mojang.blaze3d.vertex.VertexFormat) throws java.io.IOException;
+  public net.minecraft.client.renderer.ShaderInstance(net.minecraft.server.packs.resources.ResourceProvider, net.minecraft.resources.ResourceLocation, com.mojang.blaze3d.vertex.VertexFormat) throws java.io.IOException;
+  public static com.mojang.blaze3d.shaders.BlendMode parseBlendNode(com.google.gson.JsonObject);
+  public void close();
+  public void clear();
+  public void apply();
+  public void markDirty();
+  public com.mojang.blaze3d.shaders.Uniform getUniform(java.lang.String);
+  public com.mojang.blaze3d.shaders.AbstractUniform safeGetUniform(java.lang.String);
+  public void setSampler(java.lang.String, java.lang.Object);
+  public com.mojang.blaze3d.shaders.Program getVertexProgram();
+  public com.mojang.blaze3d.shaders.Program getFragmentProgram();
+  public void attachToProgram();
+  public com.mojang.blaze3d.vertex.VertexFormat getVertexFormat();
+  public java.lang.String getName();
+  public int getId();
+  static {};
+}
+===== com.mojang.blaze3d.vertex.VertexBuffer =====
+Compiled from "VertexBuffer.java"
+public class com.mojang.blaze3d.vertex.VertexBuffer implements java.lang.AutoCloseable {
+  public com.mojang.blaze3d.vertex.VertexBuffer();
+  public void bind();
+  public void upload(com.mojang.blaze3d.vertex.BufferBuilder);
+  public java.util.concurrent.CompletableFuture<java.lang.Void> uploadLater(com.mojang.blaze3d.vertex.BufferBuilder);
+  public static void unbindVertexArray();
+  public void draw();
+  public void drawWithShader(com.mojang.math.Matrix4f, com.mojang.math.Matrix4f, net.minecraft.client.renderer.ShaderInstance);
+  public void _drawWithShader(com.mojang.math.Matrix4f, com.mojang.math.Matrix4f, net.minecraft.client.renderer.ShaderInstance);
+  public void drawChunkLayer();
+  public static void unbind();
+  public void close();
+  public com.mojang.blaze3d.vertex.VertexFormat getFormat();
+}
+===== com.mojang.blaze3d.vertex.BufferBuilder =====
+Compiled from "BufferBuilder.java"
+public class com.mojang.blaze3d.vertex.BufferBuilder extends com.mojang.blaze3d.vertex.DefaultedVertexConsumer implements com.mojang.blaze3d.vertex.BufferVertexConsumer {
+  public com.mojang.blaze3d.vertex.BufferBuilder(int);
+  public void setQuadSortOrigin(float, float, float);
+  public com.mojang.blaze3d.vertex.BufferBuilder$SortState getSortState();
+  public void restoreSortState(com.mojang.blaze3d.vertex.BufferBuilder$SortState);
+  public void begin(com.mojang.blaze3d.vertex.VertexFormat$Mode, com.mojang.blaze3d.vertex.VertexFormat);
+  public void end();
+  public void putByte(int, byte);
+  public void putShort(int, short);
+  public void putFloat(int, float);
+  public void endVertex();
+  public void nextElement();
+  public com.mojang.blaze3d.vertex.VertexConsumer color(int, int, int, int);
+  public void vertex(float, float, float, float, float, float, float, float, float, int, int, float, float, float);
+  public com.mojang.datafixers.util.Pair<com.mojang.blaze3d.vertex.BufferBuilder$DrawState, java.nio.ByteBuffer> popNextBuffer();
+  public void clear();
+  public void discard();
+  public com.mojang.blaze3d.vertex.VertexFormatElement currentElement();
+  public boolean building();
+  public void putBulkData(java.nio.ByteBuffer);
+  public com.mojang.blaze3d.vertex.VertexFormat getVertexFormat();
+  static {};
+}
+===== net.minecraft.client.renderer.RenderBuffers =====
+Compiled from "RenderBuffers.java"
+public class net.minecraft.client.renderer.RenderBuffers {
+  public net.minecraft.client.renderer.RenderBuffers();
+  public net.minecraft.client.renderer.ChunkBufferBuilderPack fixedBufferPack();
+  public net.minecraft.client.renderer.MultiBufferSource$BufferSource bufferSource();
+  public net.minecraft.client.renderer.MultiBufferSource$BufferSource crumblingBufferSource();
+  public net.minecraft.client.renderer.OutlineBufferSource outlineBufferSource();
+}

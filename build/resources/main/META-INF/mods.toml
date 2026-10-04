@@ -1,0 +1,34 @@
+modLoader="javafml"
+loaderVersion="[40,)"
+license="MIT"
+issueTrackerURL="https://example.invalid/mzycBetterMTR"
+
+[[mods]]
+modId="smooth_lift"
+version="${file.jarVersion}"
+displayName="mzycBetterMTR"
+authors="mzycAB"
+description='''
+Makes MTR escalators smooth instead of bumpy.
+'''
+
+[[dependencies.smooth_lift]]
+    modId="forge"
+    mandatory=true
+    versionRange="[40,)"
+    ordering="NONE"
+    side="BOTH"
+
+[[dependencies.smooth_lift]]
+    modId="minecraft"
+    mandatory=true
+    versionRange="[1.18.2,1.19)"
+    ordering="NONE"
+    side="BOTH"
+
+[[dependencies.smooth_lift]]
+    modId="mtr"
+    mandatory=false
+    versionRange="[1.18.2,1.19)"
+    ordering="AFTER"
+    side="BOTH"

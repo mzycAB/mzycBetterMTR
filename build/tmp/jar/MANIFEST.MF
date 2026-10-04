@@ -1,0 +1,11 @@
+Manifest-Version: 1.0
+Specification-Title: mzycBetterMTR
+Specification-Vendor: mzycAB
+Specification-Version: 1
+Implementation-Title: mzycBetterMTR
+Implementation-Version: 1.30.11182
+Implementation-Vendor: mzycAB
+MixinConfigs: smooth_escalator.mixins.json,smoothlift.client.mixins.json
+ ,smoothlift.mtr.mixins.json,smoothlift.psd.mixins.json,smoothlift.sodiu
+ m.mixins.json
+

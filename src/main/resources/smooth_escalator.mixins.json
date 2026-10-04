@@ -1,0 +1,14 @@
+{
+  "required": true,
+  "minVersion": "0.8",
+  "package": "smooth.lift.mixin",
+  "compatibilityLevel": "JAVA_17",
+  "refmap": "smooth_escalator.refmap.json",
+  "mixins": [
+    "LivingEntityMixin",
+    "ChunkMapAccessor"
+  ],
+  "injectors": {
+    "defaultRequire": 1
+  }
+}

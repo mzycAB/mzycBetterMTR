@@ -1,0 +1,227 @@
+﻿===== net.minecraft.commands.CommandSourceStack =====
+Compiled from "CommandSourceStack.java"
+public class net.minecraft.commands.CommandSourceStack implements net.minecraft.commands.SharedSuggestionProvider,net.minecraftforge.common.extensions.IForgeCommandSourceStack {
+  public static final com.mojang.brigadier.exceptions.SimpleCommandExceptionType ERROR_NOT_PLAYER;
+  public static final com.mojang.brigadier.exceptions.SimpleCommandExceptionType ERROR_NOT_ENTITY;
+  public net.minecraft.commands.CommandSourceStack(net.minecraft.commands.CommandSource, net.minecraft.world.phys.Vec3, net.minecraft.world.phys.Vec2, net.minecraft.server.level.ServerLevel, int, java.lang.String, net.minecraft.network.chat.Component, net.minecraft.server.MinecraftServer, net.minecraft.world.entity.Entity);
+  protected net.minecraft.commands.CommandSourceStack(net.minecraft.commands.CommandSource, net.minecraft.world.phys.Vec3, net.minecraft.world.phys.Vec2, net.minecraft.server.level.ServerLevel, int, java.lang.String, net.minecraft.network.chat.Component, net.minecraft.server.MinecraftServer, net.minecraft.world.entity.Entity, boolean, com.mojang.brigadier.ResultConsumer<net.minecraft.commands.CommandSourceStack>, net.minecraft.commands.arguments.EntityAnchorArgument$Anchor);
+  public net.minecraft.commands.CommandSourceStack withSource(net.minecraft.commands.CommandSource);
+  public net.minecraft.commands.CommandSourceStack withEntity(net.minecraft.world.entity.Entity);
+  public net.minecraft.commands.CommandSourceStack withPosition(net.minecraft.world.phys.Vec3);
+  public net.minecraft.commands.CommandSourceStack withRotation(net.minecraft.world.phys.Vec2);
+  public net.minecraft.commands.CommandSourceStack withCallback(com.mojang.brigadier.ResultConsumer<net.minecraft.commands.CommandSourceStack>);
+  public net.minecraft.commands.CommandSourceStack withCallback(com.mojang.brigadier.ResultConsumer<net.minecraft.commands.CommandSourceStack>, java.util.function.BinaryOperator<com.mojang.brigadier.ResultConsumer<net.minecraft.commands.CommandSourceStack>>);
+  public net.minecraft.commands.CommandSourceStack withSuppressedOutput();
+  public net.minecraft.commands.CommandSourceStack withPermission(int);
+  public net.minecraft.commands.CommandSourceStack withMaximumPermission(int);
+  public net.minecraft.commands.CommandSourceStack withAnchor(net.minecraft.commands.arguments.EntityAnchorArgument$Anchor);
+  public net.minecraft.commands.CommandSourceStack withLevel(net.minecraft.server.level.ServerLevel);
+  public net.minecraft.commands.CommandSourceStack facing(net.minecraft.world.entity.Entity, net.minecraft.commands.arguments.EntityAnchorArgument$Anchor);
+  public net.minecraft.commands.CommandSourceStack facing(net.minecraft.world.phys.Vec3);
+  public net.minecraft.network.chat.Component getDisplayName();
+  public java.lang.String getTextName();
+  public boolean hasPermission(int);
+  public net.minecraft.world.phys.Vec3 getPosition();
+  public net.minecraft.server.level.ServerLevel getLevel();
+  public net.minecraft.world.entity.Entity getEntity();
+  public net.minecraft.world.entity.Entity getEntityOrException() throws com.mojang.brigadier.exceptions.CommandSyntaxException;
+  public net.minecraft.server.level.ServerPlayer getPlayerOrException() throws com.mojang.brigadier.exceptions.CommandSyntaxException;
+  public net.minecraft.world.phys.Vec2 getRotation();
+  public net.minecraft.server.MinecraftServer getServer();
+  public net.minecraft.commands.arguments.EntityAnchorArgument$Anchor getAnchor();
+  public void sendSuccess(net.minecraft.network.chat.Component, boolean);
+  public void sendFailure(net.minecraft.network.chat.Component);
+  public void onCommandComplete(com.mojang.brigadier.context.CommandContext<net.minecraft.commands.CommandSourceStack>, boolean, int);
+  public java.util.Collection<java.lang.String> getOnlinePlayerNames();
+  public java.util.Collection<java.lang.String> getAllTeams();
+  public java.util.Collection<net.minecraft.resources.ResourceLocation> getAvailableSoundEvents();
+  public java.util.stream.Stream<net.minecraft.resources.ResourceLocation> getRecipeNames();
+  public java.util.concurrent.CompletableFuture<com.mojang.brigadier.suggestion.Suggestions> customSuggestion(com.mojang.brigadier.context.CommandContext<?>);
+  public java.util.concurrent.CompletableFuture<com.mojang.brigadier.suggestion.Suggestions> suggestRegistryElements(net.minecraft.resources.ResourceKey<? extends net.minecraft.core.Registry<?>>, net.minecraft.commands.SharedSuggestionProvider$ElementSuggestionType, com.mojang.brigadier.suggestion.SuggestionsBuilder, com.mojang.brigadier.context.CommandContext<?>);
+  public java.util.Set<net.minecraft.resources.ResourceKey<net.minecraft.world.level.Level>> levels();
+  public net.minecraft.core.RegistryAccess registryAccess();
+  static {};
+}
+===== net.minecraft.client.gui.Font =====
+Compiled from "Font.java"
+public class net.minecraft.client.gui.Font {
+  public static final int ALPHA_CUTOFF;
+  public final int lineHeight;
+  public final java.util.Random random;
+  public net.minecraft.client.gui.Font(java.util.function.Function<net.minecraft.resources.ResourceLocation, net.minecraft.client.gui.font.FontSet>);
+  net.minecraft.client.gui.font.FontSet getFontSet(net.minecraft.resources.ResourceLocation);
+  public int drawShadow(com.mojang.blaze3d.vertex.PoseStack, java.lang.String, float, float, int);
+  public int drawShadow(com.mojang.blaze3d.vertex.PoseStack, java.lang.String, float, float, int, boolean);
+  public int draw(com.mojang.blaze3d.vertex.PoseStack, java.lang.String, float, float, int);
+  public int drawShadow(com.mojang.blaze3d.vertex.PoseStack, net.minecraft.util.FormattedCharSequence, float, float, int);
+  public int drawShadow(com.mojang.blaze3d.vertex.PoseStack, net.minecraft.network.chat.Component, float, float, int);
+  public int draw(com.mojang.blaze3d.vertex.PoseStack, net.minecraft.util.FormattedCharSequence, float, float, int);
+  public int draw(com.mojang.blaze3d.vertex.PoseStack, net.minecraft.network.chat.Component, float, float, int);
+  public java.lang.String bidirectionalShaping(java.lang.String);
+  public int drawInBatch(java.lang.String, float, float, int, boolean, com.mojang.math.Matrix4f, net.minecraft.client.renderer.MultiBufferSource, boolean, int, int);
+  public int drawInBatch(java.lang.String, float, float, int, boolean, com.mojang.math.Matrix4f, net.minecraft.client.renderer.MultiBufferSource, boolean, int, int, boolean);
+  public int drawInBatch(net.minecraft.network.chat.Component, float, float, int, boolean, com.mojang.math.Matrix4f, net.minecraft.client.renderer.MultiBufferSource, boolean, int, int);
+  public int drawInBatch(net.minecraft.util.FormattedCharSequence, float, float, int, boolean, com.mojang.math.Matrix4f, net.minecraft.client.renderer.MultiBufferSource, boolean, int, int);
+  public void drawInBatch8xOutline(net.minecraft.util.FormattedCharSequence, float, float, int, int, com.mojang.math.Matrix4f, net.minecraft.client.renderer.MultiBufferSource, int);
+  void renderChar(net.minecraft.client.gui.font.glyphs.BakedGlyph, boolean, boolean, float, float, float, com.mojang.math.Matrix4f, com.mojang.blaze3d.vertex.VertexConsumer, float, float, float, float, int);
+  public int width(java.lang.String);
+  public int width(net.minecraft.network.chat.FormattedText);
+  public int width(net.minecraft.util.FormattedCharSequence);
+  public java.lang.String plainSubstrByWidth(java.lang.String, int, boolean);
+  public java.lang.String plainSubstrByWidth(java.lang.String, int);
+  public net.minecraft.network.chat.FormattedText substrByWidth(net.minecraft.network.chat.FormattedText, int);
+  public void drawWordWrap(net.minecraft.network.chat.FormattedText, int, int, int, int);
+  public int wordWrapHeight(java.lang.String, int);
+  public java.util.List<net.minecraft.util.FormattedCharSequence> split(net.minecraft.network.chat.FormattedText, int);
+  public boolean isBidirectional();
+  public net.minecraft.client.StringSplitter getSplitter();
+  static {};
+}
+===== net.minecraft.client.gui.GuiComponent =====
+Compiled from "GuiComponent.java"
+public abstract class net.minecraft.client.gui.GuiComponent {
+  public static final net.minecraft.resources.ResourceLocation BACKGROUND_LOCATION;
+  public static final net.minecraft.resources.ResourceLocation STATS_ICON_LOCATION;
+  public static final net.minecraft.resources.ResourceLocation GUI_ICONS_LOCATION;
+  public net.minecraft.client.gui.GuiComponent();
+  protected void hLine(com.mojang.blaze3d.vertex.PoseStack, int, int, int, int);
+  protected void vLine(com.mojang.blaze3d.vertex.PoseStack, int, int, int, int);
+  public static void fill(com.mojang.blaze3d.vertex.PoseStack, int, int, int, int, int);
+  protected void fillGradient(com.mojang.blaze3d.vertex.PoseStack, int, int, int, int, int, int);
+  protected static void fillGradient(com.mojang.blaze3d.vertex.PoseStack, int, int, int, int, int, int, int);
+  protected static void fillGradient(com.mojang.math.Matrix4f, com.mojang.blaze3d.vertex.BufferBuilder, int, int, int, int, int, int, int);
+  public static void drawCenteredString(com.mojang.blaze3d.vertex.PoseStack, net.minecraft.client.gui.Font, java.lang.String, int, int, int);
+  public static void drawCenteredString(com.mojang.blaze3d.vertex.PoseStack, net.minecraft.client.gui.Font, net.minecraft.network.chat.Component, int, int, int);
+  public static void drawCenteredString(com.mojang.blaze3d.vertex.PoseStack, net.minecraft.client.gui.Font, net.minecraft.util.FormattedCharSequence, int, int, int);
+  public static void drawString(com.mojang.blaze3d.vertex.PoseStack, net.minecraft.client.gui.Font, java.lang.String, int, int, int);
+  public static void drawString(com.mojang.blaze3d.vertex.PoseStack, net.minecraft.client.gui.Font, net.minecraft.util.FormattedCharSequence, int, int, int);
+  public static void drawString(com.mojang.blaze3d.vertex.PoseStack, net.minecraft.client.gui.Font, net.minecraft.network.chat.Component, int, int, int);
+  public void blitOutlineBlack(int, int, java.util.function.BiConsumer<java.lang.Integer, java.lang.Integer>);
+  public static void blit(com.mojang.blaze3d.vertex.PoseStack, int, int, int, int, int, net.minecraft.client.renderer.texture.TextureAtlasSprite);
+  public void blit(com.mojang.blaze3d.vertex.PoseStack, int, int, int, int, int, int);
+  public static void blit(com.mojang.blaze3d.vertex.PoseStack, int, int, int, float, float, int, int, int, int);
+  public static void blit(com.mojang.blaze3d.vertex.PoseStack, int, int, int, int, float, float, int, int, int, int);
+  public static void blit(com.mojang.blaze3d.vertex.PoseStack, int, int, float, float, int, int, int, int);
+  public int getBlitOffset();
+  public void setBlitOffset(int);
+  static {};
+}
+===== com.mojang.blaze3d.vertex.Tesselator =====
+Compiled from "Tesselator.java"
+public class com.mojang.blaze3d.vertex.Tesselator {
+  public static com.mojang.blaze3d.vertex.Tesselator getInstance();
+  public com.mojang.blaze3d.vertex.Tesselator(int);
+  public com.mojang.blaze3d.vertex.Tesselator();
+  public void end();
+  public com.mojang.blaze3d.vertex.BufferBuilder getBuilder();
+  static {};
+}
+===== net.minecraft.client.renderer.MultiBufferSource =====
+Compiled from "MultiBufferSource.java"
+public interface net.minecraft.client.renderer.MultiBufferSource {
+  public static net.minecraft.client.renderer.MultiBufferSource$BufferSource immediate(com.mojang.blaze3d.vertex.BufferBuilder);
+  public static net.minecraft.client.renderer.MultiBufferSource$BufferSource immediateWithBuffers(java.util.Map<net.minecraft.client.renderer.RenderType, com.mojang.blaze3d.vertex.BufferBuilder>, com.mojang.blaze3d.vertex.BufferBuilder);
+  public abstract com.mojang.blaze3d.vertex.VertexConsumer getBuffer(net.minecraft.client.renderer.RenderType);
+}
+===== net.minecraft.client.gui.components.EditBox =====
+Compiled from "EditBox.java"
+public class net.minecraft.client.gui.components.EditBox extends net.minecraft.client.gui.components.AbstractWidget implements net.minecraft.client.gui.components.Widget,net.minecraft.client.gui.components.events.GuiEventListener {
+  public static final int BACKWARDS;
+  public static final int FORWARDS;
+  public static final int DEFAULT_TEXT_COLOR;
+  public net.minecraft.client.gui.components.EditBox(net.minecraft.client.gui.Font, int, int, int, int, net.minecraft.network.chat.Component);
+  public net.minecraft.client.gui.components.EditBox(net.minecraft.client.gui.Font, int, int, int, int, net.minecraft.client.gui.components.EditBox, net.minecraft.network.chat.Component);
+  public void setResponder(java.util.function.Consumer<java.lang.String>);
+  public void setFormatter(java.util.function.BiFunction<java.lang.String, java.lang.Integer, net.minecraft.util.FormattedCharSequence>);
+  public void tick();
+  protected net.minecraft.network.chat.MutableComponent createNarrationMessage();
+  public void setValue(java.lang.String);
+  public java.lang.String getValue();
+  public java.lang.String getHighlighted();
+  public void setFilter(java.util.function.Predicate<java.lang.String>);
+  public void insertText(java.lang.String);
+  public void deleteWords(int);
+  public void deleteChars(int);
+  public int getWordPosition(int);
+  public void moveCursor(int);
+  public void moveCursorTo(int);
+  public void setCursorPosition(int);
+  public void moveCursorToStart();
+  public void moveCursorToEnd();
+  public boolean keyPressed(int, int, int);
+  public boolean canConsumeInput();
+  public boolean charTyped(char, int);
+  public boolean mouseClicked(double, double, int);
+  public void setFocus(boolean);
+  public void renderButton(com.mojang.blaze3d.vertex.PoseStack, int, int, float);
+  public void setMaxLength(int);
+  public int getCursorPosition();
+  public void setBordered(boolean);
+  public void setTextColor(int);
+  public void setTextColorUneditable(int);
+  public boolean changeFocus(boolean);
+  public boolean isMouseOver(double, double);
+  protected void onFocusedChanged(boolean);
+  public void setEditable(boolean);
+  public int getInnerWidth();
+  public void setHighlightPos(int);
+  public void setCanLoseFocus(boolean);
+  public boolean isVisible();
+  public void setVisible(boolean);
+  public void setSuggestion(java.lang.String);
+  public int getScreenX(int);
+  public void setX(int);
+  public void updateNarration(net.minecraft.client.gui.narration.NarrationElementOutput);
+}
+===== net.minecraft.client.gui.components.AbstractWidget =====
+Compiled from "AbstractWidget.java"
+public abstract class net.minecraft.client.gui.components.AbstractWidget extends net.minecraft.client.gui.GuiComponent implements net.minecraft.client.gui.components.Widget,net.minecraft.client.gui.components.events.GuiEventListener,net.minecraft.client.gui.narration.NarratableEntry {
+  public static final net.minecraft.resources.ResourceLocation WIDGETS_LOCATION;
+  protected int width;
+  protected int height;
+  public int x;
+  public int y;
+  protected boolean isHovered;
+  public boolean active;
+  public boolean visible;
+  protected float alpha;
+  public static final int UNSET_FG_COLOR;
+  protected int packedFGColor;
+  public net.minecraft.client.gui.components.AbstractWidget(int, int, int, int, net.minecraft.network.chat.Component);
+  public int getHeight();
+  protected int getYImage(boolean);
+  public void render(com.mojang.blaze3d.vertex.PoseStack, int, int, float);
+  protected net.minecraft.network.chat.MutableComponent createNarrationMessage();
+  public static net.minecraft.network.chat.MutableComponent wrapDefaultNarrationMessage(net.minecraft.network.chat.Component);
+  public void renderButton(com.mojang.blaze3d.vertex.PoseStack, int, int, float);
+  protected void renderBg(com.mojang.blaze3d.vertex.PoseStack, net.minecraft.client.Minecraft, int, int);
+  public void onClick(double, double);
+  public void onRelease(double, double);
+  protected void onDrag(double, double, double, double);
+  public boolean mouseClicked(double, double, int);
+  public boolean mouseReleased(double, double, int);
+  protected boolean isValidClickButton(int);
+  public boolean mouseDragged(double, double, int, double, double);
+  protected boolean clicked(double, double);
+  public boolean isHoveredOrFocused();
+  public boolean changeFocus(boolean);
+  protected void onFocusedChanged(boolean);
+  public boolean isMouseOver(double, double);
+  public void renderToolTip(com.mojang.blaze3d.vertex.PoseStack, int, int);
+  public void playDownSound(net.minecraft.client.sounds.SoundManager);
+  public int getWidth();
+  public void setWidth(int);
+  public void setHeight(int);
+  public void setAlpha(float);
+  public void setMessage(net.minecraft.network.chat.Component);
+  public net.minecraft.network.chat.Component getMessage();
+  public boolean isFocused();
+  public boolean isActive();
+  protected void setFocused(boolean);
+  public int getFGColor();
+  public void setFGColor(int);
+  public void clearFGColor();
+  public net.minecraft.client.gui.narration.NarratableEntry$NarrationPriority narrationPriority();
+  protected void defaultButtonNarrationText(net.minecraft.client.gui.narration.NarrationElementOutput);
+  static {};
+}

@@ -1,0 +1,80 @@
+{
+  "mappings": {
+    "smooth/lift/client/mixin/SoundEngineVolumeMixin": {
+      "calculateVolume(Lnet/minecraft/client/resources/sounds/SoundInstance;)F": "Lnet/minecraft/client/sounds/SoundEngine;m_120327_(Lnet/minecraft/client/resources/sounds/SoundInstance;)F"
+    },
+    "smooth/lift/client/mixin/EscalatorAoSampleMixin": {
+      "net.minecraft.client.renderer.block.ModelBlockRenderer$Cache": "net/minecraft/client/renderer/block/ModelBlockRenderer$Cache",
+      "getLightColor(Lnet/minecraft/world/level/block/state/BlockState;Lnet/minecraft/world/level/BlockAndTintGetter;Lnet/minecraft/core/BlockPos;)I": "Lnet/minecraft/client/renderer/block/ModelBlockRenderer$Cache;m_111221_(Lnet/minecraft/world/level/block/state/BlockState;Lnet/minecraft/world/level/BlockAndTintGetter;Lnet/minecraft/core/BlockPos;)I"
+    },
+    "smooth/lift/client/mixin/ExampleClientMixin": {
+      "run": "Lnet/minecraft/client/Minecraft;m_91374_()V"
+    },
+    "smooth/lift/client/mixin/LevelBlockChangeMixin": {
+      "onBlockStateChange(Lnet/minecraft/core/BlockPos;Lnet/minecraft/world/level/block/state/BlockState;Lnet/minecraft/world/level/block/state/BlockState;)V": "Lnet/minecraft/world/level/Level;m_6559_(Lnet/minecraft/core/BlockPos;Lnet/minecraft/world/level/block/state/BlockState;Lnet/minecraft/world/level/block/state/BlockState;)V"
+    },
+    "smooth/lift/mixin/LivingEntityMixin": {
+      "travel": "Lnet/minecraft/world/entity/LivingEntity;m_7023_(Lnet/minecraft/world/phys/Vec3;)V"
+    },
+    "smooth/lift/mixin/ChunkMapAccessor": {
+      "getChunks": "m_140416_()Ljava/lang/Iterable;"
+    },
+    "smooth/lift/client/mixin/ZhajiSoundMixin": {
+      "play(Lnet/minecraft/client/resources/sounds/SoundInstance;)V": "Lnet/minecraft/client/sounds/SoundManager;m_120367_(Lnet/minecraft/client/resources/sounds/SoundInstance;)V",
+      "playDelayed(Lnet/minecraft/client/resources/sounds/SoundInstance;I)V": "Lnet/minecraft/client/sounds/SoundManager;m_120369_(Lnet/minecraft/client/resources/sounds/SoundInstance;I)V"
+    },
+    "smooth/lift/client/mixin/EscalatorSpriteTickerMixin": {
+      "getAnimationTicker": "Lnet/minecraft/client/renderer/texture/TextureAtlasSprite;m_174746_()Lnet/minecraft/client/renderer/texture/Tickable;"
+    },
+    "smooth/lift/client/mixin/ModelBakeryBeforeBakeMixin": {
+      "getModel": "Lnet/minecraft/client/resources/model/ModelBakery;m_119341_(Lnet/minecraft/resources/ResourceLocation;)Lnet/minecraft/client/resources/model/UnbakedModel;"
+    },
+    "smooth/lift/client/mixin/EscalatorAoStashMixin": {
+      "calculate(Lnet/minecraft/world/level/BlockAndTintGetter;Lnet/minecraft/world/level/block/state/BlockState;Lnet/minecraft/core/BlockPos;Lnet/minecraft/core/Direction;[FLjava/util/BitSet;Z)V": "Lnet/minecraft/client/renderer/block/ModelBlockRenderer$AmbientOcclusionFace;m_111167_(Lnet/minecraft/world/level/BlockAndTintGetter;Lnet/minecraft/world/level/block/state/BlockState;Lnet/minecraft/core/BlockPos;Lnet/minecraft/core/Direction;[FLjava/util/BitSet;Z)V",
+      "net.minecraft.client.renderer.block.ModelBlockRenderer$AmbientOcclusionFace": "net/minecraft/client/renderer/block/ModelBlockRenderer$AmbientOcclusionFace"
+    },
+    "smooth/lift/client/mixin/EscalatorFlatLightMixin": {
+      "getLightColor(Lnet/minecraft/world/level/BlockAndTintGetter;Lnet/minecraft/world/level/block/state/BlockState;Lnet/minecraft/core/BlockPos;)I": "Lnet/minecraft/client/renderer/LevelRenderer;m_109537_(Lnet/minecraft/world/level/BlockAndTintGetter;Lnet/minecraft/world/level/block/state/BlockState;Lnet/minecraft/core/BlockPos;)I"
+    }
+  },
+  "data": {
+    "searge": {
+      "smooth/lift/client/mixin/SoundEngineVolumeMixin": {
+        "calculateVolume(Lnet/minecraft/client/resources/sounds/SoundInstance;)F": "Lnet/minecraft/client/sounds/SoundEngine;m_120327_(Lnet/minecraft/client/resources/sounds/SoundInstance;)F"
+      },
+      "smooth/lift/client/mixin/EscalatorAoSampleMixin": {
+        "net.minecraft.client.renderer.block.ModelBlockRenderer$Cache": "net/minecraft/client/renderer/block/ModelBlockRenderer$Cache",
+        "getLightColor(Lnet/minecraft/world/level/block/state/BlockState;Lnet/minecraft/world/level/BlockAndTintGetter;Lnet/minecraft/core/BlockPos;)I": "Lnet/minecraft/client/renderer/block/ModelBlockRenderer$Cache;m_111221_(Lnet/minecraft/world/level/block/state/BlockState;Lnet/minecraft/world/level/BlockAndTintGetter;Lnet/minecraft/core/BlockPos;)I"
+      },
+      "smooth/lift/client/mixin/ExampleClientMixin": {
+        "run": "Lnet/minecraft/client/Minecraft;m_91374_()V"
+      },
+      "smooth/lift/client/mixin/LevelBlockChangeMixin": {
+        "onBlockStateChange(Lnet/minecraft/core/BlockPos;Lnet/minecraft/world/level/block/state/BlockState;Lnet/minecraft/world/level/block/state/BlockState;)V": "Lnet/minecraft/world/level/Level;m_6559_(Lnet/minecraft/core/BlockPos;Lnet/minecraft/world/level/block/state/BlockState;Lnet/minecraft/world/level/block/state/BlockState;)V"
+      },
+      "smooth/lift/mixin/LivingEntityMixin": {
+        "travel": "Lnet/minecraft/world/entity/LivingEntity;m_7023_(Lnet/minecraft/world/phys/Vec3;)V"
+      },
+      "smooth/lift/mixin/ChunkMapAccessor": {
+        "getChunks": "m_140416_()Ljava/lang/Iterable;"
+      },
+      "smooth/lift/client/mixin/ZhajiSoundMixin": {
+        "play(Lnet/minecraft/client/resources/sounds/SoundInstance;)V": "Lnet/minecraft/client/sounds/SoundManager;m_120367_(Lnet/minecraft/client/resources/sounds/SoundInstance;)V",
+        "playDelayed(Lnet/minecraft/client/resources/sounds/SoundInstance;I)V": "Lnet/minecraft/client/sounds/SoundManager;m_120369_(Lnet/minecraft/client/resources/sounds/SoundInstance;I)V"
+      },
+      "smooth/lift/client/mixin/EscalatorSpriteTickerMixin": {
+        "getAnimationTicker": "Lnet/minecraft/client/renderer/texture/TextureAtlasSprite;m_174746_()Lnet/minecraft/client/renderer/texture/Tickable;"
+      },
+      "smooth/lift/client/mixin/ModelBakeryBeforeBakeMixin": {
+        "getModel": "Lnet/minecraft/client/resources/model/ModelBakery;m_119341_(Lnet/minecraft/resources/ResourceLocation;)Lnet/minecraft/client/resources/model/UnbakedModel;"
+      },
+      "smooth/lift/client/mixin/EscalatorAoStashMixin": {
+        "calculate(Lnet/minecraft/world/level/BlockAndTintGetter;Lnet/minecraft/world/level/block/state/BlockState;Lnet/minecraft/core/BlockPos;Lnet/minecraft/core/Direction;[FLjava/util/BitSet;Z)V": "Lnet/minecraft/client/renderer/block/ModelBlockRenderer$AmbientOcclusionFace;m_111167_(Lnet/minecraft/world/level/BlockAndTintGetter;Lnet/minecraft/world/level/block/state/BlockState;Lnet/minecraft/core/BlockPos;Lnet/minecraft/core/Direction;[FLjava/util/BitSet;Z)V",
+        "net.minecraft.client.renderer.block.ModelBlockRenderer$AmbientOcclusionFace": "net/minecraft/client/renderer/block/ModelBlockRenderer$AmbientOcclusionFace"
+      },
+      "smooth/lift/client/mixin/EscalatorFlatLightMixin": {
+        "getLightColor(Lnet/minecraft/world/level/BlockAndTintGetter;Lnet/minecraft/world/level/block/state/BlockState;Lnet/minecraft/core/BlockPos;)I": "Lnet/minecraft/client/renderer/LevelRenderer;m_109537_(Lnet/minecraft/world/level/BlockAndTintGetter;Lnet/minecraft/world/level/block/state/BlockState;Lnet/minecraft/core/BlockPos;)I"
+      }
+    }
+  }
+}

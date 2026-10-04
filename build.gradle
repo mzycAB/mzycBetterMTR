@@ -1,0 +1,71 @@
+plugins {
+    id 'net.minecraftforge.gradle' version '[6.0,6.2)'
+    id 'org.spongepowered.mixin' version '0.7.38'
+    id 'maven-publish'
+}
+
+version = project.mod_version
+group = project.maven_group
+
+base {
+    archivesName = project.archives_base_name
+}
+
+minecraft {
+    mappings channel: 'official', version: project.minecraft_version
+    accessTransformer = file('src/main/resources/META-INF/accesstransformer.cfg')
+}
+
+mixin {
+    add sourceSets.main, 'smooth_escalator.refmap.json'
+    config 'smooth_escalator.mixins.json'
+    config 'smoothlift.mtr.mixins.json'
+    config 'smoothlift.psd.mixins.json'
+    config 'smoothlift.client.mixins.json'
+    config 'smoothlift.sodium.mixins.json'
+}
+
+repositories {
+    mavenCentral()
+    maven {
+        name = 'SpongePowered'
+        url = 'https://repo.spongepowered.org/repository/maven-public/'
+    }
+}
+
+dependencies {
+    minecraft "net.minecraftforge:forge:${project.forge_version}"
+    compileOnly "org.spongepowered:mixin:${project.mixin_version}"
+    annotationProcessor "org.spongepowered:mixin:${project.mixin_version}:processor"
+}
+
+java {
+    toolchain {
+        languageVersion = JavaLanguageVersion.of(21)
+    }
+}
+
+tasks.withType(JavaCompile).configureEach {
+    options.release = 17
+    options.encoding = 'UTF-8'
+    options.compilerArgs += [
+            '-AoutRefMapFile=' + project.layout.buildDirectory.file('resources/main/smooth_escalator.refmap.json').get().asFile.absolutePath,
+            '-AdefaultObfuscationEnv=searge',
+            '-Xmaxerrs', '20000',
+            '-Xmaxwarns', '20000'
+    ]
+}
+
+jar {
+    manifest {
+        attributes([
+            'Specification-Title'   : 'mzycBetterMTR',
+            'Specification-Vendor'  : 'mzycAB',
+            'Specification-Version' : '1',
+            'Implementation-Title'  : 'mzycBetterMTR',
+            'Implementation-Version': project.version,
+            'Implementation-Vendor' : 'mzycAB',
+            'MixinConfigs'          : 'smooth_escalator.mixins.json,smoothlift.client.mixins.json,smoothlift.mtr.mixins.json,smoothlift.psd.mixins.json,smoothlift.sodium.mixins.json'
+        ])
+    }
+}

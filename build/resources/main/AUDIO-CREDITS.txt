@@ -1,0 +1,71 @@
+SmoothLift 内置扶梯音频 · 出处与许可
+Bundled escalator audio — source and license
+=========================================================
+
+SmoothLift 随模组分发了 1 段扶梯音效（放在 jar 内
+`assets/smoothlift/sounds/audio/subway_escalator.ogg`，由 `assets/smoothlift/sounds.json`
+注册成 `smoothlift:audio/subway_escalator`）。它已由作者转换为 Ogg Vorbis 并做剪辑，
+玩家直接装模组即可使用，无需任何转码工具。
+SmoothLift ships one escalator sound inside the mod jar
+(`assets/smoothlift/sounds/audio/subway_escalator.ogg`, registered by
+`assets/smoothlift/sounds.json` as `smoothlift:audio/subway_escalator`). It was converted
+to Ogg Vorbis and edited by the mod author; players need no conversion tools.
+
+作者对原始录音做的剪辑（因为要循环播放）：
+The following edits were made to the original recording (for looping playback):
+  1. 原始录音是「11.8 秒声音 + 2.2 秒完全静音 + 9.4 秒声音」，
+     剪掉中间 2.2 秒空白与首尾静音（共约 2.8 秒），两段声音拼接；
+  2. 拼接处 0.40 秒等功率交叉淡化（crossfade），避免爆音；
+  3. 首尾做 0.70 秒等功率交叉淡化（循环点在淡化区内），循环播放无接缝、无停顿；
+  4. 未做任何电平（音量）处理，峰值仍为 -23.8 dBFS，与原始录音一致。
+  (1) removed the 2.2 s silent gap plus head/tail silence and joined the two takes;
+  (2) 0.40 s equal-power crossfade at the join; (3) 0.70 s equal-power crossfade across
+  the loop point; (4) no level/gain processing — peak stays at -23.8 dBFS as in the source.
+
+--------------------------------------------------------------------
+文件 / file : subway_escalator.ogg   (19.8 秒 / seconds, 44.1 kHz, 立体声 / stereo)
+界面显示名  : 内置 · 地铁自动扶梯
+原始时长    : 23.637 秒（剪辑后 19.780 秒）
+
+原始素材 / original source
+  Freesound 标题 : 4_Escalator.wav
+  Freesound 页面 : https://freesound.org/people/14G_Panska_Hoskovcova_Eliska/sounds/419482/
+  作者 / author  : 14G_Panska_Hoskovcova_Eliska
+  说明 / about   : "Two recordings of different moving stairs."
+                   （地铁站里两段不同的自动扶梯录音 / Praha, Prague, Czech Republic）
+  发布 / posted  : 2018-02-26
+  原始规格       : 0:23.637, WAV, 6.5 MB, 48 kHz, 24 bit, Stereo
+  镜像页         : 淘声网 toSound「地铁 " 4 自动扶梯」（sound-wrp7aq1d）
+
+--------------------------------------------------------------------
+许可 / LICENSE
+  ★ Creative Commons 0 (CC0 1.0 Universal, Public Domain Dedication)
+  ★ https://creativecommons.org/publicdomain/zero/1.0/
+
+  Freesound 页面上的许可字段原文（逐字引用）：
+  On the Freesound page the license field reads, verbatim:
+
+      Creative Commons 0
+      You can copy, modify, distribute and perform the sound, even for
+      commercial purposes, all without the need of asking permission
+      to the author.
+
+  即：属于公共领域奉献（Public Domain Dedication）。
+  - 可以自由复制、修改、分发、公开表演（含商业用途）；
+  - **不需要署名**，也不需要事先征得作者同意；
+  - 无 NonCommercial 限制，无 ShareAlike 传染性。
+
+  This is a public-domain dedication: free to copy, modify, distribute and perform,
+  including commercially. **No attribution is required** and no permission is needed.
+  No NonCommercial restriction, no ShareAlike copyleft.
+
+  本文件仅为交代来源、便于日后核对而保留，不构成额外的署名义务。
+  This file is kept for provenance only and imposes no additional obligation.
+
+  校验信息 / verification: 由于分发的是剪辑+循环化后的版本，其哈希与原始转码件**不同**，
+  两者都记录如下（CC0 允许修改，此处仅为可溯源）。
+  The distributed file is a trimmed/looped derivative, so its hash differs from the source:
+    jar 内 / shipped  subway_escalator.ogg : e1f619c1118de732ef383066baf97e1a0b9e1d757d99a8c2d328d40066347a1d
+    剪辑前 / source   sound-wrp7aq1d.ogg   : f036b0d4c951e18d4c3cc7863b2bae62d475899e4de53251fcc612c7c08cf0dc
+  剪辑前的文件（原始转码件）保存在模组开发目录的 `escalator_sounds/ogg/sound-wrp7aq1d.ogg`。
+  The pre-edit file is kept at `escalator_sounds/ogg/sound-wrp7aq1d.ogg` in the dev tree.

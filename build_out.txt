@@ -1,0 +1,12 @@
+
+> Configure project :
+MixinGradle is skipping eclipse integration, extension not found
+
+> Task :downloadMcpConfig
+> Task :extractSrg UP-TO-DATE
+> Task :createMcpToSrg UP-TO-DATE
+
+> Task :compileJava
+
+> Task :compileJava FAILED
+4 actionable tasks: 2 executed, 2 up-to-date

@@ -1,0 +1,537 @@
+﻿Starting a Gradle Daemon, 3 incompatible and 1 stopped Daemons could not be reused, use --status for details
+
+> Configure project :
+MixinGradle is skipping eclipse integration, extension not found
+
+> Task :downloadMcpConfig
+> Task :extractSrg UP-TO-DATE
+> Task :createMcpToSrg UP-TO-DATE
+
+> Task :compileJava
+.\gradlew.bat : Note: SpongePowered MIXIN Annotation Processor Version=0.8.5 (MixinGradle Version=0.7.38)
+At line:15 char:1571
++ ... \ripgrep\bin'; .\gradlew.bat compileJava --console=plain 2>&1 | Tee-O ...
++                    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : NotSpecified: (Note: SpongePow...Version=0.7.38):String) [], RemoteException
+    + FullyQualifiedErrorId : NativeCommandError
+ 
+Note: Supported obfuscation types: ObfuscationServiceMCP supports [notch] ObfuscationServiceFG3 supports [searge]
+Note: Loading searge mappings from C:\Users\user\Desktop\2\mzycBetterMTR-Forge-1.18.2\build\createMcpToSrg\output.tsrg
+C:\Users\user\Desktop\2\mzycBetterMTR-Forge-1.18.2\src\main\java\smooth\lift\mixin\mtr\Mtr3LiftDoorMixin.java:72: Note:
+ @Inject target 'tickServer' in @Pseudo mixin will not be obfuscated
+    @Inject(method = "tickServer", at = @At("TAIL"))
+    ^
+Note: Writing refmap to C:\Users\user\Desktop\2\mzycBetterMTR-Forge-1.18.2\build\tmp\compileJava\compileJava-refmap.jso
+n
+C:\Users\user\Desktop\2\mzycBetterMTR-Forge-1.18.2\src\main\java\smooth\lift\client\mixin\sodium\LightDataAccessCafMixi
+n.java:32: warning: Unable to locate obfuscation mapping for @Shadow field
+    @Shadow
+    ^
+C:\Users\user\Desktop\2\mzycBetterMTR-Forge-1.18.2\src\main\java\smooth\lift\client\mixin\sodium\LightDataAccessCafMixi
+n.java:35: warning: Unable to locate obfuscation mapping for @Shadow field
+    @Shadow
+    ^
+C:\Users\user\Desktop\2\mzycBetterMTR-Forge-1.18.2\src\main\java\smooth\lift\client\mixin\sodium\LightDataAccessCafMixi
+n.java:38: warning: Unable to locate obfuscation mapping for @Shadow method
+    @Shadow
+    ^
+C:\Users\user\Desktop\2\mzycBetterMTR-Forge-1.18.2\src\main\java\smooth\lift\client\mixin\sodium\LightDataAccessCafMixi
+n.java:41: warning: Unable to locate obfuscation mapping for @Shadow method
+    @Shadow
+    ^
+C:\Users\user\Desktop\2\mzycBetterMTR-Forge-1.18.2\src\main\java\smooth\lift\client\mixin\sodium\LightDataAccessJellyMi
+xin.java:38: warning: Unable to locate obfuscation mapping for @Shadow field
+    @Shadow
+    ^
+C:\Users\user\Desktop\2\mzycBetterMTR-Forge-1.18.2\src\main\java\smooth\lift\client\mixin\sodium\LightDataAccessJellyMi
+xin.java:41: warning: Unable to locate obfuscation mapping for @Shadow field
+    @Shadow
+    ^
+C:\Users\user\Desktop\2\mzycBetterMTR-Forge-1.18.2\src\main\java\smooth\lift\client\mixin\sodium\LightDataAccessJellyMi
+xin.java:44: warning: Unable to locate obfuscation mapping for @Shadow method
+    @Shadow
+    ^
+C:\Users\user\Desktop\2\mzycBetterMTR-Forge-1.18.2\src\main\java\smooth\lift\client\mixin\sodium\LightDataAccessJellyMi
+xin.java:47: warning: Unable to locate obfuscation mapping for @Shadow method
+    @Shadow
+    ^
+Note: Writing refmap to C:\Users\user\Desktop\2\mzycBetterMTR-Forge-1.18.2\build\tmp\compileJava\compileJava-refmap.jso
+n
+Note: Writing searge composite mappings to C:\Users\user\Desktop\2\mzycBetterMTR-Forge-1.18.2\build\tmp\compileJava\com
+pileJava-mappings.tsrg
+Note: Writing refmap to C:\Users\user\Desktop\2\mzycBetterMTR-Forge-1.18.2\build\tmp\compileJava\compileJava-refmap.jso
+n
+Note: Writing refmap to C:\Users\user\Desktop\2\mzycBetterMTR-Forge-1.18.2\build\tmp\compileJava\compileJava-refmap.jso
+n
+Note: Writing searge composite mappings to C:\Users\user\Desktop\2\mzycBetterMTR-Forge-1.18.2\build\tmp\compileJava\com
+pileJava-mappings.tsrg
+C:\Users\user\Desktop\2\mzycBetterMTR-Forge-1.18.2\src\main\java\smooth\lift\client\EscalatorAudioPlayer.java:418: erro
+r: cannot find symbol
+            inst.setPosition(bestNear.getCenter(), FADE_IN_FLOOR);
+                                     ^
+  symbol:   method getCenter()
+  location: variable bestNear of type BlockPos
+C:\Users\user\Desktop\2\mzycBetterMTR-Forge-1.18.2\src\main\java\smooth\lift\client\EscalatorAudioPlayer.java:447: erro
+r: cannot find symbol
+        inst.setPosition(bestNear.getCenter(), fadeInGain(mc, inst, target));
+                                 ^
+  symbol:   method getCenter()
+  location: variable bestNear of type BlockPos
+C:\Users\user\Desktop\2\mzycBetterMTR-Forge-1.18.2\src\main\java\smooth\lift\client\EscalatorAudioPlayer.java:1019: err
+or: cannot find symbol
+        return location.withPath("sounds/" + location.getPath() + ".ogg");
+                       ^
+  symbol:   method withPath(String)
+  location: variable location of type ResourceLocation
+C:\Users\user\Desktop\2\mzycBetterMTR-Forge-1.18.2\src\main\java\smooth\lift\client\EscalatorAudioPlayer.java:1058: err
+or: no suitable constructor found for AbstractSoundInstance(ResourceLocation,SoundSource,RandomSource)
+            super(initialLocation(audioId), SoundSource.BLOCKS, RandomSource.create());
+            ^
+    constructor AbstractSoundInstance.AbstractSoundInstance(SoundEvent,SoundSource) is not applicable
+      (actual and formal argument lists differ in length)
+    constructor AbstractSoundInstance.AbstractSoundInstance(ResourceLocation,SoundSource) is not applicable
+      (actual and formal argument lists differ in length)
+C:\Users\user\Desktop\2\mzycBetterMTR-Forge-1.18.2\src\main\java\smooth\lift\client\EscalatorAudioPlayer.java:1080: err
+or: incompatible types: ConstantFloat cannot be converted to float
+            Sound s = new Sound(name.toString(), ConstantFloat.of(1.0F), ConstantFloat.of(1.0F),
+                                                                 ^
+C:\Users\user\Desktop\2\mzycBetterMTR-Forge-1.18.2\src\main\java\smooth\lift\client\EscalatorChimePlayer.java:1264: err
+or: no suitable constructor found for AbstractSoundInstance(ResourceLocation,SoundSource,RandomSource)
+            super(sample.event(), SoundSource.BLOCKS, RandomSource.create());
+            ^
+    constructor AbstractSoundInstance.AbstractSoundInstance(SoundEvent,SoundSource) is not applicable
+      (actual and formal argument lists differ in length)
+    constructor AbstractSoundInstance.AbstractSoundInstance(ResourceLocation,SoundSource) is not applicable
+      (actual and formal argument lists differ in length)
+C:\Users\user\Desktop\2\mzycBetterMTR-Forge-1.18.2\src\main\java\smooth\lift\client\EscalatorChimePlayer.java:1290: err
+or: incompatible types: ConstantFloat cannot be converted to float
+            Sound s = new Sound(name.toString(), ConstantFloat.of(1.0F), ConstantFloat.of(1.0F),
+                                                                 ^
+C:\Users\user\Desktop\2\mzycBetterMTR-Forge-1.18.2\src\main\java\smooth\lift\client\EscalatorSpeedScreen.java:214: erro
+r: cannot find symbol
+            super(x, y, BTN_W, 20, label, button -> { }, DEFAULT_NARRATION);
+                                                         ^
+  symbol:   variable DEFAULT_NARRATION
+  location: class RowNameButton
+C:\Users\user\Desktop\2\mzycBetterMTR-Forge-1.18.2\src\main\java\smooth\lift\client\EscalatorSpeedScreen.java:219: erro
+r: method does not override or implement a method from a supertype
+        @Override
+        ^
+C:\Users\user\Desktop\2\mzycBetterMTR-Forge-1.18.2\src\main\java\smooth\lift\client\EscalatorStepCache.java:654: error:
+ cannot find symbol
+            buffer = new VertexBuffer(VertexBuffer.Usage.STATIC);
+                                                  ^
+  symbol:   variable Usage
+  location: class VertexBuffer
+C:\Users\user\Desktop\2\mzycBetterMTR-Forge-1.18.2\src\main\java\smooth\lift\client\EscalatorStepCache.java:657: error:
+ cannot find symbol
+        BufferBuilder.RenderedBuffer rendered = active.end();
+                     ^
+  symbol:   class RenderedBuffer
+  location: class BufferBuilder
+C:\Users\user\Desktop\2\mzycBetterMTR-Forge-1.18.2\src\main\java\smooth\lift\client\EscalatorStepModels.java:169: error
+: cannot find symbol
+                if (sprite == null || sprite.contents() == null) {
+                                            ^
+  symbol:   method contents()
+  location: variable sprite of type TextureAtlasSprite
+C:\Users\user\Desktop\2\mzycBetterMTR-Forge-1.18.2\src\main\java\smooth\lift\client\EscalatorStepModels.java:172: error
+: cannot find symbol
+                ResourceLocation id = sprite.contents().name();
+                                            ^
+  symbol:   method contents()
+  location: variable sprite of type TextureAtlasSprite
+C:\Users\user\Desktop\2\mzycBetterMTR-Forge-1.18.2\src\main\java\smooth\lift\client\EscalatorStepRenderer.java:519: err
+or: cannot find symbol
+                if (buffer == null || buffer.isInvalid()) {
+                                            ^
+  symbol:   method isInvalid()
+  location: variable buffer of type VertexBuffer
+C:\Users\user\Desktop\2\mzycBetterMTR-Forge-1.18.2\src\main\java\smooth\lift\client\EscalatorStepRenderer.java:606: err
+or: cannot find symbol
+        if (shader.GLINT_ALPHA != null) {
+                  ^
+  symbol:   variable GLINT_ALPHA
+  location: variable shader of type ShaderInstance
+C:\Users\user\Desktop\2\mzycBetterMTR-Forge-1.18.2\src\main\java\smooth\lift\client\EscalatorStepRenderer.java:607: err
+or: cannot find symbol
+            shader.GLINT_ALPHA.set(RenderSystem.getShaderGlintAlpha());
+                  ^
+  symbol:   variable GLINT_ALPHA
+  location: variable shader of type ShaderInstance
+C:\Users\user\Desktop\2\mzycBetterMTR-Forge-1.18.2\src\main\java\smooth\lift\client\EscalatorStepRenderer.java:607: err
+or: cannot find symbol
+            shader.GLINT_ALPHA.set(RenderSystem.getShaderGlintAlpha());
+                                               ^
+  symbol:   method getShaderGlintAlpha()
+  location: class RenderSystem
+C:\Users\user\Desktop\2\mzycBetterMTR-Forge-1.18.2\src\main\java\smooth\lift\client\EscalatorStepTextures.java:389: err
+or: incompatible types: Resource cannot be converted to Optional<Resource>
+        Optional<Resource> upResource = resources.getResource(family.pngUp);
+                                                             ^
+C:\Users\user\Desktop\2\mzycBetterMTR-Forge-1.18.2\src\main\java\smooth\lift\client\EscalatorStepTextures.java:399: err
+or: cannot find symbol
+            down = resources.getResource(family.pngDown).orElse(null);
+                                                        ^
+  symbol:   method orElse(<null>)
+  location: interface Resource
+C:\Users\user\Desktop\2\mzycBetterMTR-Forge-1.18.2\src\main\java\smooth\lift\client\EscalatorStepTextures.java:452: err
+or: cannot find symbol
+        try (InputStream stream = resource.open()) {
+                                          ^
+  symbol:   method open()
+  location: variable resource of type Resource
+C:\Users\user\Desktop\2\mzycBetterMTR-Forge-1.18.2\src\main\java\smooth\lift\client\EscalatorStepTextures.java:475: err
+or: cannot find symbol
+        return Arrays.equals(a.getPixelsRGBA(), b.getPixelsRGBA());
+                              ^
+  symbol:   method getPixelsRGBA()
+  location: variable a of type NativeImage
+C:\Users\user\Desktop\2\mzycBetterMTR-Forge-1.18.2\src\main\java\smooth\lift\client\EscalatorStepTextures.java:475: err
+or: cannot find symbol
+        return Arrays.equals(a.getPixelsRGBA(), b.getPixelsRGBA());
+                                                 ^
+  symbol:   method getPixelsRGBA()
+  location: variable b of type NativeImage
+C:\Users\user\Desktop\2\mzycBetterMTR-Forge-1.18.2\src\main\java\smooth\lift\client\EscalatorStepTextures.java:502: err
+or: method copyRect in class NativeImage cannot be applied to given types;
+            source.copyRect(target, 0, sourceFrame * width, 0, 0, width, width, false, false);
+                  ^
+  required: int,int,int,int,int,int,boolean,boolean
+  found:    NativeImage,int,int,int,int,int,int,boolean,boolean
+  reason: actual and formal argument lists differ in length
+C:\Users\user\Desktop\2\mzycBetterMTR-Forge-1.18.2\src\main\java\smooth\lift\client\EscalatorStepTextures.java:564: err
+or: cannot find symbol
+                    resource.metadata().getSection(AnimationMetadataSection.SERIALIZER);
+                            ^
+  symbol:   method metadata()
+  location: variable resource of type Resource
+C:\Users\user\Desktop\2\mzycBetterMTR-Forge-1.18.2\src\main\java\smooth\lift\client\EscalatorStepTextures.java:584: err
+or: cannot find symbol
+            LOGGER.warn("[SmoothLift] ���� {} �Ķ���֡��ʧ�ܣ���˳�򲥷�", resource.sourcePackId(), t);
+                                                                    ^
+  symbol:   method sourcePackId()
+  location: variable resource of type Resource
+C:\Users\user\Desktop\2\mzycBetterMTR-Forge-1.18.2\src\main\java\smooth\lift\client\LiftChimePlayer.java:804: error: no
+ suitable constructor found for AbstractSoundInstance(ResourceLocation,SoundSource,RandomSource)
+            super(event, SoundSource.BLOCKS, RandomSource.create());
+            ^
+    constructor AbstractSoundInstance.AbstractSoundInstance(SoundEvent,SoundSource) is not applicable
+      (actual and formal argument lists differ in length)
+    constructor AbstractSoundInstance.AbstractSoundInstance(ResourceLocation,SoundSource) is not applicable
+      (actual and formal argument lists differ in length)
+C:\Users\user\Desktop\2\mzycBetterMTR-Forge-1.18.2\src\main\java\smooth\lift\client\LiftChimePlayer.java:820: error: in
+compatible types: ConstantFloat cannot be converted to float
+            Sound s = new Sound(name.toString(), ConstantFloat.of(1.0F), ConstantFloat.of(1.0F),
+                                                                 ^
+C:\Users\user\Desktop\2\mzycBetterMTR-Forge-1.18.2\src\main\java\smooth\lift\client\PsdChimePlayer.java:3519: error: no
+ suitable constructor found for AbstractSoundInstance(ResourceLocation,SoundSource,RandomSource)
+            super(event, SoundSource.BLOCKS, RandomSource.create());
+            ^
+    constructor AbstractSoundInstance.AbstractSoundInstance(SoundEvent,SoundSource) is not applicable
+      (actual and formal argument lists differ in length)
+    constructor AbstractSoundInstance.AbstractSoundInstance(ResourceLocation,SoundSource) is not applicable
+      (actual and formal argument lists differ in length)
+C:\Users\user\Desktop\2\mzycBetterMTR-Forge-1.18.2\src\main\java\smooth\lift\client\PsdChimePlayer.java:3643: error: in
+compatible types: ConstantFloat cannot be converted to float
+            Sound s = new Sound(name.toString(), ConstantFloat.of(1.0F), ConstantFloat.of(1.0F),
+                                                                 ^
+C:\Users\user\Desktop\2\mzycBetterMTR-Forge-1.18.2\src\main\java\smooth\lift\client\PsdToneSetupScreen.java:1519: error
+: cannot find symbol
+                editor.setHint(new net.minecraft.network.chat.TextComponent("���Ҳ��ѡҪ�༭��Ԥ��"));
+                      ^
+  symbol:   method setHint(TextComponent)
+  location: variable editor of type WrappingEditBox
+C:\Users\user\Desktop\2\mzycBetterMTR-Forge-1.18.2\src\main\java\smooth\lift\client\PsdToneSetupScreen.java:1524: error
+: cannot find symbol
+                editor.setHint(new net.minecraft.network.chat.TextComponent("user" + (editingIndex + 1)));
+                      ^
+  symbol:   method setHint(TextComponent)
+  location: variable editor of type WrappingEditBox
+C:\Users\user\Desktop\2\mzycBetterMTR-Forge-1.18.2\src\main\java\smooth\lift\client\WrappingEditBox.java:74: error: can
+not find symbol
+        guiGraphics.fill(getX(), getY(), getX() + width, getY() + height, 0xFF000000);
+                                         ^
+  symbol:   method getX()
+  location: class WrappingEditBox
+C:\Users\user\Desktop\2\mzycBetterMTR-Forge-1.18.2\src\main\java\smooth\lift\client\WrappingEditBox.java:74: error: can
+not find symbol
+        guiGraphics.fill(getX(), getY(), getX() + width, getY() + height, 0xFF000000);
+                                                         ^
+  symbol:   method getY()
+  location: class WrappingEditBox
+C:\Users\user\Desktop\2\mzycBetterMTR-Forge-1.18.2\src\main\java\smooth\lift\client\WrappingEditBox.java:74: error: can
+not find symbol
+        guiGraphics.fill(getX(), getY(), getX() + width, getY() + height, 0xFF000000);
+                         ^
+  symbol:   method getX()
+  location: class WrappingEditBox
+C:\Users\user\Desktop\2\mzycBetterMTR-Forge-1.18.2\src\main\java\smooth\lift\client\WrappingEditBox.java:74: error: can
+not find symbol
+        guiGraphics.fill(getX(), getY(), getX() + width, getY() + height, 0xFF000000);
+                                 ^
+  symbol:   method getY()
+  location: class WrappingEditBox
+C:\Users\user\Desktop\2\mzycBetterMTR-Forge-1.18.2\src\main\java\smooth\lift\client\WrappingEditBox.java:75: error: can
+not find symbol
+        guiGraphics.renderOutline(getX(), getY(), width, height, isFocused() ? 0xFFFFFFFF : 0xFF606060);
+                                  ^
+  symbol:   method getX()
+  location: class WrappingEditBox
+C:\Users\user\Desktop\2\mzycBetterMTR-Forge-1.18.2\src\main\java\smooth\lift\client\WrappingEditBox.java:75: error: can
+not find symbol
+        guiGraphics.renderOutline(getX(), getY(), width, height, isFocused() ? 0xFFFFFFFF : 0xFF606060);
+                                          ^
+  symbol:   method getY()
+  location: class WrappingEditBox
+C:\Users\user\Desktop\2\mzycBetterMTR-Forge-1.18.2\src\main\java\smooth\lift\client\WrappingEditBox.java:86: error: can
+not find symbol
+        int textX = getX() + PAD;
+                    ^
+  symbol:   method getX()
+  location: class WrappingEditBox
+C:\Users\user\Desktop\2\mzycBetterMTR-Forge-1.18.2\src\main\java\smooth\lift\client\WrappingEditBox.java:87: error: can
+not find symbol
+        int textY = getY() + PAD;
+                    ^
+  symbol:   method getY()
+  location: class WrappingEditBox
+C:\Users\user\Desktop\2\mzycBetterMTR-Forge-1.18.2\src\main\java\smooth\lift\client\WrappingEditBox.java:90: error: can
+not find symbol
+        guiGraphics.enableScissor(getX() + 1, getY() + 1, getX() + width - 1, getY() + height - 1);
+                                  ^
+  symbol:   method getX()
+  location: class WrappingEditBox
+C:\Users\user\Desktop\2\mzycBetterMTR-Forge-1.18.2\src\main\java\smooth\lift\client\WrappingEditBox.java:90: error: can
+not find symbol
+        guiGraphics.enableScissor(getX() + 1, getY() + 1, getX() + width - 1, getY() + height - 1);
+                                              ^
+  symbol:   method getY()
+  location: class WrappingEditBox
+C:\Users\user\Desktop\2\mzycBetterMTR-Forge-1.18.2\src\main\java\smooth\lift\client\WrappingEditBox.java:90: error: can
+not find symbol
+        guiGraphics.enableScissor(getX() + 1, getY() + 1, getX() + width - 1, getY() + height - 1);
+                                                          ^
+  symbol:   method getX()
+  location: class WrappingEditBox
+C:\Users\user\Desktop\2\mzycBetterMTR-Forge-1.18.2\src\main\java\smooth\lift\client\WrappingEditBox.java:90: error: can
+not find symbol
+        guiGraphics.enableScissor(getX() + 1, getY() + 1, getX() + width - 1, getY() + height - 1);
+                                                                              ^
+  symbol:   method getY()
+  location: class WrappingEditBox
+C:\Users\user\Desktop\2\mzycBetterMTR-Forge-1.18.2\src\main\java\smooth\lift\client\WrappingEditBox.java:129: error: ca
+nnot find symbol
+        boolean inside = mouseX >= getX() && mouseX < getX() + width
+                                   ^
+  symbol:   method getX()
+  location: class WrappingEditBox
+C:\Users\user\Desktop\2\mzycBetterMTR-Forge-1.18.2\src\main\java\smooth\lift\client\WrappingEditBox.java:129: error: ca
+nnot find symbol
+        boolean inside = mouseX >= getX() && mouseX < getX() + width
+                                                      ^
+  symbol:   method getX()
+  location: class WrappingEditBox
+C:\Users\user\Desktop\2\mzycBetterMTR-Forge-1.18.2\src\main\java\smooth\lift\client\WrappingEditBox.java:130: error: ca
+nnot find symbol
+                && mouseY >= getY() && mouseY < getY() + height;
+                             ^
+  symbol:   method getY()
+  location: class WrappingEditBox
+C:\Users\user\Desktop\2\mzycBetterMTR-Forge-1.18.2\src\main\java\smooth\lift\client\WrappingEditBox.java:130: error: ca
+nnot find symbol
+                && mouseY >= getY() && mouseY < getY() + height;
+                                                ^
+  symbol:   method getY()
+  location: class WrappingEditBox
+C:\Users\user\Desktop\2\mzycBetterMTR-Forge-1.18.2\src\main\java\smooth\lift\client\WrappingEditBox.java:196: error: ca
+nnot find symbol
+        int row = top + (int) ((mouseY - (getY() + PAD)) / lineH);
+                                          ^
+  symbol:   method getY()
+  location: class WrappingEditBox
+C:\Users\user\Desktop\2\mzycBetterMTR-Forge-1.18.2\src\main\java\smooth\lift\client\WrappingEditBox.java:200: error: ca
+nnot find symbol
+        String fit = font.plainSubstrByWidth(line, (int) (mouseX - (getX() + PAD)));
+                                                                    ^
+  symbol:   method getX()
+  location: class WrappingEditBox
+C:\Users\user\Desktop\2\mzycBetterMTR-Forge-1.18.2\src\main\java\smooth\lift\client\TrainAnnounceSubtitle.java:290: err
+or: incompatible types: invalid method reference
+        HudRenderCallback.EVENT.register(TrainAnnounceSubtitle::render);
+                                         ^
+    incompatible types: PoseStack cannot be converted to GuiGraphics
+C:\Users\user\Desktop\2\mzycBetterMTR-Forge-1.18.2\src\main\java\smooth\lift\client\ZhajiChimePlayer.java:126: error: c
+annot find symbol
+        BlockPos pos = BlockPos.containing(instance.getX(), instance.getY(), instance.getZ());
+                               ^
+  symbol:   method containing(double,double,double)
+  location: class BlockPos
+C:\Users\user\Desktop\2\mzycBetterMTR-Forge-1.18.2\src\main\java\smooth\lift\client\ZhajiChimePlayer.java:282: error: i
+ncompatible types: ConstantFloat cannot be converted to float
+            Sound s = new Sound(name.toString(), ConstantFloat.of(1.0F), ConstantFloat.of(1.0F),
+                                                                 ^
+C:\Users\user\Desktop\2\mzycBetterMTR-Forge-1.18.2\src\main\java\smooth\lift\mixin\LivingEntityMixin.java:748: error: c
+annot find symbol
+                || !self.onGround()
+                        ^
+  symbol:   method onGround()
+  location: variable self of type LivingEntity
+C:\Users\user\Desktop\2\mzycBetterMTR-Forge-1.18.2\src\main\java\smooth\lift\mixin\LivingEntityMixin.java:934: error: c
+annot find symbol
+        self.walkAnimation.update(Math.min(4.0F * selfLen, 1.0F), 0.4F);
+            ^
+  symbol:   variable walkAnimation
+  location: variable self of type LivingEntity
+C:\Users\user\Desktop\2\mzycBetterMTR-Forge-1.18.2\src\main\java\smooth\lift\PictureBlocks.java:59: error: incompatible
+ types: Block cannot be converted to ItemStack
+                entries.accept(PIC_TL);
+                               ^
+C:\Users\user\Desktop\2\mzycBetterMTR-Forge-1.18.2\src\main\java\smooth\lift\PictureBlocks.java:60: error: incompatible
+ types: Block cannot be converted to ItemStack
+                entries.accept(PIC_TR);
+                               ^
+C:\Users\user\Desktop\2\mzycBetterMTR-Forge-1.18.2\src\main\java\smooth\lift\PictureBlocks.java:61: error: incompatible
+ types: Block cannot be converted to ItemStack
+                entries.accept(PIC_BL);
+                               ^
+C:\Users\user\Desktop\2\mzycBetterMTR-Forge-1.18.2\src\main\java\smooth\lift\PictureBlocks.java:62: error: incompatible
+ types: Block cannot be converted to ItemStack
+                entries.accept(PIC_BR);
+                               ^
+C:\Users\user\Desktop\2\mzycBetterMTR-Forge-1.18.2\src\main\java\smooth\lift\PictureBlocks.java:63: error: incompatible
+ types: Block cannot be converted to ItemStack
+                entries.accept(FLAT_TL);
+                               ^
+C:\Users\user\Desktop\2\mzycBetterMTR-Forge-1.18.2\src\main\java\smooth\lift\PictureBlocks.java:64: error: incompatible
+ types: Block cannot be converted to ItemStack
+                entries.accept(FLAT_TR);
+                               ^
+C:\Users\user\Desktop\2\mzycBetterMTR-Forge-1.18.2\src\main\java\smooth\lift\PictureBlocks.java:65: error: incompatible
+ types: Block cannot be converted to ItemStack
+                entries.accept(FLAT_BL);
+                               ^
+C:\Users\user\Desktop\2\mzycBetterMTR-Forge-1.18.2\src\main\java\smooth\lift\PictureBlocks.java:66: error: incompatible
+ types: Block cannot be converted to ItemStack
+                entries.accept(FLAT_BR);
+                               ^
+C:\Users\user\Desktop\2\mzycBetterMTR-Forge-1.18.2\src\main\java\smooth\lift\PictureBlocks.java:67: error: incompatible
+ types: Block cannot be converted to ItemStack
+                entries.accept(FLAT_TL_SMALL);
+                               ^
+C:\Users\user\Desktop\2\mzycBetterMTR-Forge-1.18.2\src\main\java\smooth\lift\PictureBlocks.java:68: error: incompatible
+ types: Block cannot be converted to ItemStack
+                entries.accept(FLAT_TR_SMALL);
+                               ^
+C:\Users\user\Desktop\2\mzycBetterMTR-Forge-1.18.2\src\main\java\smooth\lift\PictureBlocks.java:69: error: incompatible
+ types: Block cannot be converted to ItemStack
+                entries.accept(FLAT_BL_SMALL);
+                               ^
+C:\Users\user\Desktop\2\mzycBetterMTR-Forge-1.18.2\src\main\java\smooth\lift\PictureBlocks.java:70: error: incompatible
+ types: Block cannot be converted to ItemStack
+                entries.accept(FLAT_BR_SMALL);
+                               ^
+C:\Users\user\Desktop\2\mzycBetterMTR-Forge-1.18.2\src\main\java\smooth\lift\PictureBlocks.java:78: error: no suitable 
+method found for of(no arguments)
+        return BlockBehaviour.Properties.of().strength(1.5f).requiresCorrectToolForDrops();
+                                        ^
+    method Properties.of(Material) is not applicable
+      (actual and formal argument lists differ in length)
+    method Properties.of(Material,DyeColor) is not applicable
+      (actual and formal argument lists differ in length)
+    method Properties.of(Material,MaterialColor) is not applicable
+      (actual and formal argument lists differ in length)
+    method Properties.of(Material,Function<BlockState,MaterialColor>) is not applicable
+      (actual and formal argument lists differ in length)
+C:\Users\user\Desktop\2\mzycBetterMTR-Forge-1.18.2\src\main\java\smooth\lift\SmoothLift.java:1466: error: incompatible 
+types: Component is not a functional interface
+        source.sendSuccess(
+              ^
+    multiple non-overriding abstract methods found in interface Component
+C:\Users\user\Desktop\2\mzycBetterMTR-Forge-1.18.2\src\main\java\smooth\lift\SmoothLift.java:1480: error: incompatible 
+types: Component is not a functional interface
+            source.sendSuccess(
+                  ^
+    multiple non-overriding abstract methods found in interface Component
+C:\Users\user\Desktop\2\mzycBetterMTR-Forge-1.18.2\src\main\java\smooth\lift\SmoothLift.java:1487: error: incompatible 
+types: Component is not a functional interface
+        source.sendSuccess(
+              ^
+    multiple non-overriding abstract methods found in interface Component
+C:\Users\user\Desktop\2\mzycBetterMTR-Forge-1.18.2\src\main\java\smooth\lift\SmoothLift.java:1500: error: incompatible 
+types: Component is not a functional interface
+        source.sendSuccess(
+              ^
+    multiple non-overriding abstract methods found in interface Component
+C:\Users\user\Desktop\2\mzycBetterMTR-Forge-1.18.2\src\main\java\smooth\lift\SmoothLift.java:1516: error: incompatible 
+types: Component is not a functional interface
+            source.sendSuccess(
+                  ^
+    multiple non-overriding abstract methods found in interface Component
+C:\Users\user\Desktop\2\mzycBetterMTR-Forge-1.18.2\src\main\java\smooth\lift\SmoothLift.java:1521: error: incompatible 
+types: Component is not a functional interface
+        source.sendSuccess(
+              ^
+    multiple non-overriding abstract methods found in interface Component
+C:\Users\user\Desktop\2\mzycBetterMTR-Forge-1.18.2\src\main\java\smooth\lift\SmoothLift.java:1572: error: incompatible 
+types: Component is not a functional interface
+        source.sendSuccess(
+              ^
+    multiple non-overriding abstract methods found in interface Component
+C:\Users\user\Desktop\2\mzycBetterMTR-Forge-1.18.2\src\main\java\smooth\lift\SmoothLift.java:1586: error: incompatible 
+types: Component is not a functional interface
+            source.sendSuccess(
+                  ^
+    multiple non-overriding abstract methods found in interface Component
+C:\Users\user\Desktop\2\mzycBetterMTR-Forge-1.18.2\src\main\java\smooth\lift\SmoothLift.java:1593: error: incompatible 
+types: Component is not a functional interface
+        source.sendSuccess(
+              ^
+    multiple non-overriding abstract methods found in interface Component
+C:\Users\user\Desktop\2\mzycBetterMTR-Forge-1.18.2\src\main\java\smooth\lift\SmoothLift.java:1606: error: incompatible 
+types: Component is not a functional interface
+        source.sendSuccess(
+              ^
+    multiple non-overriding abstract methods found in interface Component
+C:\Users\user\Desktop\2\mzycBetterMTR-Forge-1.18.2\src\main\java\smooth\lift\SmoothLift.java:1623: error: incompatible 
+types: Component is not a functional interface
+            source.sendSuccess(
+                  ^
+    multiple non-overriding abstract methods found in interface Component
+C:\Users\user\Desktop\2\mzycBetterMTR-Forge-1.18.2\src\main\java\smooth\lift\SmoothLift.java:1628: error: incompatible 
+types: Component is not a functional interface
+        source.sendSuccess(
+              ^
+    multiple non-overriding abstract methods found in interface Component
+C:\Users\user\Desktop\2\mzycBetterMTR-Forge-1.18.2\src\main\java\smooth\lift\SmoothLift.java:5119: error: cannot find s
+ymbol
+            player.getServer().getCommands().performPrefixedCommand(base, command);
+                                            ^
+  symbol:   method performPrefixedCommand(CommandSourceStack,String)
+  location: class Commands
+Note: Some input files use or override a deprecated API.
+Note: Recompile with -Xlint:deprecation for details.
+Note: Some messages have been simplified; recompile with -Xdiags:verbose to get full output
+80 errors
+8 warnings
+
+> Task :compileJava FAILED
+
+Deprecated Gradle features were used in this build, making it incompatible with Gradle 9.0.
+
+
+FAILURE: Build failed with an exception.
+
+* What went wrong:
+Execution failed for task ':compileJava'.
+> Compilation failed; see the compiler error output for details.
+
+* Try:
+> Run with --info option to get more log output.
+> Run with --scan to get full insights.
+You can use '--warning-mode all' to show the individual deprecation warnings and determine if they come from your own scripts or plugins.
+
+For more on this, please refer to https://docs.gradle.org/8.8/userguide/command_line_interface.html#sec:command_line_warnings in the Gradle documentation.
+
+BUILD FAILED in 19s
+4 actionable tasks: 2 executed, 2 up-to-date
