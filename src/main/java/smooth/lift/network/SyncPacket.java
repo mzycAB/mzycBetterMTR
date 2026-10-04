@@ -1,90 +1,68 @@
 package smooth.lift.network;
 
+import io.netty.buffer.Unpooled;
 import net.minecraft.core.BlockPos;
 import net.minecraft.network.FriendlyByteBuf;
+import net.minecraft.resources.ResourceKey;
+import net.minecraft.world.level.Level;
 import net.minecraftforge.network.NetworkDirection;
 import net.minecraftforge.network.NetworkEvent;
+import smooth.lift.EscalatorSpeedData;
 import smooth.lift.EscalatorSpeedManager;
 
-import java.util.ArrayList;
 import java.util.HashMap;
-import java.util.List;
 import java.util.Map;
 import java.util.function.Supplier;
 
-/** 服务端 -> 客户端：全量同步所有维度的扶梯速度与阶梯动画数据。 */
+/**
+ * 【Forge 移植 / 1.29】服务端 -> 客户端同步包(裸负载):负载由
+ * {@code EscalatorSpeedManager.buildSyncPacket} 写出,与 Fabric 侧逐字节一致;
+ * 本类 handle 按 Fabric 版客户端接收器的读序解析。
+ */
 public class SyncPacket {
-    public record LevelSpeedData(String dimension, double defaultSpeed,
-                                 boolean stepEnabled, double stepValue,
-                                 Map<BlockPos, Double> speeds, Map<BlockPos, Double> stepSpeeds) {
-    }
+    private final byte[] body;
 
-    private final List<LevelSpeedData> entries;
-
-    public SyncPacket(List<LevelSpeedData> entries) {
-        this.entries = entries;
+    public SyncPacket(byte[] body) {
+        this.body = body;
     }
 
     public static void encode(SyncPacket pkt, FriendlyByteBuf buf) {
-        buf.writeVarInt(pkt.entries.size());
-        for (LevelSpeedData entry : pkt.entries) {
-            buf.writeUtf(entry.dimension(), 256);
-            buf.writeDouble(entry.defaultSpeed());
-            buf.writeBoolean(entry.stepEnabled());
-            buf.writeDouble(entry.stepValue());
-            buf.writeVarInt(entry.speeds().size());
-            for (Map.Entry<BlockPos, Double> e : entry.speeds().entrySet()) {
-                buf.writeBlockPos(e.getKey());
-                buf.writeDouble(e.getValue());
-            }
-            buf.writeVarInt(entry.stepSpeeds().size());
-            for (Map.Entry<BlockPos, Double> e : entry.stepSpeeds().entrySet()) {
-                buf.writeBlockPos(e.getKey());
-                buf.writeDouble(e.getValue());
-            }
-        }
+        buf.writeByteArray(pkt.body);
     }
 
     public static SyncPacket decode(FriendlyByteBuf buf) {
-        int dimCount = buf.readVarInt();
-        List<LevelSpeedData> entries = new ArrayList<>();
-        for (int i = 0; i < dimCount; i++) {
-            String dimension = buf.readUtf(256);
-            double defaultSpeed = buf.readDouble();
-            boolean stepEnabled = buf.readBoolean();
-            double stepValue = buf.readDouble();
-            int entryCount = buf.readVarInt();
-            Map<BlockPos, Double> speeds = new HashMap<>();
-            for (int j = 0; j < entryCount; j++) {
-                speeds.put(buf.readBlockPos(), buf.readDouble());
-            }
-            int stepCount = buf.readVarInt();
-            Map<BlockPos, Double> stepSpeeds = new HashMap<>();
-            for (int j = 0; j < stepCount; j++) {
-                stepSpeeds.put(buf.readBlockPos(), buf.readDouble());
-            }
-            entries.add(new LevelSpeedData(dimension, defaultSpeed, stepEnabled, stepValue, speeds, stepSpeeds));
-        }
-        return new SyncPacket(entries);
+        return new SyncPacket(buf.readByteArray());
     }
 
-    public static void handle(SyncPacket pkt, Supplier<NetworkEvent.Context> ctx) {
-        NetworkEvent.Context context = ctx.get();
+    public static void handle(SyncPacket pkt, Supplier<NetworkEvent.Context> ctxSupplier) {
+        NetworkEvent.Context context = ctxSupplier.get();
         if (context.getDirection() != NetworkDirection.PLAY_TO_CLIENT) {
             context.setPacketHandled(true);
             return;
         }
         context.enqueueWork(() -> {
-            for (LevelSpeedData entry : pkt.entries) {
+            FriendlyByteBuf data = new FriendlyByteBuf(Unpooled.wrappedBuffer(pkt.body));
+
+            int dimCount = data.readVarInt();
+            for (int i = 0; i < dimCount; i++) {
+                String dimId = data.readUtf(256);
+                double defaultSpeed = data.readDouble();
+                boolean stepEnabled = data.readBoolean();
+                double stepValue = data.readDouble();
+                int speedCount = data.readVarInt();
+                Map<BlockPos, Double> speeds = new HashMap<>();
+                for (int j = 0; j < speedCount; j++) {
+                    speeds.put(data.readBlockPos(), data.readDouble());
+                }
+                int stepCount = data.readVarInt();
+                Map<BlockPos, Double> stepSpeeds = new HashMap<>();
+                for (int j = 0; j < stepCount; j++) {
+                    stepSpeeds.put(data.readBlockPos(), data.readDouble());
+                }
                 try {
-                    EscalatorSpeedManager.applyClientData(
-                            EscalatorSpeedManager.parseDimensionKey(entry.dimension()),
-                            entry.defaultSpeed(),
-                            entry.speeds(),
-                            entry.stepSpeeds(),
-                            entry.stepEnabled(),
-                            entry.stepValue()
-                    );
+                    ResourceKey<Level> dimKey = EscalatorSpeedManager.parseDimensionKey(dimId);
+                    EscalatorSpeedManager.applyClientData(dimKey, defaultSpeed, speeds, stepSpeeds,
+                            stepEnabled, stepValue);
                 } catch (Exception ignored) {
                 }
             }

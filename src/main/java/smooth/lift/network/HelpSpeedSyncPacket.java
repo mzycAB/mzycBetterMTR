@@ -1,13 +1,13 @@
 package smooth.lift.network;
 
+import io.netty.buffer.Unpooled;
 import net.minecraft.core.BlockPos;
-import net.minecraft.core.registries.Registries;
 import net.minecraft.network.FriendlyByteBuf;
 import net.minecraft.resources.ResourceKey;
-import net.minecraft.resources.ResourceLocation;
 import net.minecraft.world.level.Level;
 import net.minecraftforge.network.NetworkDirection;
 import net.minecraftforge.network.NetworkEvent;
+import smooth.lift.EscalatorSpeedData;
 import smooth.lift.EscalatorSpeedManager;
 
 import java.util.HashMap;
@@ -15,78 +15,52 @@ import java.util.Map;
 import java.util.function.Supplier;
 
 /**
- * 【1.31】服务端 -> 客户端：同步「无障碍提示音的**速率**」（Hz）——进 / 出两套。
- *
- * <p>形状与 {@link VolumeSyncPacket} 一致，只是**一次带两张表**：
- * 上客端（进入扶梯）与落客端（离开扶梯）总是由同一条指令一起改、一起同步，
- * 所以合成一只包（少一次建包/发送，客户端也少一次覆盖）。
- *
- * <p>速率本身很小（一个整数），所以这是**小包**；音频字节完全不经过它。
+ * 【Forge 移植 / 1.29】服务端 -> 客户端同步包(裸负载):负载由
+ * {@code EscalatorSpeedManager.buildHelpSpeedPacket} 写出,与 Fabric 侧逐字节一致;
+ * 本类 handle 按 Fabric 版客户端接收器的读序解析。
  */
 public class HelpSpeedSyncPacket {
-    private final String dimension;
-    private final int defaultIn;
-    private final Map<BlockPos, Integer> speedsIn;
-    private final int defaultOut;
-    private final Map<BlockPos, Integer> speedsOut;
+    private final byte[] body;
 
-    public HelpSpeedSyncPacket(String dimension, int defaultIn, Map<BlockPos, Integer> speedsIn,
-                               int defaultOut, Map<BlockPos, Integer> speedsOut) {
-        this.dimension = dimension;
-        this.defaultIn = defaultIn;
-        this.speedsIn = speedsIn;
-        this.defaultOut = defaultOut;
-        this.speedsOut = speedsOut;
+    public HelpSpeedSyncPacket(byte[] body) {
+        this.body = body;
     }
 
     public static void encode(HelpSpeedSyncPacket pkt, FriendlyByteBuf buf) {
-        buf.writeUtf(pkt.dimension, 256);
-        buf.writeVarInt(pkt.defaultIn);
-        buf.writeVarInt(pkt.speedsIn.size());
-        for (Map.Entry<BlockPos, Integer> entry : pkt.speedsIn.entrySet()) {
-            buf.writeBlockPos(entry.getKey());
-            buf.writeVarInt(entry.getValue());
-        }
-        buf.writeVarInt(pkt.defaultOut);
-        buf.writeVarInt(pkt.speedsOut.size());
-        for (Map.Entry<BlockPos, Integer> entry : pkt.speedsOut.entrySet()) {
-            buf.writeBlockPos(entry.getKey());
-            buf.writeVarInt(entry.getValue());
-        }
+        buf.writeByteArray(pkt.body);
     }
 
     public static HelpSpeedSyncPacket decode(FriendlyByteBuf buf) {
-        String dimension = buf.readUtf(256);
-        int defaultIn = buf.readVarInt();
-        int countIn = buf.readVarInt();
-        Map<BlockPos, Integer> speedsIn = new HashMap<>();
-        for (int i = 0; i < countIn; i++) {
-            speedsIn.put(buf.readBlockPos(), buf.readVarInt());
-        }
-        int defaultOut = buf.readVarInt();
-        int countOut = buf.readVarInt();
-        Map<BlockPos, Integer> speedsOut = new HashMap<>();
-        for (int i = 0; i < countOut; i++) {
-            speedsOut.put(buf.readBlockPos(), buf.readVarInt());
-        }
-        return new HelpSpeedSyncPacket(dimension, defaultIn, speedsIn, defaultOut, speedsOut);
+        return new HelpSpeedSyncPacket(buf.readByteArray());
     }
 
-    public static void handle(HelpSpeedSyncPacket pkt, Supplier<NetworkEvent.Context> ctx) {
-        NetworkEvent.Context context = ctx.get();
+    public static void handle(HelpSpeedSyncPacket pkt, Supplier<NetworkEvent.Context> ctxSupplier) {
+        NetworkEvent.Context context = ctxSupplier.get();
         if (context.getDirection() != NetworkDirection.PLAY_TO_CLIENT) {
             context.setPacketHandled(true);
             return;
         }
         context.enqueueWork(() -> {
-            final ResourceKey<Level> dimKey;
-            try {
-                dimKey = ResourceKey.create(Registries.DIMENSION, new ResourceLocation(pkt.dimension));
-            } catch (Exception e) {
-                return;
+            FriendlyByteBuf data = new FriendlyByteBuf(Unpooled.wrappedBuffer(pkt.body));
+
+            String dimId = data.readUtf(256);
+            int defaultIn = data.readVarInt();
+            int countIn = data.readVarInt();
+            Map<BlockPos, Integer> blockIn = new HashMap<>();
+            for (int i = 0; i < countIn; i++) {
+                blockIn.put(data.readBlockPos(), data.readVarInt());
             }
-            EscalatorSpeedManager.applyClientHelpSpeeds(dimKey, pkt.defaultIn, pkt.speedsIn,
-                    pkt.defaultOut, pkt.speedsOut);
+            int defaultOut = data.readVarInt();
+            int countOut = data.readVarInt();
+            Map<BlockPos, Integer> blockOut = new HashMap<>();
+            for (int i = 0; i < countOut; i++) {
+                blockOut.put(data.readBlockPos(), data.readVarInt());
+            }
+            try {
+                ResourceKey<Level> dimKey = EscalatorSpeedManager.parseDimensionKey(dimId);
+                EscalatorSpeedManager.applyClientHelpSpeeds(dimKey, defaultIn, blockIn, defaultOut, blockOut);
+            } catch (Exception ignored) {
+            }
         });
         context.setPacketHandled(true);
     }

@@ -1,95 +1,38 @@
 package smooth.lift.network;
 
+import io.netty.buffer.Unpooled;
+import net.minecraft.core.BlockPos;
 import net.minecraft.network.FriendlyByteBuf;
 import net.minecraft.resources.ResourceKey;
 import net.minecraft.world.level.Level;
 import net.minecraftforge.network.NetworkDirection;
 import net.minecraftforge.network.NetworkEvent;
+import smooth.lift.EscalatorSpeedData;
 import smooth.lift.EscalatorSpeedManager;
+import smooth.lift.client.TrainAnnounceSwitch;
 
+import java.util.HashMap;
+import java.util.Map;
 import java.util.function.Supplier;
 
 /**
- * 【1.50】服务端 -> 客户端：一个维度的屏蔽门提示音设置。
- * buf 顺序与 fabric 版 {@code buildPsdChimePacket} 的写序逐格一致。
+ * 【Forge 移植 / 1.29】服务端 -> 客户端同步包(裸负载):负载由
+ * {@code EscalatorSpeedManager.buildPsdChimePacket} 写出,与 Fabric 侧逐字节一致;
+ * 本类 handle 按 Fabric 版客户端接收器的读序解析。
  */
 public class PsdChimeSyncPacket {
-    private final String dimId;
-    private final boolean enabled;
-    private final int volume;
-    private final boolean openEnabled;
-    private final boolean closeEnabled;
-    private final int round;
-    private final int toneVolumeOpen;
-    private final int toneVolumeClose;
-    private final String toneAudioOpen;
-    private final String toneAudioClose;
-    private final int closeWaitSeconds;
-    private final String midiumAudio;
-    private final int midiumWaitSeconds;
-    private final String arriveAudio;
-    private final int arriveSeconds;
-    private final int midiumVolume;
-    private final int arriveVolume;
-    private final int midiumRound;
-    private final int arriveRound;
+    private final byte[] body;
 
-    public PsdChimeSyncPacket(String dimId, boolean enabled, int volume, boolean openEnabled,
-                              boolean closeEnabled, int round, int toneVolumeOpen, int toneVolumeClose,
-                              String toneAudioOpen, String toneAudioClose, int closeWaitSeconds,
-                              String midiumAudio, int midiumWaitSeconds, String arriveAudio,
-                              int arriveSeconds, int midiumVolume, int arriveVolume,
-                              int midiumRound, int arriveRound) {
-        this.dimId = dimId;
-        this.enabled = enabled;
-        this.volume = volume;
-        this.openEnabled = openEnabled;
-        this.closeEnabled = closeEnabled;
-        this.round = round;
-        this.toneVolumeOpen = toneVolumeOpen;
-        this.toneVolumeClose = toneVolumeClose;
-        this.toneAudioOpen = toneAudioOpen;
-        this.toneAudioClose = toneAudioClose;
-        this.closeWaitSeconds = closeWaitSeconds;
-        this.midiumAudio = midiumAudio;
-        this.midiumWaitSeconds = midiumWaitSeconds;
-        this.arriveAudio = arriveAudio;
-        this.arriveSeconds = arriveSeconds;
-        this.midiumVolume = midiumVolume;
-        this.arriveVolume = arriveVolume;
-        this.midiumRound = midiumRound;
-        this.arriveRound = arriveRound;
+    public PsdChimeSyncPacket(byte[] body) {
+        this.body = body;
     }
 
     public static void encode(PsdChimeSyncPacket pkt, FriendlyByteBuf buf) {
-        buf.writeUtf(pkt.dimId, 256);
-        buf.writeBoolean(pkt.enabled);
-        buf.writeVarInt(pkt.volume);
-        buf.writeBoolean(pkt.openEnabled);
-        buf.writeBoolean(pkt.closeEnabled);
-        buf.writeVarInt(pkt.round);
-        buf.writeVarInt(pkt.toneVolumeOpen);
-        buf.writeVarInt(pkt.toneVolumeClose);
-        buf.writeUtf(pkt.toneAudioOpen, 128);
-        buf.writeUtf(pkt.toneAudioClose, 128);
-        buf.writeVarInt(pkt.closeWaitSeconds);
-        buf.writeUtf(pkt.midiumAudio, 128);
-        buf.writeVarInt(pkt.midiumWaitSeconds);
-        buf.writeUtf(pkt.arriveAudio, 128);
-        buf.writeVarInt(pkt.arriveSeconds);
-        buf.writeVarInt(pkt.midiumVolume);
-        buf.writeVarInt(pkt.arriveVolume);
-        buf.writeVarInt(pkt.midiumRound);
-        buf.writeVarInt(pkt.arriveRound);
+        buf.writeByteArray(pkt.body);
     }
 
     public static PsdChimeSyncPacket decode(FriendlyByteBuf buf) {
-        return new PsdChimeSyncPacket(
-                buf.readUtf(256), buf.readBoolean(), buf.readVarInt(), buf.readBoolean(),
-                buf.readBoolean(), buf.readVarInt(), buf.readVarInt(), buf.readVarInt(),
-                buf.readUtf(128), buf.readUtf(128), buf.readVarInt(),
-                buf.readUtf(128), buf.readVarInt(), buf.readUtf(128), buf.readVarInt(),
-                buf.readVarInt(), buf.readVarInt(), buf.readVarInt(), buf.readVarInt());
+        return new PsdChimeSyncPacket(buf.readByteArray());
     }
 
     public static void handle(PsdChimeSyncPacket pkt, Supplier<NetworkEvent.Context> ctxSupplier) {
@@ -99,14 +42,49 @@ public class PsdChimeSyncPacket {
             return;
         }
         context.enqueueWork(() -> {
+            FriendlyByteBuf data = new FriendlyByteBuf(Unpooled.wrappedBuffer(pkt.body));
+
+            String dimId = data.readUtf(256);
+            boolean enabled = data.readBoolean();
+            int volume = data.readVarInt();
+            boolean openEnabled = data.readBoolean();
+            boolean closeEnabled = data.readBoolean();
+            int roundXz = data.readVarInt();
+            int roundY = data.readVarInt();
+            int toneVolumeOpen = data.readVarInt();
+            int toneVolumeClose = data.readVarInt();
+            String toneAudioOpen = data.readUtf(128);
+            String toneAudioClose = data.readUtf(128);
+            int closeWaitSeconds = data.readVarInt();
+            String midiumAudio = data.readUtf(128);
+            int midiumWaitSeconds = data.readVarInt();
+            String arriveAudio = data.readUtf(128);
+            int arriveSeconds = data.readVarInt();
+            int midiumVolume = data.readVarInt();
+            int arriveVolume = data.readVarInt();
+            int midiumRoundXz = data.readVarInt();
+            int midiumRoundY = data.readVarInt();
+            int arriveRoundXz = data.readVarInt();
+            int arriveRoundY = data.readVarInt();
+            int narrateMode = data.readVarInt();
+            int narrateSeconds = data.readVarInt();
+            int midiumNarrateMode = data.readVarInt();
+            int midiumNarrateSeconds = data.readVarInt();
+            // 【10-01】两条讲述人广播的玩家自定义文字（末尾追加；写侧同序）→ 客户端讲述人镜像
+            java.util.List<String> arriveNarrateUserTexts = EscalatorSpeedManager.readNarrateUserTexts(data);
+            java.util.List<String> midiumNarrateUserTexts = EscalatorSpeedManager.readNarrateUserTexts(data);
             try {
-                ResourceKey<Level> dimKey = EscalatorSpeedManager.parseDimensionKey(pkt.dimId);
-                EscalatorSpeedManager.applyClientPsdChime(dimKey, pkt.enabled, pkt.volume,
-                        pkt.openEnabled, pkt.closeEnabled, pkt.round,
-                        pkt.toneVolumeOpen, pkt.toneVolumeClose,
-                        pkt.toneAudioOpen, pkt.toneAudioClose, pkt.closeWaitSeconds,
-                        pkt.midiumAudio, pkt.midiumWaitSeconds, pkt.arriveAudio, pkt.arriveSeconds,
-                        pkt.midiumVolume, pkt.arriveVolume, pkt.midiumRound, pkt.arriveRound);
+                ResourceKey<Level> dimKey = EscalatorSpeedManager.parseDimensionKey(dimId);
+                EscalatorSpeedManager.applyClientPsdChime(dimKey, enabled, volume,
+                        openEnabled, closeEnabled, roundXz, roundY,
+                        toneVolumeOpen, toneVolumeClose,
+                        toneAudioOpen, toneAudioClose, closeWaitSeconds,
+                        midiumAudio, midiumWaitSeconds, arriveAudio, arriveSeconds,
+                        midiumVolume, arriveVolume,
+                        midiumRoundXz, midiumRoundY, arriveRoundXz, arriveRoundY,
+                        narrateMode, narrateSeconds, midiumNarrateMode, midiumNarrateSeconds);
+                // 【10-01】两条讲述人广播的按存档自定义文字（镜像进客户端，供叙述/编辑/指令共用）
+                TrainAnnounceSwitch.applyNarrateUserTexts(arriveNarrateUserTexts, midiumNarrateUserTexts);
             } catch (Exception ignored) {
             }
         });

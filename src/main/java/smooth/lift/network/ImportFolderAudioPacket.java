@@ -49,7 +49,7 @@ public class ImportFolderAudioPacket {
             if (!EscalatorUtil.isEscalator(level.getBlockState(pkt.pos))) {
                 return;
             }
-            String problem = EscalatorSpeedManager.importAudioToStore(level, pkt.fileName);
+            String problem = EscalatorSpeedManager.importAudioToStore(level, EscalatorSpeedManager.CAT_FUTI, pkt.fileName);
             if (problem == null) {
                 EscalatorSpeedManager.bindAudio(level, pkt.pos, pkt.fileName);
                 player.displayClientMessage(

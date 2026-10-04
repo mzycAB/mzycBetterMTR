@@ -26,6 +26,12 @@ mixin {
     // 【1.50】屏蔽门（PSD / APG）门值采集的 @Pseudo mixin：同样独立一份配置，
     //   由 PsdDoorMixinPlugin 按目标类是否存在单独门禁（安全跳过）。
     config 'smoothlift.psd.mixins.json'
+    // 【1.27c / 1.29 移植】光照修复四件套(AO 采样 / AO 暂存 / 平顶光照 / 闸机音量):
+    //   vanilla 类的常规 client mixin,独立一份配置。
+    config 'smoothlift.client.mixins.json'
+    // 【1.27c / 1.29 移植】Sodium 光照修复（@Pseudo，Jelly / caffeinemc 两种包名各一份，
+    //   未装 Sodium 时整份配置静默跳过）：独立一份配置。
+    config 'smoothlift.sodium.mixins.json'
 }
 
 repositories {
@@ -65,7 +71,7 @@ jar {
             'Implementation-Title'  : 'SmoothLift',
             'Implementation-Version': project.version,
             'Implementation-Vendor' : 'mzycAB',
-            'MixinConfigs'          : 'smooth_escalator.mixins.json,smoothlift.mtr.mixins.json,smoothlift.psd.mixins.json'
+            'MixinConfigs'          : 'smooth_escalator.mixins.json,smoothlift.client.mixins.json,smoothlift.mtr.mixins.json,smoothlift.psd.mixins.json,smoothlift.sodium.mixins.json'
         ])
     }
 }

@@ -1,82 +1,66 @@
 package smooth.lift.network;
 
-import net.minecraft.core.registries.Registries;
+import io.netty.buffer.Unpooled;
+import net.minecraft.core.BlockPos;
 import net.minecraft.network.FriendlyByteBuf;
 import net.minecraft.resources.ResourceKey;
-import net.minecraft.resources.ResourceLocation;
 import net.minecraft.world.level.Level;
-import net.minecraftforge.api.distmarker.Dist;
-import net.minecraftforge.fml.DistExecutor;
 import net.minecraftforge.network.NetworkDirection;
 import net.minecraftforge.network.NetworkEvent;
 import smooth.lift.EscalatorSpeedData;
 import smooth.lift.EscalatorSpeedManager;
-import smooth.lift.client.LiftToneSetupScreen;
 
 import java.util.HashMap;
 import java.util.Map;
 import java.util.function.Supplier;
 
 /**
- * 【1.45】服务端 -> 客户端：同步**直梯楼层轨道提示音**（竖井列 → up/down/chime 三音频 id）。
- *
- * <p>顺序：{@code dimId → 条数 → (key, up, down, chime) × N}。
- * 只发 id 字符串，音频字节仍走 {@link AudioSyncPacket} 那一份（同一个库）。
+ * 【Forge 移植 / 1.29】服务端 -> 客户端同步包(裸负载):负载由
+ * {@code EscalatorSpeedManager.buildLiftTonePacket} 写出,与 Fabric 侧逐字节一致;
+ * 本类 handle 按 Fabric 版客户端接收器的读序解析。
  */
 public class LiftToneSyncPacket {
-    private final String dimension;
-    private final Map<Long, EscalatorSpeedData.LiftToneAudio> tones;
+    private final byte[] body;
 
-    public LiftToneSyncPacket(String dimension, Map<Long, EscalatorSpeedData.LiftToneAudio> tones) {
-        this.dimension = dimension;
-        this.tones = tones;
+    public LiftToneSyncPacket(byte[] body) {
+        this.body = body;
     }
 
     public static void encode(LiftToneSyncPacket pkt, FriendlyByteBuf buf) {
-        buf.writeUtf(pkt.dimension, 256);
-        buf.writeVarInt(pkt.tones.size());
-        for (Map.Entry<Long, EscalatorSpeedData.LiftToneAudio> entry : pkt.tones.entrySet()) {
-            buf.writeLong(entry.getKey());
-            EscalatorSpeedData.LiftToneAudio v = entry.getValue();
-            buf.writeUtf(v.up(), 128);
-            buf.writeUtf(v.down(), 128);
-            buf.writeUtf(v.chime(), 128);
-        }
+        buf.writeByteArray(pkt.body);
     }
 
     public static LiftToneSyncPacket decode(FriendlyByteBuf buf) {
-        String dimension = buf.readUtf(256);
-        int n = buf.readVarInt();
-        Map<Long, EscalatorSpeedData.LiftToneAudio> tones = new HashMap<>();
-        for (int i = 0; i < n; i++) {
-            long key = buf.readLong();
-            String up = buf.readUtf(128);
-            String down = buf.readUtf(128);
-            String chime = buf.readUtf(128);
-            tones.put(key, new EscalatorSpeedData.LiftToneAudio(up, down, chime));
-        }
-        return new LiftToneSyncPacket(dimension, tones);
+        return new LiftToneSyncPacket(buf.readByteArray());
     }
 
-    public static void handle(LiftToneSyncPacket pkt, Supplier<NetworkEvent.Context> ctx) {
-        NetworkEvent.Context context = ctx.get();
+    public static void handle(LiftToneSyncPacket pkt, Supplier<NetworkEvent.Context> ctxSupplier) {
+        NetworkEvent.Context context = ctxSupplier.get();
         if (context.getDirection() != NetworkDirection.PLAY_TO_CLIENT) {
             context.setPacketHandled(true);
             return;
         }
-        final String dimension = pkt.dimension;
-        final Map<Long, EscalatorSpeedData.LiftToneAudio> tones = pkt.tones;
-        context.enqueueWork(() -> DistExecutor.unsafeRunWhenOn(Dist.CLIENT, () -> () -> {
-            final ResourceKey<Level> dimKey;
-            try {
-                dimKey = ResourceKey.create(Registries.DIMENSION, new ResourceLocation(dimension));
-            } catch (Exception e) {
-                return;
+        context.enqueueWork(() -> {
+            FriendlyByteBuf data = new FriendlyByteBuf(Unpooled.wrappedBuffer(pkt.body));
+
+            String dimId = data.readUtf(256);
+            int n = data.readVarInt();
+            Map<Long, EscalatorSpeedData.LiftToneAudio> tones = new HashMap<>();
+            for (int i = 0; i < n; i++) {
+                long key = data.readLong();
+                String up = data.readUtf(128);
+                String down = data.readUtf(128);
+                String open = data.readUtf(128);
+                String close = data.readUtf(128);
+                tones.put(key, new EscalatorSpeedData.LiftToneAudio(up, down, open, close));
             }
-            EscalatorSpeedManager.applyClientLiftTone(dimKey, tones);
-            // 界面开着的时候实时刷新（与 Fabric 版 client.execute 里的行为一致）。
-            LiftToneSetupScreen.notifyToneDataChanged();
-        }));
+            try {
+                ResourceKey<Level> dimKey = EscalatorSpeedManager.parseDimensionKey(dimId);
+                EscalatorSpeedManager.applyClientLiftTone(dimKey, tones);
+                smooth.lift.client.LiftToneSetupScreen.notifyToneDataChanged();
+            } catch (Exception ignored) {
+            }
+        });
         context.setPacketHandled(true);
     }
 }

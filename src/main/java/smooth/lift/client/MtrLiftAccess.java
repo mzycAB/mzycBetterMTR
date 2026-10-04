@@ -8,6 +8,7 @@ import java.lang.reflect.Field;
 import java.lang.reflect.Method;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.function.Consumer;
 
 /**
  * 【1.42】MTR 直梯（Lift）的**只读**跨版本访问层。
@@ -108,14 +109,38 @@ public final class MtrLiftAccess {
     }
 
     /**
+     * 【1.52】一条直梯**真实轿厢**的几何
+     * （= MTR「直梯自定义」界面里那组「高度 / 宽度 / 深度 + 偏移」，两个版本都读得到）。
+     *
+     * <p>坐标已经换算成**世界坐标**：{@code centerX/centerZ} = 楼层方块位置 + offsetX/Z
+     * ⇒ 这是轿厢的**水平中心**，不是楼层方块的那个角（旧版拿方块角当圆心，等于把「轿厢」
+     * 画歪了半个厢体）。{@code baseY} = 楼层方块 y + offsetY，即轿厢底面。
+     *
+     * <p>{@code spacing} = 这条直梯**相邻楼层的最小竖直间距**，它是「行进中基准能偏多少」的上界：
+     * {@code getCurrentFloor()} 取的是 {@code railProgress} 所在那一段的**较近一端**
+     * （javap 实测 {@code lambda$getCurrentFloor$3}：{@code floors.get(idx - (p < 0.5 ? 1 : 0))}），
+     * 所以基准最多偏**一整段**。竖直判定必须留出这个容差，否则会把**正在乘坐的乘客**误判成
+     * 轿厢外、让「准备向上/向下」那声在行进途中一路淡下去（那比原来的病更难听）。
+     * 拿不到楼层表时为 0 ⇒ 调用方看到 0 就**不做**竖直判定（只按水平盒判）。
+     *
+     * <p>{@code null} = 反射读不到几何（MTR 改了名 / 只有一层楼）⇒ 调用方回落到旧的
+     * 「以楼层方块为心、半径 1.5 格的圆」。**这是可选的增强，读不到不许把功能弄哑。**
+     */
+    public record Cabin(double centerX, double centerZ, double baseY,
+                        double halfWidth, double halfDepth, double height, double spacing) {
+    }
+
+    /**
      * 一条直梯的只读快照。
      *
      * @param id           直梯 ID（同一代之间稳定，用来跨 tick 认出「还是那条直梯」）
      * @param x/y/z        车门那一端的世界坐标（MTR3 = 轿厢位置；MTR4 = 轿厢最近的那个楼层）
      * @param doorFraction 门开合程度：0 = 全关，1 = 全开（已按本版本的全开值归一化）
      * @param move         【1.44】当前打算走的方向（NONE = 停着待命）
+     * @param cabin        【1.52】真实轿厢几何；{@code null} = 读不到（提示音回落旧的 1.5 格圆）
      */
-    public record LiftView(long id, double x, double y, double z, float doorFraction, Move move) {
+    public record LiftView(long id, double x, double y, double z, float doorFraction, Move move,
+                           Cabin cabin) {
     }
 
     // ------------------------------------------------------------------
@@ -167,8 +192,106 @@ public final class MtrLiftAccess {
     private static Method mtr4PosGetY;
     private static Method mtr4PosGetZ;
 
+    // ------------------------------------------------------------------
+    // 【1.52】真实轿厢几何（**可选增强**：读不到只让提示音回落旧的 1.5 格圆，绝不 throw）
+    // ------------------------------------------------------------------
+
+    /** MTR3：{@code mtr.data.Lift} 上的 6 个 **public 字段**（不是 getter，javap 实测）。 */
+    private static Field mtr3LiftWidth;
+    private static Field mtr3LiftDepth;
+    private static Field mtr3LiftHeight;
+    private static Field mtr3LiftOffsetX;
+    private static Field mtr3LiftOffsetY;
+    private static Field mtr3LiftOffsetZ;
+    /** MTR3：{@code protected final java.util.List<BlockPos> floors}（没有公开遍历方法，只能拿字段）。 */
+    private static Field mtr3FloorsField;
+    /** MTR3：{@code net.minecraft.core.BlockPos.getY()}（楼层 y 要从 BlockPos 上取）。 */
+    private static Method mtr3BlockPosGetY;
+
+    /** MTR4：{@code org.mtr.core.data.Lift} 上的 6 个公开 getter。 */
+    private static Method mtr4GetWidth;
+    private static Method mtr4GetDepth;
+    private static Method mtr4GetHeight;
+    private static Method mtr4GetOffsetX;
+    private static Method mtr4GetOffsetY;
+    private static Method mtr4GetOffsetZ;
+    /** MTR4：{@code iterateFloors(Consumer<LiftFloor>)} —— MTR4 只给遍历、不给列表本身。 */
+    private static Method mtr4IterateFloors;
+
+    /** 收集一条直梯的全部楼层 y（**复用一份实例**，避免每 tick 分配）。只在渲染线程上跑。 */
+    private static final FloorYs FLOOR_YS = new FloorYs();
+
+    /** 【1.52】轿厢几何是否绑齐。缺 → 提示音回落旧的 1.5 格圆（只诊断一次）。 */
+    private static boolean cabinGeometryOk;
+
     /** 反射链路出问题时只打一条日志，之后彻底静默（避免每 tick 刷屏）。 */
     private static boolean broken;
+
+    /**
+     * 【1.52】楼层 y 收集器 —— 同时服务两个版本的两条不同路径：
+     * MTR4 是「回调式」（{@link #mtr4IterateFloors} 把每个 {@code LiftFloor} 喂给 {@link #accept}），
+     * MTR3 是「列表式」（拿到 {@code List<BlockPos>} 后自己遍历、直接 {@link #add}）。
+     *
+     * <p>用一份可复用的实例而不是每 tick new 一个 lambda，是因为这东西**每帧每条直梯都要用**。
+     * 只在渲染线程（客户端 tick）上访问，无并发问题。
+     */
+    private static final class FloorYs implements Consumer<Object> {
+        private final double[] ys = new double[64];
+        private int count;
+        /** {@code accept} 里要用到的两个取值方法，见 {@link #begin}。 */
+        private Method positionGetter;
+        private Method yGetter;
+
+        void reset() {
+            count = 0;
+        }
+
+        /** MTR4 用：告诉 {@code accept} 怎么从一个 {@code LiftFloor} 上取出 y。 */
+        void begin(Method positionGetter, Method yGetter) {
+            this.positionGetter = positionGetter;
+            this.yGetter = yGetter;
+            this.count = 0;
+        }
+
+        void add(double y) {
+            if (count < ys.length && !Double.isNaN(y)) {
+                ys[count++] = y;
+            }
+        }
+
+        @Override
+        public void accept(Object floor) {
+            if (floor == null || positionGetter == null || yGetter == null) {
+                return;
+            }
+            try {
+                Object position = positionGetter.invoke(floor);
+                if (position != null) {
+                    add(((Number) yGetter.invoke(position)).doubleValue());
+                }
+            } catch (Throwable ignored) {
+                // 单个楼层读失败就跳过它 —— 少一层只影响容差，不影响功能
+            }
+        }
+
+        /**
+         * 相邻楼层的**最小**竖直间距；不足两层 / 全读失败 → 0（调用方据此**不做**竖直判定）。
+         *
+         * <p>不排序、直接 O(n²) 取最小非零差：层数是个位数，省掉每 tick 的一次数组拷贝。
+         */
+        double spacing() {
+            double best = Double.MAX_VALUE;
+            for (int i = 0; i < count; i++) {
+                for (int j = i + 1; j < count; j++) {
+                    double d = Math.abs(ys[i] - ys[j]);
+                    if (d > 1.0e-6 && d < best) {
+                        best = d;
+                    }
+                }
+            }
+            return best == Double.MAX_VALUE ? 0.0 : best;
+        }
+    }
 
     private MtrLiftAccess() {
     }
@@ -288,6 +411,11 @@ public final class MtrLiftAccess {
         //   「fraction 离开 1.0」正好等于「门开始可见地关」、「fraction 离开 0」正好等于「门开始
         //   可见地开」，与 MTR4 的 getDoorValue()（本来就是可见开合度 0..1）**语义对齐**。
         mtr3DoorFull = 24.0f;
+
+        // 【1.52】轿厢几何 + 楼层表：**可选增强**，读不到只 WARN 一次
+        //   （提示音回落旧的 1.5 格圆），绝不让它把整个直梯功能弄哑。
+        //   ★ 这里不能像上面几项那样 throw —— `bindMtr3` 抛异常 = broken = 提示音**全部静音**。
+        bindCabinGeometry(true);
     }
 
     private static void bindMtr4() throws Exception {
@@ -329,6 +457,57 @@ public final class MtrLiftAccess {
         if (mtr4FloorGetPosition == null || mtr4PosGetX == null || mtr4PosGetY == null
                 || mtr4PosGetZ == null) {
             throw new NoSuchMethodException("LiftFloor.getPosition/Position.getX/Y/Z");
+        }
+
+        // 【1.52】轿厢几何 + 楼层遍历：同上，**可选增强**，失败只 WARN。
+        bindCabinGeometry(false);
+    }
+
+    /**
+     * 【1.52】绑「真实轿厢几何」。
+     *
+     * <p><b>全部成员都是可缺的</b>：任一项拿不到就 {@link #cabinGeometryOk} = false，
+     * 快照里 {@code cabin} 给 {@code null}，提示音自动回落旧的「以楼层方块为心、半径 1.5 格的圆」。
+     * 因此这里**一律不 throw**（throw 会把 {@code broken} 置位、把提示音全弄哑，得不偿失）。
+     */
+    private static void bindCabinGeometry(boolean mtr3) {
+        try {
+            if (mtr3) {
+                Class<?> lift = Class.forName("mtr.data.Lift");
+                // MTR3 这六个是 **public int 字段**（没有 getter，javap 实测）。
+                mtr3LiftWidth = fieldInHierarchy(lift, "liftWidth");
+                mtr3LiftDepth = fieldInHierarchy(lift, "liftDepth");
+                mtr3LiftHeight = fieldInHierarchy(lift, "liftHeight");
+                mtr3LiftOffsetX = fieldInHierarchy(lift, "liftOffsetX");
+                mtr3LiftOffsetY = fieldInHierarchy(lift, "liftOffsetY");
+                mtr3LiftOffsetZ = fieldInHierarchy(lift, "liftOffsetZ");
+                // 楼层表是 protected 字段（MTR3 没有 iterateFloors）；楼层 y 要从 BlockPos 上取。
+                mtr3FloorsField = fieldInHierarchy(lift, "floors");
+                mtr3BlockPosGetY = method(Class.forName("net.minecraft.core.BlockPos"), "getY");
+                cabinGeometryOk = mtr3LiftWidth != null && mtr3LiftDepth != null
+                        && mtr3LiftHeight != null && mtr3LiftOffsetX != null
+                        && mtr3LiftOffsetZ != null;
+            } else {
+                Class<?> lift = Class.forName("org.mtr.core.data.Lift");
+                mtr4GetWidth = method(lift, "getWidth");
+                mtr4GetDepth = method(lift, "getDepth");
+                mtr4GetHeight = method(lift, "getHeight");
+                mtr4GetOffsetX = method(lift, "getOffsetX");
+                mtr4GetOffsetY = method(lift, "getOffsetY");
+                mtr4GetOffsetZ = method(lift, "getOffsetZ");
+                // MTR4 只给「遍历」不给列表：iterateFloors(Consumer<LiftFloor>)。
+                mtr4IterateFloors = method(lift, "iterateFloors", Consumer.class);
+                cabinGeometryOk = mtr4GetWidth != null && mtr4GetDepth != null
+                        && mtr4GetHeight != null && mtr4GetOffsetX != null
+                        && mtr4GetOffsetZ != null;
+            }
+        } catch (Throwable t) {
+            cabinGeometryOk = false;
+        }
+        if (!cabinGeometryOk) {
+            LOGGER.warn("[SmoothLift/LiftChime] 读不到 MTR 的轿厢尺寸（{}）⇒ 直梯提示音"
+                    + "「在不在轿厢里」的判定回落旧的 1.5 格圆：宽轿厢里走动时音量仍可能一跳一跳。"
+                    + "开关门 / 向上向下提示音本身不受影响", mtr3 ? "MTR3" : "MTR4");
         }
     }
 
@@ -443,15 +622,70 @@ public final class MtrLiftAccess {
             }
             Object doorRaw = mtr3DoorValueField.get(lift);
             float doorValue = doorRaw instanceof Float f ? f : 0.0f;
+            double x = (Double) mtr3GetPositionX.invoke(lift);
+            double y = (Double) mtr3GetPositionY.invoke(lift);
+            double z = (Double) mtr3GetPositionZ.invoke(lift);
             out.add(new LiftView(
                     idOf(lift, mtr3GetId, out.size()),
-                    (Double) mtr3GetPositionX.invoke(lift),
-                    (Double) mtr3GetPositionY.invoke(lift),
-                    (Double) mtr3GetPositionZ.invoke(lift),
+                    x,
+                    y,
+                    z,
                     fraction(doorValue, mtr3DoorFull),
-                    directionOf(lift, mtr3GetDirection)));
+                    directionOf(lift, mtr3GetDirection),
+                    cabinMtr3(lift, x, y, z)));
         }
         return out;
+    }
+
+    /**
+     * 【1.52】MTR3 的真实轿厢几何：{@code public int liftWidth/liftDepth/liftHeight/liftOffset*}
+     * ＋ {@code protected List<BlockPos> floors}（算竖直容差用）。任何一步失败 → {@code null}。
+     */
+    private static Cabin cabinMtr3(Object lift, double floorX, double floorY, double floorZ) {
+        if (!cabinGeometryOk) {
+            return null;
+        }
+        try {
+            double halfWidth = intOf(mtr3LiftWidth, lift) / 2.0;
+            double halfDepth = intOf(mtr3LiftDepth, lift) / 2.0;
+            double height = intOf(mtr3LiftHeight, lift);
+            if (!(halfWidth > 0.0) || !(halfDepth > 0.0) || !(height > 0.0)) {
+                return null;
+            }
+            return new Cabin(
+                    floorX + intOf(mtr3LiftOffsetX, lift),
+                    floorZ + intOf(mtr3LiftOffsetZ, lift),
+                    floorY + intOf(mtr3LiftOffsetY, lift),
+                    halfWidth, halfDepth, height, spacingMtr3(lift));
+        } catch (Throwable ignored) {
+            return null;
+        }
+    }
+
+    /** MTR3 的相邻楼层最小间距（{@code List<BlockPos> floors} 里的 y 两两比）。读不到 → 0。 */
+    private static double spacingMtr3(Object lift) {
+        if (mtr3FloorsField == null || mtr3BlockPosGetY == null) {
+            return 0.0;
+        }
+        try {
+            // 这个字段的声明就是 java.util.List<BlockPos>（javap 实测）⇒ 直接按声明转。
+            //   ★ 刻意**不**写成「raw instanceof Iterable」：`elementsOf` 那条
+            //     「容器的形态绝不能直接判 Iterable」的回归断言是**全文扫 token** 的，
+            //     这里再来一次会同名误伤（那边要防的容器是 fastutil Map，判了必空）。
+            List<?> floors = (List<?>) mtr3FloorsField.get(lift);
+            if (floors == null) {
+                return 0.0;
+            }
+            FLOOR_YS.reset();
+            for (Object floor : floors) {
+                if (floor != null && mtr3BlockPosGetY.invoke(floor) instanceof Number n) {
+                    FLOOR_YS.add(n.doubleValue());
+                }
+            }
+            return FLOOR_YS.spacing();
+        } catch (Throwable ignored) {
+            return 0.0;
+        }
     }
 
     private static List<LiftView> snapshotMtr4() throws Exception {
@@ -484,15 +718,71 @@ public final class MtrLiftAccess {
                 continue;
             }
             float doorValue = (Float) mtr4GetDoorValue.invoke(lift);
+            double x = ((Number) mtr4PosGetX.invoke(position)).doubleValue();
+            double y = ((Number) mtr4PosGetY.invoke(position)).doubleValue();
+            double z = ((Number) mtr4PosGetZ.invoke(position)).doubleValue();
             out.add(new LiftView(
                     idOf(lift, mtr4GetId, out.size()),
-                    ((Number) mtr4PosGetX.invoke(position)).doubleValue(),
-                    ((Number) mtr4PosGetY.invoke(position)).doubleValue(),
-                    ((Number) mtr4PosGetZ.invoke(position)).doubleValue(),
+                    x,
+                    y,
+                    z,
                     fraction(doorValue, 1.0f),
-                    directionOf(lift, mtr4GetDirection)));
+                    directionOf(lift, mtr4GetDirection),
+                    cabinMtr4(lift, x, y, z)));
         }
         return out;
+    }
+
+    /**
+     * 【1.52】MTR4 的真实轿厢几何：{@code getWidth/getDepth/getHeight/getOffsetX/Y/Z}
+     * ＋ {@code iterateFloors}（算竖直容差用）。任何一步失败 → {@code null}。
+     *
+     * <p>{@code getHeight()} 就是**轿厢高度**（同类渲染器 {@code RenderLifts} 就是拿
+     * height/width/depth 搭轿厢那个盒子的，javap 实测），不是竖井总高。
+     */
+    private static Cabin cabinMtr4(Object lift, double floorX, double floorY, double floorZ) {
+        if (!cabinGeometryOk) {
+            return null;
+        }
+        try {
+            double halfWidth = ((Number) mtr4GetWidth.invoke(lift)).doubleValue() / 2.0;
+            double halfDepth = ((Number) mtr4GetDepth.invoke(lift)).doubleValue() / 2.0;
+            double height = ((Number) mtr4GetHeight.invoke(lift)).doubleValue();
+            if (!(halfWidth > 0.0) || !(halfDepth > 0.0) || !(height > 0.0)) {
+                return null;
+            }
+            return new Cabin(
+                    floorX + numOf(mtr4GetOffsetX, lift),
+                    floorZ + numOf(mtr4GetOffsetZ, lift),
+                    floorY + numOf(mtr4GetOffsetY, lift),
+                    halfWidth, halfDepth, height, spacingMtr4(lift));
+        } catch (Throwable ignored) {
+            return null;
+        }
+    }
+
+    /** MTR4 的相邻楼层最小间距（借 {@code iterateFloors} 把每个 {@code LiftFloor} 喂给收集器）。 */
+    private static double spacingMtr4(Object lift) {
+        if (mtr4IterateFloors == null || mtr4FloorGetPosition == null || mtr4PosGetY == null) {
+            return 0.0;
+        }
+        try {
+            FLOOR_YS.begin(mtr4FloorGetPosition, mtr4PosGetY);
+            mtr4IterateFloors.invoke(lift, FLOOR_YS);
+            return FLOOR_YS.spacing();
+        } catch (Throwable ignored) {
+            return 0.0;
+        }
+    }
+
+    /** 读一个 public int 字段（缺 → 0）。 */
+    private static double intOf(Field field, Object owner) throws IllegalAccessException {
+        return field == null ? 0.0 : ((Number) field.get(owner)).doubleValue();
+    }
+
+    /** 调一个 double getter（缺 → 0）。 */
+    private static double numOf(Method getter, Object owner) throws Exception {
+        return getter == null ? 0.0 : ((Number) getter.invoke(owner)).doubleValue();
     }
 
     /** 拿直梯 ID；拿不到就退化成「这一帧里的第几个」（只在同一次比较内自洽，够用）。 */

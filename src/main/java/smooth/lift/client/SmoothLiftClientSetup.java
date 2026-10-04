@@ -31,5 +31,8 @@ public final class SmoothLiftClientSetup {
     public static void onClientSetup(FMLClientSetupEvent event) {
         // 【1.24】先读回上次的扶梯阶梯渲染引擎模式（/mtrxr on|off），之后所有门控都读它。
         EscalatorRenderMode.load();
+        // 【09-30 / 1.29 移植】读回讲述人列车报站的全部设置（/jsr …，config/smoothlift-jsr.properties）。
+        //   Fabric 侧在 SmoothLiftClient.onInitializeClient() 里调；Forge 的对应时机就是这里。
+        TrainAnnounceSwitch.load();
     }
 }

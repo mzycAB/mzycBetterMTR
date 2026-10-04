@@ -1,13 +1,13 @@
 package smooth.lift.network;
 
+import io.netty.buffer.Unpooled;
 import net.minecraft.core.BlockPos;
-import net.minecraft.core.registries.Registries;
 import net.minecraft.network.FriendlyByteBuf;
 import net.minecraft.resources.ResourceKey;
-import net.minecraft.resources.ResourceLocation;
 import net.minecraft.world.level.Level;
 import net.minecraftforge.network.NetworkDirection;
 import net.minecraftforge.network.NetworkEvent;
+import smooth.lift.EscalatorSpeedData;
 import smooth.lift.EscalatorSpeedManager;
 
 import java.util.HashMap;
@@ -15,55 +15,46 @@ import java.util.Map;
 import java.util.function.Supplier;
 
 /**
- * 【1.18】服务端 -> 客户端：同步「扶梯方块 → 无障碍提示音音量」表（含维度默认音量）。
- * 小包：只带音量，不含音频字节。
+ * 【Forge 移植 / 1.29】服务端 -> 客户端同步包(裸负载):负载由
+ * {@code EscalatorSpeedManager.buildHelpVolumePacket} 写出,与 Fabric 侧逐字节一致;
+ * 本类 handle 按 Fabric 版客户端接收器的读序解析。
  */
 public class HelpVolumeSyncPacket {
-    private final String dimension;
-    private final int defaultHelpVolume;
-    private final Map<BlockPos, Integer> helpVolume;
+    private final byte[] body;
 
-    public HelpVolumeSyncPacket(String dimension, int defaultHelpVolume, Map<BlockPos, Integer> helpVolume) {
-        this.dimension = dimension;
-        this.defaultHelpVolume = defaultHelpVolume;
-        this.helpVolume = helpVolume;
+    public HelpVolumeSyncPacket(byte[] body) {
+        this.body = body;
     }
 
     public static void encode(HelpVolumeSyncPacket pkt, FriendlyByteBuf buf) {
-        buf.writeUtf(pkt.dimension, 256);
-        buf.writeVarInt(pkt.defaultHelpVolume);
-        buf.writeVarInt(pkt.helpVolume.size());
-        for (Map.Entry<BlockPos, Integer> entry : pkt.helpVolume.entrySet()) {
-            buf.writeBlockPos(entry.getKey());
-            buf.writeVarInt(entry.getValue());
-        }
+        buf.writeByteArray(pkt.body);
     }
 
     public static HelpVolumeSyncPacket decode(FriendlyByteBuf buf) {
-        String dimension = buf.readUtf(256);
-        int defaultHelpVolume = buf.readVarInt();
-        int count = buf.readVarInt();
-        Map<BlockPos, Integer> helpVolume = new HashMap<>();
-        for (int i = 0; i < count; i++) {
-            helpVolume.put(buf.readBlockPos(), buf.readVarInt());
-        }
-        return new HelpVolumeSyncPacket(dimension, defaultHelpVolume, helpVolume);
+        return new HelpVolumeSyncPacket(buf.readByteArray());
     }
 
-    public static void handle(HelpVolumeSyncPacket pkt, Supplier<NetworkEvent.Context> ctx) {
-        NetworkEvent.Context context = ctx.get();
+    public static void handle(HelpVolumeSyncPacket pkt, Supplier<NetworkEvent.Context> ctxSupplier) {
+        NetworkEvent.Context context = ctxSupplier.get();
         if (context.getDirection() != NetworkDirection.PLAY_TO_CLIENT) {
             context.setPacketHandled(true);
             return;
         }
         context.enqueueWork(() -> {
-            final ResourceKey<Level> dimKey;
-            try {
-                dimKey = ResourceKey.create(Registries.DIMENSION, new ResourceLocation(pkt.dimension));
-            } catch (Exception e) {
-                return;
+            FriendlyByteBuf data = new FriendlyByteBuf(Unpooled.wrappedBuffer(pkt.body));
+
+            String dimId = data.readUtf(256);
+            int defaultHelpVolume = data.readVarInt();
+            int count = data.readVarInt();
+            Map<BlockPos, Integer> helpVolume = new HashMap<>();
+            for (int i = 0; i < count; i++) {
+                helpVolume.put(data.readBlockPos(), data.readVarInt());
             }
-            EscalatorSpeedManager.applyClientHelpVolume(dimKey, pkt.defaultHelpVolume, pkt.helpVolume);
+            try {
+                ResourceKey<Level> dimKey = EscalatorSpeedManager.parseDimensionKey(dimId);
+                EscalatorSpeedManager.applyClientHelpVolume(dimKey, defaultHelpVolume, helpVolume);
+            } catch (Exception ignored) {
+            }
         });
         context.setPacketHandled(true);
     }

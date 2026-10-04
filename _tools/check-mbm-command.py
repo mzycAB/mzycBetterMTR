@@ -5,7 +5,7 @@
 - 把 `/dtmusic` 改成 `/MBM music in` / `/MBM music delete`（干净改名，旧名不保留）
 - 存档音频文件夹 `smoothlift_audio` 改名 `MBM_Audio`
 - 新增 `/MBM help`：打开一个界面（界面本体在 check-mbm-help.py 里校验）
-- 版本号：用户本轮**没有点名**，沿用 1.23.1204（不改号）
+- 版本号：用户本轮点名 => **1.30.11201**（写成常量断言，改号即报红 —— 这是「版本号只在点名时改」的绊线）
 
 判据（改错了不报错，症状=「指令没了」/「批量导入找不到文件」/「误删文件夹」）：
 - 根字面量 `MBM` 与 `mbm` 都有注册（MC 的指令字面量大小写敏感，只写大写时 /mbm 会报未知指令）。
@@ -146,15 +146,15 @@ check(not src_hits, "剥注释后全工程源码里没有旧文件夹名 smoothl
 check("【1.53】" in esm, "改名有【1.53】标记（可追溯）")
 
 # ======================================================================
-# 5) 版本号（用户本轮没点名 => 沿用）
+# 5) 版本号（绊线：只有用户点名改号时才更新这里的常量）
 # ======================================================================
 print()
-print("===== 5) 版本号（用户点名 => 1.26.11201） =====")
+print("===== 5) 版本号（用户点名 => 1.30.11201） =====")
 
 gp = open(GP, encoding="utf-8").read()
 got = re.search(r"mod_version=(.*)", gp).group(1).strip()
-# ★ 1.20.1 工程版本号 = 1.26.11201（用户点名更新）。
-check(got == "1.26.11201", "gradle.properties mod_version = 1.26.11201（用户点名）", "得到 %s" % got)
+# ★ 1.20.1 工程版本号 = 1.30.11201（用户点名更新；上一号 1.29.11201 => 1.30.11201）。
+check(got == "1.30.11201", "gradle.properties mod_version = 1.30.11201（用户点名）", "得到 %s" % got)
 
 # ======================================================================
 # 6) 字节码 / jar 元数据
@@ -183,11 +183,14 @@ else:
     check(b"dtmusic" not in sl_blob, "★ 字节码里没有旧的 dtmusic 字面量")
     check(b"MBM_Audio" in esm_blob, "★ 字节码里文件夹名是 MBM_Audio")
     check(b"smoothlift_audio" not in esm_blob, "★ 字节码里没有旧的 smoothlift_audio")
+    check(b"upload_audio" not in sl_blob and b"storeAudio" not in esm_blob
+          and b"UploadAudioPacket" not in sl_blob,
+          "★ 字节码里没有 UPLOAD 死通道（【1.7】分块上传已删：会绕过分类注册表入库）")
     # mods.toml 的 version=${file.jarVersion} 是占位符，真实版本在 MANIFEST 的 Implementation-Version。
     import re as _re
     mv = _re.search(rb"Implementation-Version: (\S+)", manifest)
     manifest_ver = mv.group(1).decode() if mv else "?"
-    check(manifest_ver == "1.26.11201", "jar MANIFEST Implementation-Version = 1.26.11201（用户点名）",
+    check(manifest_ver == "1.30.11201", "jar MANIFEST Implementation-Version = 1.30.11201（用户点名）",
           "得到 %s" % manifest_ver)
     check(any(n.endswith("MbmHelpScreen.class") for n in names),
           "【1.53】MbmHelpScreen.class 已打进 jar")

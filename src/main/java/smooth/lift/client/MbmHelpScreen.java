@@ -1,22 +1,29 @@
 package smooth.lift.client;
 
+import net.minecraft.network.FriendlyByteBuf;
+import smooth.lift.SmoothLift;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.client.gui.components.Button;
 import net.minecraft.client.gui.components.EditBox;
 import net.minecraft.client.gui.screens.Screen;
-import net.minecraft.network.FriendlyByteBuf;
 import net.minecraft.network.chat.Component;
 import org.lwjgl.glfw.GLFW;
 import smooth.lift.EscalatorSpeedData;
 import smooth.lift.EscalatorSpeedManager;
-import smooth.lift.SmoothLift;
-import smooth.lift.network.Packets;
-import smooth.lift.network.MbmPresetPacket;
 import smooth.lift.network.MbmAllVolumePacket;
+import smooth.lift.network.MbmPresetPacket;
+import smooth.lift.network.Packets;
+
+import java.util.List;
 
 /**
  * 【1.53】`/MBM help`（或裸 `/MBM`）打开的「预设选择」界面。
+ *
+ * <p>【Forge 移植注】网络发送从 Fabric 的客户端发包 API（频道 + buf）
+ * 换成 {@code Packets.CHANNEL.sendToServer(包对象)}（写序不变：presetId utf16 / 音量 VarInt）；
+ * 「退出界面上报 UI 结果」从 {@code SmoothLiftClient.sendUiClose} 换成 Forge 侧的
+ * {@link SmoothLiftClientEvents#sendUiClose}。其余逻辑与 1.20.4 Fabric 版逐字一致。
  *
  * <p>两块内容：
  * <ul>
@@ -45,6 +52,9 @@ import smooth.lift.network.MbmAllVolumePacket;
  * 音量框那种「只能靠屏幕阅读器播报」的 narration 文案不算可见小字，保留（照旧是「全音量」）。
  */
 public class MbmHelpScreen extends Screen {
+
+    /** 【10-01】本次界面会话里是否出现过失败（退出界面时随 UI_CLOSE 上报给服务端）。 */
+    private boolean uiFailed;
 
     /** 【1.53】预设按钮的文字与 id —— 文字必须与 {@code SmoothLift.presetLabel} 一致。 */
     private static final String ID_CLASSIC = "classic";
@@ -84,7 +94,31 @@ public class MbmHelpScreen extends Screen {
         volumeInput.setFilter(text -> text.isEmpty() || text.chars().allMatch(Character::isDigit));
         addRenderableWidget(volumeInput);
 
+        // 【09-30 续 2】右上角「兼容模式」：与各界面右上角那排按钮**同尺寸同位置**
+        //   （76×20、贴右上角、距边缘 4px）。点开的小面板与「同步所有」弹窗同一套 UI，
+        //   按钮是「打开 / 关闭 / 取消」：
+        //     打开 = /mtrxr on（MTR 原版渲染，兼容性最好）；
+        //     关闭 = /mtrxr off（SmoothLift 优化引擎）之后再 /mtrxr occ on（顺手把遮挡剔除开回来）。
+        //   打开弹窗前先把音量输入框落地（弹窗会把本界面重建一次，不落刚填的数会丢）。
+        addRenderableWidget(SyncPopupScreen.entryButton(this, "兼容模式", "兼容模式",
+                List.of(
+                        new SyncPopupScreen.Option("打开",
+                                () -> showFeedback(EscalatorRenderModeCommand.applyMode(false))),
+                        new SyncPopupScreen.Option("关闭", () -> {
+                            showFeedback(EscalatorRenderModeCommand.applyMode(true));
+                            showFeedback(EscalatorRenderModeCommand.applyOcclusionMode(true));
+                        })),
+                this::applyVolume));
+
         setInitialFocus(volumeInput);
+    }
+
+    /** 【09-30 续 2】把一条反馈打进聊天栏（「兼容模式」弹窗按钮的执行结果）。 */
+    private void showFeedback(String text) {
+        // 【10-01】界面内部不再单独提示；只记结果，退出界面时统一回一条。
+        if (text != null && text.contains("失败")) {
+            uiFailed = true;
+        }
     }
 
     /** 本维度当前的默认扶梯音量（客户端镜像是有的；拿不到就退回 100）。 */
@@ -95,15 +129,52 @@ public class MbmHelpScreen extends Screen {
         return EscalatorSpeedManager.getDefaultVolume(mc.level);
     }
 
-    /** 把「应用这个预设」发给服务端（服务端负责依次执行该预设的那几条指令）。 */
+    /**
+     * 把「应用这个预设」发给服务端（服务端负责依次执行该预设的那几条指令）。
+     *
+     * <p>★★【09-28 续 2】港铁预设还会**在客户端顺手动讲述人的全局总闸**
+     * （等价于 {@code /jsr on|off}）：预设里那一条 {@code pbmnarrate <样式> -f} 只设**样式**
+     * （「念哪一句」），而「念不念」的总闸是**客户端**配置
+     * （{@code config/smoothlift-jsr.properties}），服务端那串指令**碰不到**它。
+     * 用户点名「预设也会顺带把它打开」⇒ 由这一下点击在本机打开。
+     *
+     * <p>★★【09-28 续 4】用户把三档定死：**只有经典港铁预设**开讲述人（香港样式），
+     * **简单港铁 / 空白预设都关闭讲述人** ⇒ 这里要**两边都联动**：
+     * <pre>
+     *   经典港铁预设 → /jsr on  + 预设末条 pbmnarrate hongkong -f
+     *   简单港铁预设 → /jsr off + 预设末条 pbmnarrate off -f
+     *   空白预设     → /jsr off + 预设末条 pbmnarrate off -f
+     * </pre>
+     * ★ 为什么「关」也要动总闸：只关样式层同样听不见（两层取「与」），但存档里总闸仍写着「开」
+     * ⇒ 玩家之后去石斧 UI 随手挑一档样式，讲述人会**突然又响**。用户说的是「关闭讲述人」，
+     * 所以两层一起关才叫关干净（与经典预设两层一起开**对称**）。
+     * ★ 认不出的 presetId（不可能走到，服务端会回「未知预设」）**一概不碰**总闸。
+     */
     private void sendPreset(String presetId) {
         Packets.CHANNEL.sendToServer(new MbmPresetPacket(presetId));
+        // 【09-30 续 4】三个预设都**不要站台讲述人广播**（用户点名）—— 一律顺带把
+        // 「站台广播（讲述人）」的全局总闸关掉（与进站讲述人的总闸各管各的）。
+        TrainAnnounceSwitch.disableMidiumForPreset();
+        if (ID_CLASSIC.equals(presetId)) {
+            TrainAnnounceSwitch.enableForPreset();
+            // 【10-01】经典港铁预设 ＝ 讲述人文字开成**聊天框**（chat）—— 用户点名
+            //   「经典港铁预设：进站广播 … 聊天框播报」（旧版是屏幕字幕 word，已替换）。
+            //   同样是客户端配置，服务端那串指令碰不到，由这一下点击顺手打开。
+            TrainAnnounceSwitch.enableChatForPreset();
+        } else if (ID_SIMPLE.equals(presetId) || ID_BLANK.equals(presetId)) {
+            TrainAnnounceSwitch.disableForPreset();
+            // 【09-29】另两个预设顺带**关闭**屏幕字幕（等价 /jsr arrive on <样式> off），
+            //   关的那一下顺手撤掉正在显示的字幕。
+            TrainAnnounceSwitch.disableWordForPreset();
+        }
     }
 
     /** 按 ESC（或回车）退出：把改过的音量发出去，再关界面。 */
     @Override
     public void onClose() {
         applyVolume();
+        // 【10-01】真正「退出界面」：让服务端把本次界面会话的结果回一条（成功 / 失败）。
+        SmoothLiftClientEvents.sendUiClose(!uiFailed);
         // Screen.onClose() 内部就是 minecraft.setScreen(null)。
         super.onClose();
     }

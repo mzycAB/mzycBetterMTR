@@ -1,0 +1,19 @@
+{
+	"required": true,
+	"minVersion": "0.8",
+	"package": "smooth.lift.client.mixin",
+	"compatibilityLevel": "JAVA_17",
+	"client": [
+		"EscalatorAoStashMixin",
+		"EscalatorAoSampleMixin",
+		"EscalatorFlatLightMixin",
+		"ZhajiSoundMixin"
+	],
+	"injectors": {
+		"defaultRequire": 1
+	},
+	"overwrites": {
+		"requireAnnotations": true
+	},
+	"refmap": "smooth_escalator.refmap.json"
+}

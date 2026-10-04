@@ -1,0 +1,8 @@
+{
+    "variants": {
+        "facing=north": { "model": "shsubwaypicture:block/pic_tl" },
+        "facing=east":  { "model": "shsubwaypicture:block/pic_tl", "y": 90 },
+        "facing=south": { "model": "shsubwaypicture:block/pic_tl", "y": 180 },
+        "facing=west":  { "model": "shsubwaypicture:block/pic_tl", "y": 270 }
+    }
+}

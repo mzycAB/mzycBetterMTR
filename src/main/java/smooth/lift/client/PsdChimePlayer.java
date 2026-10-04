@@ -9,6 +9,7 @@ import net.minecraft.client.sounds.ChannelAccess;
 import net.minecraft.client.sounds.SoundEngine;
 import net.minecraft.client.sounds.SoundManager;
 import net.minecraft.client.sounds.WeighedSoundEvents;
+import net.minecraft.network.chat.Component;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.sounds.SoundSource;
 import net.minecraft.util.RandomSource;
@@ -578,6 +579,107 @@ public final class PsdChimePlayer {
         }
     }
 
+    // ------------------------------------------------------------------
+    // 【09-30 续 3】「站台广播（讲述人）」—— 与「进站广播（讲述人）」功能一模一样的
+    //   一条讲述人，只是挂在**站台播报（pbmmidium）**的时间窗口上：开门音播完 + 等 Y 秒开念。
+    //   结构照抄 {@link #arrivalVoice} 那一套：开门那一瞬排一条计划（一整串只排一条），
+    //   到点在 tick 里把话交给 {@link TrainAnnounceNarrator}（讲述人念完就完，无需停止条件）。
+    //   ★ 与自定义到站播报**互相独立**：素材设成「不播」不影响讲述人照念，反之亦然。
+    // ------------------------------------------------------------------
+
+    /** 【09-30 续 3】串锚点（runKey）→ 这串门还没开念的站台讲述人计划。 */
+    private static final Map<Long, MidiumNarratorPlan> midiumNarratorVoice = new HashMap<>();
+
+    /**
+     * 【09-30 续 3】一条站台讲述人计划。
+     *
+     * <p>★★【10-01】它**不再**在起播那一 tick 就摘表项 —— 与 {@link Arrival} 一样要留到
+     * 「这一班车的开门周期过完」为止。原因是「同一份话不叠两遍」那道守卫
+     * （{@code midiumNarratorVoice.containsKey}）窗口被压成了**零**：见
+     * {@link #MIDIUM_NARRATE_HOLD_TICKS} 里的 LOG013 数字。现在起播只做两件事
+     * —— 记 {@link #fired} 与 {@link #spokenTick}，表项由 {@link #tickMidiumNarrator} 在
+     * 「念过 + 守卫窗口走完 + 这一串的门已经全关」之后才摘。
+     */
+    private static final class MidiumNarratorPlan {
+
+        /** 到这一 tick 就该开念（= 开门那一 tick + 开门素材时长 + 等待秒数）。 */
+        private final long startTick;
+
+        /**
+         * 声源那一扇门 = 排计划那一刻**触发这一扇门所属的那个 MTR 站台**里离玩家最近的那扇
+         * （【10-01 续】；站台认不到时回落「车站里离玩家最近的那扇」）。
+         * ★ 它是这条广播的位置 / 范围基准：别的站台离玩家远 ⇒ 出范围 ⇒ 这一条根本排不出来
+         * （见 {@link #planMidiumNarrator} 里那段「为什么要收窄到站台」）。
+         */
+        private final PsdDoorTracker.DoorView source;
+
+        /** 这条计划属于哪一串（= {@code midiumNarratorVoice} 的键；日志与范围判据都用它）。 */
+        private final long runKey;
+
+        /**
+         * 排计划那一刻认到的 MTR 站台 id（{@link PsdDoorTracker.DoorView#platformId()}）——
+         * 起播时拿它去查时刻表（终点站 / 站台名）与车站 / 线路名，拼上海 / 香港 / userN 的句子。
+         */
+        private final long platformId;
+
+        /** 【10-01】这一条已经念过了（起播那一 tick 置位）。没念过时表项只负责「挡住第二条」。 */
+        private boolean fired;
+
+        /** 【10-01】开念的那一 tick；{@code -1} = 还没念（守卫窗口从这一刻起算）。 */
+        private long spokenTick = -1L;
+
+        private MidiumNarratorPlan(long startTick, PsdDoorTracker.DoorView source, long runKey, long platformId) {
+            this.startTick = startTick;
+            this.source = source;
+            this.runKey = runKey;
+            this.platformId = platformId;
+        }
+    }
+
+    /**
+     * 【10-01】站台讲述人**开念之后**还要把这一串挡住多久（tick）——「同一班车只念一次」的守卫窗口。
+     *
+     * <p>★★ 为什么必须有这段窗口（现场 LOG013，数字可复核）：
+     * 旧实现是「起播那一 tick 就把表项摘掉」。而 {@link #planMidiumNarrator} 的等待基线
+     * {@code openPlayable} 在**触发的那扇门不在玩家射程里**时是 {@code null} ⇒ 起点按 0 算 ⇒
+     * {@code startTick == 现在}，也就是**当场开念、当场摘表**。于是同一串里后开门的另外几扇门
+     * （每扇门各自一条开门沿，LOG013 里隔 2 tick / 8 秒）只要在那之后再报一次沿，
+     * {@code containsKey} 已经是空的 ⇒ **再排一条、再念一遍**。
+     * 用户听到的正是「提前播报一次 + 播报 2 次」。
+     *
+     * <p>LOG013 的两次实测（同一份话，一字不差）：
+     * <ul>
+     *   <li>{@code 14:56:33} 第 {@code 32927497} tick 与第 {@code 32927499} tick —— 隔 **2 tick**
+     *       （两条计划都来自 z=43 那条线，声源同为 {@code @[-16,-20,32]}，句子同为
+     *       「终点站 城东机场北 / 站台 2-2」）；</li>
+     *   <li>{@code 14:55:43} 与 {@code 14:55:53} —— 隔 **8 秒**（声源同为 {@code @[-38,-12,72]}，
+     *       句子同为「终点站 城南新区 / 站台 8-1」）。</li>
+     * </ul>
+     *
+     * <p>取 {@value}（10 秒）的理由：要盖住上面那 8 秒的那一对，又不能长到把**下一班车**吞掉。
+     * 10 秒正好是 MTR 的默认停站时长（{@link MtrDwellAccess} 读到的 {@code dwellTime} 默认
+     * {@code 10000ms}）—— 一个停站周期内同一串只该开一次口。
+     * ★ 这不是「猜一个魔法数」：反向对照见 {@code _tools/check-psd-midium-once.py}
+     * —— 它把 LOG013 两条实测计划（tick {@code 32927497} / {@code 32927499}）灌进一个纯逻辑
+     * 复现器，再**把「念完放回表里」这一步去掉**（≡ 旧实现），断言那两对重复**必须复现**。
+     * ★ 反向对照的杠杆是「**放回表里**」这一步，**不是**把 {@value} 改成 0 ——
+     * 窗口 = 0 时下面那条「这一串的门已全关」照样挡住，而 LOG013 那一刻门正开着（停站中），
+     * 所以只调 0 复现不出来。当初真正造成重复的动作是「起播即摘表」本身。
+     *
+     * <p>★ 表项还额外受「这一串的门是否已全关」约束（周期长的站台自然挡得更久），
+     * 上限见 {@link #MIDIUM_NARRATE_HOLD_MAX_TICKS}。
+     */
+    private static final int MIDIUM_NARRATE_HOLD_TICKS = 200;
+
+    /**
+     * 【10-01】守卫窗口的**硬上限**（tick）。
+     *
+     * <p>{@value}（60 秒）是兜底：门卡住不关（红石锁着 / 停站异常长 / 快照里再也看不到这些门）时，
+     * 上面那条「这一串的门已经全关」可能**永远**不成立 ⇒ 表项就会一直挡着、
+     * 之后整场都再也念不出来。上限一到就照摘，宁可多念一次也不要永久哑掉。
+     */
+    private static final int MIDIUM_NARRATE_HOLD_MAX_TICKS = 1200;
+
     /**
      * 【1.15 · 第六轮】「整段会拖过门全关」这条判据的容差（tick）。
      *
@@ -678,23 +780,29 @@ public final class PsdChimePlayer {
     private static long cachedGeneration = -1L;
     private static boolean cachedEnabled = true;
     private static int cachedVolume = EscalatorSpeedData.DEFAULT_PSD_HELP_VOLUME;
-    private static double cachedRound = EscalatorSpeedData.DEFAULT_PSD_HELP_ROUND;
+    // 【09-29】范围拆双维：每类各存「水平（x、z 轴）」与「垂直（y 轴）」两份，
+    //   与 /jsr round 的 AAA BBB 同构 —— 判据 = 任一方向超出即越界（见 gain）。
+    private static double cachedRoundXz = EscalatorSpeedData.DEFAULT_PSD_HELP_ROUND_XZ;
+    private static double cachedRoundY = EscalatorSpeedData.DEFAULT_PSD_HELP_ROUND_Y;
 
     /**
      * 【1.23】到站播报 / 进站报站各自的「淡入淡出范围」（{@code /pbmmidiumround}、
-     * {@code /pbmarriveround}）。与 {@link #cachedRound} 同一套策略：只在代次变了时才真查一次。
+     * {@code /pbmarriveround}）。与 {@link #cachedRoundXz} 同一套策略：只在代次变了时才真查一次。
      *
      * <p>★ 为什么三类要各存一份：开关门提示音是**机械事件**（站在门口听最合理），
      * 站台广播 / 进站报站是**说给整个站台听的**，用户希望各自能调 —— 与 1.22 把三类
-     * **音量**拆开是同一个理由。三者默认都是 16 ⇒ 不设时行为与 1.22 逐位相同。
+     * **音量**拆开是同一个理由。三者默认都是水平 16 / 垂直 5 ⇒ 不设时行为与旧版逐位相同。
+     * 【09-29】每类的范围拆成 {@code Xz} / {@code Y} 两份（判据见 {@link #gain}）。
      */
-    private static double cachedMidiumRound = EscalatorSpeedData.DEFAULT_PSD_MIDIUM_ROUND;
+    private static double cachedMidiumRoundXz = EscalatorSpeedData.DEFAULT_PSD_MIDIUM_ROUND_XZ;
+    private static double cachedMidiumRoundY = EscalatorSpeedData.DEFAULT_PSD_MIDIUM_ROUND_Y;
 
-    /** 见 {@link #cachedMidiumRound}。 */
-    private static double cachedArriveRound = EscalatorSpeedData.DEFAULT_PSD_ARRIVE_ROUND;
+    /** 见 {@link #cachedMidiumRoundXz}。 */
+    private static double cachedArriveRoundXz = EscalatorSpeedData.DEFAULT_PSD_ARRIVE_ROUND_XZ;
+    private static double cachedArriveRoundY = EscalatorSpeedData.DEFAULT_PSD_ARRIVE_ROUND_Y;
 
     /**
-     * 【1.16】关门提示音**强制等待时长**（秒）的缓存 —— 与 {@link #cachedRound} 同一套策略：
+     * 【1.16】关门提示音**强制等待时长**（秒）的缓存 —— 与 {@link #cachedRoundXz} 同一套策略：
      * 只在同步包到达（代次变了）时才真查一次。
      *
      * <p>播放端只在一个分支里读它（{@link #planClose} 的「停站塞不下整条素材」那一支），
@@ -746,7 +854,7 @@ public final class PsdChimePlayer {
     //   ★ 触发**只看「最近一班车还剩几秒到站」**（用户点名「看时刻表啊，不要猜」）：
     //   时刻表里下一班的剩余到站毫秒 ≤ |X| 秒 ⇒ 起播（X=-10 ⇒ 剩 10 秒时起播）。
     //   与「门什么时候开」「停站多长」**完全无关** —— 门这一侧只用来认出「这串门属于哪个站台」。
-    //   剩余毫秒见 {@link MtrDwellAccess#nextArrivalRemainingMs}。
+    //   剩余毫秒见 {@link MtrDwellAccess#nearestArrival}。
     //
     //   ★ 与「到站播报」共享的设计（**故意的**）：自己一张表、自己一条 tick 路、
     //   起播之后**没有任何 stop** ⇒ 车进站了也照播到完。
@@ -775,8 +883,10 @@ public final class PsdChimePlayer {
     /** 【1.21】串锚点 → 这一串的进站报站状态。 */
     private static final Map<Long, Arrive> arriveVoice = new HashMap<>();
 
-    /** 【1.21】串锚点 → 认到的站台 id（{@code <= 0} = 还没认到，下次再试）。 */
-    private static final Map<Long, Long> arrivePlatform = new HashMap<>();
+    // 【09-30 续 9】原「串锚点 → 认到的站台 id」缓存（arrivePlatform）已删：
+    //   runKey 升到车站级后，两侧门串共用一个 runKey，按 runKey 缓存站台 id 会把
+    //   A 侧的站台 id 串给 B 侧（时刻表串台）；站台 id 现在直接按每侧自己的
+    //   DoorView.platformId 取（见 tickArriveAnnounce）。
 
     /** 【1.21】串锚点 → 上一次查时刻表的游戏刻（节流用）。 */
     private static final Map<Long, Long> arriveLastPoll = new HashMap<>();
@@ -798,6 +908,15 @@ public final class PsdChimePlayer {
         /** 上一次**为哪一班车**播过（到站时刻 ms）；{@link Long#MIN_VALUE} = 从没播过。 */
         private long firedArrival = Long.MIN_VALUE;
 
+        /**
+         * 【09-28】讲述人那一条**自己**的「这一班车念过了」记账。
+         *
+         * <p>★ 必须与 {@link #firedArrival} 分开：两条广播各有各的窗口（用户点名
+         * 「取消借用进站广播」）⇒ 自定义那条的窗口可能是 {@code -30}、讲述人这条是 {@code 0}，
+         * 用同一格记账会让先开窗的那一条把另一条整班车压掉。
+         */
+        private long firedArrivalNarrate = Long.MIN_VALUE;
+
         /** 上一次起播的游戏刻（日志里点明「起播时时刻表还剩多少毫秒」，方便用户核对）。 */
         private long firedTick = Long.MIN_VALUE;
     }
@@ -812,6 +931,11 @@ public final class PsdChimePlayer {
      * 每客户端刻调用。整体流程：读设置 → 取全部在渲染距离内的门 → 逐门比较门值发现跳变。
      */
     public static void onClientTick(Minecraft mc) {
+        // 【09-29】字幕的消失判据与讲述人「越界即停」护栏排在最前：它们不依赖门快照
+        //   （字幕判据是播报声源的**固定坐标**，列车进站那一刻门快照短暂变空也不受影响），
+        //   进不进世界都得跑 —— 没进世界时它们自己会撤下 / 复位。
+        TrainAnnounceSubtitle.tick(mc);
+        TrainAnnounceNarrator.tickRangeGuard(mc);
         if (mc.level == null || mc.player == null) {
             reset(mc);
             return;
@@ -855,7 +979,11 @@ public final class PsdChimePlayer {
         //   ★ 与到站播报的差别：它**需要**门快照（要拿门的位置当声源），
         //   所以只能排在快照之后；但「车进站了也继续播到完」不靠这条 tick 路 ——
         //   靠的是「起播之后没人停它」（下面 tickArriveAnnounce 里一句 stop 都没有）。
+        //   【1.28.1204】/jsr 总开关关着时，方法开头第一道闸就短路（连时刻表查询都不跑）。
         tickArriveAnnounce(mc, doors);
+        // 【09-30 续 3】站台广播（讲述人）：与到站播报同一套「排计划 → 到点起播」结构，
+        //   排在门快照之后 —— 起播那一 tick 还要拿快照做「多站台就近压制」的判据。
+        tickMidiumNarrator(mc, doors);
         if (doors.isEmpty()) {
             // 【1.15】门一下子全没了（走远 / 区块卸载）时，挂起中的关门提示音要先冲出去 ——
             // 否则那一声就凭空消失了。冲的方式就是「量不到门速」的兜底：按原样从头播一次。
@@ -865,24 +993,22 @@ public final class PsdChimePlayer {
         }
         Vec3 player = mc.player.position();
 
-        // 3) 记录/更新每扇门的状态，并让**每一扇**站台门自己发声。
+        // 3) 记录/更新每扇门的状态；开门 / 关门提示音**每一扇各调一次、距离按整串算**。
         //
         //    【1.15】noteCycle 对**所有**门都记（「上一轮走了多久」是提前量的唯一来源，
-        //    每扇门都得各自学各自的那一份）。
+        //    每扇门都得各自学各自的那一份）—— 这是数据采集，不出声。
         //
-        //    ★★【1.23】这里原来只对**离玩家最近的那一扇**调 detect ⇒ 整条连在一起的屏蔽门
-        //    只有一个点在出声（用户原话：「只有…一整条连在一起的屏蔽门的中间有声音」）。
-        //    现在对**每一扇**都调：每扇门各自带**自己的距离**，位置就是那扇门自己的坐标
-        //    （{@link PsdDoorTracker.DoorView} 里的 x/y/z），所以听感是「沿站台一排门同时响」。
-        //
-        //    为什么这样不会炸：距离衰减 {@link #gain} 在**当前生效范围**（{@code cachedRound}）格之外
-        //    硬截 0，而 detect 的每一支最终都要过 {@code resolvePlayable}
-        //    里那道 {@code gain(distance, ROUND_TONE) * volume <= 0 ⇒ return}，⇒ 每 tick 真正起播的实例
-        //    只有玩家十几格内那几扇（典型 4~6 扇），与「最近一扇」比起来是有界增长，
-        //    不是「门有多少就放多少」。
-        //    ★【1.26】到站播报（planArrivalAnnounce）**不在这条口径里**：它是这一串的站台广播
-        //    （一整串只排一条、距离按本串最近的门算），所以它天然是 O(串数) 而不是 O(门数)。
-        //
+        //    ★★提示音「怎么发声」这条口径改过三版，**当前版 =【09-30 续 10】**（见下面那段）：
+        //      ·【1.23】~【1.26】每一扇各调一次 + **本扇门**距离 ⇒ 现场（LOG8）听感是灾难：
+        //        一个站台十几扇门，同一声 dooropen / 嘀嘀前后错开几百毫秒叠十来遍 ——
+        //        用户听到的「早几秒一个 + 准点一个」的「多出来的提示音」主要就是它；
+        //      ·【09-30 续 6】改成 **一串只播一个**（detect 只对本串最近那扇调）——
+        //        用户随后点名「忽视之前我说的，直接按照 fabric 1.20.1 的做」；
+        //      ·【09-30 续 7】于是回到「**每一扇**各调一次 + 本扇门距离」（1.20.1 口径）——
+        //        可长度 53~175 格的门串被 16 格射程切成好几截，就是这一轮用户报的「切成两半」；
+        //      ·【09-30 续 10】**当前**：每一扇照旧各调一次（保住「沿站台一排门同时响」），
+        //        但距离改成**本串里离玩家最近的那一扇**，整串同增益、一起淡出。
+        //    「一串」的身份 = runKey（【1.27】起就是站台）。
         //    ★ 玻璃幕墙 / 幕墙尾部能进这份快照、但**只当播报成员**（【1.29】用户点名：
         //    「门和幕墙以及幕墙尾部一起播报的是 pbmarrive/pbmmidium，只有门的播报是铃声」）：
         //    PsdDoorTracker 会把本串里非门的家族方块注册成 door()==false 的快照项，
@@ -890,9 +1016,28 @@ public final class PsdChimePlayer {
         //    铃声链路则被上面 / 下面几条 `!door.door()` 过滤掉 ——「幕墙不发声」由结构保证。
         long gameTime = mc.level.getGameTime();
         Set<Long> seen = new HashSet<>();
+        // ★★【09-30 续 10】门提示音的距离口径**并回「按串算」**（用户点名「修成连在一起的门串
+        //   播报，别走一半播报断了」）：快照里**每一扇**门照旧各调一次 detect（这一层的结构
+        //   没动，见上一条），但实例每 tick 现算的距离不再是「本扇门」而是**本串里离玩家最近
+        //   那一扇门** —— 与到站 / 进站播报同一把尺子（`play` 尾两参给 door.runKey() + 单维）。
+        //   为什么必须这样：站台门串实测跨度 53~175 格（LOG16：78 个站台里 24 个 ≥100 格），
+        //   而提示音射程默认只有 16 格 ⇒ 按「本扇门」算的话，玩家站在站台任何位置都只有身边
+        //   约 6 扇在响、其余整段静默 ——「车头响、中间渐弱、车尾整段没声音」正是用户报的
+        //   「切成两半」。按「本串最近门」算 ⇒ 只要人在这一串旁边，整串按同一个增益一起响；
+        //   走离这一串则整串**一起**淡出（nearestInRun 取不到 ⇒ 增益 0），不再剩半截。
+        //   ⇒ 实例数**没有变多**：{@code resolvePlayable} 里那道
+        //   {@code gain(distance, ROUND_TONE) * volume <= 0 ⇒ return} 判的仍是**本扇门**的
+        //   距离 —— 那只是「要不要为这扇建实例」的闸（典型 4~6 扇），不是音量；
+        //   音量由实例每 tick 按**串**现算。
+        //   ★【09-30 续 7】的「按本扇门算」与【09-30 续 6】的「一串只播一个」都不是当前口径：
+        //   前者把一串按 16 格切成好几截，后者会把「沿站台一排门同时响」的听感整个抹掉。
+        //   ★ noteCycle（周期 / 门程学习）仍然对**所有**门跑 —— 那是数据采集，不出声。
+        //   ★ 玻璃幕墙 / 幕墙尾部能进这份快照、但**只当播报成员**（【1.29】用户点名）：
+        //   PsdDoorTracker 会把本串里非门的家族方块注册成 door()==false 的快照项，
+        //   到站/进站播报（nearestPerRun / nearestInRun）把它们算进「本串最近」，
+        //   铃声链路则被 `!door.door()` 过滤掉 ——「幕墙不发声」由结构保证。
         for (PsdDoorTracker.DoorView door : doors) {
-            // 【1.29】铃声只属于门：幕墙 / 幕墙尾部（door()==false）不进铃声链路
-            //   （它们只当「到站/进站播报」那一组的声源与射程成员，见 PsdDoorTracker）。
+            // 【1.29】铃声只属于门：幕墙 / 幕墙尾部（door()==false）不进铃声链路。
             if (!door.door()) {
                 continue;
             }
@@ -1012,8 +1157,16 @@ public final class PsdChimePlayer {
             plannedCloseStart.remove(key);
             wholePlaying.remove(key);
             closeStartTick.remove(key);
+            // 【09-30 续 5】**挂起中的关门请求也必须摘掉** —— 这是 LOG14 现场那条
+            // 「多出来的开门-关门提示音」的根因：门开始关时挂起的「量门速」请求
+            // （pendingClose），如果这一轮的全关跳变是**出站那一刻门值瞬间跳到全关**
+            // 被观测到的（真实关门采样还没拿到），请求就一直挂在表里；等到**下一班车**
+            // 进站门值再一动，它才被补播 —— 而且那时单帧量出的「门还剩」是垃圾值，
+            // 剪头算式算出负数 ⇒ **整段素材连人声一起放出来**，听感就是「早几秒多出
+            // 一声开门-关门提示音」。全关 = 这一轮彻底结束，这一轮的关门请求一并作废。
+            pendingClose.remove(key);
             // 【1.16】这一轮既然全关，兜底人声那一轮也结束了（正常早在「门开始关」时就收掉了；
-            //   这里是「那一轮的全关跳变没被观测到」时的保险）。
+            // 这里是「那一轮的全关跳变没被观测到」时的保险）。
             forcedVoice.remove(key);
         }
     }
@@ -1063,7 +1216,7 @@ public final class PsdChimePlayer {
                 LOGGER.info("[SmoothLift/PsdChime] 门 @{} 开门：★ 这一轮**不会有人声播报** —— "
                                 + "关门提示音这一项选的是「默认（短）」（default-s），"
                                 + "它与「默认」是同一段素材、按设计只播嘀嘀。"
-                                + "想听人声：石斧界面把它换成「默认（跟维度默认）」，"
+                                + "想听人声：石斧界面把它换成「默认」，"
                                 + "或 /pbmmusic close default",
                         posText(door));
             } else if (tone.splitMs() <= 0) {
@@ -1264,8 +1417,8 @@ public final class PsdChimePlayer {
                         posText(door), String.format("%.2f", door.fraction()));
                 continue;
             }
-            double distance = mc.player.position()
-                    .distanceTo(new Vec3(door.x(), door.y(), door.z()));
+            Vec3 p = mc.player.position();
+            double distance = p.distanceTo(new Vec3(door.x(), door.y(), door.z()));
             Playable playable = resolvePlayable(mc, door, "close", distance);
             if (playable == null) {
                 continue;
@@ -1281,7 +1434,8 @@ public final class PsdChimePlayer {
                 wholePlaying.put(door.key(), instance);
             }
             LOGGER.info("[SmoothLift/PsdChime] 门 @{} 提前量到点 → {} {} **整段**"
-                            + "（距玩家 {} 格；音量 {}，维度默认 {}；结尾应落在门关上那一刻）",
+                            + "（距玩家 {} 格；音量 {}，维度默认 {}；"
+                            + "结尾应落在门关上那一刻）",
                     posText(door), ok ? "播放" : "播不出（素材缺失 / 解码失败）",
                     toneLabel(playable.tone()), String.format("%.1f", distance),
                     playable.toneVolume(), cachedVolume);
@@ -1426,8 +1580,9 @@ public final class PsdChimePlayer {
      * </ul>
      * ⇒ 改法：**一整串只排一条**（键用 {@code runKey}，还没播完就不再排第二条），
      * 距离与声源都取「这一串里离玩家**最近**的那一扇」—— 站台广播的语义。
-     * 开关门提示音**不跟着改**：它是每扇门自己的位置音（用户点名「连在一起的每一扇各自发声」），
-     * 一串里越远处的门越轻本来就是对的。
+     * ★【09-30 续 10 更正】上面那句「开关门提示音**不跟着改**」**已作废**：提示音后来也并进
+     * 这条口径（它同样是「一串同声」，按本扇门算会把一串切成好几截，见 onClientTick 那段）。
+     * 两者现在只差一个「单维 / 双维」的换算口径（见 {@link #play} 的 {@code chainDoubleDim}）。
      *
      * <p>★★【1.27 用户现场之二】「z 轴的修好了，x 轴的还是老样子，前面的和后面的屏蔽门都没声音」。
      * 1.26 只把粒度做到「连通串」，而**一个站台常常是好几个连通串**（站台被实体缺口切开，
@@ -1469,9 +1624,11 @@ public final class PsdChimePlayer {
         if (source == null) {
             return; // 这一串此刻不在快照里（走远了 / 区块卸载）—— 与「射程外」同一条静默约定
         }
-        double distance = player == null ? 0.0
-                : player.distanceTo(new Vec3(source.x(), source.y(), source.z()));
-        if (gain(distance, ROUND_MIDIUM) * volume <= 0.0f) {
+        double distanceXz = player == null ? 0.0
+                : Math.hypot(player.x() - source.x(), player.z() - source.z());
+        double distanceY = player == null ? 0.0
+                : Math.abs(player.y() - source.y());
+        if (gain(distanceXz, distanceY, ROUND_MIDIUM) * volume <= 0.0f) {
             return; // 站在这一串的可闻范围外：这是常态，不刷日志
         }
         long now = mc.level.getGameTime();
@@ -1484,11 +1641,11 @@ public final class PsdChimePlayer {
                 new Arrival(startTick, startTick + durationTicks, tone, source, runKey, volume));
         LOGGER.info("[SmoothLift/PsdChime] 一串门 @{} 开门 → 排到站播报「{}」：{} tick 后（约 {}ms）起播"
                         + "（= 开门音 {}ms 播完 + 等 {} 秒；声源取这一串里离玩家最近的门 @{}，"
-                        + "距玩家 {} 格）；★ 这段声音**不会被掐断**，出站也播到完；"
+                        + "距玩家 水平 {} 格、垂直 {} 格）；★ 这段声音**不会被掐断**，出站也播到完；"
                         + "★ 一整串只排这一条（还没播完不会再排第二条）",
                 posText(door), toneLabel(tone), startTick - now, (startTick - now) * 50L,
                 openDurMs, cachedMidiumWaitSeconds, posText(source),
-                String.format("%.1f", distance));
+                String.format("%.1f", distanceXz), String.format("%.1f", distanceY));
     }
 
     /**
@@ -1513,7 +1670,7 @@ public final class PsdChimePlayer {
             if (!plan.fired && now >= plan.startTick) {
                 plan.fired = true;
                 PsdMusicInstance inst = play(mc, plan.tone, plan.door, plan.volume, 0, true,
-                        ROUND_MIDIUM, plan.runKey);
+                        ROUND_MIDIUM, plan.runKey, true);
                 LOGGER.info("[SmoothLift/PsdChime] 到站播报（这一串的门 @{} 里离玩家最近的一扇起播）"
                                 + " → {}「{}」（{}ms，等待 {} 秒）；"
                                 + "★ 不设停止条件：门关、车走都照播到完",
@@ -1554,6 +1711,21 @@ public final class PsdChimePlayer {
         if (mc.level == null || doors.isEmpty()) {
             return;
         }
+        // 【1.28.1204】/jsr 总开关。
+        //   ★【1.29】它现在**只管讲述人那一条**（见下面 ③-B），不再把整条进站报站链路一起关掉 ——
+        //   用户原话：「讲述人的进站广播和自定义的进站广播不是一个广播，可以同时存在」。
+        //   ⇒ 关 /jsr 只让讲述人闭嘴，自定义进站广播（音频库素材）照旧；反过来，
+        //     自定义那条设成「不播」也不会再连累讲述人。
+        //   ★【09-28】讲述人从此有**两层**开关：这一层全局 /jsr **与** 每串门自己的
+        //   {@code PsdToneAudio.narrate}（石斧 UI 二级页「关闭 / 开启」），两者取「与」。
+        //   ★★【09-30】玩家在 MTR 列车上 ⇒ 讲述人**语音和文字一概不播，无论设置如何**
+        //   （用户点名；效果等同于走出 /jsr round —— 正在念/正在显示的那一下由
+        //   tickRangeGuard / Subtitle.tick 同一 tick 撤下）。自定义进站广播**不受影响**
+        //   （它只减音量，见 TRAIN_VOLUME_FACTOR 那一套）。
+        boolean ridingNow = ridingTrain();
+        boolean narrateGlobal = TrainAnnounceSwitch.isEnabled() && !ridingNow;
+        // 【09-30】全局样式覆盖（/jsr on default-HK|default-SH|userN）：-1 = default（跟门串）。
+        int styleOverride = TrainAnnounceSwitch.styleModeOverride();
         long now = mc.level.getGameTime();
         Vec3 player = mc.player == null ? null : mc.player.position();
         // ★【1.26】先把门快照归并成「每一串里离玩家最近的那一扇」。
@@ -1567,11 +1739,64 @@ public final class PsdChimePlayer {
                 nearestPerRun.put(d.runKey(), d);
             }
         }
+        // ★★【09-29】讲述人的范围从这一版起是**自己的**（/jsr round AAA BBB，客户端配置），
+        //   不再借用 /pbmarriveround —— 自定义进站广播（③-A）照旧用它自己的范围。
+        //   同时落地用户点名的第 3 条：**玩家同时处于多个讲述人 round 内时，
+        //   以玩家到屏蔽门距离最近的那一串的播报为准** —— 其余的串保持安静。
+        //   候选 = 这一串的讲述人样式开着 && 玩家在它的范围内（【1.29.1204】水平 < AAA
+        //   且 垂直 < BBB，任一超出即不候选）；
+        //   nearestNarrateRun = 候选里**三维欧氏距离**最小的那个 runKey（下面 ③-B 只对它开口）——
+        //   距离量纲不变，只当「选哪串」的尺子，范围判定走上面的两维判据。
+        //   ★ 被压下去的串**不记账**（firedArrivalNarrate 不动）：玩家走远、最近的串
+        //   出了 round 之后，它仍可按它自己的窗口补播这一班 —— 「以最近的为准」
+        //   管的是「此刻谁开口」，不是「这一班谁独占」。
+        int narrateRoundXz = TrainAnnounceSwitch.narrateRoundXz();
+        int narrateRoundY = TrainAnnounceSwitch.narrateRoundY();
+        long nearestNarrateRun = Long.MIN_VALUE;
+        if (narrateGlobal) {
+            double bestNarrateDistance = Double.MAX_VALUE;
+            for (Map.Entry<Long, PsdDoorTracker.DoorView> run : nearestPerRun.entrySet()) {
+                if (EscalatorSpeedManager.getDoorPsdNarrateMode(mc.level, run.getKey())
+                        == EscalatorSpeedData.PSD_NARRATE_OFF) {
+                    continue; // 这一串的讲述人样式关着：它不在候选里，也不压制别人
+                }
+                PsdDoorTracker.DoorView door = run.getValue();
+                // 【1.29.1204】范围判据两维各算各的（同一条判据，见 TrainAnnounceSwitch）：
+                //   水平（x、z 轴）< 水平范围 且 垂直（y 轴）< 垂直范围 才算「在范围内」。
+                if (TrainAnnounceSwitch.isOutsideNarrateRange(run.getKey(),
+                        door.x(), door.y(), door.z(), player)) {
+                    continue; // 玩家已越界（水平 ≥ AAA 或垂直 ≥ BBB）：这一串不在候选里
+                }
+                double distance = player == null ? 0.0
+                        : player.distanceTo(new Vec3(door.x(), door.y(), door.z()));
+                if (distance < bestNarrateDistance) {
+                    bestNarrateDistance = distance;
+                    nearestNarrateRun = run.getKey();
+                }
+            }
+        }
         for (Map.Entry<Long, PsdDoorTracker.DoorView> run : nearestPerRun.entrySet()) {
             long runKey = run.getKey();
             PsdDoorTracker.DoorView door = run.getValue();
             String audio = EscalatorSpeedManager.getDoorPsdArriveAudio(mc.level, runKey);
-            if (EscalatorSpeedData.isPsdArriveOff(audio)) {
+            // 【1.29】「不播」只关**自定义**那一条（= customOff 这个局部标志），
+            //   不再像 1.28 那样把这一串整个 `continue` 掉 —— 讲述人那一条要照念。
+            //   ★【09-28】讲述人也有自己的开关了（门串覆盖 > 维度默认），与 /jsr 取「与」。
+            //   两条都关着时才真的没事可做，此时保持老口径：顺手把状态表清掉。
+            boolean customOff = EscalatorSpeedData.isPsdArriveOff(audio);
+            //   ★【09-28 续】这里取的是**样式**（0 关 / 1 上海 / 2 香港 / 3+ 自定义 userN）：
+            //   ③-B 要按样式选句式，只看开/关会把香港档也念成上海词。
+            //   ★★【09-30】全局样式覆盖（/jsr on default-HK|default-SH|userN）：门串自己
+            //   开着（≠ 关闭）时**全局说了算**（「念哪一句」）；门串自己关着 → 仍按「关闭」
+            //   —— 门串的「关闭」是它自己的否决权，全局样式不越过。
+            int doorNarrateMode = EscalatorSpeedManager.getDoorPsdNarrateMode(mc.level, runKey);
+            int narrateMode = !narrateGlobal
+                    ? EscalatorSpeedData.PSD_NARRATE_OFF
+                    : doorNarrateMode == EscalatorSpeedData.PSD_NARRATE_OFF
+                    ? EscalatorSpeedData.PSD_NARRATE_OFF
+                    : styleOverride >= 0 ? styleOverride : doorNarrateMode;
+            boolean narrateOn = narrateMode != EscalatorSpeedData.PSD_NARRATE_OFF;
+            if (customOff && !narrateOn) {
                 arriveVoice.remove(runKey);
                 continue;
             }
@@ -1587,78 +1812,591 @@ public final class PsdChimePlayer {
             //   与身份那一侧是**两条并行认亲**：一旦某扇门在 4 格边界上两边判出不同结果，
             //   「身份已是站台、时刻表却认不到」⇒ 这一串**永远不响进站报站**（LOG6 现场：
             //   x 轴 z=43 那排门的身份一直回落连通串，进站报站那边也就一路静默、连日志都没有）。
-            long platformId = arrivePlatform.getOrDefault(runKey, -1L);
-            if (platformId <= 0L) {
-                platformId = door.platformId();
-                if (platformId > 0L) {
-                    arrivePlatform.put(runKey, platformId);
-                } else {
-                    // 身份都没认到才退回自己认一次（1.21 的老路；通常只有「站台数据没同步」才会走到）。
-                    platformId = MtrDwellAccess.platformIdAt(door.x(), door.y(), door.z());
-                    if (platformId <= 0L) {
-                        // ★【1.28】诊断（节流：同一串每 60 秒一行）—— 用户报「某些屏蔽门
-                        //   arrive 直接没有声音」时，这行会点名**为什么**：站台数据没同步、
-                        //   附近没站台、还是站台在 4 格上限外差几格。
-                        long tickNow = mc.level.getGameTime();
-                        Long nextLog = arriveFailNextLog.get(runKey);
-                        if (nextLog == null || tickNow >= nextLog) {
-                            arriveFailNextLog.put(runKey, tickNow + ARRIVE_FAIL_LOG_EVERY);
-                            LOGGER.info("[SmoothLift/PsdChime] 进站报站：串 @{} 认不到 MTR 站台"
-                                            + " ⇒ 这一串不响进站报站（{}）",
-                                    posText(door),
-                                    MtrDwellAccess.nearestPlatformExplain(door.x(), door.y(), door.z()));
-                        }
-                        continue;
+            //   ★【09-28 续 6】「认不到」的哨兵是 PLATFORM_ID_NONE，**不是 0 / 负数**：
+            //   MTR4 站台 id = Random().nextLong()，约一半是负数（LOG12 现场：开往南区南方向
+            //   的 4 号线站台 id 为负 ⇒ 旧判据 platformId <= 0 把「认到了」误判成「认不到」，
+            //   整个方向没有进站播报）。判据一律用 MtrDwellAccess.isPlatformKnown。
+            //   ★★【09-30 续 9】runKey 已升到**车站级**（同站两侧门串共用一个身份）⇒
+            //   这里的站台 id **必须按每侧自己的 DoorView.platformId 取** —— 上 / 下行的
+            //   时刻表不能串（ arrivePlatform 那份「按 runKey 缓存」是站台级时代的产物，
+            //   车站级 runKey 下两侧共用一份缓存会把 A 侧的站台 id 串给 B 侧，已删）。
+            long platformId = door.platformId();
+            if (!MtrDwellAccess.isPlatformKnown(platformId)) {
+                // 身份链还没认到（站台数据没同步完）才退回自己认一次（1.21 的老路）。
+                platformId = MtrDwellAccess.platformIdAt(door.x(), door.y(), door.z());
+                if (!MtrDwellAccess.isPlatformKnown(platformId)) {
+                    // ★【1.28】诊断（节流：同一串每 60 秒一行）—— 用户报「某些屏蔽门
+                    //   arrive 直接没有声音」时，这行会点名**为什么**：站台数据没同步、
+                    //   附近没站台、还是站台在 4 格上限外差几格。
+                    long tickNow = mc.level.getGameTime();
+                    Long nextLog = arriveFailNextLog.get(runKey);
+                    if (nextLog == null || tickNow >= nextLog) {
+                        arriveFailNextLog.put(runKey, tickNow + ARRIVE_FAIL_LOG_EVERY);
+                        LOGGER.info("[SmoothLift/PsdChime] 进站报站：串 @{} 认不到 MTR 站台"
+                                        + " ⇒ 这一串不响进站报站（{}）",
+                                posText(door),
+                                MtrDwellAccess.nearestPlatformExplain(door.x(), door.y(), door.z()));
                     }
-                    arrivePlatform.put(runKey, platformId);
-                    LOGGER.info("[SmoothLift/PsdChime] 进站报站：串 @{} 认到 MTR 站台 id={}",
-                            posText(door), platformId);
+                    continue;
                 }
+                LOGGER.info("[SmoothLift/PsdChime] 进站报站：串 @{} 认到 MTR 站台 id={}",
+                        posText(door), platformId);
             }
             // ② 时刻表：下一班（还没走远的）还有多少毫秒到站
-            long remainMs = MtrDwellAccess.nextArrivalRemainingMs(platformId);
-            if (remainMs == Long.MIN_VALUE) {
+            //   ★【09-28】顺手把这一班车的**终点站 / 站台名**一起取回来（同一个 ArrivalResponse，
+            //   就是 MTR 站台那块屏正在显示的那一条）—— 讲述人报站词要念这两个值。
+            MtrDwellAccess.ArrivalInfo arrival = MtrDwellAccess.nearestArrival(platformId);
+            if (arrival == null) {
                 continue; // 读不到时刻表（没装 MTR4 / 还没同步到）—— 静默跳过，不刷日志
             }
-            // 阈值 = 玩家设的 -X 秒：X=-10 ⇒「最近一班车还剩 10 秒到站」时起播
-            int thresholdSeconds = EscalatorSpeedManager.getDoorPsdArriveSeconds(mc.level, runKey);
-            long thresholdMs = (long) (-thresholdSeconds) * 1000L;
-            if (remainMs > thresholdMs || remainMs < -MtrDwellAccess.ARRIVAL_PAST_MS) {
-                continue; // 还没进窗口 / 车已经过站超过补播宽限（这一轮过去了）
+            long remainMs = arrival.remainingMs;
+            // 【09-28】★★ 两条广播各有**自己的**窗口（用户点名「取消借用进站广播」）：
+            //   自定义那条用 getDoorPsdArriveSeconds，讲述人这条用 getDoorPsdNarrateSeconds。
+            //   阈值口径逐字相同（X=-10 ⇒「最近一班车还剩 10 秒到站」时起播），但两边各存各的值 ——
+            //   所以窗口区间要各算各的，不能像 1.29 那样只算一次共用。
+            int customThresholdSeconds = EscalatorSpeedManager.getDoorPsdArriveSeconds(mc.level, runKey);
+            int narrateThresholdSeconds = EscalatorSpeedManager.getDoorPsdNarrateSeconds(mc.level, runKey);
+            /** 车已经过站超过补播宽限（两条共用：这是「时刻表本身过期」，与听哪条广播无关）。 */
+            boolean late = remainMs < -MtrDwellAccess.ARRIVAL_PAST_MS;
+            /** 自定义那条此刻进没进它自己的窗口（素材设成「不播」时永远 false）。 */
+            boolean customInWindow = !customOff && !late
+                    && remainMs <= (long) (-customThresholdSeconds) * 1000L;
+            /** 讲述人那条此刻进没进它自己的窗口（开关关着时永远 false）。 */
+            boolean narrateInWindow = narrateOn && !late
+                    && remainMs <= (long) (-narrateThresholdSeconds) * 1000L;
+            if (!customInWindow && !narrateInWindow) {
+                continue; // 两条都还没进窗口 / 车已经过站超过补播宽限（这一轮过去了）
             }
-            // ③ 同一班车只播一次：这次算出来的**绝对**到站时刻与上次播的那一班比
+            // ③ 同一班车只播一次：这次算出来的**绝对**到站时刻与上次播的那一班比。
+            //   ★【09-28】记账**分开**（两条各有各的窗口 ⇒ 各记各的，见 Arrive#firedArrivalNarrate）：
+            //   用同一格的话，先开窗的那一条会把另一条整班车压掉。
             long arrivalMs = System.currentTimeMillis() + remainMs;
             Arrive state = arriveVoice.computeIfAbsent(runKey, k -> new Arrive());
-            if (state.firedArrival != Long.MIN_VALUE
-                    && Math.abs(arrivalMs - state.firedArrival) <= ARRIVE_SAME_TRAIN_MS) {
-                continue;
+            /** 自定义那条还要为这一班车播？（进了窗口 **且** 这一班还没为它播过） */
+            boolean customTodo = customInWindow && !sameTrainAs(state.firedArrival, arrivalMs);
+            /** 讲述人那条还要为这一班车念？（【09-30】在列车上时 narrateGlobal=false ⇒ 永远 false。） */
+            boolean narrateTodo = narrateInWindow && !sameTrainAs(state.firedArrivalNarrate, arrivalMs);
+            if (!customTodo && !narrateTodo) {
+                continue; // 进窗口的那几条都已经为这一班车播过了
             }
-            Tone tone = resolveArriveTone(mc, audio);
-            if (tone == null || tone.durationMs() <= 0) {
-                continue; // 素材不在库里 / 时长量不到 —— resolveArriveTone 已经记过日志
+            // 【09-28】声源与射程仍然**共用**：同一条串里离玩家最近的那一扇。
+            //   这是两条广播里唯一允许共用的东西 —— **位置**（本来就只有一个声源）。
+            double distanceXz = player == null
+                    ? 0.0 : Math.hypot(player.x() - door.x(), player.z() - door.z());
+            double distanceY = player == null
+                    ? 0.0 : Math.abs(player.y() - door.y());
+            /**
+             * 【1.29.1204】讲述人**自己**的范围判据：玩家到这串最近门的**水平 &lt; 水平范围 且
+             *   垂直 &lt; 垂直范围**（/jsr round AAA BBB：水平 ≥ AAA 或垂直 ≥ BBB 即超出）。
+             *   与自定义进站广播的范围（③-A 里现算的 {@code gain(distanceXz, distanceY, ROUND_ARRIVE)}，
+             *   即 {@code /pbmarriveround}）是**两份**配置 —— 用户点名「jsr round AAA BBB
+             *   指令调整进站讲述人播报的范围」，不再借用 /pbmarriveround 那一份。
+             */
+            boolean narrateInRange = !TrainAnnounceSwitch.isOutsideNarrateRange(
+                    run.getKey(), door.x(), door.y(), door.z(), player);
+
+            // ③-A 自定义进站广播（音频库里的素材）—— 只在**它自己**开着**且这一班还没播过**时走。
+            //   ★【1.29】它设成「不播」时下面整个跳过，但**不影响** ③-B（讲述人）。
+            //   ★【09-28】改成 customTodo：还要「这一班车还没为自定义这条播过」。
+            if (customTodo) {
+                Tone tone = resolveArriveTone(mc, audio);
+                if (tone != null && tone.durationMs() > 0) {
+                    // 【1.22】同到站播报：只算音量系数，距离增益交给实例每 tick。
+                    float volume = volumeFactor(
+                            EscalatorSpeedManager.getDoorPsdArriveVolume(mc.level, runKey));
+                    if (gain(distanceXz, distanceY, ROUND_ARRIVE) * volume > 0.0f) {
+                        PsdMusicInstance inst = play(mc, tone, door, volume, 0, true,
+                                ROUND_ARRIVE, runKey, true);
+                        state.firedArrival = arrivalMs; // ★ 自定义这条**自己**的记账
+                        state.firedTick = now;
+                        LOGGER.info("[SmoothLift/PsdChime] 进站报站·自定义"
+                                        + "（这一串的门 @{} 里离玩家最近的一扇起播）"
+                                        + " → {}「{}」（{}ms）：配置「剩 {} 秒到站时起播」，"
+                                        + "实际起播时时刻表还剩 {}ms（第 {} tick）；"
+                                        + "★ 不设停止条件：车进站、门开关都照播到完",
+                                posText(door), inst != null ? "播放" : "播不出（素材缺失 / 解码失败）",
+                                toneLabel(tone), tone.durationMs(), -customThresholdSeconds, remainMs, now);
+                    }
+                    // 物质在库里但玩家站在可闻范围外：**不**标记「播过」，走近了还能补上这一段
+                }
             }
-            double distance = player == null
-                    ? 0.0 : player.distanceTo(new Vec3(door.x(), door.y(), door.z()));
-            // 【1.22】同到站播报：只算音量系数，距离增益交给实例每 tick。
-            float volume = volumeFactor(EscalatorSpeedManager.getDoorPsdArriveVolume(mc.level, runKey));
-            if (gain(distance, ROUND_ARRIVE) * volume <= 0.0f) {
-                // 站在可闻范围外：**不**标记「播过」，走近了还能补上这一段
-                continue;
+
+            // ③-B 【09-28】讲述人进站广播（文字转语音）—— **独立的一条**。
+            //   ★ 判据里**没有** `customOff`：自定义那条不播、素材没导入、音量 0，都不关它的事；
+            //   它只认 ① 全局 /jsr **与** 这一串门自己的开关、② 玩家在不在这一串的可闻范围内。
+            //   ★ 窗口是**它自己**的（getDoorPsdNarrateSeconds），与自定义那条各存各的
+            //   —— 用户点名「取消借用进站广播」。
+            //   ★ 用 MTR 报站的同一个入口念（com.mojang.text2speech.Narrator，不查游戏辅助功能
+            //   设置）—— 详见 TrainAnnounceNarrator。
+            //   ★ 念什么 = 按这一串门**生效的样式**选句式（TrainAnnounceNarrator.arriveTextForStyle）：
+            //     开启(上海) →「乘客们，列车马上就要进站了，本次列车终点站：X，请乘客们在Y站台有序候车」；
+            //     开启(香港) →「前往X的列车即将到达，请先让车上的乘客下车 ⏎ The train to X is arriving…」
+            //   ★★【09-28 续 3】两档**只差句式，不差名源** —— X 都是**本次列车终点站**
+            //     （ArrivalResponse.getDestination()，MTR 的双语 中文|English 就在这个字段上），
+            //     只有上海档**多要一个** Y = 站台名（ArrivalResponse.getPlatformName()）。
+            //     ★ 上一版曾让香港档去吃**车站名**（Station.getName() = 玩家所在那个站）⇒ 把
+            //     「前往江苏北路」念成「前往火车站」（用户报的 bug）；再上一版吃**站台名**
+            //     （「4A」单语）⇒ 只念得出英文半句。两个都不是这里的名源。
+            //   ★ 名字读不到时香港档拼不出话 ⇒ text == null ⇒ 这一条跳过（但仍记账，别每 tick 重试）。
+            //   ★★【09-29】两个新增判据：
+            //     ① narrateInRange —— 范围用**讲述人自己的** /jsr round AAA BBB（水平 AAA、
+            //        垂直 BBB，任一超出即不念；不再借用进站报站的范围）；
+            //     ② runKey == nearestNarrateRun —— 玩家同时处于多个讲述人 round 内时，
+            //        **只让离玩家最近的那一串开口**（用户点名「以玩家到屏蔽门距离最近的那个
+            //        播报为准」）。其余的串不记账，玩家走远后仍可按自己的窗口补播。
+            if (narrateTodo && narrateInRange && runKey == nearestNarrateRun) {
+                // 【09-30 续】本车站名提前到起播那一刻取（仍是低频查询）：自定义档的占位符
+                //   |SC| / |SE| 要用它替换（见 TrainAnnounceNarrator.expandUserTemplate），
+                //   下面的日志继续共用同一个值。
+                String stationName = MtrDwellAccess.stationNameForPlatform(platformId);
+                // 【09-30 续 2】|LC| / |LE| 还要**线路名** —— 只在自定义档才去扫
+                //   （routes × routeData 的遍历，低频起播时刻才跑，省一次无用反射）。
+                String lineName = EscalatorSpeedData.isPsdNarrateUserStyle(narrateMode)
+                        ? MtrDwellAccess.lineNameForPlatform(platformId) : null;
+                String text = TrainAnnounceNarrator.arriveTextForStyle(
+                        narrateMode, arrival.destination, arrival.platformName, stationName,
+                        lineName, TrainAnnounceSwitch.arriveUserTexts());
+                // 【09-29】speak 带上声源身份（runKey）与坐标：护栏每 tick 现算
+                //   「到这一串门此刻最近的一扇」的距离，超出 /jsr round 的那一刻
+                //   把正在念的话当场掐掉（clear()）。
+                //   ★【09-29 续】坐标只是兜底 —— 主判据是 runKey，否则玩家沿站台走到
+                //   本串另一头就会被误判越界（见 TrainAnnounceSwitch#narrateDistances）。
+                boolean spoke = text != null
+                        && TrainAnnounceNarrator.speak(text, runKey, door.x(), door.y(), door.z());
+                // 【09-29】字幕与念是**同一个事件**：这一班要念（text 拼得出来），
+                //   屏幕上就挂同一句话（标点已换空格，见 TrainAnnounceSubtitle）；
+                //   玩家离开 round / 自然念完 ⇒ 字幕消失。字幕开没开由 show 自己判
+                //   （【09-30】/jsr on <样式> 的文字地点不是 word 时它是空操作）。
+                if (text != null) {
+                    TrainAnnounceSubtitle.show(text, runKey, door.x(), door.y(), door.z());
+                    // 【09-30】文字出现地点 = chat ⇒ 同一句话**发进聊天框**（用户点名
+                    //   「word/chat 指的是讲述人文字出现地点，屏幕中/聊天框」；
+                    //   【09-30 续】按点名删掉「[讲述人]」前缀，聊天框里就是播报文字本身）。
+                    //   与字幕互斥（TextMode 三档取一）；ridingNow 时整段不会走到这里
+                    //   （narrateTodo 恒 false），所以聊天框不会在列车上冒出来。
+                    if (TrainAnnounceSwitch.textMode() == TrainAnnounceSwitch.TextMode.CHAT
+                            && mc.player != null) {
+                        for (String line : text.split("\n")) {
+                            if (!line.isBlank()) {
+                                mc.player.displayClientMessage(Component.literal(line.trim()), false);
+                            }
+                        }
+                    }
+                }
+                // 走到这里就算「这一班车已处理」：引擎没装 / 这一档没拼出话，都不该每 tick 重试。
+                state.firedArrivalNarrate = arrivalMs; // ★ 讲述人这条**自己**的记账
+                state.firedTick = now;
+                // ★【09-28 续 3】日志里附上**本车站名**（【09-30 续】它在上面已经取好了 ——
+                //   自定义档的 |SC| / |SE| 占位符也用它）。
+                LOGGER.info("[SmoothLift/PsdChime] 进站报站·讲述人{}"
+                                + "（这一串的门 @{} 里离玩家最近的一扇起播）"
+                                + " → {}「{}」（终点站 {}、站台 {}、本车站 {}）："
+                                + "配置「剩 {} 秒到站时起播」，实际起播时时刻表还剩 {}ms（第 {} tick）；"
+                                + "★ 与自定义进站广播是两条互不相干的广播，可以同时存在",
+                        EscalatorSpeedData.psdNarrateModeName(narrateMode),
+                        posText(door),
+                        text == null ? "跳过（这一档拼不出话，例如终点站读不到）"
+                                : (spoke ? "念出" : "念不出（本机没有可用语音引擎）"),
+                        text == null ? "" : text,
+                        arrival.destination == null ? "读不到" : arrival.destination,
+                        arrival.platformName == null ? "读不到" : arrival.platformName,
+                        stationName == null ? "读不到" : stationName,
+                        -narrateThresholdSeconds, remainMs, now);
             }
-            PsdMusicInstance inst = play(mc, tone, door, volume, 0, true, ROUND_ARRIVE, runKey);
-            state.firedArrival = arrivalMs;
-            state.firedTick = now;
-            LOGGER.info("[SmoothLift/PsdChime] 进站报站（这一串的门 @{} 里离玩家最近的一扇起播）"
-                            + " → {}「{}」（{}ms）：配置「剩 {} 秒到站时起播」，"
-                            + "实际起播时时刻表还剩 {}ms（第 {} tick）；"
-                            + "★ 不设停止条件：车进站、门开关都照播到完",
-                    posText(door), inst != null ? "播放" : "播不出（素材缺失 / 解码失败）",
-                    toneLabel(tone), tone.durationMs(), -thresholdSeconds, remainMs, now);
         }
         // 只保留这一帧还看得见的串（这两张表是可重算的缓存，别让它们无限长大）
-        arrivePlatform.keySet().retainAll(nearestPerRun.keySet());
         arriveLastPoll.keySet().retainAll(nearestPerRun.keySet());
         arriveFailNextLog.keySet().retainAll(nearestPerRun.keySet());
+    }
+
+    /**
+     * 【09-28】「记录的那一班车」与「这次算出来的这一班」是不是同一班（容差 {@link #ARRIVE_SAME_TRAIN_MS}）。
+     *
+     * <p>两条广播（自定义 / 讲述人）各存各的记录（见 {@link Arrive#firedArrival} /
+     * {@link Arrive#firedArrivalNarrate}），所以判据收成这一个函数 —— 免得两处各写一遍
+     * 「{@code != MIN_VALUE && |差| <= 容差}」而某天改容差时只改一处。
+     *
+     * @param recorded 那一条自己的记录（{@link Long#MIN_VALUE} = 从没播过）
+     */
+    private static boolean sameTrainAs(long recorded, long arrivalMs) {
+        return recorded != Long.MIN_VALUE && Math.abs(arrivalMs - recorded) <= ARRIVE_SAME_TRAIN_MS;
+    }
+
+    // ------------------------------------------------------------------
+    // 【09-30 续 3】站台广播（讲述人）：排计划 + 到点开念。
+    // ------------------------------------------------------------------
+
+    /**
+     * 【09-30 续 3】开门那一瞬给这一串门排一条**站台讲述人**计划（与
+     * {@link #planArrivalAnnounce} 同一时刻、同一套「一串只排一条」的规矩）。
+     *
+     * <p>排计划的四道闸（任一不过就安静地不排，与进站讲述人同一口径）：
+     * <ol>
+     *   <li>这一串还没排过（{@code midiumNarratorVoice} 里没有它）；</li>
+     *   <li>全局 /jsr 开着，且玩家**不在 MTR 列车上**（讲述人语音文字在车上不播，用户点名）；</li>
+     *   <li>这一串门的站台讲述人**样式**开着（门覆盖 &gt; 维度默认）；</li>
+     *   <li>玩家在这一串的 /jsr round 范围内（讲述人自己的范围，与 pbmmidium 的范围是两份）。</li>
+     * </ol>
+     * 起算点与自定义到站播报**逐字相同**：{@code 开门音播完 + 等待秒数}（等待秒数是
+     * 站台讲述人**自己的**那一份，与 pbmmidium 的各存各的）。
+     */
+    private static void planMidiumNarrator(Minecraft mc, PsdDoorTracker.DoorView door,
+                                           Playable openPlayable) {
+        long runKey = door.runKey();
+        // ★★【10-01】这道守卫是「同一班车只排一条」的第一道闸，键 = runKey
+        //   （**车站级**身份 = 配置身份：站台讲述人的样式 / 范围都按它读）。
+        //   ★★【10-01 续】注意键的**粒度**与「播报范围」的粒度**是两件事**：闸的粒度仍是
+        //   runKey（一次开门周期只排一条，够了 —— 真正会念的那一条必然在玩家所在的那个
+        //   站台上，见下面的声源收窄），而「谁能出声 / 谁让位」用的是**站台**粒度
+        //   （{@link #isNearestMidiumNarrateRun} 与 {@link #sameBroadcastScope}）。
+        //   ★ 它只在**表里还有记录**时才起作用。旧实现是「起播那一 tick 就把表项摘掉」，
+        //   于是这道闸的窗口被压成了零 ⇒ 同一串里后开门的那几扇门能再排一条、再念一遍
+        //   （LOG013 那两对重复就是这么来的，数字见 {@link #MIDIUM_NARRATE_HOLD_TICKS}）。
+        //   现在念完由 {@link #tickMidiumNarrator} 把记录带着 fired 标记**放回表里**，
+        //   这道闸才真正挡得住 —— 键与放回时的键必须是同一个（都是 runKey）。
+        if (midiumNarratorVoice.containsKey(runKey)) {
+            return; // 这一串已有一条「还没念完 / 刚念过还在守卫窗口内」的记录 —— 不排第二条
+        }
+        // 【09-30 续 4】总闸是站台讲述人**自己的**（/jsr midium on|off），与进站讲述人分开。
+        if (!TrainAnnounceSwitch.isMidiumEnabled() || ridingTrain()) {
+            return;
+        }
+        // 【09-30 续 4】站台讲述人的样式只有「关闭」与 userN 两类 —— 香港 / 上海预设已删
+        //   （用户点名），存档里残留的 1/2 档一律当「关闭」处理。
+        int doorMode = EscalatorSpeedManager.getDoorPsdMidiumNarrateMode(mc.level, runKey);
+        if (doorMode == EscalatorSpeedData.PSD_NARRATE_OFF
+                || !EscalatorSpeedData.isPsdNarrateUserStyle(doorMode)) {
+            return;
+        }
+        Vec3 player = mc.player == null ? null : mc.player.position();
+        // ★★【10-01 续】声源 = **触发这一扇门所属的那个 MTR 站台**里离玩家最近的门。
+        //
+        //   旧写法取 {@code PsdDoorTracker.nearestInRun(runKey, player)} = 整个**车站**最近的那扇门
+        //   —— 而 runKey 自【09-30 续 9】起是**车站级**（同站几层 / 两侧共用一个配置身份）
+        //   ⇒ 那个「最近的门」几乎必然**贴着玩家**（就在玩家脚下这条门线上）⇒ 下面那道
+        //   {@code /jsr midium round} 判据的**水平与垂直两维都恒等于 0** ⇒ 永远不越界。
+        //
+        //   后果（LOG114 现场，数字可复核）：玩家站在 8-2 站台，**2-2 站台**（另一条门线 ——
+        //   垂直差 8 格 / 水平差 40 格）的列车开门时，那条播报也拿到「玩家脚下那扇门」当声源
+        //   ⇒ 满音量在耳边念一遍（15:49:06 念的正是 2-2），而玩家自己的 8-2 是 15:49:20 开门、
+        //   15:49:22 才念 ⇒ 用户听到的就是「站台广播**提前播了一次**、开门又播一次」。
+        //   ⇒ 声源收窄到「这一扇门自己的站台」之后，`/jsr midium round`（默认 水平 16 / 垂直 5）
+        //   才真的按「层 / 平台」分得开：别的站台离玩家远 ⇒ 出范围 ⇒ **不排**（静默，与
+        //   「射程外」同一条约定）。本平台上离玩家最近的那扇仍然就在身边 ⇒ 站台内
+        //   「整排一起响、一起淡出」的老语义（【续 50】）不受影响。
+        long platformId = door.platformId();
+        PsdDoorTracker.DoorView source;
+        if (MtrDwellAccess.isPlatformKnown(platformId)) {
+            source = PsdDoorTracker.nearestOnPlatform(platformId, player);
+            if (source == null) {
+                return; // 这个站台此刻不在快照里（走远了 / 区块卸载）—— 与「这一串不在快照里」同一条约定
+            }
+        } else {
+            // 站台认不到 ⇒ 回落车站级声源（与铃声响度那边**同一条约定**：认不到就不冒充「同一个站台」）
+            source = PsdDoorTracker.nearestInRun(runKey, player);
+            if (source == null) {
+                return; // 这一串此刻不在快照里（走远了 / 区块卸载）
+            }
+        }
+        // 【09-30 续 4】范围是站台讲述人**自己的** /jsr midium round（与进站讲述人的两份配置）。
+        if (TrainAnnounceSwitch.isOutsideMidiumNarrateRange(runKey,
+                source.x(), source.y(), source.z(), player)) {
+            return; // 玩家在范围外：不排（这是常态，不刷日志）
+        }
+        long now = mc.level.getGameTime();
+        // ★★【10-01】等待基线**不能**只看「触发排计划的那一扇门」的 openPlayable —— 它常常是 null
+        //   （那一扇门不在玩家射程里：{@link #resolvePlayable} 对范围外的门按设计既不起播也不刷日志），
+        //   于是「开门音播完」被算成 0ms ⇒ startTick == 现在 ⇒ **当场开念**（用户说的「提前播报一次」），
+        //   并且因为旧实现当场就把表项摘了，同一串后开门的几扇门还会**再念一遍**
+        //   （两次实测见 {@link #MIDIUM_NARRATE_HOLD_TICKS}）。
+        //   改成本串（= 这个车站）**「开门音」这一项生效的素材时长**：与哪一扇门触发无关；
+        //   在射程内触发的正常情形下，它与旧写法取的**是同一份配置的同一个时长**，行为不变。
+        long openDurMs = midiumOpenBeepMs(mc, runKey, openPlayable);
+        long openTicks = openDurMs > 0L ? (openDurMs + 49L) / 50L : 0L;
+        int waitSeconds = EscalatorSpeedManager.getDoorPsdMidiumNarrateSeconds(mc.level, runKey);
+        long startTick = now + openTicks + Math.max(0, waitSeconds) * 20L;
+        midiumNarratorVoice.put(runKey, new MidiumNarratorPlan(startTick, source, runKey, platformId));
+        LOGGER.info("[SmoothLift/PsdChime] 一串门 @{} 开门（站台 id={}）→ 排站台广播(讲述人)："
+                        + "{} tick 后开念（= 开门音 {}ms 播完 + 等 {} 秒；"
+                        + "声源取**这个站台**里离玩家最近的门 @{}）；★ 讲述人与自定义到站播报互相独立",
+                posText(door), platformId, startTick - now, openDurMs, waitSeconds, posText(source));
+    }
+
+    /**
+     * 【09-30 续 3】每 tick 走一遍站台讲述人计划：到点开念、念完**再守一个窗口**才摘表项。
+     *
+     * <p>★★【10-01】表项的收口改成两段，与 {@link #tickArrivalAnnounce} 的 {@code endTick} 同一条思路
+     * （旧版是「起播那一 tick 就摘」，等于把「同一份话不叠两遍」那道守卫的窗口压成 0 ——
+     * 用户报的「又是提前播报一次 / 播报 2 次」就是它，数字见 {@link #MIDIUM_NARRATE_HOLD_TICKS}）：
+     * <ol>
+     *   <li>判据没过（开关 / 样式 / 范围 / 多站台就近压制）⇒ 照旧**立刻摘**：
+     *       「这一班的开门周期就处理这一次」，与声音无关；</li>
+     *   <li>真念了 ⇒ 标 {@code fired} + {@code spokenTick} 并把记录**放回表里**，
+     *       由 {@link #midiumHoldOver} 在「守卫窗口走完 + 这一串的门全关（或硬上限）」时摘。</li>
+     * </ol>
+     *
+     * <p>起播那一刻再核四件事（排计划之后状态可能已经变了）：
+     * 全局开关与列车状态、样式是否仍开着（顺带套全局样式覆盖，与进站讲述人同一条规则）、
+     * 玩家是否仍在 /jsr round 范围内、以及**多站台就近压制** —— 这一时刻范围内还有别的
+     * 站台讲述人候选时，只让离玩家最近的那一串开口（与进站讲述人同一条规则）。
+     *
+     * <p>念什么 = 按**站台讲述人的样式**选句式（与进站讲述人共用
+     * {@link TrainAnnounceNarrator#arriveTextForStyle}）：上海 / 香港档吃这一班的
+     * 终点站与站台名（起播时刻查一次时刻表），userN 档把玩家模板里的占位符换成实际值；
+     * 文字出现地点（字幕 / 聊天框）也与进站讲述人共用同一套开关。
+     */
+    private static void tickMidiumNarrator(Minecraft mc, List<PsdDoorTracker.DoorView> doors) {
+        if (midiumNarratorVoice.isEmpty()) {
+            return;
+        }
+        long now = mc.level.getGameTime();
+        // 【10-01】念完之后要**放回**表里的那几条（守卫窗口内继续挡住同一串的后续门沿）。
+        //   ★★ 必须攒到 while 之外再 put：迭代中途 put 会改 HashMap 的 modCount ⇒ 下一轮
+        //   {@code next()} 直接 CME（本表通常只有 1~2 条，但绝不靠「反正只有一条」来兜）。
+        //   ★ 时机也对：本方法排在门循环**之前**（见 onClientTick），放回去的记录当帧就能挡住
+        //   同一 tick 里随后开门的那几扇门。
+        Map<Long, MidiumNarratorPlan> respawn = null;
+        Iterator<Map.Entry<Long, MidiumNarratorPlan>> it = midiumNarratorVoice.entrySet().iterator();
+        while (it.hasNext()) {
+            Map.Entry<Long, MidiumNarratorPlan> entry = it.next();
+            MidiumNarratorPlan plan = entry.getValue();
+            if (plan.fired) {
+                // 【10-01】已经念过：这一条只剩「继续挡住这一串」的作用，到点（守卫窗口走完 +
+                //   这一串的门已全关，或撞上硬上限）才摘 —— 见 MIDIUM_NARRATE_HOLD_TICKS。
+                if (midiumHoldOver(doors, plan, now)) {
+                    it.remove();
+                }
+                continue;
+            }
+            if (now < plan.startTick) {
+                continue;
+            }
+            it.remove(); // 还没念：这一班的开门周期就处理这一次（摘表项 = 回收，与声音无关）；
+                         // ★ 真念成了的话，末尾会把它**带着 fired 标记放回去**（守卫窗口）。
+            // 【09-30 续 4】总闸是站台讲述人自己的（/jsr midium on|off）。
+            if (!TrainAnnounceSwitch.isMidiumEnabled() || ridingTrain()) {
+                continue; // 等待期间总闸被关 / 玩家上了车 —— 这一班不念了
+            }
+            // 这一串的样式此刻还开着吗（关着 = 门串自己的否决权，全局样式也不越过它）。
+            // 【09-30 续 4】站台讲述人只有「关闭」与 userN —— 残留的上海 / 香港档当「关闭」。
+            int doorMode = EscalatorSpeedManager.getDoorPsdMidiumNarrateMode(mc.level, plan.runKey);
+            if (doorMode == EscalatorSpeedData.PSD_NARRATE_OFF
+                    || !EscalatorSpeedData.isPsdNarrateUserStyle(doorMode)) {
+                continue;
+            }
+            // 全局样式覆盖（/jsr midium on default|userN）：门串开着时全局说了算。
+            int styleOverride = TrainAnnounceSwitch.midiumStyleModeOverride();
+            int mode = styleOverride >= 0 ? styleOverride : doorMode;
+            Vec3 player = mc.player == null ? null : mc.player.position();
+            if (TrainAnnounceSwitch.isOutsideMidiumNarrateRange(plan.runKey,
+                    plan.source.x(), plan.source.y(), plan.source.z(), player)) {
+                LOGGER.info("[SmoothLift/PsdChime] 站台广播(讲述人)：串 @{} 起播时刻玩家已在"
+                                + " /jsr midium round 范围外 ⇒ 这一班不念",
+                        posText(plan.source));
+                continue;
+            }
+            // 多站台就近压制：这一时刻范围内还有别的**站台**的讲述人候选时，只让最近的那个开口。
+            // ★【10-01 续】粒度是「站台」（不是 runKey = 车站）—— 见 isNearestMidiumNarrateRun 的注释。
+            if (!isNearestMidiumNarrateRun(mc.level, doors, plan, player)) {
+                LOGGER.info("[SmoothLift/PsdChime] 站台广播(讲述人)：玩家同时在多个站台的讲述人"
+                                + "范围内，以最近的那个站台为准 ⇒ 站台 id={}（声源 @{}）这一班让位",
+                        plan.platformId, posText(plan.source));
+                continue;
+            }
+            // 终点站 / 站台名（上海 / 香港档的句料）与车站 / 线路名（userN 的 |SC| 等占位符）——
+            //   都是「起播那一刻才查」的低频查询。
+            MtrDwellAccess.ArrivalInfo arrival = MtrDwellAccess.isPlatformKnown(plan.platformId)
+                    ? MtrDwellAccess.nearestArrival(plan.platformId) : null;
+            String stationName = MtrDwellAccess.stationNameForPlatform(plan.platformId);
+            String lineName = EscalatorSpeedData.isPsdNarrateUserStyle(mode)
+                    ? MtrDwellAccess.lineNameForPlatform(plan.platformId) : null;
+            String text = TrainAnnounceNarrator.arriveTextForStyle(mode,
+                    arrival == null ? null : arrival.destination,
+                    arrival == null ? null : arrival.platformName,
+                    stationName, lineName, TrainAnnounceSwitch.midiumUserTextsList());
+            boolean spoke = text != null
+                    && TrainAnnounceNarrator.speak(text, plan.runKey,
+                    plan.source.x(), plan.source.y(), plan.source.z(), true);
+            // 文字出现地点与进站讲述人同一套：字幕（word）互斥、聊天框（chat）按行发，
+            // off = 只出语音 —— 但开关是站台讲述人**自己的**（/jsr midium on <样式> word|chat|off）。
+            // 列车上那一支上面已经拦掉，这里不会再冒文字。
+            if (text != null) {
+                TrainAnnounceSubtitle.show(text, plan.runKey,
+                        plan.source.x(), plan.source.y(), plan.source.z(), true);
+                if (TrainAnnounceSwitch.midiumTextMode() == TrainAnnounceSwitch.TextMode.CHAT
+                        && mc.player != null) {
+                    for (String line : text.split("\n")) {
+                        if (!line.isBlank()) {
+                            mc.player.displayClientMessage(Component.literal(line.trim()), false);
+                        }
+                    }
+                }
+            }
+            LOGGER.info("[SmoothLift/PsdChime] 站台广播·讲述人{}（这一串的门 @{} 里离玩家最近的一扇起播）"
+                            + " → {}「{}」（终点站 {}、站台 {}）："
+                            + "配置「开门音播完 {} 秒后开念」（第 {} tick）；"
+                            + "★ 与进站广播的讲述人是两条互不相干的广播，可以同时存在",
+                    EscalatorSpeedData.psdNarrateModeName(mode),
+                    posText(plan.source),
+                    text == null ? "跳过（这一档拼不出话）"
+                            : (spoke ? "念出" : "念不出（本机没有可用语音引擎）"),
+                    text == null ? "" : text,
+                    arrival == null || arrival.destination == null ? "读不到" : arrival.destination,
+                    arrival == null || arrival.platformName == null ? "读不到" : arrival.platformName,
+                    EscalatorSpeedManager.getDoorPsdMidiumNarrateSeconds(mc.level, plan.runKey),
+                    now);
+            // ★★【10-01】念过了 ⇒ 带着 fired 标记**放回表里**（攒到循环外再 put，见 respawn）。
+            //   为什么不能就地摘掉：摘掉 ⇔ 「这一串没有待念的计划」⇔ 同一串里后开门的那几扇门
+            //   可以再排一条、再念一遍 —— 用户听到的「播报 2 次」就是它（LOG013 实测 2 tick / 8 秒
+            //   两对重复，数字见 MIDIUM_NARRATE_HOLD_TICKS）。窗口由 midiumHoldOver 收口。
+            plan.fired = true;
+            plan.spokenTick = now;
+            if (respawn == null) {
+                respawn = new HashMap<>();
+            }
+            respawn.put(plan.runKey, plan);
+        }
+        if (respawn != null) {
+            midiumNarratorVoice.putAll(respawn);
+        }
+    }
+
+    /**
+     * 【10-01】这条**已经念过**的守卫记录可以摘了吗。
+     *
+     * <p>两个条件都要满足（或撞上硬上限）：
+     * <ol>
+     *   <li><b>守卫窗口走完</b>：{@code 现在 - spokenTick >= }{@link #MIDIUM_NARRATE_HOLD_TICKS}
+     *       （10 秒）—— 这是「同一班车只念一次」的主力；</li>
+     *   <li><b>这个站台的门已经全关</b>：还在开着（{@code fraction > }{@value #EDGE}）就继续挡着，
+     *       于是停站特别长的站台自然挡得更久，不会在门还开着的时候又念一遍；
+     *       ★【10-01 续】这里从「这一串（= 车站）」收窄到「**这条计划自己的那个站台**」
+     *       （{@link #sameBroadcastScope}）—— 车站里**别的**站台有一扇门卡着不关时，不该
+     *       替这个站台一直占着守卫（那会把下一班车的播报也吃掉）；</li>
+     *   <li><b>硬上限</b>：{@code 现在 - spokenTick >= }{@link #MIDIUM_NARRATE_HOLD_MAX_TICKS}
+     *       （60 秒）—— 门卡住不关 / 这些门已经不在快照里时的兜底，宁可多念一次也不要永久哑掉。</li>
+     * </ol>
+     *
+     * <p>★ 门快照为空（车出站、区块卸载）⇒ 第 2 条按「已全关」算（没有门还开着），
+     * 于是只剩第 1 条的 10 秒窗口 —— 与进站播报「车走了照样能把这一条收掉」同一条思路。
+     */
+    private static boolean midiumHoldOver(List<PsdDoorTracker.DoorView> doors,
+                                          MidiumNarratorPlan plan, long now) {
+        if (now < plan.spokenTick + MIDIUM_NARRATE_HOLD_TICKS) {
+            return false;
+        }
+        if (now >= plan.spokenTick + MIDIUM_NARRATE_HOLD_MAX_TICKS) {
+            return true;
+        }
+        if (doors != null) {
+            for (PsdDoorTracker.DoorView d : doors) {
+                if (sameBroadcastScope(d, plan) && d.fraction() > EDGE) {
+                    return false; // 这个站台还有门开着 ⇒ 这一班车还没走完，继续挡着
+                }
+            }
+        }
+        return true;
+    }
+
+    /**
+     * 【10-01 续】这一扇门与这条站台广播计划**是不是同一个播报范围** —— 判据与
+     * {@link #planMidiumNarrator} 取声源时逐条对齐：
+     *
+     * <ul>
+     *   <li>计划认得站台（{@link MtrDwellAccess#isPlatformKnown}）⇒ 比 **站台 id**
+     *       （与 {@link PsdDoorTracker#nearestOnPlatform} 同一把尺子）；</li>
+     *   <li>认不到 ⇒ 回落 **runKey**（= 车站级配置身份）—— 与「认不到就不冒充同一个站台」
+     *       那条老约定一致（{@link PsdDoorTracker#nearestOnPlatform} 的注释）。</li>
+     * </ul>
+     *
+     * <p>★ 为什么不能用 {@code runKey} 一把尺子量到底：runKey 是**车站级**
+     * （【09-30 续 9】）⇒ 同一个车站的 6~7 个站台共用一个 runKey ⇒ 「这个站台的门全关了没有」
+     * 会被**别的站台**那扇卡住不关的门一直答「没关」⇒ 守卫窗口被硬拖到 60 秒硬上限，
+     * 把玩家自己站台的下一班车也一起吃掉（LOG114 里 15:48:23 那次开门**没有任何排计划日志**
+     * 就是这一类：车站里另一条门线还留着几扇「刚看到就是开着」的门）。
+     */
+    private static boolean sameBroadcastScope(PsdDoorTracker.DoorView door, MidiumNarratorPlan plan) {
+        return MtrDwellAccess.isPlatformKnown(plan.platformId)
+                ? door.platformId() == plan.platformId
+                : door.runKey() == plan.runKey;
+    }
+
+    /**
+     * 【10-01】站台讲述人（以及到站播报）的等待基线 —— 「**开门音**播完」到底是多少毫秒。
+     *
+     * <p>★ 为什么要单独取一次，而不是直接用触发那一扇门的 {@code openPlayable}：
+     * 它常常是 {@code null} —— {@link #resolvePlayable} 对**不在玩家射程里**的门按设计
+     * 既不建实例也不刷日志（那条路是常态）。旧写法把 null 当成 0ms ⇒ 「开门音播完 0ms 后再等
+     * N 秒」⇒ {@code startTick == 现在} ⇒ **当场开念**，也就是用户报的「提前播报一次」。
+     *
+     * <p>★ 口径 = 这一串（{@code runKey}）**「开门音」这一项此刻生效的素材时长**，
+     * 与哪一扇门触发的无关。射程内触发的正常情形下它与旧写法取的是同一份配置的同一个时长
+     * ⇒ 行为不变；射程外触发时它给出**正确**的起点，不再提前。
+     *
+     * <p>★ 开门音这一项被关掉 / 设成「不播」⇒ 返回 0（没有「播完」可等，起点就是开门那一瞬）。
+     * 这与 {@link #resolvePlayable} 返回 {@code null} 的三种「不播」原因一一对应，但**不刷日志**
+     * （{@code resolveTone} 本身不打日志，与真正起播那条路取的也是同一个时长）。
+     */
+    private static long midiumOpenBeepMs(Minecraft mc, long runKey, Playable openPlayable) {
+        if (openPlayable != null) {
+            return Math.max(0L, openPlayable.tone().durationMs());
+        }
+        if (!EscalatorSpeedManager.isDoorPsdHelpEnabled(mc.level, runKey)
+                || !EscalatorSpeedManager.isDoorPsdToneEnabled(mc.level, runKey, "open")) {
+            return 0L;
+        }
+        String customId = psdToneCustomId(mc, runKey, "open");
+        if (STOP_SENTINEL.equals(customId)) {
+            return 0L; // 这一串把「开门音」设成「不播」—— 没有可等的播完点
+        }
+        Tone tone = resolveTone(mc, "open", customId);
+        return tone == null ? 0L : Math.max(0L, tone.durationMs());
+    }
+
+    /**
+     * 【09-30 续 3】这条计划是不是「此刻范围内离玩家最近的那个**站台**」的播报。
+     *
+     * <p>★★【10-01 续】候选的**粒度**必须是「站台」，不能是「runKey」：runKey 自
+     * 【09-30 续 9】起是**车站级** ⇒ 按 runKey 归并时候整个车站（6~7 个站台）会塌成
+     * **一个**候选 ⇒ {@code nearest == runKey} **恒真** ⇒ 这道「多站台就近压制」形同虚设
+     * （它写在【09-30 续 3】，可在车站级身份落地之后就再没生效过）。
+     * 后果正是用户报的那条：站在 A 站台，**B 站台**（同层 11 格外的另一条门线 / 别层）
+     * 的列车开门时 B 的播报也照念 —— 听起来就是「站台广播提前播了一次」。
+     *
+     * <p>判据与进站讲述人的 {@code nearestNarrateRun} 同构：候选 = 门快照里**每一个站台**
+     * （认不到站台的按 runKey 归并，见 {@link #sameBroadcastScope}）里离玩家最近的一扇，
+     * 样式开着且玩家在它的 /jsr round 范围内的那些里，三维欧氏距离最小的那个。
+     * 门快照为空（车刚走、区块卸载）或一个候选都没有时放行 —— 压制只该发生在
+     * 「确实有别的站台离玩家更近」的场合。
+     */
+    private static boolean isNearestMidiumNarrateRun(Level level, List<PsdDoorTracker.DoorView> doors,
+                                                     MidiumNarratorPlan plan, Vec3 player) {
+        if (doors == null || doors.isEmpty()) {
+            return true;
+        }
+        PsdDoorTracker.DoorView nearest = null;
+        double best = Double.MAX_VALUE;
+        for (PsdDoorTracker.DoorView d : doors) {
+            // 候选 = 这一扇门所在那个站台的站台讲述人样式开着（只有 userN 档算数），
+            // 且玩家在它的 /jsr midium round 范围内（站台讲述人自己的范围）。
+            int mode = EscalatorSpeedManager.getDoorPsdMidiumNarrateMode(level, d.runKey());
+            if (mode == EscalatorSpeedData.PSD_NARRATE_OFF
+                    || !EscalatorSpeedData.isPsdNarrateUserStyle(mode)) {
+                continue;
+            }
+            if (TrainAnnounceSwitch.isOutsideMidiumNarrateRange(d.runKey(),
+                    d.x(), d.y(), d.z(), player)) {
+                continue;
+            }
+            double distance = player == null ? 0.0
+                    : player.distanceTo(new Vec3(d.x(), d.y(), d.z()));
+            if (nearest == null || distance < best) {
+                best = distance;
+                nearest = d;
+            }
+        }
+        // 一个候选都没有（快照空 / 样式全关 / 全部越界）⇒ 不压制，这一条照念。
+        return nearest == null || sameBroadcastScope(nearest, plan);
     }
 
     /**
@@ -1735,7 +2473,8 @@ public final class PsdChimePlayer {
      *
      * @param prev 上一次看到的门值（首次看到时 == 当前值，因此不会误触发）
      */
-    private static void detect(Minecraft mc, PsdDoorTracker.DoorView door, float prev, double distance) {
+    private static void detect(Minecraft mc, PsdDoorTracker.DoorView door, float prev,
+                               double distance) {
         float fraction = door.fraction();
         boolean closing = prev >= 1.0f - EDGE && fraction < 1.0f - EDGE;
         boolean opening = prev <= EDGE && fraction > EDGE;
@@ -1773,6 +2512,9 @@ public final class PsdChimePlayer {
             //   ★【1.26】不再把这一扇门的距离传进去：到站播报是**这一串**的广播，
             //   距离与声源都由它自己取「本串最近那一扇」（那一扇不是这一扇）。
             planArrivalAnnounce(mc, door, openPlayable);
+            // 【09-30 续 3】站台广播（讲述人）：同样排在 `openPlayable == null` 的早退之前 ——
+            //   它与自定义到站播报是两条独立的广播，素材「不播」不影响讲述人照念。
+            planMidiumNarrator(mc, door, openPlayable);
             if (openPlayable == null) {
                 return; // 开门那一项关着 / 这一扇门设为不播 / 音量算得 0 —— 原因已在 resolvePlayable 里记过日志
             }
@@ -1780,7 +2522,8 @@ public final class PsdChimePlayer {
             LOGGER.info("[SmoothLift/PsdChime] 门 @{} 开始开门 → {} {}（距玩家 {} 格；音量 {}，维度默认 {}）",
                     posText(door), played ? "播放" : "播不出（素材缺失 / 解码失败）",
                     toneLabel(openPlayable.tone()),
-                    String.format("%.1f", distance), openPlayable.toneVolume(), cachedVolume);
+                    String.format("%.1f", distance),
+                    openPlayable.toneVolume(), cachedVolume);
             return;
         }
         // ---------- 以下都是关门端 ----------
@@ -1841,7 +2584,8 @@ public final class PsdChimePlayer {
             LOGGER.info("[SmoothLift/PsdChime] 门 @{} 开始关门 → 先量一 tick 门速再播 {}"
                             + "（距玩家 {} 格；音量 {}，维度默认 {}）",
                     posText(door), toneLabel(tone),
-                    String.format("%.1f", distance), playable.toneVolume(), cachedVolume);
+                    String.format("%.1f", distance),
+                    playable.toneVolume(), cachedVolume);
             return;
         }
         boolean played = play(mc, tone, door, playable.volume(), 0) != null;
@@ -1850,9 +2594,11 @@ public final class PsdChimePlayer {
         // ★ 关门端走到这一行只剩一种情况：**时长没量出来**（所以既不排提前量、也不剪头）。
         //   正常关门一定在上面挂起、由 resumeClose 打「从 XXXms 起」那条日志 ——
         //   这正是「对齐没生效」时唯一能从日志里看出来的线索。
-        LOGGER.info("[SmoothLift/PsdChime] 门 @{} 开始{} → {} {}（距玩家 {} 格；音量 {}，维度默认 {}）",
+        LOGGER.info("[SmoothLift/PsdChime] 门 @{} 开始{} → {} {}（距玩家 {} 格；"
+                        + "音量 {}，维度默认 {}）",
                 posText(door), closing ? "关门" : "开门", played ? "播放" : "播不出（素材缺失 / 解码失败）",
-                toneLabel(tone), String.format("%.1f", distance), playable.toneVolume(), cachedVolume);
+                toneLabel(tone), String.format("%.1f", distance),
+                playable.toneVolume(), cachedVolume);
     }
 
     /**
@@ -2005,9 +2751,9 @@ public final class PsdChimePlayer {
                                     + "（等了 {} tick），不再叠一声", posText(pending.door()), elapsed);
                     continue;
                 }
-                play(mc, pending.tone(), pending.door(), pending.volume(), 0);
+                play(mc, pending.tone(), pending.door(), pending.volume(), fallbackStartMs(pending.tone()));
                 LOGGER.info("[SmoothLift/PsdChime] 门 @{} 关门提示音 {} 量不到门速"
-                                + "（门不在渲染距离内 / 等了 {} tick 还是没动），按原样从头播",
+                                + "（门不在渲染距离内 / 等了 {} tick 还是没动），按兜底起点播",
                         posText(pending.door()), toneLabel(pending.tone()), elapsed);
                 continue;
             }
@@ -2020,8 +2766,8 @@ public final class PsdChimePlayer {
                             posText(door));
                     continue;
                 }
-                play(mc, pending.tone(), pending.door(), pending.volume(), 0);
-                LOGGER.info("[SmoothLift/PsdChime] 门 @{} 关到一半又开回去 → {} 按原样播一次",
+                play(mc, pending.tone(), pending.door(), pending.volume(), fallbackStartMs(pending.tone()));
+                LOGGER.info("[SmoothLift/PsdChime] 门 @{} 关到一半又开回去 → {} 按兜底起点播一次",
                         posText(door), toneLabel(pending.tone()));
                 continue;
             }
@@ -2031,6 +2777,18 @@ public final class PsdChimePlayer {
             it.remove();
             double perTick = drop / elapsed;                                   // 门值 / tick
             double remainMs = door.fraction() / perTick * 50.0;                // 1 tick = 50ms
+            // 【09-30 续 5】单帧量出的门速可能被污染 —— 采样间隔越长越不准，而且
+            // 「列车出站那一刻门值瞬间跳到全关」会让两个采样点根本不是同一次关门动作的。
+            // 物理上「门还要走的时间」**不可能超过一整段门程**（关门起点 → 全关），
+            // 所以用跨门实测的门程当上限封住它：超了就说明量到的是垃圾，按门程算。
+            // 不封的话 remainMs 会被量成比素材还长 ⇒ 剪头算式算出负数 ⇒
+            // **整段素材连人声一起放出来**（LOG14 21:31:37 那条「整段（素材 10806ms
+            // 不长于门程）」就是这一支的现场 —— 用户听到的「早几秒多出的提示音」）。
+            long travelMs = (globalTravelTicks > 0 ? globalTravelTicks
+                    : MtrDwellAccess.DEFAULT_TRAVEL_TICKS) * 50L;
+            if (remainMs > travelMs) {
+                remainMs = travelMs;
+            }
             // 【1.15 · 第六轮】这条**整段**已经在响了 —— 它「本该」在门全关那一刻收尾。
             //   周期可能是**借来的**（见 globalCycleTicks），借的那个比这一轮长时，
             //   它会一直响到门全关**之后**（门口已经关上、嘀嘀还在响）—— 那就违反用户那条
@@ -2070,6 +2828,18 @@ public final class PsdChimePlayer {
             int startMs = EscalatorAudioPlayer.quantizeOffset(rawStart);
             playAligned(mc, pending, startMs, remainMs);
         }
+    }
+
+    /**
+     * 【09-30 续 5】量不出对齐偏移时的兜底起点：「默认（短）」这类**不要人声**的档
+     * 从嘀嘀段起点播 —— 绝不把语音播报漏出来（与 {@link #resumeClose} 剪头里那道
+     * 「不许剪进播报里」的夹取同一条原则；原来这两个兜底是**整段从头播**，
+     * 会把 6.7 秒的人声整个放出来）。带人声的档维持从头播：对齐不上是对齐问题，
+     * 不是意愿问题。
+     */
+    private static int fallbackStartMs(Tone tone) {
+        return tone.splitMs() > 0 && !tone.announce()
+                ? EscalatorAudioPlayer.quantizeOffset(tone.splitMs()) : 0;
     }
 
     /**
@@ -2173,34 +2943,70 @@ public final class PsdChimePlayer {
      * 所以这里**故意不提供单参重载** —— 让每个调用点都必须写清「我这一声算哪一类」，
      * 而不是顺手用默认那份（本项目栽过「调用点漏改」这种形态，见项目记忆第 6 条）。
      *
-     * <p>★【1.26】传进来的 {@code distance} 是什么意思，分两种口径（由调用方声明，
-     * 见 {@link #play} 的 {@code chainRunKey}）：
-     * <ul>
-     *   <li><b>位置音</b>（开关门提示音）：玩家 ↔ **这一扇门**的坐标；</li>
-     *   <li><b>站台广播</b>（到站播报 / 进站报站）：玩家 ↔ **这一串里离玩家最近的那一扇门**
-     *       （{@link PsdDoorTracker#nearestDistanceInRun}）。</li>
-     * </ul>
-     * 这一层只负责「一个已经算好的距离 → 一个增益」，不自己决定是哪一种。
+     * <p>★【1.26】【09-29】传进来的 {@code distanceXz} / {@code distanceY} 是什么意思：
+     * 玩家 ↔ **这一串里离玩家最近的那一扇门**（{@link PsdDoorTracker#nearestInRun}）。
+     * ★★【09-30 续 10】这里原先还分「位置音（玩家 ↔ **这一扇门**，开关门提示音走它）」与
+     * 「站台广播」两种；前者已**整个删除**，现在两类声音都按串算（见 {@link #play} 的
+     * {@code chainRunKey}），本重载与下面的单维重载只差「双维 / 单维」的换算方式。
+     * 这一层只负责「一组已经算好的距离 → 一个增益」，不自己决定是哪一种。
+     *
+     * <p>★【09-29】范围**拆双维**（与 {@code /jsr round AAA BBB} 同构）：水平用
+     * {@code Math.hypot(dx, dz)}、垂直用 {@code |dy|}，**任一方向超出即越界（增益 0）**；
+     * 范围内两维各自线性衰减、取**较小**的那个作为增益 —— 越贴边的那一维先行淡出，
+     * 语义 = 「范围 = 真的听得见的半径（在水平 / 垂直各自成立）」。
+     */
+    private static float gain(double distanceXz, double distanceY, int roundKind) {
+        double roundXz = roundXzFor(roundKind);
+        double roundY = roundYFor(roundKind);
+        if (!(distanceXz < roundXz) || !(distanceY < roundY)) {
+            return 0.0f;
+        }
+        return (float) Math.max(0.0,
+                Math.min(1.0 - distanceXz / roundXz, 1.0 - distanceY / roundY));
+    }
+
+    /**
+     * 【09-30 续 7】**单维**距离增益 —— 门提示音专用：
+     * 距离 = 玩家到**本串最近那一扇门**的**三维**距离
+     * （★★【09-30 续 10】原先这里是「到本扇门」，那条口径已作废，见 {@link #play}），
+     * 范围内线性淡出（{@code 1 - d/round}），出界（≥ round）硬切 0。
+     *
+     * <p>为什么提示音用单维（而不是播报那一套双维）：1.20.4 中途给提示音试过双维
+     * （水平 16 / 垂直 5 任一越界即 0），会把「走上天桥 / 楼梯几格」也判成越界 ——
+     * 用户现场（LOG9）「稍微走远点就没声音」。1.20.1 就是单一半径，这是用户要的那一版。
+     * 到站 / 进站播报**不变**，仍用双维口径（那是 {@code /jsr round AAA BBB} 点名要的）。
+     *
+     * @param distance  玩家到**本串最近那一扇门**的三维距离（格）
+     * @param roundKind 只接受 {@link #ROUND_TONE}（播报两类走双维重载）
      */
     private static float gain(double distance, int roundKind) {
-        double round = roundFor(roundKind);
+        double round = roundXzFor(roundKind);
         if (!(distance < round)) {
             return 0.0f;
         }
         return (float) Math.max(0.0, 1.0 - distance / round);
     }
 
-    /** 【1.23】三类「淡入淡出范围」的身份 —— 见 {@link #gain(double, int)}。 */
+    /** 【1.23】三类「淡入淡出范围」的身份 —— 见 {@link #gain(double, double, int)}。 */
     private static final int ROUND_TONE = 0;
     private static final int ROUND_MIDIUM = 1;
     private static final int ROUND_ARRIVE = 2;
 
-    /** 【1.23】取这一类当前生效的范围（格）。 */
-    private static double roundFor(int roundKind) {
+    /** 【09-29】取这一类当前生效的**水平（x、z 轴）**范围（格）。 */
+    private static double roundXzFor(int roundKind) {
         return switch (roundKind) {
-            case ROUND_MIDIUM -> cachedMidiumRound;
-            case ROUND_ARRIVE -> cachedArriveRound;
-            default -> cachedRound;
+            case ROUND_MIDIUM -> cachedMidiumRoundXz;
+            case ROUND_ARRIVE -> cachedArriveRoundXz;
+            default -> cachedRoundXz;
+        };
+    }
+
+    /** 【09-29】取这一类当前生效的**垂直（y 轴）**范围（格）。 */
+    private static double roundYFor(int roundKind) {
+        return switch (roundKind) {
+            case ROUND_MIDIUM -> cachedMidiumRoundY;
+            case ROUND_ARRIVE -> cachedArriveRoundY;
+            default -> cachedRoundY;
         };
     }
 
@@ -2222,20 +3028,18 @@ public final class PsdChimePlayer {
      */
     private static PsdMusicInstance play(Minecraft mc, Tone tone, PsdDoorTracker.DoorView door,
                                          float volume, int startMs) {
-        return play(mc, tone, door, volume, startMs, false, ROUND_TONE, NO_BROADCAST_RUN);
+        // ★★【09-30 续 10】提示音改成**按整串算距离**（用户点名「修成连在一起的门串播报，
+        //   别走一半播报断了」）：距离 = 玩家到**本串里离最近那一扇门**，单维线性淡出。
+        //   于是站台上站哪儿、走到门串的哪一段都听得见，不会被 16 格射程切成好几截；
+        //   走离这一串（最近那扇也超出射程）时整串**一起**淡出，不会剩下半截还在响。
+        //   ★【09-30 续 7】那一版「按本扇门算距离」的位置音口径就此作废（见 play 的 javadoc）。
+        //   ★【10-01】再补一格 {@code door.platformId()}：**同一个站台**里离玩家最近的那扇门
+        //   才算这把尺子（{@link PsdMusicInstance#chainPlatformId} 里有 LOG013 的数字）。
+        //   不收窄的话，同一车站别的站台（LOG013 里只隔 11 格）的门会按玩家脚边那扇门的
+        //   音量响满 100% —— 用户听到「早几秒一个 + 准点一个」的多出来的提示音。
+        return play(mc, tone, door, volume, startMs, false, ROUND_TONE, door.runKey(), false,
+                door.platformId());
     }
-
-    /**
-     * 【1.26】「这条声音不是某一扇门的位置音，而是**某一串门**的站台广播」时用的哨兵。
-     *
-     * <p>值的取法：{@code BlockPos.asLong} 的位布局下 {@code Long.MIN_VALUE} 解出来是
-     * {@code (x, y, z) = (-33554432, 0, 0)}：x 字段（位 38~63）= {@code 0x2000000}，
-     * 而 {@code BlockPos.getX} 就是 {@code (int)(value >> 38)}（算术右移 ⇒ 带符号）。
-     * {@code |x| = 33554432} **超出世界边界**（±29,999,984）⇒ 任何真实方块都到不了，不会与真 runKey 撞。
-     * ★ 不用 {@code -1L}：{@code -1L} 是一个**合法**的 asLong（= 方块 (-1,-1,-1)）。
-     * （两条都在 {@code _tools/check-psd-broadcast.py} 第 4 节按位布局复算过。）
-     */
-    private static final long NO_BROADCAST_RUN = Long.MIN_VALUE;
 
     /**
      * 【1.22】完整版：多一个「要不要吃列车内衰减」开关（【1.23】再多一个「算哪一类范围」）。
@@ -2258,17 +3062,50 @@ public final class PsdChimePlayer {
      *                        ★ 与 {@code trainAttenuated} 是**两个独立**的开关 ——
      *                        它们眼下恰好同进同出（两类报站音都带列车衰减、提示音都不带），
      *                        但判据完全不同，所以不合并成一个（本项目栽过「一个哨兵表达两件事」）。
-     * @param chainRunKey     【1.26】距离按**哪一串门**算：
-     *                        {@link #NO_BROADCAST_RUN} = 按 {@code door} 自己那一格的坐标算（位置音，
-     *                        开关门提示音走这条）；否则 = 「站台广播」，距离取玩家到**这一串里最近
-     *                        那一扇门**的距离（{@link PsdDoorTracker#nearestDistanceInRun}）。
-     *                        ★ 不拿 {@code roundKind} 推出这件事：范围类别与「是不是广播」是两个判据，
-     *                        合并 ⇔ 以后新加一类范围会**悄悄**变成广播。
+     * @param chainRunKey     【1.26】距离按**哪一串门**算：取玩家到**这一串里最近那一扇门**的距离
+     *                        （{@link PsdDoorTracker#nearestInRun}）。
+     *                        <p>★★【09-30 续 10】这里以前还有一支「哨兵值 = 按 {@code door}
+     *                        自己那一格算（位置音）」的口径（开关门提示音走它），现已连同那个哨兵
+     *                        现已**整个删除**：屏蔽门提示音与站台广播一样是「一串同声」，
+     *                        按「本扇门」算就会把一条连在一起的门串按 16 格切成好几截
+     *                        （车头那几扇响、中间渐弱、车尾整段静默），这正是用户报的那个症状。
+     *                        现在两类声音都按**串**算距离，区别只剩下面那一格：单维还是双维。
+     * @param chainDoubleDim  【09-30 续 10】串距离按哪一套射程口径换算增益：
+     *                        {@code true} = 双维（水平 {@code roundXz} / 垂直 {@code roundY}，
+     *                        任一越界即 0）—— 到站播报 / 进站报站走这条（{@code /jsr round AAA BBB}
+     *                        点名要的）；{@code false} = 单维（只用 {@code roundXz} 对**三维**距离
+     *                        线性淡出）—— 开关门提示音走这条（照抄 1.20.1：走上天桥 / 楼梯几格
+     *                        不该被判成越界）。
+     *                        ★ 不拿 {@code roundKind} 推出这件事：范围类别与「哪套口径」是两个判据，
+     *                        合并 ⇔ 以后新加一类范围会**悄悄**换掉口径。
      */
     private static PsdMusicInstance play(Minecraft mc, Tone tone, PsdDoorTracker.DoorView door,
                                          float volume, int startMs,
                                          boolean trainAttenuated, int roundKind,
-                                         long chainRunKey) {
+                                         long chainRunKey, boolean chainDoubleDim) {
+        // ★【10-01】站台广播（到站 / 进站）走这条：距离基准 = **整个车站**里离玩家最近的门
+        //   （它本来就是站台广播）。铃声那条走下面多一个形参的重载（收窄到**同一个站台**）。
+        return play(mc, tone, door, volume, startMs, trainAttenuated, roundKind,
+                chainRunKey, chainDoubleDim, MtrDwellAccess.PLATFORM_ID_NONE);
+    }
+
+    /**
+     * 【10-01】{@code chainPlatformId} 版：距离基准收窄到**同一个 MTR 站台**。
+     *
+     * <p>★ 只有**铃声**（开关门提示音 / 关门人声）该走这条 —— 理由与数字见
+     * {@link PsdMusicInstance#chainPlatformId}：{@code runKey} 是**车站级**，一个车站可以有好几层、
+     * 好几个站台（LOG013：世纪广场 6~7 个站台跨 3 层，其中两条门线只隔 11 格），
+     * 不收窄就会让别站台的门按「玩家脚边那扇门」的音量响满 100%。
+     *
+     * @param chainPlatformId 这一扇门认得的 MTR 站台 id（{@link PsdDoorTracker.DoorView#platformId}）；
+     *                        认不到时传 {@link MtrDwellAccess#PLATFORM_ID_NONE} ⇒ 回落整串（车站）口径
+     * @see PsdMusicInstance#chainPlatformId
+     */
+    private static PsdMusicInstance play(Minecraft mc, Tone tone, PsdDoorTracker.DoorView door,
+                                         float volume, int startMs,
+                                         boolean trainAttenuated, int roundKind,
+                                         long chainRunKey, boolean chainDoubleDim,
+                                         long chainPlatformId) {
         Vec3 pos = new Vec3(door.x(), door.y(), door.z());
         String playbackId = startMs > 0 ? playbackId(tone, startMs) : null;
         if (playbackId != null) {
@@ -2298,12 +3135,13 @@ public final class PsdChimePlayer {
         // 【1.22】实例多持一份「声源位置 + 音量系数 + 列车衰减开关 + 范围类别 + 剩余 tick数」：
         //   前者让它能每 tick 重算距离增益，后者让它能自己从
         //  引擎的 tickingSounds 里退场（一次性声音没有别的退场信号）。
-        // 【1.26】再多一份「按哪一串算距离」（站台广播用；提示音给 NO_BROADCAST_RUN）。
+        // 【1.26】再多一份「按哪一串算距离」（站台广播 / 开关门提示音都按**串**算）。
+        // 【09-30 续 10】再多一份「串距离按单维还是双维换算」（提示音单维、播报双维）。
         long playableMs = Math.max(0L, tone.durationMs() - Math.max(0, startMs));
         PsdMusicInstance inst = new PsdMusicInstance(tone.event(),
                 playbackId != null ? playbackId : tone.customId(),
-                pos, volume, trainAttenuated, roundKind, chainRunKey,
-                (int) ((playableMs + 49L) / 50L) + 20);
+                pos, volume, trainAttenuated, roundKind, chainRunKey, chainDoubleDim,
+                chainPlatformId, (int) ((playableMs + 49L) / 50L) + 20);
         inst.refreshVolume(mc);
         mc.getSoundManager().play(inst);
         raiseMaxGain(mc, inst);
@@ -2382,8 +3220,11 @@ public final class PsdChimePlayer {
      * 不会影响其它任何功能（这条路径不能报错）。
      *
      * <p>读到 0 ⇒ 没坐车：静态块**不**初始化该字段，而 long 默认就是 0。
+     * ★【09-30】从 private 改成 public —— 讲述人那套「上车即停」
+     * （{@link TrainAnnounceNarrator#tickRangeGuard} / {@link TrainAnnounceSubtitle#tick}）
+     * 与本类的列车内音量衰减**共用同一个判据**，别再抄一份反射。
      */
-    private static boolean ridingTrain() {
+    public static boolean ridingTrain() {
         java.lang.reflect.Field f = ridingField;
         if (!ridingFieldResolved) {
             ridingFieldResolved = true;
@@ -2505,18 +3346,26 @@ public final class PsdChimePlayer {
         wholePlaying.clear();
         // 【1.17】到站播报：换世界时**才**清（声音随旧世界一起没了，计划里的坐标也不再可比）。
         arrivalVoice.clear();
+        // 【09-30 续 3】站台广播（讲述人）的计划同理（换世界后串锚点、站台 id 全都不再可比）。
+        midiumNarratorVoice.clear();
         // 【1.21】进站报站同理（换世界后串锚点、站台 id、时刻表全都不再可比）。
         arriveVoice.clear();
-        arrivePlatform.clear();
         arriveLastPoll.clear();
         arriveFailNextLog.clear();
         PsdDoorTracker.clear();
+        // 【10-03 五改】「显示名 → 别名」表也跟着作废：换了世界，同名的车站可能是另一座
+        //   （沿用旧表只会让屏蔽门那一句「往X」印出上一个世界的别名）。
+        PlatformNameMask.clear();
         cachedGeneration = -1L;
         cachedEnabled = true;
         cachedVolume = EscalatorSpeedData.DEFAULT_PSD_HELP_VOLUME;
-        cachedRound = EscalatorSpeedData.DEFAULT_PSD_HELP_ROUND;
-        cachedMidiumRound = EscalatorSpeedData.DEFAULT_PSD_MIDIUM_ROUND;
-        cachedArriveRound = EscalatorSpeedData.DEFAULT_PSD_ARRIVE_ROUND;
+        // 【09-29】范围拆双维：复位时每类各回两份默认
+        cachedRoundXz = EscalatorSpeedData.DEFAULT_PSD_HELP_ROUND_XZ;
+        cachedRoundY = EscalatorSpeedData.DEFAULT_PSD_HELP_ROUND_Y;
+        cachedMidiumRoundXz = EscalatorSpeedData.DEFAULT_PSD_MIDIUM_ROUND_XZ;
+        cachedMidiumRoundY = EscalatorSpeedData.DEFAULT_PSD_MIDIUM_ROUND_Y;
+        cachedArriveRoundXz = EscalatorSpeedData.DEFAULT_PSD_ARRIVE_ROUND_XZ;
+        cachedArriveRoundY = EscalatorSpeedData.DEFAULT_PSD_ARRIVE_ROUND_Y;
         cachedCloseWaitSeconds = EscalatorSpeedData.DEFAULT_PSD_CLOSE_WAIT_SECONDS;
         cachedMidiumAudio = EscalatorSpeedData.PSD_MIDIUM_OFF;
         cachedMidiumWaitSeconds = EscalatorSpeedData.DEFAULT_PSD_MIDIUM_WAIT_SECONDS;
@@ -2541,10 +3390,14 @@ public final class PsdChimePlayer {
         cachedGeneration = generation;
         cachedEnabled = EscalatorSpeedManager.isPsdHelpEnabled(mc.level);
         cachedVolume = EscalatorSpeedManager.getPsdHelpVolume(mc.level);
-        cachedRound = EscalatorSpeedManager.getPsdHelpRound(mc.level);
+        // 【09-29】范围拆双维：每类各取「水平（x、z 轴）」与「垂直（y 轴）」两份
+        cachedRoundXz = EscalatorSpeedManager.getPsdHelpRoundXz(mc.level);
+        cachedRoundY = EscalatorSpeedManager.getPsdHelpRoundY(mc.level);
         // 【1.23】到站播报 / 进站报站各自的淡入淡出范围（三条 round 指令各写一份）
-        cachedMidiumRound = EscalatorSpeedManager.getPsdMidiumRound(mc.level);
-        cachedArriveRound = EscalatorSpeedManager.getPsdArriveRound(mc.level);
+        cachedMidiumRoundXz = EscalatorSpeedManager.getPsdMidiumRoundXz(mc.level);
+        cachedMidiumRoundY = EscalatorSpeedManager.getPsdMidiumRoundY(mc.level);
+        cachedArriveRoundXz = EscalatorSpeedManager.getPsdArriveRoundXz(mc.level);
+        cachedArriveRoundY = EscalatorSpeedManager.getPsdArriveRoundY(mc.level);
         // 【1.16】关门提示音的强制等待时长（秒）：只有「停站塞不下整条素材」那一支会读它
         cachedCloseWaitSeconds = EscalatorSpeedManager.getPsdCloseWaitSeconds(mc.level);
         // 【1.17】到站播报：素材 + 等待秒数（每次开门都要用，不能现查服务端设置）
@@ -2574,9 +3427,6 @@ public final class PsdChimePlayer {
          */
         private final String injectedId;
 
-        /** 【1.22】声源位置（门的锚点）—— 每 tick 算距离增益要用。 */
-        private final Vec3 pos;
-
         /**
          * 【1.22】音量系数（**不含**距离增益）。
          *
@@ -2598,16 +3448,50 @@ public final class PsdChimePlayer {
         private final int roundKind;
 
         /**
-         * 【1.26】距离按**哪一串门**算：{@link #NO_BROADCAST_RUN} = 按 {@link #pos} 那一格算
-         * （位置音：开关门提示音）；否则 = 站台广播，取玩家到**这一串里最近那一扇门**的距离
-         * （{@link PsdDoorTracker#nearestDistanceInRun}）。
+         * 【1.26】距离按**哪一串门**算：取玩家到**这一串里最近那一扇门**的距离
+         * （{@link PsdDoorTracker#nearestInRun}）。
          *
-         * <p>★ 为什么广播要这样算：一串门在**配置**上就是同一个身份（{@code runKey}），
-         * 一整串 12 扇可以长到 55 格，而默认范围只有 16 格 —— 按「本扇门」算距离的话，
-         * 站在站台任何位置都只有约 6 扇在范围内，其余增益为 0（现场 LOG4 的「后 4 个不响」）。
-         * 按「本串最近的门」算 ⇒ 只要玩家在这串门的任意一扇旁边，整串的播报都成立。
+         * <p>★ 为什么必须这样算：一串门在**配置**上就是同一个身份（{@code runKey}），
+         * 一整串 12 扇可以长到 55 格、长站台更到 175 格，而默认范围只有 16 格 ——
+         * 按「本扇门」算距离的话，站在站台任何位置都只有约 6 扇在范围内，其余增益为 0
+         * （现场 LOG4 的「后 4 个不响」、LOG16 的「车头响、中间渐弱、车尾整段静默」）。
+         * 按「本串最近的门」算 ⇒ 只要玩家在这串门的任意一扇旁边，整串都成立。
+         *
+         * <p>★★【09-30 续 10】开关门提示音**也**并进这条口径（原先它按本扇门算、由哨兵
+         * {@code NO_BROADCAST_RUN} 标记）；那个哨兵已整个删除，本字段现在永远是**真的 runKey**。
          */
         private final long chainRunKey;
+
+        /**
+         * 【10-01】距离基准的**站台收窄**：非 {@link MtrDwellAccess#PLATFORM_ID_NONE} 时，
+         * 「最近的一扇门」只在**同一个 MTR 站台**里取（{@link PsdDoorTracker#nearestOnPlatform}）；
+         * {@link MtrDwellAccess#PLATFORM_ID_NONE} = 老口径（整串 = 车站，{@link #chainRunKey}）。
+         *
+         * <p>★★ 为什么必须收窄（现场 LOG013，数字可复核）：
+         * {@code runKey} 在【09-30 续 9】升到了**车站级**，而【09-30 续 10】把铃声的音量基准定成
+         * 「**本串**里离玩家最近那一扇」⇒ 「本串」实际是**整个车站**。于是同一车站另一个站台
+         * （另一层 / 轨道另一侧，只隔 11 格）的门一响，它的增益也按**玩家脚步边那扇门**算 ⇒
+         * 100% 音量在耳边炸开：用户听到「早几秒一个 + 准点一个」的**多出来的提示音**（他说「又犯了一次」）。
+         * LOG013 里 14:56:38 玩家站在 z=32 那条线旁（1.6 格），z=43 那条线的关门声却标着
+         * 「距玩家 11.4 / 12.1 / 14.0 格」——11 格外的门也以满音量响了。
+         *
+         * <p>★ 与 {@link #chainRunKey} 是**两把尺子**，不许合并成一个：
+         * 播报（到站 / 进站）是站台广播 ⇒ 整个车站只该响一条 ⇒ 保持车站级；
+         * 铃声（开关门嘀嘀 / 关门人声）是「沿站台一排门同时响」的位置短音 ⇒ 必须是一个站台。
+         * 收窄后自己的站台（含被实体缺口切开的几段）仍整排一起响、一起淡出（09-30 续 10 点名的口径）。
+         */
+        private final long chainPlatformId;
+
+        /**
+         * 【09-30 续 10】串距离按**哪一套射程口径**换算增益：
+         * {@code true} = 双维（水平 {@code roundXz} / 垂直 {@code roundY}，任一越界即 0）
+         * —— 到站播报 / 进站报站；{@code false} = 单维（只用 {@code roundXz} 对**三维**距离
+         * 线性淡出）—— 开关门提示音（照抄 1.20.1：走上天桥 / 楼梯几格不该被判成越界）。
+         *
+         * <p>★ 与 {@link #roundKind} 是两个独立判据：范围**类别**（提示音 / 到站 / 进站）里不含
+         * 「用哪套口径」这个信息，拿它推会在以后新加一类范围时**悄悄**换掉口径。
+         */
+        private final boolean chainDoubleDim;
 
         /**
          * 【1.22】还剩几个客户端 tick 就自己退场。
@@ -2634,14 +3518,15 @@ public final class PsdChimePlayer {
         /** {@code injectedId != null} = 玩的是注入进引擎缓存的那一段（不读资源包）。 */
         PsdMusicInstance(ResourceLocation event, String injectedId, Vec3 pos, float volume,
                          boolean trainAttenuated, int roundKind, long chainRunKey,
-                         int remainingTicks) {
+                         boolean chainDoubleDim, long chainPlatformId, int remainingTicks) {
             super(event, SoundSource.BLOCKS, RandomSource.create());
             this.injectedId = injectedId;
-            this.pos = pos;
             this.baseVolume = volume;
             this.trainAttenuated = trainAttenuated;
             this.roundKind = roundKind;
             this.chainRunKey = chainRunKey;
+            this.chainDoubleDim = chainDoubleDim;
+            this.chainPlatformId = chainPlatformId;
             this.remainingTicks = Math.max(1, remainingTicks);
             this.looping = false;
             this.attenuation = SoundInstance.Attenuation.NONE;
@@ -2676,21 +3561,50 @@ public final class PsdChimePlayer {
          *
          * <p>★【1.25】只剩这一条路 —— 每次调用都真算，不再有「不算、直接用传进来的音量」的分支。
          *
-         * <p>★【1.26】距离有两种口径：位置音 = 玩家到 {@link #pos}；站台广播 = 玩家到
-         * **本串最近那一扇门**（{@link #chainRunKey}）。后者让「一串 12 扇、55 格长的屏蔽门」
-         * 站在哪一扇旁边都听得见，而不是只有本扇门 16 格内的那几扇。
+         * <p>★【1.26】距离口径：玩家到**本串最近那一扇门**（{@link #chainRunKey}）。
+         * 后者让「一串 12 扇、55 格长的屏蔽门」站在哪一扇旁边都听得见，
+         * 而不是只有本扇门 16 格内的那几扇。
+         *
+         * <p>★★【09-30 续 10】开关门提示音也并进这条口径，两类声音只差 `chainDoubleDim`
+         * 那一格（单维 / 双维）。原先那支「按 {@code pos}（本扇门坐标）算」的口径已删除。
          */
         void refreshVolume(Minecraft mc) {
             Vec3 p = mc.player == null ? null : mc.player.position();
-            double d;
-            if (chainRunKey == NO_BROADCAST_RUN) {
-                d = p == null ? 0.0 : p.distanceTo(pos);
+            // ★★【09-30 续 10】两类声音**都**按「本串里离玩家最近那一扇门」算距离
+            //   （用户点名「修成连在一起的门串播报，别走一半播报断了」）：提示音与站台广播
+            //   共用同一把尺子，差别只剩下面那一格 —— 单维（提示音）还是双维（播报）。
+            //   ★ 旧版提示音按**本扇门**算（哨兵 NO_BROADCAST_RUN）⇒ 一条 55~175 格长的门串
+            //   只有玩家 ±16 格内那几扇响、其余整段静默，用户看到的就是「切成两半」。
+            float v;
+            if (p == null) {
+                // 界面 / 未进入世界：当贴脸处理（与旧口径一致 —— 那时也走「距离 0 ⇒ 增益 1」）。
+                v = baseVolume;
             } else {
-                // 这一串此刻不在快照里（走远了 / 区块卸载）⇒ 返回 Double.MAX_VALUE ⇒ 增益 0。
-                d = PsdDoorTracker.nearestDistanceInRun(chainRunKey, p);
+                // ★★【10-01】「本串最近的门」这把尺子按**声音类别**分两种（见 #chainPlatformId）：
+                //   铃声（开关门嘀嘀 / 关门人声）收窄到**同一个 MTR 站台**（用户点名的
+                //   「沿站台一排门同时响」= **一个站台**，而 runKey 现在是**整个车站**，
+                //   世纪广场 一个车站有 6~7 个站台跨 3 层 ⇒ 不收窄就等于「别的站台也按你脚边
+                //   那扇门的音量响」，就是他报的「多出来的提示音」）；
+                //   播报（到站 / 进站）保持车站级（它本来就是站台广播，整个车站只该响一条）。
+                PsdDoorTracker.DoorView nearest = MtrDwellAccess.isPlatformKnown(chainPlatformId)
+                        ? PsdDoorTracker.nearestOnPlatform(chainPlatformId, p)
+                        : PsdDoorTracker.nearestInRun(chainRunKey, p);
+                if (nearest == null) {
+                    // 这一串 / 这个站台此刻不在快照里（走远了 / 区块卸载）⇒ 整串**一起**归 0。
+                    //   ★ 与旧版的关键差别：这里不会出现「近的半截还在响、远的半截已静默」。
+                    v = 0.0f;
+                } else if (chainDoubleDim) {
+                    // 站台广播（到站 / 进站）：双维口径。
+                    //   ★【09-29】水平 = hypot(dx,dz)、垂直 = |dy|，任一方向超出即越界（见 gain）。
+                    double dxz = Math.hypot(p.x() - nearest.x(), p.z() - nearest.z());
+                    double dy = Math.abs(p.y() - nearest.y());
+                    v = gain(dxz, dy, roundKind) * baseVolume;
+                } else {
+                    // 开关门提示音：单维口径 —— 只用 roundXz 对**三维**距离线性淡出。
+                    double d = p.distanceTo(new Vec3(nearest.x(), nearest.y(), nearest.z()));
+                    v = gain(d, roundKind) * baseVolume;
+                }
             }
-            // 【1.23】距离增益按**这条声音自己的类别**取范围（提示音 / 到站 / 进站各一份）。
-            float v = gain(d, roundKind) * baseVolume;
             // ★【1.30】报站（到站 / 进站，长音）的淡入淡出平滑：target 每 tick 现算照旧，
             //   但**距离部分落到引擎的音量不直接跳**，而是向 target 逼近（每 tick 走 18% 差距）。
             //   于是：起播 = 从静音淡入、走远 / 跨射程 = 按时间常数淡出，不再有 50ms 硬切。
@@ -2735,13 +3649,6 @@ public final class PsdChimePlayer {
             WeighedSoundEvents events = new WeighedSoundEvents(name, null);
             events.addSound(s);
             return events;
-        }
-
-        void setPosition(Vec3 pos, float volume) {
-            this.x = pos.x;
-            this.y = pos.y;
-            this.z = pos.z;
-            this.volume = volume;
         }
     }
 }

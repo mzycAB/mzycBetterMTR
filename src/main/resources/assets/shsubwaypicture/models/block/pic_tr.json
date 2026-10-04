@@ -1,0 +1,12 @@
+{
+    "parent": "block/cube",
+    "textures": {
+        "particle": "shsubwaypicture:block/pic_tr",
+        "north": "shsubwaypicture:block/pic_tr",
+        "south": "shsubwaypicture:block/white",
+        "east": "shsubwaypicture:block/white",
+        "west": "shsubwaypicture:block/white",
+        "up": "shsubwaypicture:block/white",
+        "down": "shsubwaypicture:block/white"
+    }
+}

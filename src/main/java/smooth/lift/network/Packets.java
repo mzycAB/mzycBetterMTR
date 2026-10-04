@@ -57,11 +57,6 @@ public final class Packets {
                 .consumerMainThread(RestoreStepPacket::handle)
                 .add();
         // 【1.7】自定义扶梯声音：客户端 -> 服务端
-        CHANNEL.messageBuilder(UploadAudioPacket.class, nextId++, NetworkDirection.PLAY_TO_SERVER)
-                .encoder(UploadAudioPacket::encode)
-                .decoder(UploadAudioPacket::decode)
-                .consumerMainThread(UploadAudioPacket::handle)
-                .add();
         CHANNEL.messageBuilder(BindAudioPacket.class, nextId++, NetworkDirection.PLAY_TO_SERVER)
                 .encoder(BindAudioPacket::encode)
                 .decoder(BindAudioPacket::decode)
@@ -294,6 +289,74 @@ public final class Packets {
                 .encoder(MbmHelpOpenPacket::encode)
                 .decoder(MbmHelpOpenPacket::decode)
                 .consumerMainThread(MbmHelpOpenPacket::handle)
+                .add();
+        // 【09-28~10-01 / 1.29 移植】屏蔽门讲述人 + 闸机提示音 + UI 结果汇总 + 图片库
+        CHANNEL.messageBuilder(SetPsdNarratePacket.class, nextId++, NetworkDirection.PLAY_TO_SERVER)
+                .encoder(SetPsdNarratePacket::encode)
+                .decoder(SetPsdNarratePacket::decode)
+                .consumerMainThread(SetPsdNarratePacket::handle)
+                .add();
+        CHANNEL.messageBuilder(SetPsdNarrateLeadPacket.class, nextId++, NetworkDirection.PLAY_TO_SERVER)
+                .encoder(SetPsdNarrateLeadPacket::encode)
+                .decoder(SetPsdNarrateLeadPacket::decode)
+                .consumerMainThread(SetPsdNarrateLeadPacket::handle)
+                .add();
+        CHANNEL.messageBuilder(SetPsdMidiumNarratePacket.class, nextId++, NetworkDirection.PLAY_TO_SERVER)
+                .encoder(SetPsdMidiumNarratePacket::encode)
+                .decoder(SetPsdMidiumNarratePacket::decode)
+                .consumerMainThread(SetPsdMidiumNarratePacket::handle)
+                .add();
+        CHANNEL.messageBuilder(SetPsdMidiumNarrateLeadPacket.class, nextId++, NetworkDirection.PLAY_TO_SERVER)
+                .encoder(SetPsdMidiumNarrateLeadPacket::encode)
+                .decoder(SetPsdMidiumNarrateLeadPacket::decode)
+                .consumerMainThread(SetPsdMidiumNarrateLeadPacket::handle)
+                .add();
+        // 【10-03 五改 / Forge】「关门后等待 X 秒发车」：门串级（键 = 门串锚点 + 站台 id + 秒数）。
+        CHANNEL.messageBuilder(SetPsdDepartDelayPacket.class, nextId++, NetworkDirection.PLAY_TO_SERVER)
+                .encoder(SetPsdDepartDelayPacket::encode)
+                .decoder(SetPsdDepartDelayPacket::decode)
+                .consumerMainThread(SetPsdDepartDelayPacket::handle)
+                .add();
+        // 【10-01】石斧讲述人页：整份自定义文字写进存档（进站 / 站台各一份，按存档存）。
+        CHANNEL.messageBuilder(SetPsdNarrateTextsPacket.class, nextId++, NetworkDirection.PLAY_TO_SERVER)
+                .encoder(SetPsdNarrateTextsPacket::encode)
+                .decoder(SetPsdNarrateTextsPacket::decode)
+                .consumerMainThread(SetPsdNarrateTextsPacket::handle)
+                .add();
+        CHANNEL.messageBuilder(SetZhajiTonePacket.class, nextId++, NetworkDirection.PLAY_TO_SERVER)
+                .encoder(SetZhajiTonePacket::encode)
+                .decoder(SetZhajiTonePacket::decode)
+                .consumerMainThread(SetZhajiTonePacket::handle)
+                .add();
+        CHANNEL.messageBuilder(SetZhajiVolumePacket.class, nextId++, NetworkDirection.PLAY_TO_SERVER)
+                .encoder(SetZhajiVolumePacket::encode)
+                .decoder(SetZhajiVolumePacket::decode)
+                .consumerMainThread(SetZhajiVolumePacket::handle)
+                .add();
+        CHANNEL.messageBuilder(ImportFolderZhajiTonePacket.class, nextId++, NetworkDirection.PLAY_TO_SERVER)
+                .encoder(ImportFolderZhajiTonePacket::encode)
+                .decoder(ImportFolderZhajiTonePacket::decode)
+                .consumerMainThread(ImportFolderZhajiTonePacket::handle)
+                .add();
+        CHANNEL.messageBuilder(UiClosePacket.class, nextId++, NetworkDirection.PLAY_TO_SERVER)
+                .encoder(UiClosePacket::encode)
+                .decoder(UiClosePacket::decode)
+                .consumerMainThread(UiClosePacket::handle)
+                .add();
+        CHANNEL.messageBuilder(ZhajiToneSyncPacket.class, nextId++, NetworkDirection.PLAY_TO_CLIENT)
+                .encoder(ZhajiToneSyncPacket::encode)
+                .decoder(ZhajiToneSyncPacket::decode)
+                .consumerMainThread(ZhajiToneSyncPacket::handle)
+                .add();
+        CHANNEL.messageBuilder(PictureSyncPacket.class, nextId++, NetworkDirection.PLAY_TO_CLIENT)
+                .encoder(PictureSyncPacket::encode)
+                .decoder(PictureSyncPacket::decode)
+                .consumerMainThread(PictureSyncPacket::handle)
+                .add();
+        CHANNEL.messageBuilder(MbmOpenFolderPacket.class, nextId++, NetworkDirection.PLAY_TO_CLIENT)
+                .encoder(MbmOpenFolderPacket::encode)
+                .decoder(MbmOpenFolderPacket::decode)
+                .consumerMainThread(MbmOpenFolderPacket::handle)
                 .add();
     }
 }

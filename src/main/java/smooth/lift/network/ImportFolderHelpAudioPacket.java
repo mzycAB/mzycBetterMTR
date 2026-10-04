@@ -58,7 +58,7 @@ public class ImportFolderHelpAudioPacket {
             if (!EscalatorUtil.isEscalator(level.getBlockState(pkt.pos))) {
                 return;
             }
-            String problem = EscalatorSpeedManager.importAudioToStore(level, pkt.fileName);
+            String problem = EscalatorSpeedManager.importAudioToStore(level, EscalatorSpeedManager.CAT_HELP, pkt.fileName);
             if (problem == null) {
                 EscalatorSpeedManager.bindHelpAudio(level, pkt.pos, pkt.fileName, pkt.in);
                 player.displayClientMessage(Component.literal(

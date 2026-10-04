@@ -50,7 +50,8 @@ public class ImportFolderLiftTonePacket {
                 return;
             }
             ServerLevel level = player.serverLevel();
-            String problem = EscalatorSpeedManager.importAudioToStore(level, pkt.fileName);
+            String problem = EscalatorSpeedManager.importAudioToStore(
+                    level, EscalatorSpeedManager.liftToneCategory(pkt.which), pkt.fileName);
             if (problem == null) {
                 if (EscalatorSpeedManager.setServerLiftTone(level, pkt.key, pkt.which, pkt.fileName)) {
                     player.displayClientMessage(Component.literal(

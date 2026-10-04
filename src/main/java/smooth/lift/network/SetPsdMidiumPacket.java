@@ -47,7 +47,7 @@ public class SetPsdMidiumPacket {
             if (player == null) return;
             ServerLevel level = player.serverLevel();
             int libBefore = EscalatorSpeedManager.getServerData(level).audioLibrary.size();
-            String resolved = EscalatorSpeedManager.resolvePsdMidiumName(level, pkt.name);
+            String resolved = EscalatorSpeedManager.resolvePsdMidiumName(level, EscalatorSpeedManager.CAT_PSD_MIDIUM, pkt.name);
             if (resolved == null) {
                 player.displayClientMessage(Component.literal(
                         "到站播报设置失败：找不到名为「" + pkt.name + "」的音频"), true);
