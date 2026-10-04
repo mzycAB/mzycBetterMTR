@@ -44,6 +44,7 @@
 import glob
 import hashlib
 import json
+import math
 import os
 import re
 import sys
@@ -189,10 +190,10 @@ if body:
           "detectMove 不碰连播排期（playsLeft/nextPlayTick）⇒ 不会顶掉正在进行的关门连播")
     check(re.search(r"up\s*\?\s*LIFT_UP\s*:\s*LIFT_DOWN", body) is not None,
           "方向 UP 放 LIFT_UP、DOWN 放 LIFT_DOWN（按方向选素材）")
-    check(re.search(r"volumeFactor\(toneVolume\)\s*\*\s*spatialFactor\(playerPos\(mc\),\s*tonePos\)"
-                    r"\s*<=\s*0\.0f", body) is not None,
-          "音量复用 `/lifthelploud` 且按方向取单项；先按【1.51】空间系数判「当前位置还听得见吗」"
-          "（volumeFactor(toneVolume) × spatialFactor(playerPos(mc), tonePos)）")
+    check(re.search(r"volumeFactor\(toneVolume\)\s*\*\s*spatialFactor\(playerPos\(mc\),\s*"
+                    r"tonePos,\s*cabin\)\s*<=\s*0\.0f", body) is not None,
+          "音量复用 `/lifthelploud` 且按方向取单项；先按【1.51/1.52】空间系数判"
+          "「当前位置还听得见吗」（volumeFactor(toneVolume) × spatialFactor(playerPos(mc), tonePos, cabin)）")
     check(re.search(r"liftToneVolume\(mc,\s*up\s*\?\s*\"up\"\s*:\s*\"down\"\)", body) is not None,
           "【1.48】上楼用 up 单项音量、下楼用 down 单项音量（没单独调过回落共用默认）")
     check(re.search(r"cachedSpeed", body) is not None,
@@ -234,26 +235,92 @@ check(re.search(r'liftToneBranch\(\s*"up"\s*,\s*"up"\s*\)', server_main) is not 
 # ----------------------------------------------------------------------
 # 4) MtrLiftAccess：方向解析与降级
 # ----------------------------------------------------------------------
-print("\n== 3b. 【1.51】轿厢内外分档 + 音量逐 tick 重算 ==")
+print("\n== 3b. 【1.51/1.52】真实轿厢盒 + 音量逐 tick 重算 ==")
 
-m = re.search(r"private static float spatialFactor\(Vec3 player, Vec3 sound\) \{(.*?)\n    \}", chime, re.S)
+access_src = read(ACCESS)
+
+m = re.search(r"private static float spatialFactor\(Vec3 player, Vec3 sound, "
+              r"MtrLiftAccess\.Cabin cabin\) \{(.*?)\n    \}", chime, re.S)
 sf = m.group(0) if m else ""
-check(bool(sf), "找到 spatialFactor 方法体")
+check(bool(sf), "找到 spatialFactor(Vec3, Vec3, MtrLiftAccess.Cabin) 方法体")
 if sf:
-    check(re.search(r"Math\.sqrt\(dx \* dx \+ dz \* dz\) <= CABIN_RADIUS_H", sf) is not None,
-          "「在轿厢里」只按**水平**距离判（MTR4 的当前位置行进中会整层偏，竖直判据会误伤乘客）")
-    check(re.search(r"OUTSIDE_CABIN_FACTOR \* f \* f", sf) is not None,
-          "轿厢外 = OUTSIDE_CABIN_FACTOR × 平方淡出（淡出跨度从轿厢边缘起算）")
+    check(re.search(r"OUTSIDE_CABIN_FACTOR \* f \* f", sf) is None
+          and re.search(r"OUTSIDE_CABIN_FACTOR \* f\b", sf) is not None,
+          "★【10-03】轿厢外 = OUTSIDE_CABIN_FACTOR × **按比例线性**淡出（原为平方；"
+          "淡出跨度仍从轿厢表面起算）")
     check("player == null" in sf, "拿不到玩家位置时不衰减（返回 1.0）")
+    check(re.search(r"double hxz = cabinExcessHorizontal\(player, cabin\);", sf) is not None
+          and re.search(r"double py = cabinExcessVertical\(player, cabin\);", sf) is not None,
+          "★★【10-03】真实盒走**双维**：分别取水平 / 垂直超出盒面的分量（原为单一 3D 距离）")
+    check(re.search(r"if \(hxz <= 0\.0 && py <= 0\.0\) \{\s*return 1\.0f;", sf) is not None,
+          "* 两维都 <= 0（在盒里）直接 100%")
+    check(re.search(r"double f = Math\.min\(1\.0 - hxz / spanXz, 1\.0 - py / spanY\);", sf) is not None,
+          "★★【10-03】两维各算线性、取**较小**（水平 spanXz / 垂直 spanY 各自起算）")
+    check(re.search(r"double spanXz = cachedRound - CABIN_RADIUS_H;", sf) is not None
+          and re.search(r"double spanY = cachedRoundY - CABIN_RADIUS_H;", sf) is not None,
+          "* 淡出跨度两维都从**轿厢表面**起算（各自 −1.5）")
+    check(re.search(r"if \(cabin == null\) \{.*?player\.distanceTo\(sound\) - CABIN_RADIUS_H;",
+                    sf, re.S) is not None,
+          "* 读不到真实尺寸时**逐字回落**【1.51】的 1.5 格圆（含 <= 判定与 3D 距离 − 半径）",
+          "这一支是「MTR 改了名 / 宽轿厢」时的兜底，必须与 1.51 行为一致（且**不做**双维拆分）")
+
+m = re.search(r"private static double cabinExcessHorizontal\((.*?)\n    \}", chime, re.S)
+bx = m.group(0) if m else ""
+check(bool(bx), "找到 cabinExcessHorizontal 方法体")
+if bx:
+    check(re.search(r"Math\.abs\(player\.x - cabin\.centerX\(\)\) - \(cabin\.halfWidth\(\) \+ CABIN_MARGIN\)",
+                    bx) is not None
+          and re.search(r"Math\.abs\(player\.z - cabin\.centerZ\(\)\) - \(cabin\.halfDepth\(\) \+ CABIN_MARGIN\)",
+                        bx) is not None,
+          "* 水平按**真实轿厢盒**判：|Δx| − (半宽 + 余量)（中心是轿厢中心，不是楼层方块那个角）")
+
+m = re.search(r"private static double cabinExcessVertical\((.*?)\n    \}", chime, re.S)
+bv = m.group(0) if m else ""
+check(bool(bv), "找到 cabinExcessVertical 方法体")
+if bv:
+    check(re.search(r"double slack = cabin\.spacing\(\);", bv) is not None
+          and re.search(r"cabin\.baseY\(\) \+ cabin\.height\(\) \+ slack", bv) is not None,
+          "* 竖直容差 = 相邻楼层最小间距 Cabin.spacing()（行进中基准最多偏一整段）")
+    check(re.search(r"if \(!\(cabin\.spacing\(\) > 0\.0\)\) \{\s*return 0\.0;", bv) is not None,
+          "楼层表拿不到（spacing == 0）⇒ **不做**竖直判定、垂直分量恒 0（降级，不是判错）")
 
 m = re.search(r"CABIN_RADIUS_H = ([0-9.]+);", chime)
 check(bool(m) and float(m.group(1)) == 1.5,
-      "CABIN_RADIUS_H = 1.5 格（盖住 1×1 轿厢的贴边与 2×2 轿厢的厢内中心）",
+      "CABIN_RADIUS_H = 1.5 格（【1.52】起降级为**回落值**，不再是主判据）",
+      "实际 %s" % (m.group(1) if m else None))
+m = re.search(r"CABIN_MARGIN = ([0-9.]+);", chime)
+check(bool(m) and 0.0 < float(m.group(1)) <= 1.0,
+      "CABIN_MARGIN ∈ (0, 1] 格（玩家身宽余量：贴墙站不算出厢）",
       "实际 %s" % (m.group(1) if m else None))
 m = re.search(r"OUTSIDE_CABIN_FACTOR = ([0-9.]+)f;", chime)
 check(bool(m) and float(m.group(1)) == 0.2,
-      "OUTSIDE_CABIN_FACTOR = 0.2（用户点名的「原先的 20%」）",
+      "OUTSIDE_CABIN_FACTOR = 0.2（用户点名的「原先的 20%」，【1.52】不动）",
       "实际 %s" % (m.group(1) if m else None))
+
+# ---- 【1.52】MtrLiftAccess 真的把两个版本的几何都读出来了 ----
+check(re.search(r"public record Cabin\(double centerX, double centerZ, double baseY,\s*"
+                r"double halfWidth, double halfDepth, double height, double spacing\)",
+                access_src) is not None,
+      "【1.52】新增 Cabin record（中心 xz + 底面 y + 半宽半深 + 高 + 楼层间距）")
+check(re.search(r"Cabin cabin\) \{", access_src) is not None,
+      "LiftView 带上 cabin 字段（null = 读不到几何 ⇒ 回落 1.5 格圆）")
+check("lift.cabin()" in chime,
+      "播放侧从快照里取 cabin（不是自己再反射一遍）")
+for meth in ("getWidth", "getDepth", "getHeight", "getOffsetX", "getOffsetZ", "iterateFloors"):
+    check(('"%s"' % meth) in access_src, "MTR4 路径读了 %s" % meth)
+for fld in ("liftWidth", "liftDepth", "liftHeight", "liftOffsetX", "liftOffsetZ", "floors"):
+    check(('"%s"' % fld) in access_src, "MTR3 路径读了 %s" % fld)
+check(re.search(r"bindCabinGeometry\(true\);", access_src) is not None
+      and re.search(r"bindCabinGeometry\(false\);", access_src) is not None,
+      "两个版本各自调 bindCabinGeometry(...)")
+m = re.search(r"private static void bindCabinGeometry\(boolean mtr3\) \{(.*?)\n    \}",
+              access_src, re.S)
+bg = m.group(0) if m else ""
+check(bool(bg) and "LOGGER.warn" in bg and re.search(r"^\s*throw\b", bg, re.M) is None,
+      "* bindCabinGeometry 只 WARN、不 throw —— 抛出去会把 broken 置位、提示音**全部静音**",
+      "几何是可选增强，读不到就只回落 1.5 格圆（教训 17：可选增强别把主功能带死）")
+check(re.search(r"cabinGeometryOk = false;", access_src) is not None,
+      "读不全时 cabinGeometryOk = false ⇒ 快照里 cabin 给 null")
 
 check(re.search(r"class LiftMusicInstance extends AbstractSoundInstance implements TickableSoundInstance",
                 chime) is not None,
@@ -261,68 +328,193 @@ check(re.search(r"class LiftMusicInstance extends AbstractSoundInstance implemen
       "（javap 实测只实现 SoundInstance），不实现就进不了 SoundEngine.tickingSounds，"
       "引擎一辈子不会回来读音量 ⇒ 音量永远是起播时那一个值（用户报的病）")
 check(re.search(r"public void tick\(\) \{\s*Minecraft mc = Minecraft\.getInstance\(\);\s*"
-                r"this\.volume = baseVolume \* spatialFactor\(playerPos\(mc\), "
-                r"new Vec3\(this\.x, this\.y, this\.z\)\);\s*\}", chime) is not None,
-      "* tick() 里按玩家当前位置重算 this.volume（引擎每 tick 把它写进 AL_GAIN）")
+                r"this\.volume = baseVolume\s*\*\s*spatialFactor\(playerPos\(mc\), "
+                r"new Vec3\(this\.x, this\.y, this\.z\), this\.cabin\);\s*\}", chime) is not None,
+      "* tick() 里按玩家当前位置重算 this.volume（引擎每 tick 把它写进 AL_GAIN），"
+      "并带上该实例自己那份 this.cabin")
 check(re.search(r"public boolean isStopped\(\) \{\s*return false;\s*\}", chime) is not None,
       "isStopped() 恒 false（一次性音效交回引擎，在通道播完时回收）")
 check(re.search(r"this\.volume = baseVolume \* spatialFactor\(playerPos\(Minecraft\.getInstance\(\)\), "
-                r"pos\);", chime) is not None,
+                r"pos, cabin\);", chime) is not None,
       "起播当刻也算一次（既不炸一下、也没有开头空白）")
-check("inst.setPosition(pos, baseVolume)" in chime,
-      "play() 传给实例的是**不含**空间系数的设置音量（空间系数由实例自己逐 tick 算）")
+check("inst.setPosition(pos, baseVolume, cabin)" in chime,
+      "play() 传给实例的是**不含**空间系数的设置音量 + 这条直梯的轿厢盒"
+      "（空间系数由实例自己逐 tick 算）")
+check(re.search(r"private MtrLiftAccess\.Cabin cabin;", chime) is not None,
+      "LiftMusicInstance 自持一份 cabin（起播时定；一次提示音只响几秒，轿厢不会中途变形）")
 
-# ---- 数值：把 spatialFactor 忠实搬到 Python 里跑 ----
-# * 两个常量**从源码解析**、不抄一份：源码一改，下面的数值断言跟着变（改错立刻红）
+# ---- 数值：把 spatialFactor + beyondCabin **忠实搬到 Python** 里跑 ----
+# * 三个常量**从源码解析**、不抄一份：源码一改，下面的数值断言跟着变（改错立刻红）
+# * 声源固定放在原点，cabin 用 dict 描述（cx/cz = 轿厢中心，by = 底面 y，hw/hd = 半宽半深，
+#   h = 轿厢高，spacing = 相邻楼层最小间距）；cabin=None = 走回落的 1.5 格圆那一支。
 CABIN_R = float(re.search(r"CABIN_RADIUS_H = ([0-9.]+);", chime).group(1))
+CABIN_MARGIN = float(re.search(r"CABIN_MARGIN = ([0-9.]+);", chime).group(1))
 OUTSIDE = float(re.search(r"OUTSIDE_CABIN_FACTOR = ([0-9.]+)f;", chime).group(1))
 
 
-def spatial(d, round_=4.0, horiz=None, outside=OUTSIDE):
-    """忠实复刻：d = 3D 距离，horiz = 水平距离（默认同 d），round_ = /lifthelpround。"""
-    if horiz is None:
-        horiz = d
-    if horiz <= CABIN_R:
+def excess_h(player, cabin):
+    """复刻 cabinExcessHorizontal：水平（xz）超出盒面多少格（<= 0 = 在水平范围内）。"""
+    px, py, pz = player
+    if cabin is None:
+        h = math.hypot(px, pz)
+        return 0.0 if h <= CABIN_R else h - CABIN_R
+    ex = abs(px - cabin["cx"]) - (cabin["hw"] + CABIN_MARGIN)
+    ez = abs(pz - cabin["cz"]) - (cabin["hd"] + CABIN_MARGIN)
+    return math.hypot(max(ex, 0.0), max(ez, 0.0))
+
+
+def excess_v(player, cabin):
+    """复刻 cabinExcessVertical：垂直（y）超出盒面多少格（含 spacing 容差；回落分支恒 0）。"""
+    px, py, pz = player
+    if cabin is None or not cabin["spacing"] > 0.0:
+        return 0.0
+    slack = cabin["spacing"]
+    return max(0.0, cabin["by"] - slack - py, py - (cabin["by"] + cabin["h"] + slack))
+
+
+def spatial(player, cabin, round_=4.0, round_y=5.0, outside=OUTSIDE):
+    """复刻 spatialFactor（默认 /lifthelpround = 水平 4 / 垂直 5）。
+
+    ★【10-03】真实轿厢盒走**双维**：水平 xz 与垂直 y 各算一次**按比例线性**衰减、取**较小**；
+    任一维越界即 0。回落分支（cabin is None）保持【1.51】**单维**口径，只把平方拉直成线性。
+    """
+    if cabin is None:
+        px, py, pz = player
+        if math.hypot(px, pz) <= CABIN_R:
+            return 1.0
+        beyond = math.sqrt(px * px + py * py + pz * pz) - CABIN_R
+        span = round_ - CABIN_R
+        if not span > 0.0 or beyond >= span:
+            return 0.0
+        return outside * (1.0 - beyond / span)
+    hxz = excess_h(player, cabin)
+    py = excess_v(player, cabin)
+    if hxz <= 0.0 and py <= 0.0:
+        return 1.0
+    span_xz = round_ - CABIN_R
+    span_y = round_y - CABIN_R
+    if not span_xz > 0.0 or not span_y > 0.0 or hxz >= span_xz or py >= span_y:
+        return 0.0
+    return outside * min(1.0 - hxz / span_xz, 1.0 - py / span_y)
+
+
+def tight(player, cabin, round_=4.0):
+    """对照组：竖直容差取 0（= 忘了「行进中基准会偏」的那个改法）。"""
+    px, py, pz = player
+    ex = abs(px - cabin["cx"]) - (cabin["hw"] + CABIN_MARGIN)
+    ez = abs(pz - cabin["cz"]) - (cabin["hd"] + CABIN_MARGIN)
+    ey = max(cabin["by"] - py, py - (cabin["by"] + cabin["h"]))
+    if ex <= 0.0 and ez <= 0.0 and ey <= 0.0:
         return 1.0
     span = round_ - CABIN_R
-    beyond = d - CABIN_R
+    beyond = math.sqrt(max(ex, 0.0) ** 2 + max(ez, 0.0) ** 2 + max(ey, 0.0) ** 2)
     if not span > 0.0 or beyond >= span:
         return 0.0
     f = 1.0 - beyond / span
-    return outside * f * f
+    return OUTSIDE * f
 
 
-check(abs(spatial(None, 4.0, horiz=0.7) - 1.0) < 1e-12,
-      "* 轿厢内（水平 0.7 格）= 100%")
-EPS_OUT = 1e-6   # 轿厢判定是 <=（正好 1.5 格仍算「在轿厢里」），所以「刚跨出」取 1.5+eps
-check(abs(spatial(1.5 + EPS_OUT, 4.0) - 0.20) < 1e-6,   # 容差按 Java 的 float32 算（0.2f = 0.2000000029）
-      "* 刚迈出轿厢（刚越过轿厢半径 1.5 格）= **正好 20%**（用户点名的数）",
-      "%.6f" % spatial(1.5 + EPS_OUT, 4.0))
-check(spatial(1.5, 4.0) == 1.0,
-      "边界包含在轿厢内（水平正好 1.5 格仍算『在轿厢里』= 100%），越过才降档")
-vals = [spatial(d, 4.0) for d in (1.5 + EPS_OUT, 2.0, 2.5, 3.0, 3.5)]
+# 用户那台直梯：宽轿厢 5×5（半宽半深 2.5）、轿厢高 3、相邻楼层间距 5、轿厢中心压在楼层方块上
+WIDE = {"cx": 0.0, "cz": 0.0, "by": 0.0, "hw": 2.5, "hd": 2.5, "h": 3.0, "spacing": 5.0}
+
+check(abs(spatial((0.0, 1.0, 0.0), WIDE) - 1.0) < 1e-12, "* 厢内正中 = 100%")
+check(abs(spatial((2.4, 1.0, 2.4), WIDE) - 1.0) < 1e-12,
+      "★ 厢内**贴角**（离中心水平 3.4 格）= 100%",
+      "同一个位置，旧 1.5 格圆只剩 %.1f%%" % (spatial((2.4, 1.0, 2.4), None) * 100))
+check(abs(spatial((1.3, 1.0, 1.3), WIDE) - 1.0) < 1e-12,
+      "★ 厢内水平 1.84 格（正是 LOG3 里实测那一段）= 100%",
+      "同一个位置，旧圆 = %.1f%%（这就是「一会大一会小」的幅度）"
+      % (spatial((1.3, 1.0, 1.3), None) * 100))
+
+
+def ride_ref(depart_y, arrive_y, p):
+    """复刻 getCurrentFloor 的取法：按进度 p 取**较近的那一端**（javap 实测 < 0.5 取起点）。"""
+    return depart_y if p < 0.5 else arrive_y
+
+
+SAMPLES = [i / 20.0 for i in range(20)]
+RIDE_BAD = []
+for p in SAMPLES:
+    ref = ride_ref(0.0, 5.0, p)
+    py = 1.0 + 5.0 * p          # 乘客脚底 = 轿厢底 + 1，轿厢竖直井道线性上升
+    cab = dict(WIDE, by=ref)
+    if abs(spatial((0.0, py, 0.0), cab) - 1.0) > 1e-12:
+        RIDE_BAD.append((p, ref, py))
+check(not RIDE_BAD,
+      "★★ 向上移动**全程 20 个采样点**（基准取较近一端、最多偏一整段）= 恒 100%",
+      "出问题的采样点：%s" % RIDE_BAD[:3])
+BAD_TIGHT = [p for p in SAMPLES
+             if abs(tight((0.0, 1.0 + 5.0 * p, 0.0), dict(WIDE, by=ride_ref(0.0, 5.0, p))) - 1.0) > 1e-9]
+check(len(BAD_TIGHT) > 0,
+      "★ 对照：竖直容差取 0 时，同一段路程里有 %d/20 个采样点被**误判成厢外**"
+      % len(BAD_TIGHT),
+      "⇒ Cabin.spacing() 这条容差是必须的，不是装饰")
+
+SPAN = 4.0 - CABIN_R           # 水平淡出跨度 = /lifthelpround 水平值 − 1.5
+SPAN_Y = 5.0 - CABIN_R         # ★【10-03】垂直淡出跨度 = /lifthelpround 垂直值 − 1.5
+check(abs(spatial((2.5 + CABIN_MARGIN + 1e-3, 1.0, 0.0), WIDE) - 0.20) < 2e-3,
+      "* 刚迈出轿厢表面 = **正好 20%**（用户点名要的那个数）",
+      "%.4f" % spatial((2.5 + CABIN_MARGIN + 1e-3, 1.0, 0.0), WIDE))
+vals = [spatial((2.5 + CABIN_MARGIN + d, 1.0, 0.0), WIDE) for d in (0.05, 0.5, 1.0, 1.5, 2.0)]
 check(all(vals[i] > vals[i + 1] for i in range(len(vals) - 1)) and vals[-1] > 0.0,
       "* 越远越小：20% 起单调递减（还没到范围边界时不提前归零）",
       " / ".join("%.4f" % v for v in vals))
-check(spatial(4.0, 4.0) == 0.0 and spatial(9.9, 4.0) == 0.0,
-      "* 到 /lifthelpround（默认 4 格）归零")
-check(spatial(2.0, 128.0) > 0.0,
-      "范围可调：round=128 时 2 格处仍可闻（乘客/旁观者都听得到，只是淡）",
-      "%.4f" % spatial(2.0, 128.0))
-check(spatial(2.0, 1.0) == 0.0,
-      "可预期降级：round=1（≤ 轿厢半径 1.5）时轿厢外一律静音 —— 可见范围已被轿厢占满")
+check(spatial((2.5 + CABIN_MARGIN + SPAN, 1.0, 0.0), WIDE) == 0.0,
+      "* 到 /lifthelpround（默认 4 格）从**轿厢表面**起算归零")
+check(spatial((0.0, 1.0 + 2 * 5.0 + 3.0, 0.0), WIDE) == 0.0,
+      "★★ 同竖列但**隔两层楼**（2×5 + 3 = 13 格）= 0% —— 修掉了旧模型"
+      "「同一竖列隔多远都 100%」那个洞（旧模型只看水平、根本没看竖直）")
+check(abs(spatial((0.0, 1.0 + 5.0, 0.0), WIDE) - 1.0) < 1e-12,
+      "★ 同竖列**相邻楼层**仍是 100%：容差 = 一整段间距的必然代价，与 1.51 行为一致、不算回归",
+      "要连这一档也安静，就得拿 MTR 的轨道形状回调 —— 那要读客户端世界 + 逐段向量，不值当")
+check(spatial((0.0, 1.0, 0.0), WIDE, round_=128.0) > 0.0,
+      "范围可调：round=128 时厢外仍可闻（旁观者都听得到，只是淡）")
+check(spatial((2.5 + CABIN_MARGIN + 2.0, 1.0, 0.0), WIDE, round_=1.0) == 0.0,
+      "可预期降级：round ≤ 1.5 时轿厢外一律静音 —— 可见范围已被轿厢占满")
+
+# ---- ★【10-03】垂直（y）维真的参与（用户点名「新加的 y 参与距离判定」）----
+PY1 = 8.0 + 1.0                # 正上方超出轿厢表面 1 格（水平分量 = 0）
+check(abs(spatial((0.0, PY1, 0.0), WIDE) - 0.2 * (1.0 - 1.0 / SPAN_Y)) < 1e-9,
+      "★ 垂直维参与：正上方超轿厢 1 格（水平为 0）⇒ 0.2 × (1 − 1/跨度_y)",
+      "%.4f vs 期望 %.4f" % (spatial((0.0, PY1, 0.0), WIDE), 0.2 * (1.0 - 1.0 / SPAN_Y)))
+check(spatial((0.0, PY1, 0.0), WIDE, round_y=100.0) > spatial((0.0, PY1, 0.0), WIDE),
+      "★ 把垂直范围调大（/lifthelpround 第二个参数）⇒ 同一点变响（y 维独立可调）",
+      "%.4f -> %.4f" % (spatial((0.0, PY1, 0.0), WIDE),
+                         spatial((0.0, PY1, 0.0), WIDE, round_y=100.0)))
+check(spatial((0.0, 8.0 + SPAN_Y, 0.0), WIDE) == 0.0,
+      "★ 正上方到**垂直**跨度（= /lifthelpround 垂直值 − 1.5）正好归零")
+check(abs(spatial((2.5 + CABIN_MARGIN + 1e-3, PY1, 0.0), WIDE)
+          - 0.2 * min(1.0 - 1e-3 / SPAN, 1.0 - 1.0 / SPAN_Y)) < 2e-3,
+      "★ 两维取**较小**：水平贴边 + 垂直也超一点 ⇒ 取更小的那一维（不是相加 / 平均）",
+      "%.4f" % spatial((2.5 + CABIN_MARGIN + 1e-3, PY1, 0.0), WIDE))
+# 反向对照：把「垂直不参与」写回（round_y 视为无穷）后，上面那条正上方断言就不成立
+check(spatial((0.0, PY1, 0.0), WIDE, round_y=100.0) != spatial((0.0, PY1, 0.0), WIDE),
+      "对照：若垂直不参与距离判定（等价于垂直范围无限大），正上方那点的增益会不同"
+      " ⇒ 上面「垂直维参与」的断言有鉴别力")
+
+# ---- 回落分支：读不到几何时必须与【1.51】逐点一致 ----
+check(abs(spatial((0.7, 1.0, 0.0), None) - 1.0) < 1e-12, "* 回落：水平 0.7 格 = 100%")
+check(abs(spatial((CABIN_R + 1e-6, 0.0, 0.0), None) - 0.20) < 1e-6,
+      "* 回落：刚越过 1.5 格 = 正好 20%",
+      "%.6f" % spatial((CABIN_R + 1e-6, 0.0, 0.0), None))
+check(spatial((CABIN_R, 0.0, 0.0), None) == 1.0,
+      "回落：边界包含在轿厢内（正好 1.5 格仍 100%），越过才降档")
+check(spatial((4.0, 0.0, 0.0), None) == 0.0 and spatial((9.9, 0.0, 0.0), None) == 0.0,
+      "回落：到 /lifthelpround 归零")
+check(spatial((2.0, 0.0, 0.0), None, round_=1.0) == 0.0,
+      "回落：round=1（≤ 1.5）时轿厢外一律静音（可预期降级，不特判）")
 
 # ---- 对照 1：把「轿厢外 20%」改回 1.0（= 不区分轿厢内外的旧行为）----
-check(abs(spatial(1.5 + EPS_OUT, 4.0, outside=1.0) - 0.20) > 1e-6,
-      "对照 1：OUTSIDE_CABIN_FACTOR 改成 1.0 后「出轿厢 = 20%」不成立"
+check(abs(spatial((2.5 + CABIN_MARGIN + 1e-3, 1.0, 0.0), WIDE, outside=1.0) - 0.20) > 1e-6,
+      "对照 1：OUTSIDE_CABIN_FACTOR 改成 1.0 后「出厢 = 20%」不成立"
       " ⇒ 上面那条断言有鉴别力，不是恒真",
-      "改后 %.4f" % spatial(1.5 + EPS_OUT, 4.0, outside=1.0))
+      "改后 %.4f" % spatial((2.5 + CABIN_MARGIN + 1e-3, 1.0, 0.0), WIDE, outside=1.0))
 
 # ---- 对照 2：旧写法（音量只在起播时定死）在用户那条场景下的结果 ----
-_play_at = spatial(None, 4.0, horiz=0.7)      # 在轿厢里按下按钮那一刻
-_walk_to = spatial(3.0, 4.0)                  # 走出去 3 格之后
+_play_at = spatial((0.7, 1.0, 0.0), WIDE)                       # 在轿厢里按下按钮那一刻
+_walk_to = spatial((2.5 + CABIN_MARGIN + 2.0, 1.0, 0.0), WIDE)  # 走出去 2 格之后
 check(abs(_play_at - _walk_to) > 1e-6,
-      "对照 2：旧写法会把 %.2f 一直播完，新写法走到 3 格处只剩 %.4f ⇒ 两者可区分"
+      "对照 2：旧写法会把 %.2f 一直播完，新写法走到厢外 2 格只剩 %.4f ⇒ 两者可区分"
       "（这正是用户报的「不管走多远都清晰听到」）" % (_play_at, _walk_to))
 
 # ---- 编译产物（dev 目录、未 remap）：接口真的挂上去了 ----
@@ -368,8 +560,9 @@ check("if (getDirection == null)" in d_body and "return Move.NONE;" in d_body
       and "catch (Throwable" in d_body,
       "directionOf：方法缺失 / 反射抛异常 → NONE（同一套降级）")
 
-check(re.search(r"Move move\)", access) is not None and "LiftView(" in access,
-      "快照 LiftView 里带上了 move 字段（record 的构造口也对上了）")
+check(re.search(r"Move move,\s*\n?\s*Cabin cabin\)", access) is not None
+      and "LiftView(" in access,
+      "快照 LiftView 的 record 构造口带上了 move + cabin（【1.52】新增）")
 
 
 # ----------------------------------------------------------------------

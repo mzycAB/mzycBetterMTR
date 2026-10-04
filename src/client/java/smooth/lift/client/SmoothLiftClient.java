@@ -1,5 +1,7 @@
 package smooth.lift.client;
 
+import com.mojang.brigadier.arguments.IntegerArgumentType;
+import com.mojang.brigadier.arguments.StringArgumentType;
 import io.netty.buffer.Unpooled;
 import net.fabricmc.api.ClientModInitializer;
 import net.fabricmc.fabric.api.client.command.v2.ClientCommandManager;
@@ -31,6 +33,18 @@ import java.util.Set;
 
 public class SmoothLiftClient implements ClientModInitializer {
 
+    /**
+     * 【10-01】退出设置界面：把「本次界面会话有没有失败」告诉服务端。
+     *
+     * <p>界面内部的逐条操作**不再**单独往聊天框打长句；服务端收到本包后回一条
+     * 「UI执行成功 / UI执行失败」（它自己的失败记录与这里的 ok 取「与」）。
+     */
+    public static void sendUiClose(boolean ok) {
+        FriendlyByteBuf buf = PacketByteBufs.create();
+        buf.writeBoolean(ok);
+        ClientPlayNetworking.send(SmoothLift.UI_CLOSE_CHANNEL, buf);
+    }
+
     private static final Logger LOGGER = LoggerFactory.getLogger("smoothlift");
 
     /** 【1.7】服务端音频同步分块拼接缓冲：维度ID → (块索引 → 数据)。 */
@@ -55,6 +69,9 @@ public class SmoothLiftClient implements ClientModInitializer {
         // 【1.28.1204】先读回上次的「列车报站」总开关（/jsr on|off，默认开）。
         TrainAnnounceSwitch.load();
 
+        // 【1.31.1204】先读回上次的「玩家视角随列车倾斜」（/mtrqx on|off，默认开）。
+        TrainTiltView.load();
+
         // 【1.24】用代码注入透明标记贴图替代 18 个资源覆盖 JSON（MTR 阶梯模型烘烤前替换 #step）
         EscalatorModelOverride.register();
 
@@ -77,19 +94,89 @@ public class SmoothLiftClient implements ClientModInitializer {
                                 .then(ClientCommandManager.literal("off")
                                         .executes(ctx -> EscalatorRenderModeCommand.setOcclusion(ctx, false))))));
 
-        // 【1.28.1204】/jsr on|off：讲述人列车报站（文字转语音念站名）的总开关。
-        //   ★【1.29】它只关「讲述人」那一条 —— 自定义进站广播是另一条独立广播
-        //   （设成不播只关它自己），两条可以同时存在；唯一的耦合是起播时刻共用一个
-        //   「到站前 N 秒」窗口（N 读 /pbmarrive 的设置）。详见 TrainAnnounceSwitch。
-        //   默认开：装上模组就念，不依赖游戏 设置→辅助功能→讲述人（那个开关关着也能念，
-        //   因为走的是 MTR 报站用的 text2speech 入口，见 TrainAnnounceNarrator）。
+        // 【1.31.1204】/mtrqx on|off：玩家视角随列车倾斜。
+        //   on  -> 视角随列车上下坡一起俯仰（坐上过坡的列车时，地平线随车体倾斜）
+        //   off -> 与 MTR 原版逐位一致：视角恒水平（MTR 只搬 yaw、不搬 pitch）
+        //   （无参数）-> 查看当前状态
+        //   ★ 纯客户端本地行为，不读存档、不联网、不影响声音/屏蔽门/直梯任何一条链路。
+        ClientCommandRegistrationCallback.EVENT.register((dispatcher, registryAccess) ->
+                dispatcher.register(ClientCommandManager.literal("mtrqx")
+                        .executes(TrainTiltViewCommand::show)
+                        .then(ClientCommandManager.literal("on")
+                                .executes(ctx -> TrainTiltViewCommand.set(ctx, true)))
+                        .then(ClientCommandManager.literal("off")
+                                .executes(ctx -> TrainTiltViewCommand.set(ctx, false)))));
+
+        // 【1.28.1204】/jsr：讲述人列车报站（文字转语音念站名）的总开关。
+        //   ★★【09-30 续 4】指令树拆成两支（用户点名「指令要分为 jsr arrive/midium」）：
+        //     /jsr arrive … —— **进站广播**的讲述人（原来的 /jsr 整棵树原样挪到这里）；
+        //     /jsr midium … —— **站台广播**的讲述人（同构的一棵，样式没有 default-HK / default-SH
+        //       —— 站台讲述人只有 default 与 userN）。
+        //   两支各自有：on|off（总闸）、on <样式> [word|chat|off]（全局样式 + 文字出现地点）、
+        //   round AAA BBB（播报范围）。/jsr（不带参数）显示两支的总览。
+        //   ★ 玩家在 MTR 列车上时，讲述人语音与文字一概不播（无论设置如何）。
         ClientCommandRegistrationCallback.EVENT.register((dispatcher, registryAccess) ->
                 dispatcher.register(ClientCommandManager.literal("jsr")
                         .executes(TrainAnnounceSwitch::show)
-                        .then(ClientCommandManager.literal("on")
-                                .executes(ctx -> TrainAnnounceSwitch.set(ctx, true)))
-                        .then(ClientCommandManager.literal("off")
-                                .executes(ctx -> TrainAnnounceSwitch.set(ctx, false)))));
+                        // ---- 进站广播的讲述人（原 /jsr 的全部子指令挪到这里）----
+                        .then(ClientCommandManager.literal("arrive")
+                                .executes(TrainAnnounceSwitch::show)
+                                .then(ClientCommandManager.literal("on")
+                                        .executes(ctx -> TrainAnnounceSwitch.set(ctx, true))
+                                        .then(ClientCommandManager.argument("style", StringArgumentType.word())
+                                                .suggests(TrainAnnounceSwitch::suggestStyles)
+                                                .executes(ctx -> TrainAnnounceSwitch.setOn(ctx,
+                                                        StringArgumentType.getString(ctx, "style"), null))
+                                                .then(ClientCommandManager.argument("text", StringArgumentType.word())
+                                                        .suggests(TrainAnnounceSwitch::suggestTextModes)
+                                                        .executes(ctx -> TrainAnnounceSwitch.setOn(ctx,
+                                                                StringArgumentType.getString(ctx, "style"),
+                                                                StringArgumentType.getString(ctx, "text"))))))
+                                .then(ClientCommandManager.literal("off")
+                                        .executes(ctx -> TrainAnnounceSwitch.set(ctx, false)))
+                                .then(ClientCommandManager.literal("round")
+                                        .then(ClientCommandManager.argument("xz", IntegerArgumentType.integer(
+                                                        EscalatorSpeedData.ROUND_MIN, EscalatorSpeedData.ROUND_MAX))
+                                                .then(ClientCommandManager.argument("y", IntegerArgumentType.integer(
+                                                                EscalatorSpeedData.ROUND_MIN, EscalatorSpeedData.ROUND_MAX))
+                                                        .executes(ctx -> TrainAnnounceSwitch.setRound(ctx,
+                                                                IntegerArgumentType.getInteger(ctx, "xz"),
+                                                                IntegerArgumentType.getInteger(ctx, "y")))))))
+                        // ---- 站台广播的讲述人（同构；样式只有 default 与 userN）----
+                        .then(ClientCommandManager.literal("midium")
+                                .executes(TrainAnnounceSwitch::showMidium)
+                                .then(ClientCommandManager.literal("on")
+                                        .executes(ctx -> TrainAnnounceSwitch.setMidium(ctx, true))
+                                        .then(ClientCommandManager.argument("style", StringArgumentType.word())
+                                                .suggests(TrainAnnounceSwitch::suggestMidiumStyles)
+                                                .executes(ctx -> TrainAnnounceSwitch.setMidiumOn(ctx,
+                                                        StringArgumentType.getString(ctx, "style"), null))
+                                                .then(ClientCommandManager.argument("text", StringArgumentType.word())
+                                                        .suggests(TrainAnnounceSwitch::suggestTextModes)
+                                                        .executes(ctx -> TrainAnnounceSwitch.setMidiumOn(ctx,
+                                                                StringArgumentType.getString(ctx, "style"),
+                                                                StringArgumentType.getString(ctx, "text"))))))
+                                .then(ClientCommandManager.literal("off")
+                                        .executes(ctx -> TrainAnnounceSwitch.setMidium(ctx, false)))
+                                .then(ClientCommandManager.literal("round")
+                                        .then(ClientCommandManager.argument("xz", IntegerArgumentType.integer(
+                                                        EscalatorSpeedData.ROUND_MIN, EscalatorSpeedData.ROUND_MAX))
+                                                .then(ClientCommandManager.argument("y", IntegerArgumentType.integer(
+                                                                EscalatorSpeedData.ROUND_MIN, EscalatorSpeedData.ROUND_MAX))
+                                                        .executes(ctx -> TrainAnnounceSwitch.setMidiumRound(ctx,
+                                                                IntegerArgumentType.getInteger(ctx, "xz"),
+                                                                IntegerArgumentType.getInteger(ctx, "y")))))))
+                        // 【09-30 续】/jsr define userN <文字>：自定义词两条讲述人共用。
+                        .then(ClientCommandManager.literal("define")
+                                .then(ClientCommandManager.argument("slot", StringArgumentType.word())
+                                        .suggests(TrainAnnounceSwitch::suggestUserSlots)
+                                        .then(ClientCommandManager.argument("text", StringArgumentType.greedyString())
+                                                .executes(ctx -> TrainAnnounceSwitch.defineUserText(ctx,
+                                                        StringArgumentType.getString(ctx, "slot"),
+                                                        StringArgumentType.getString(ctx, "text"))))))));
+
+        // 【09-29】讲述人字幕的 HUD 渲染（/jsr word on 时才有内容可画）。
+        TrainAnnounceSubtitle.register();
 
         // 逐条扶梯独立的阶梯动画：注册区块索引 + 世界渲染回调
         EscalatorStepRenderer.register();
@@ -114,6 +201,11 @@ public class SmoothLiftClient implements ClientModInitializer {
 
         // 【1.18.1204】地图图片纹理：每 tick 轮询图集 sprite 引用，检测资源重载后重贴
         ClientTickEvents.END_CLIENT_TICK.register(PictureTextures::onClientTick);
+
+        // 【1.31.1204】玩家视角随列车倾斜（/mtrqx on|off）：把 MTR 骑乘链路里采到的列车俯仰角
+        //   写进玩家视角。两个 mixin 只做「记录」（可能在渲染线程），真正的写入在这里（主线程），
+        //   与 MTR 自己的行为最多差一帧。
+        ClientTickEvents.END_CLIENT_TICK.register(TrainTiltView::onClientTick);
 
         // 拿着石斧右键扶梯 -> 打开速度输入界面
         UseBlockCallback.EVENT.register((player, world, hand, hitResult) -> {
@@ -168,6 +260,31 @@ public class SmoothLiftClient implements ClientModInitializer {
             return InteractionResult.FAIL;
         });
 
+        // 【09-30】拿着石斧右键**闸机**（进站 / 出站） -> 打开闸机提示音界面。
+        //   用户原话：「石斧右键出/入站闸机打开 ui，可以设置闸机声音，出站闸机设置出站声音，
+        //   进站闸机设置进站声音」。
+        //   ★【09-30 订正】用户报「右键闸机进去的是二级菜单，按 Esc 才到一级菜单，
+        //   应该右键闸机直接进入一级菜单才对」⇒ 落页与「右键到哪一侧」**彻底解耦**：
+        //   构造器只收**这一格的坐标**（用来算「这一组闸机」是谁），页面永远是一级菜单。
+        //   ★【09-30 续】界面配的是**这一组**（= 连着的、同一功能的那些闸机），
+        //   而不是整个维度的所有闸机（那是指令的射程）；「一起调整」由右上角同步按钮负责。
+        //   「是哪一侧」按注册名判（ticket_barrier_entrance_1 / ticket_barrier_exit_1），
+        //   与播放端 ZhajiChimePlayer 走**同一个** SmoothLift.zhajiWhichOf —— 这里只当门禁用。
+        UseBlockCallback.EVENT.register((player, world, hand, hitResult) -> {
+            if (!world.isClientSide() || hand != InteractionHand.MAIN_HAND) {
+                return InteractionResult.PASS;
+            }
+            if (!player.getMainHandItem().is(Items.STONE_AXE)) {
+                return InteractionResult.PASS;
+            }
+            BlockPos pos = hitResult.getBlockPos();
+            if (SmoothLift.zhajiWhichOf(world.getBlockState(pos)) == null) {
+                return InteractionResult.PASS;
+            }
+            Minecraft.getInstance().setScreen(new ZhajiToneSetupScreen(pos));
+            return InteractionResult.FAIL;
+        });
+
         // 【1.57】拿着石斧右键**侧线铁轨的轨道节点**（`mtr:rail`）-> 打开「列车音效」界面。
         //   用户原话：「石斧右键侧线铁路轨道连接处（就是黄色的那个）打开 ui 功能，
         //   如果连接处同时连接两段轨道，就打开玩家面向的那个轨道的 ui」。
@@ -219,6 +336,11 @@ public class SmoothLiftClient implements ClientModInitializer {
             PsdChimePlayer.onDisconnect();
             EscalatorAnimationDriver.clear();
             EscalatorStepRenderer.onDisconnect();
+            // 【09-29】讲述人字幕与「越界即停」护栏一起复位（换世界后位置与范围都不再可比）。
+            TrainAnnounceSubtitle.onDisconnect();
+            TrainAnnounceNarrator.onDisconnect();
+            // 【1.31.1204】玩家视角随列车倾斜：帧号 / 基线 / 「已经加过多少俯仰」全部作废。
+            TrainTiltView.onDisconnect();
         });
 
         // 接收服务端同步的全部速度+阶梯动画数据
@@ -489,6 +611,13 @@ public class SmoothLiftClient implements ClientModInitializer {
             for (int i = 0; i < count; i++) {
                 round.put(buf.readBlockPos(), buf.readVarInt());
             }
+            // ★【10-03】双维：垂直（y 轴）维紧随水平表之后（读序 = buildRoundPacket 写序）
+            int defaultRoundY = buf.readVarInt();
+            int countY = buf.readVarInt();
+            final Map<BlockPos, Integer> roundY = new HashMap<>();
+            for (int i = 0; i < countY; i++) {
+                roundY.put(buf.readBlockPos(), buf.readVarInt());
+            }
             final ResourceKey<Level> dimKey;
             try {
                 dimKey = EscalatorSpeedManager.parseDimensionKey(dimId);
@@ -496,9 +625,9 @@ public class SmoothLiftClient implements ClientModInitializer {
                 return;
             }
             client.execute(() -> {
-                EscalatorSpeedManager.applyClientRounds(dimKey, defaultRound, round);
-                LOGGER.info("[SmoothLift/Round] 扶梯音效淡入淡出范围已同步（{}）：默认 {} 格、单独设置 {} 处",
-                        dimKey.location(), defaultRound, round.size());
+                EscalatorSpeedManager.applyClientRounds(dimKey, defaultRound, round, defaultRoundY, roundY);
+                LOGGER.info("[SmoothLift/Round] 扶梯音效淡入淡出范围已同步（{}）：默认 {}/{} 格、单独设置 {}/{} 处",
+                        dimKey.location(), defaultRound, defaultRoundY, round.size(), roundY.size());
             });
         });
 
@@ -511,6 +640,13 @@ public class SmoothLiftClient implements ClientModInitializer {
             for (int i = 0; i < count; i++) {
                 helpRound.put(buf.readBlockPos(), buf.readVarInt());
             }
+            // ★【10-03】双维：垂直（y 轴）维紧随水平表之后（读序 = buildHelpRoundPacket 写序）
+            int defaultHelpRoundY = buf.readVarInt();
+            int countY = buf.readVarInt();
+            final Map<BlockPos, Integer> helpRoundY = new HashMap<>();
+            for (int i = 0; i < countY; i++) {
+                helpRoundY.put(buf.readBlockPos(), buf.readVarInt());
+            }
             final ResourceKey<Level> dimKey;
             try {
                 dimKey = EscalatorSpeedManager.parseDimensionKey(dimId);
@@ -518,9 +654,10 @@ public class SmoothLiftClient implements ClientModInitializer {
                 return;
             }
             client.execute(() -> {
-                EscalatorSpeedManager.applyClientHelpRounds(dimKey, defaultHelpRound, helpRound);
-                LOGGER.info("[SmoothLift/HelpRound] 无障碍提示音淡入淡出范围已同步（{}）：默认 {} 格、单独设置 {} 处",
-                        dimKey.location(), defaultHelpRound, helpRound.size());
+                EscalatorSpeedManager.applyClientHelpRounds(
+                        dimKey, defaultHelpRound, helpRound, defaultHelpRoundY, helpRoundY);
+                LOGGER.info("[SmoothLift/HelpRound] 无障碍提示音淡入淡出范围已同步（{}）：默认 {}/{} 格、单独设置 {}/{} 处",
+                        dimKey.location(), defaultHelpRound, defaultHelpRoundY, helpRound.size(), helpRoundY.size());
             });
         });
 
@@ -596,8 +733,9 @@ public class SmoothLiftClient implements ClientModInitializer {
             boolean downEnabled = buf.readBoolean();
             boolean openEnabled = buf.readBoolean();
             boolean closeEnabled = buf.readBoolean();
-            // 【1.47】淡入淡出范围（包尾追加）
+            // 【1.47】淡入淡出范围（含 ★【10-03】垂直维，紧跟水平维；读序 = buildLiftChimePacket 写序）
             int round = buf.readVarInt();
+            int roundY = buf.readVarInt();
             // 【1.48】四项各自音量（-1 = 跟随共用默认）
             int toneVolumeUp = buf.readVarInt();
             int toneVolumeDown = buf.readVarInt();
@@ -616,15 +754,15 @@ public class SmoothLiftClient implements ClientModInitializer {
             }
             client.execute(() -> {
                 EscalatorSpeedManager.applyClientLiftChime(dimKey, enabled, speed, volume,
-                        upEnabled, downEnabled, openEnabled, closeEnabled, round,
+                        upEnabled, downEnabled, openEnabled, closeEnabled, round, roundY,
                         toneVolumeUp, toneVolumeDown, toneVolumeOpen, toneVolumeClose,
                         toneAudioUp, toneAudioDown, toneAudioOpen, toneAudioClose);
                 LOGGER.info("[SmoothLift/LiftChime] 直梯提示音设置已同步（{}）：{}、倍速 {}、音量 {}、"
-                                + "子开关 up={} down={} open={} close={}、范围 {} 格、"
+                                + "子开关 up={} down={} open={} close={}、范围 {}/{} 格、"
                                 + "单项音量 up={} down={} open={} close={}、"
                                 + "默认素材 up={} down={} open={} close={}",
                         dimKey.location(), enabled ? "开" : "关", speed, volume,
-                        upEnabled, downEnabled, openEnabled, closeEnabled, round,
+                        upEnabled, downEnabled, openEnabled, closeEnabled, round, roundY,
                         toneVolumeUp, toneVolumeDown, toneVolumeOpen, toneVolumeClose,
                         toneAudioUp, toneAudioDown, toneAudioOpen, toneAudioClose);
             });
@@ -672,7 +810,9 @@ public class SmoothLiftClient implements ClientModInitializer {
             int volume = buf.readVarInt();
             boolean openEnabled = buf.readBoolean();
             boolean closeEnabled = buf.readBoolean();
-            int round = buf.readVarInt();
+            // 【09-29】范围拆双维：水平（x、z 轴）原位第 1 格，垂直（y 轴）第 2 格
+            int roundXz = buf.readVarInt();
+            int roundY = buf.readVarInt();
             int toneVolumeOpen = buf.readVarInt();
             int toneVolumeClose = buf.readVarInt();
             // 【1.15】两项的维度默认素材（末尾追加，写侧同序）
@@ -689,13 +829,24 @@ public class SmoothLiftClient implements ClientModInitializer {
             // 【1.22】到站 / 进站播报各自那一项的音量（末尾再追加两格，写侧同序）
             int midiumVolume = buf.readVarInt();
             int arriveVolume = buf.readVarInt();
-            // 【1.23】到站 / 进站播报各自的**可闻范围**（末尾再追加两格，写侧同序）
-            int midiumRound = buf.readVarInt();
-            int arriveRound = buf.readVarInt();
+            // 【1.23】【09-29】到站 / 进站播报各自的**可闻范围**（末尾再追加，写侧同序）：
+            //   每项第 1 格水平（x、z 轴）原位，第 2 格垂直（y 轴）紧跟
+            int midiumRoundXz = buf.readVarInt();
+            int midiumRoundY = buf.readVarInt();
+            int arriveRoundXz = buf.readVarInt();
+            int arriveRoundY = buf.readVarInt();
             // 【09-28】「进站广播（讲述人）」维度默认：样式（0/1/2）+ 秒数（末尾再追加两格，写侧同序）
             //   ★ 续：第 1 格由 readBoolean 改成 readVarInt（三档样式）—— 格子数不变，写侧同序改。
             int narrateMode = buf.readVarInt();
             int narrateSeconds = buf.readVarInt();
+            // 【09-30 续 3】「站台广播（讲述人）」维度默认：样式 + 等待秒数（末尾再追加两格，写侧同序）
+            int midiumNarrateMode = buf.readVarInt();
+            int midiumNarrateSeconds = buf.readVarInt();
+            // 【10-01】两条讲述人广播的玩家自定义文字（末尾追加；写侧同序）→ 客户端讲述人镜像。
+            //   ★ 放在 applyClientPsdChime 之外：文字列表是「当前维度的按存档词」，
+            //   由 TrainAnnounceSwitch 统一持有（叙述人 / /jsr / 编辑页三处共用）。
+            java.util.List<String> arriveNarrateUserTexts = EscalatorSpeedManager.readNarrateUserTexts(buf);
+            java.util.List<String> midiumNarrateUserTexts = EscalatorSpeedManager.readNarrateUserTexts(buf);
             final ResourceKey<Level> dimKey;
             try {
                 dimKey = EscalatorSpeedManager.parseDimensionKey(dimId);
@@ -704,22 +855,31 @@ public class SmoothLiftClient implements ClientModInitializer {
             }
             client.execute(() -> {
                 EscalatorSpeedManager.applyClientPsdChime(dimKey, enabled, volume,
-                        openEnabled, closeEnabled, round, toneVolumeOpen, toneVolumeClose,
+                        openEnabled, closeEnabled, roundXz, roundY,
+                        toneVolumeOpen, toneVolumeClose,
                         toneAudioOpen, toneAudioClose, closeWaitSeconds,
                         midiumAudio, midiumWaitSeconds, arriveAudio, arriveSeconds,
-                        midiumVolume, arriveVolume, midiumRound, arriveRound,
-                        narrateMode, narrateSeconds);
+                        midiumVolume, arriveVolume,
+                        midiumRoundXz, midiumRoundY, arriveRoundXz, arriveRoundY,
+                        narrateMode, narrateSeconds, midiumNarrateMode, midiumNarrateSeconds);
                 LOGGER.info("[SmoothLift/PsdChime] 屏蔽门提示音设置已同步（{}）：{}、音量 {}、"
-                                + "子开关 open={} close={}、范围 提示音 {} 格 / 到站 {} 格 / 进站 {} 格、"
+                                + "子开关 open={} close={}、范围 提示音 水平{}垂{} 格 / 到站 水平{}垂{} 格 / 进站 水平{}垂{} 格、"
                                 + "单项音量 open={} close={} 到站={} 进站={}、"
                                 + "默认素材 open={} close={}、关门强制等待 {} 秒、到站播报 {}（等待 {} 秒）、"
-                                + "进站报站 {}（提前 {} 秒）、讲述人 {}（提前 {} 秒）",
+                                + "进站报站 {}（提前 {} 秒）、讲述人 {}（提前 {} 秒；全局样式 {}、文字 {}）、"
+                                + "站台讲述人 {}（开门音播完 {} 秒）",
                         dimKey.location(), enabled ? "开" : "关", volume,
-                        openEnabled, closeEnabled, round, midiumRound, arriveRound,
+                        openEnabled, closeEnabled,
+                        roundXz, roundY, midiumRoundXz, midiumRoundY, arriveRoundXz, arriveRoundY,
                         toneVolumeOpen, toneVolumeClose, midiumVolume, arriveVolume,
                         toneAudioOpen, toneAudioClose, closeWaitSeconds,
                         midiumAudio, midiumWaitSeconds, arriveAudio, arriveSeconds,
-                        EscalatorSpeedData.psdNarrateModeName(narrateMode), narrateSeconds);
+                        EscalatorSpeedData.psdNarrateModeName(narrateMode), narrateSeconds,
+                        TrainAnnounceSwitch.styleLabel(TrainAnnounceSwitch.style()),
+                        TrainAnnounceSwitch.textModeLabel(TrainAnnounceSwitch.textMode()),
+                        EscalatorSpeedData.psdNarrateModeName(midiumNarrateMode), midiumNarrateSeconds);
+                // 【10-01】两条讲述人广播的按存档自定义文字（镜像进客户端，供叙述/编辑/指令共用）
+                TrainAnnounceSwitch.applyNarrateUserTexts(arriveNarrateUserTexts, midiumNarrateUserTexts);
             });
         });
 
@@ -757,12 +917,28 @@ public class SmoothLiftClient implements ClientModInitializer {
                 //   ★ 续：样式那一格由 readDoorOptBool 改成 readDoorOptInt（三档 0/1/2）。
                 Integer narrate = EscalatorSpeedManager.readDoorOptInt(buf);
                 Integer narrateSeconds = EscalatorSpeedManager.readDoorOptInt(buf);
+                // 【09-30 续 3】「站台广播（讲述人）」这一串门的覆盖项（读序同 buildPsdTonePacket 写序）
+                Integer midiumNarrate = EscalatorSpeedManager.readDoorOptInt(buf);
+                Integer midiumNarrateSeconds = EscalatorSpeedManager.readDoorOptInt(buf);
                 tones.put(key, new EscalatorSpeedData.PsdToneAudio(open, close,
                         help, openEnabled, closeEnabled,
                         volume, openVolume, closeVolume, openWaitSeconds, closeWaitSeconds,
                         midium, midiumWaitSeconds, midiumVolume,
                         arrive, arriveSeconds, arriveVolume,
-                        narrate, narrateSeconds));
+                        narrate, narrateSeconds, midiumNarrate, midiumNarrateSeconds));
+            }
+            // 【10-03 五改】**门串级**设置（关门后等待发车）—— 同一份包末尾追加的一段。
+            //   ★ 它与上面那张表是**两个键空间**（门串锚点 vs 车站级 runKey），客户端也存两张。
+            //   读序同 buildPsdTonePacket 写序：条数 → (锚点 long, 平台 id long, 等待?) × N。
+            int runCount = buf.readVarInt();
+            final Map<Long, EscalatorSpeedData.PsdRunSetting> runSettings = new HashMap<>();
+            for (int i = 0; i < runCount; i++) {
+                long runAnchor = buf.readLong();
+                long platformId = buf.readLong();
+                Integer departDelaySeconds = EscalatorSpeedManager.readDoorOptInt(buf);
+                runSettings.put(runAnchor, new EscalatorSpeedData.PsdRunSetting(
+                        departDelaySeconds,
+                        EscalatorSpeedData.psdPlatformKnown(platformId) ? platformId : null));
             }
             final ResourceKey<Level> dimKey;
             try {
@@ -772,9 +948,51 @@ public class SmoothLiftClient implements ClientModInitializer {
             }
             client.execute(() -> {
                 EscalatorSpeedManager.applyClientPsdTone(dimKey, tones);
-                LOGGER.info("[SmoothLift/PsdChime] 屏蔽门单独素材已同步（{}）：{} 条",
-                        dimKey.location(), tones.size());
+                // 【10-03 五改】门串级那一张也跟着落地（与上面那张表无关，各存各的）。
+                EscalatorSpeedManager.applyClientPsdRun(dimKey, runSettings);
+                LOGGER.info("[SmoothLift/PsdChime] 屏蔽门单独素材已同步（{}）：{} 条（门串级设置 {} 条）",
+                        dimKey.location(), tones.size(), runSettings.size());
                 PsdToneSetupScreen.notifyToneDataChanged();
+            });
+        });
+
+        // 【09-30】接收服务端同步的**闸机提示音**（一个维度 → 维度默认那一层 + 逐组那一层）。
+        //   播放端（ZhajiChimePlayer）按音源坐标算组锚点，先查逐组表再回落默认层；界面也读它们。
+        //   ★ 顺序同 buildZhajiPacket：dimId → audioIn → audioOut → volumeIn → volumeOut
+        //     → 条数 N → (组锚点 long, audioIn utf128, audioOut utf128, volIn?, volOut?) × N。
+        ClientPlayNetworking.registerGlobalReceiver(SmoothLift.ZHAJI_TONE_SYNC_CHANNEL, (client, handler, buf, responseSender) -> {
+            String dimId = buf.readUtf(256);
+            String audioIn = buf.readUtf(128);
+            String audioOut = buf.readUtf(128);
+            int volumeIn = buf.readVarInt();
+            int volumeOut = buf.readVarInt();
+            // 【09-30 续】逐组那一段。两格音量用「可选 int」编解码（缺格 = 跟维度默认）；
+            //   readDoorOptInt 是屏蔽门那一套留下的**通用**可选 int 读法（同一对 writeDoorOptInt）。
+            int groupCount = buf.readVarInt();
+            final Map<Long, EscalatorSpeedData.ZhajiTone> tones = new HashMap<>();
+            for (int i = 0; i < groupCount; i++) {
+                long groupKey = buf.readLong();
+                String groupIn = buf.readUtf(128);
+                String groupOut = buf.readUtf(128);
+                Integer groupVolumeIn = EscalatorSpeedManager.readDoorOptInt(buf);
+                Integer groupVolumeOut = EscalatorSpeedManager.readDoorOptInt(buf);
+                tones.put(groupKey, new EscalatorSpeedData.ZhajiTone(groupIn, groupOut,
+                        groupVolumeIn, groupVolumeOut));
+            }
+            final ResourceKey<Level> dimKey;
+            try {
+                dimKey = EscalatorSpeedManager.parseDimensionKey(dimId);
+            } catch (Exception e) {
+                return;
+            }
+            client.execute(() -> {
+                EscalatorSpeedManager.applyClientZhaji(dimKey, audioIn, audioOut, volumeIn, volumeOut, tones);
+                // ★ 闸机这一域原先**一条日志都没有**（用户 09-30 报的「LOG7 里看不到闸机设置」），
+                //   现在与屏蔽门 / 直梯同一规格打一行，排查时能直接看到生效值。
+                LOGGER.info("[SmoothLift/Zhaji] 闸机提示音已同步（{}）：默认 进站={} 出站={}、"
+                                + "音量 进站={} 出站={}、单独设置 {} 组",
+                        dimKey.location(), audioIn, audioOut, volumeIn, volumeOut, tones.size());
+                ZhajiToneSetupScreen.notifyToneDataChanged();
             });
         });
 
@@ -783,6 +1001,17 @@ public class SmoothLiftClient implements ClientModInitializer {
         ClientPlayNetworking.registerGlobalReceiver(SmoothLift.MBM_HELP_OPEN_CHANNEL,
                 (client, handler, buf, responseSender) -> client.execute(
                         () -> Minecraft.getInstance().setScreen(new MbmHelpScreen())));
+
+        // 【09-29】服务端让我们打开存档里的某个**导入来源**文件夹（`/MBM picture fold` 走这里）。
+        //   载荷是**相对存档根目录**的路径（如 MBM_Picture / MBM_Audio/pbm/arrive）——
+        //   客户端自己接本机的存档根，再走 FolderOpenButton 的白名单 + 建目录 + 开窗口那一条路；
+        //   界面右上角那个「打开文件夹」按钮不经过这只包（它本来就在客户端算），
+        //   但两边落到的是**同一个** FolderOpenButton.open。
+        ClientPlayNetworking.registerGlobalReceiver(SmoothLift.MBM_OPEN_FOLDER_CHANNEL,
+                (client, handler, buf, responseSender) -> {
+                    String relativePath = buf.readUtf(64);
+                    client.execute(() -> FolderOpenButton.open(relativePath));
+                });
 
     }
 

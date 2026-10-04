@@ -1,0 +1,91 @@
+﻿
+> Configure project :
+Fabric Loom: 1.6.12
+Not publishing sources jar as it was not found. Use java.withSourcesJar() to fix.
+
+> Task :compileJava
+.\gradlew : C:\Users\user\Desktop\2\mzycBetterMTR-1.20.4\src\main\java\smooth\lift\mixin\mtr\Mtr3LiftDoorMixin.java:72:
+ ע: @Inject target 'tickServer' in @Pseudo mixin will not be obfuscated
+所在位置 行:1 字符: 261
++ ... TR-1.20.4'; .\gradlew build --offline -x test --console=plain 2>&1 |  ...
++                 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : NotSpecified: (C:\Users\user\D...t be obfuscated:String) [], RemoteException
+    + FullyQualifiedErrorId : NativeCommandError
+ 
+    @Inject(method = "tickServer", at = @At("TAIL"))
+    ^
+C:\Users\user\Desktop\2\mzycBetterMTR-1.20.4\src\main\java\smooth\lift\mixin\mtr\Mtr4TrainDepartHoldMixin.java:70: ����
+: Unable to locate obfuscation mapping for @Shadow field
+    @Shadow
+    ^
+ע: C:\Users\user\Desktop\2\mzycBetterMTR-1.20.4\src\main\java\smooth\lift\PictureBlocks.javaʹ�û򸲸����ѹ�ʱ�� API��
+ע: �й���ϸ��Ϣ, ��ʹ�� -Xlint:deprecation ���±��롣
+1 ������
+
+> Task :processResources UP-TO-DATE
+> Task :classes
+
+> Task :compileClientJava
+C:\Users\user\Desktop\2\mzycBetterMTR-1.20.4\src\client\java\smooth\lift\client\mixin\sodium\LightDataAccessCafMixin.ja
+va:38: ����: Unable to locate obfuscation mapping for @Shadow method
+    @Shadow
+    ^
+C:\Users\user\Desktop\2\mzycBetterMTR-1.20.4\src\client\java\smooth\lift\client\mixin\sodium\LightDataAccessCafMixin.ja
+va:41: ����: Unable to locate obfuscation mapping for @Shadow method
+    @Shadow
+    ^
+C:\Users\user\Desktop\2\mzycBetterMTR-1.20.4\src\client\java\smooth\lift\client\mixin\sodium\LightDataAccessJellyMixin.
+java:44: ����: Unable to locate obfuscation mapping for @Shadow method
+    @Shadow
+    ^
+C:\Users\user\Desktop\2\mzycBetterMTR-1.20.4\src\client\java\smooth\lift\client\mixin\sodium\LightDataAccessJellyMixin.
+java:47: ����: Unable to locate obfuscation mapping for @Shadow method
+    @Shadow
+    ^
+C:\Users\user\Desktop\2\mzycBetterMTR-1.20.4\src\client\java\smooth\lift\client\mixin\Mtr4PsdLampBlinkMixin.java:8: ���
+�: �Ҳ�������
+import org.spongepowered.asm.mixin.injection.invoke.Args;
+                                                   ^
+  ����:   �� Args
+  λ��: ����� org.spongepowered.asm.mixin.injection.invoke
+C:\Users\user\Desktop\2\mzycBetterMTR-1.20.4\src\client\java\smooth\lift\client\mixin\Mtr4PsdLampBlinkMixin.java:72: ��
+��: �Ҳ�������
+    private void smoothlift$blinkPsdLamp(Args args) {
+                                         ^
+  ����:   �� Args
+  λ��: �� Mtr4PsdLampBlinkMixin
+C:\Users\user\Desktop\2\mzycBetterMTR-1.20.4\src\client\java\smooth\lift\client\mixin\Mtr4PsdLampBlinkMixin.java:83: ��
+��: �Ҳ�������
+    private void smoothlift$blinkApgLamp(Args args) {
+                                         ^
+  ����:   �� Args
+  λ��: �� Mtr4PsdLampBlinkMixin
+C:\Users\user\Desktop\2\mzycBetterMTR-1.20.4\src\client\java\smooth\lift\client\mixin\Mtr4PsdLampBlinkMixin.java:90: ��
+��: �Ҳ�������
+    private void blink(Args args) {
+                       ^
+  ����:   �� Args
+  λ��: �� Mtr4PsdLampBlinkMixin
+4 ������
+4 ������
+
+> Task :compileClientJava FAILED
+
+FAILURE: Build failed with an exception.
+
+* What went wrong:
+Execution failed for task ':compileClientJava'.
+> Compilation failed; see the compiler error output for details.
+
+* Try:
+> Run with --info option to get more log output.
+> Run with --scan to get full insights.
+
+Deprecated Gradle features were used in this build, making it incompatible with Gradle 9.0.
+
+You can use '--warning-mode all' to show the individual deprecation warnings and determine if they come from your own scripts or plugins.
+
+For more on this, please refer to https://docs.gradle.org/8.10.2/userguide/command_line_interface.html#sec:command_line_warnings in the Gradle documentation.
+
+BUILD FAILED in 19s
+3 actionable tasks: 2 executed, 1 up-to-date

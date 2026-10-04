@@ -6,8 +6,10 @@ import net.minecraft.nbt.ListTag;
 import net.minecraft.util.datafix.DataFixTypes;
 import net.minecraft.world.level.saveddata.SavedData;
 
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
@@ -153,16 +155,35 @@ public class EscalatorSpeedData extends SavedData {
     public static final int ROUND_MAX = 128;
 
     /**
-     * 【1.24】**扶梯运行底噪**（{@code EscalatorAudioPlayer}，整条扶梯一起响）的默认可闻范围 = 16 格。
+     * 【1.24】**扶梯运行底噪**（{@code EscalatorAudioPlayer}，整条扶梯一起响）的默认可闻范围 = 10 格。
      * 与 1.9 起一直沿用的 {@code MAX_DISTANCE = 16.0} 一致，只是现在可以被 /futiround 改。
+     *
+     * <p>★★【10-03 用户点名】默认从 **16 改成 10**（用户原话：「所有 round 之前默认为 xz16、y5 的
+     * 改为默认 xz10、y5」）；同时加了**垂直（y 轴）**范围 {@link #DEFAULT_ROUND_Y} = 5 格
+     * （见下）。⇒ 本字段从此只表示**水平（x、z 轴）**那一维。
      */
-    public static final int DEFAULT_ROUND = 16;
+    public static final int DEFAULT_ROUND = 10;
+
+    /**
+     * ★★【10-03 用户点名】**扶梯运行底噪**的默认**垂直（y 轴）**可闻范围 = 5 格。
+     *
+     * <p>与 {@link #DEFAULT_PSD_HELP_ROUND_Y}（屏蔽门）**同值**是刻意的 —— 用户点名
+     * 「所有 round 之前默认为 xz16、y5 的改为默认 xz10、y5；没有 y 轴设置的 round 加上 y 轴设置」，
+     * 即把屏蔽门那一套「水平 / 垂直分开判」推广到全部 round。
+     */
+    public static final int DEFAULT_ROUND_Y = 5;
 
     /**
      * 【1.24】**无障碍提示音**（{@code EscalatorChimePlayer}，端头单块）的默认可闻范围 = 4 格。
-     * 与 1.17 定的 {@code RANGE = 4.0} 一致。两者**故意不同**（16 : 4），别再混。
+     * 与 1.17 定的 {@code RANGE = 4.0} 一致。两者**故意不同**（10 : 4），别再混。
+     *
+     * <p>★ 默认值**没有**跟着 16→10 一起改（用户只点名「之前默认为 xz16」的那些）——
+     * 它是 4，保持 4；但【10-03】给它补了垂直维 {@link #DEFAULT_HELP_ROUND_Y}。
      */
     public static final int DEFAULT_HELP_ROUND = 4;
+
+    /** ★★【10-03 用户点名】**无障碍提示音**的默认**垂直（y 轴）**可闻范围 = 5 格（同 PSD）。 */
+    public static final int DEFAULT_HELP_ROUND_Y = 5;
 
     /**
      * 【1.31】无障碍提示音**速率**的取值区间，单位 **Hz（每秒响几次）**。
@@ -372,29 +393,43 @@ public class EscalatorSpeedData extends SavedData {
     public final Map<BlockPos, Integer> blockHelpVolume = new HashMap<>();
 
     /**
-     * 【1.24】维度默认**扶梯运行底噪**的可闻范围（/futiround 设置，单位格）。
-     * 默认 {@link #DEFAULT_ROUND} = 16。与 {@link #defaultHelpRound}（提示音）是两套互不影响的数据。
+     * 【1.24】**水平（x、z 轴）**维度默认**扶梯运行底噪**的可闻范围（/futiround 设置，单位格）。
+     * 默认 {@link #DEFAULT_ROUND} = **10**（★【10-03】用户点名从 16 改到 10）。垂直维见
+     * {@link #defaultRoundY}。与 {@link #defaultHelpRound}（提示音）是两套互不影响的数据。
      */
     public int defaultRound = DEFAULT_ROUND;
 
+    /** ★★【10-03】**垂直（y 轴）**维度默认扶梯运行底噪的可闻范围（格），默认 5（见 {@link #DEFAULT_ROUND_Y}）。 */
+    public int defaultRoundY = DEFAULT_ROUND_Y;
+
     /**
-     * 【1.24】扶梯方块（x,y,z）→ 这条扶梯运行底噪的可闻范围（单位格）。
+     * 【1.24】扶梯方块（x,y,z）→ 这条扶梯运行底噪的**水平**可闻范围（单位格）。
      * 只记录与 {@link #defaultRound} **不同**的项。1.24 **没有石斧界面控件**，所以正常情况下这里是空的，
      * 只有 {@code /futiround -f <X> to <Y>} 在「先把个别扶梯改成别的值」时才会用到（留给以后加 UI）。
      */
     public final Map<BlockPos, Integer> blockRound = new HashMap<>();
 
+    /** ★【10-03】同 {@link #blockRound}，但是**垂直（y 轴）**那一维（没有记录 ⇒ 用 {@link #defaultRoundY}）。 */
+    public final Map<BlockPos, Integer> blockRoundY = new HashMap<>();
+
     /**
-     * 【1.24】维度默认**无障碍提示音**的可闻范围（/futihelpround 设置，单位格）。
-     * 默认 {@link #DEFAULT_HELP_ROUND} = 4。与 {@link #defaultRound}（底噪）是两套互不影响的数据。
+     * 【1.24】**水平（x、z 轴）**维度默认**无障碍提示音**的可闻范围（/futihelpround 设置，单位格）。
+     * 默认 {@link #DEFAULT_HELP_ROUND} = 4（★【10-03】用户只点名「之前默认 16」的那些，
+     * 4 保持 4）。垂直维见 {@link #defaultHelpRoundY}。与 {@link #defaultRound}（底噪）互不影响。
      */
     public int defaultHelpRound = DEFAULT_HELP_ROUND;
 
+    /** ★★【10-03】**垂直（y 轴）**维度默认无障碍提示音的可闻范围（格），默认 5。 */
+    public int defaultHelpRoundY = DEFAULT_HELP_ROUND_Y;
+
     /**
-     * 【1.24】扶梯方块（x,y,z）→ 这条扶梯无障碍提示音的可闻范围（单位格）。
+     * 【1.24】扶梯方块（x,y,z）→ 这条扶梯无障碍提示音的**水平**可闻范围（单位格）。
      * 只记录与 {@link #defaultHelpRound} **不同**的项；同样没有界面控件。
      */
     public final Map<BlockPos, Integer> blockHelpRound = new HashMap<>();
+
+    /** ★【10-03】同 {@link #blockHelpRound}，但为**垂直（y 轴）**那一维（无记录 ⇒ 用 {@link #defaultHelpRoundY}）。 */
+    public final Map<BlockPos, Integer> blockHelpRoundY = new HashMap<>();
 
     /**
      * 【1.31】维度默认**进入扶梯（上客端）**提示音的速率（/futihelpspeed in 设置，单位 Hz）。
@@ -571,12 +606,22 @@ public class EscalatorSpeedData extends SavedData {
      */
     public int defaultLiftHelpRound = DEFAULT_LIFT_HELP_ROUND;
 
+    /**
+     * ★★【10-03 用户点名】直梯提示音的**垂直（y 轴）**可闻范围（格，{@code /lifthelpround} 的第二个数）。
+     * 默认 {@link #DEFAULT_LIFT_HELP_ROUND_Y} = 5 格。语义与 {@link #defaultLiftHelpRound}（水平）同：
+     * 播放端**水平 / 垂直各算一次线性增益、取较小**的那个。
+     */
+    public int defaultLiftHelpRoundY = DEFAULT_LIFT_HELP_ROUND_Y;
+
     /** 【1.47】直梯提示音淡入淡出范围下限。 */
     public static final int LIFT_HELP_ROUND_MIN = 1;
     /** 【1.47】直梯提示音淡入淡出范围上限（与扶梯同一组上限：128）。 */
     public static final int LIFT_HELP_ROUND_MAX = 128;
     /** 【1.47】默认 4 格（用户点名「第一次载入模组，默认4格」）。 */
     public static final int DEFAULT_LIFT_HELP_ROUND = 4;
+
+    /** ★★【10-03 用户点名】直梯提示音**垂直（y 轴）**默认 = 5 格（同 PSD / 扶梯底噪）。 */
+    public static final int DEFAULT_LIFT_HELP_ROUND_Y = 5;
 
     /**
      * 【1.45】石斧右键直梯楼层轨道换的提示音：竖井列打包坐标 → {@link LiftToneAudio}。
@@ -668,30 +713,33 @@ public class EscalatorSpeedData extends SavedData {
     public int defaultPsdArriveVolume = PSD_TONE_VOLUME_UNSET;
 
     /**
-     * 【1.50】屏蔽门提示音的**可闻范围**（{@code /pbmround}，单位格）。默认
-     * {@link #DEFAULT_PSD_HELP_ROUND} = 16（理由见上面那段注释）。
+     * 【09-29】屏蔽门提示音的**可闻范围**（{@code /pbmround}，单位格）——**双维**：
+     * Xz = 水平（x、z 轴）半径，Y = 垂直（y 轴）半径；任一方向超出即听不见
+     * （判据与 {@code /jsr round} 的讲述人报站同一套，见 TrainAnnounceSwitch）。
+     * 默认水平 {@link #DEFAULT_PSD_HELP_ROUND_XZ} = 16、垂直 {@link #DEFAULT_PSD_HELP_ROUND_Y} = 5。
      */
-    public int defaultPsdHelpRound = DEFAULT_PSD_HELP_ROUND;
+    public int defaultPsdHelpRoundXz = DEFAULT_PSD_HELP_ROUND_XZ;
+    public int defaultPsdHelpRoundY = DEFAULT_PSD_HELP_ROUND_Y;
 
     /**
-     * 【1.23】「**到站播报**」（{@code /pbmmidium}）自己的可闻范围（格，{@code /pbmmidiumround}）。
+     * 【09-29】「**到站播报**」（{@code /pbmmidium}）自己的可闻范围（格，{@code /pbmmidiumround}）
+     * ——**双维**，语义与 {@link #defaultPsdHelpRoundXz}/{@link #defaultPsdHelpRoundY} 同。
      *
      * <p>★ 为什么要跟提示音**分开一份**：三类声音的「该听多远」根本不是一件事 ——
      * 开关门提示音是**机械事件**，站在门口听最合理（默认 16 格）；
      * 而站台广播是**说给整个站台的人听的**，玩家希望它传得远一些。用户在 1.22 那一轮
-     * 给三类声音各自加了音量，本轮把**范围**也拆开，理由完全一样。
-     *
-     * <p>默认 {@link #DEFAULT_PSD_MIDIUM_ROUND} = 16（与提示音同值 ⇒ 旧存档行为逐位不变：
-     * 没有这个字段时播放端读到的就是 16，与 1.22 及以前共用 {@link #defaultPsdHelpRound} 的
-     * 效果**完全一致**）。
+     * 给三类声音各自加了音量，1.23 把**范围**也拆开，本轮再把范围拆成水平/垂直两维，
+     * 理由完全一样。
      */
-    public int defaultPsdMidiumRound = DEFAULT_PSD_MIDIUM_ROUND;
+    public int defaultPsdMidiumRoundXz = DEFAULT_PSD_MIDIUM_ROUND_XZ;
+    public int defaultPsdMidiumRoundY = DEFAULT_PSD_MIDIUM_ROUND_Y;
 
     /**
-     * 【1.23】「**进站报站**」（{@code /pbmarrive}）自己的可闻范围（格，{@code /pbmarriveround}）。
-     * 语义与 {@link #defaultPsdMidiumRound} 同（默认 16）。
+     * 【09-29】「**进站报站**」（{@code /pbmarrive}）自己的可闻范围（格，{@code /pbmarriveround}）。
+     * 语义与 {@link #defaultPsdMidiumRoundXz}/{@link #defaultPsdMidiumRoundY} 同。
      */
-    public int defaultPsdArriveRound = DEFAULT_PSD_ARRIVE_ROUND;
+    public int defaultPsdArriveRoundXz = DEFAULT_PSD_ARRIVE_ROUND_XZ;
+    public int defaultPsdArriveRoundY = DEFAULT_PSD_ARRIVE_ROUND_Y;
 
     /**
      * 【1.16】关门提示音的**强制等待时长**（秒，{@code /pbmclosewait}，0~60）。
@@ -769,12 +817,46 @@ public class EscalatorSpeedData extends SavedData {
     public int defaultPsdNarrateMode = DEFAULT_PSD_NARRATE_MODE;
 
     /**
-     * 【09-28】**维度默认**的「进站广播（讲述人）」秒数：X ∈ (-∞, 0]，
+     * 【09-28】【10-01 续】**维度默认**的「进站广播（讲述人）」秒数：X ∈ (-∞, 0]，
      * 含义与 {@link #defaultPsdArriveSeconds} 逐字相同（最近一班车还剩 |X| 秒到站时开念）。
+     * 默认 {@link #DEFAULT_PSD_NARRATE_LEAD_SECONDS} = **-20**（用户点名「默认-20秒」）。
      *
      * <p>★ 与进站报站的那一个**互相独立**：用户点名「取消借用进站广播」。
      */
-    public int defaultPsdNarrateSeconds = DEFAULT_PSD_NARRATE_SECONDS;
+    public int defaultPsdNarrateSeconds = DEFAULT_PSD_NARRATE_LEAD_SECONDS;
+
+    /**
+     * 【09-30 续 3】**维度默认**的「站台广播（讲述人）」**样式**。
+     *
+     * <p>★【09-30 续 4】站台讲述人**没有**香港 / 上海预设（用户点名删掉 —— 那两句是
+     * 进站报站的句式），样式只有「关闭」与 userN ⇒ 维度默认 = **关闭**。
+     * 想用就去石斧「站台广播(讲述人)」二级页选一条自定义词（userN）。
+     */
+    public int defaultPsdMidiumNarrateMode = PSD_NARRATE_OFF;
+
+    /**
+     * 【09-30 续 3】**维度默认**的「站台广播（讲述人）」秒数 ∈ [0, +∞)：
+     * 含义与 {@link #defaultPsdMidiumWaitSeconds} 逐字相同 —— **开门音播完之后再等 Y 秒**开念
+     * （注意与进站讲述人的 (-∞, 0]「到站前提前」方向**相反**：站台广播是开门**之后**的事）。
+     * 默认 0 = 开门音一播完就念。
+     */
+    public int defaultPsdMidiumNarrateSeconds = DEFAULT_PSD_NARRATE_SECONDS;
+
+    /**
+     * 【10-01】进站广播（讲述人）的**玩家自定义文字**（user1…userN 的模板原文，按顺序）。
+     * **按存档保存** —— 跟着本类写进存档 NBT（与导入的 OGG 同一条约定：存在存档里、
+     * 存档挪到别处也能找到；用户点名「不要存在 config 里、不要存档之间互通」）。
+     *
+     * <p>★ 与站台广播（讲述人）的 {@link #defaultPsdMidiumNarrateUserTexts} **两套分开**
+     * （用户点名「不要 2 个共用一个文字列表」）—— 每条广播念自己的那份。
+     *
+     * <p>★ 条数上限 {@link #MAX_PSD_NARRATE_USER_STYLES}（与档位号空间一致）。
+     */
+    public List<String> defaultPsdArriveNarrateUserTexts = new ArrayList<>();
+
+    /** 【10-01】站台广播（讲述人）的玩家自定义文字 —— 与 {@link #defaultPsdArriveNarrateUserTexts}
+     * 同一条按存档约定，但**独立一份**（站台讲述人念它，进站讲述人不念）。 */
+    public List<String> defaultPsdMidiumNarrateUserTexts = new ArrayList<>();
 
     /**
      * 【1.15】屏蔽门的**维度默认素材**（开门端 / 关门端各一份）：
@@ -799,6 +881,67 @@ public class EscalatorSpeedData extends SavedData {
     public String defaultPsdToneAudioClose = PSD_TONE_DEFAULT;
 
     /**
+     * 【09-30】闸机（MTR 的 Ticket Barrier）的**维度默认素材**：进站 / 出站各一份。
+     *
+     * <p>{@code /zhaji in|out <名字>} 改的就是它；石斧右键任意一台闸机打开的界面里配的也是它。
+     * 取值语义与前两套（直梯 / 屏蔽门）完全一致：
+     * <ul>
+     *   <li>{@link #ZHAJI_TONE_DEFAULT}（指令里写 {@code default}）= **跟 MTR 内置**
+     *       （{@code mtr:ticket_barrier} / {@code mtr:ticket_barrier_concessionary}）；</li>
+     *   <li>{@link #ZHAJI_TONE_OFF}（指令里写 {@code off}）= 这一侧不播；</li>
+     *   <li>其它 = 音频库文件名（从 {@code MBM_Audio/zhaji/in} 或 {@code .../out} 导入过的那份）。</li>
+     * </ul>
+     *
+     * <p>★★ 粒度（【09-30 续】改过一版，别按旧注释理解）：
+     * <ul>
+     *   <li><b>维度默认层</b>（= 本字段）= 整个维度这一侧。**只有指令**改它
+     *       （{@code /zhaji in|out <名字>} / {@code /zhajiloud}）；
+     *       石斧界面右上角「同步所有」的语义是「把这一组的值**写进这一层**」= 同步给所有闸机。</li>
+     *   <li><b>逐组层</b>（{@link #zhajiTone}）= 石斧右键到的那**一组**闸机
+     *       （连着的、同一功能的那些闸机串）。界面里改的每一项都落这一层；
+     *       这一层**没设过**的项回落到上面那一层。</li>
+     * </ul>
+     * 与屏蔽门【1.20】那次改版同一个理由、同一套形状 —— 用户点名
+     * 「石斧右键的（要）全部都是右键的那一组，而不是修改全部，只有指令才是修改全部」。
+     *
+     * <p>旧存档没有这两个字段 → 读回 {@link #ZHAJI_TONE_DEFAULT}
+     * （= 与「模组压根没有这个功能」的行为完全一致，旧档不需要任何迁移）。
+     */
+    public String defaultZhajiToneAudioIn = ZHAJI_TONE_DEFAULT;
+    public String defaultZhajiToneAudioOut = ZHAJI_TONE_DEFAULT;
+
+    /**
+     * 【09-30】闸机提示音的音量（进站 / 出站各一份，1~1000，100 = 原始音量、1000 = 10× 放大）。
+     *
+     * <p>由 {@code /zhajiloud in|out <音量>} 或石斧界面一级菜单那两个输入框设置；
+     * 落值与直梯 / 屏蔽门共用 {@link #clampLiftToneVolume}（同一量程、同一夹取）。
+     * 旧存档缺字段 → {@link #DEFAULT_ZHAJI_VOLUME}（100）。
+     */
+    public int defaultZhajiToneVolumeIn = DEFAULT_ZHAJI_VOLUME;
+    public int defaultZhajiToneVolumeOut = DEFAULT_ZHAJI_VOLUME;
+
+    /**
+     * 【09-30 续】石斧右键**那一组闸机**的提示音设置：组锚点 → {@link ZhajiTone}。
+     *
+     * <p><b>「一组闸机」是什么</b>：相邻的闸机方块（6 邻域连通）算**一段**；
+     * 在**同一段**里，功能相同的那些（进站 / 出站）算**一组**。所以一段里最多两组：
+     * 「这一段的进站闸机」「这一段的出站闸机」。用户点名
+     * 「连着的相同功能（进站 / 出站）闸机为一组，可以单独调整一组闸机的音效和音量」。
+     *
+     * <p><b>锚点怎么算</b>（客户端 {@code ZhajiChain.anchorOf}）：从任意一格出发洪水填充整段，
+     * 取段内 {@link BlockPos#asLong} 最小的那一格 —— 与从段内哪一格出发无关，
+     * 所以「右键这一段的哪一台」都落到同一组。键就存 {@code asLong}（long，省一次字符串编码）。
+     *
+     * <p><b>两层怎么叠</b>：本表有这一项 → 用它；没有（或该项等于
+     * {@link #ZHAJI_TONE_DEFAULT} / {@code null}）→ 回落 {@link #defaultZhajiToneAudioIn} 那一族。
+     * 与屏蔽门的 {@link #psdToneAudio} 完全同一套语义（素材用 {@code DEFAULT} 表达「跟」、
+     * 音量用装箱 {@code Integer} 的 {@code null} 表达「跟」——两种「跟」并存是有意的，见其注释）。
+     *
+     * <p>旧存档没有这张表 → 空表（全部走维度默认，与 09-30 之前逐字节一致）。
+     */
+    public final Map<Long, ZhajiTone> zhajiTone = new HashMap<>();
+
+    /**
      * 【1.50】石斧右键某一扇屏蔽门换的提示音：**门的锚点坐标** → {@link PsdToneAudio}。
      *
      * <p><b>什么是「门的锚点」</b>：MTR 的一扇屏蔽门在客户端其实由**两个方块实体**共同表示
@@ -821,8 +964,14 @@ public class EscalatorSpeedData extends SavedData {
     public static final int DEFAULT_PSD_HELP_VOLUME = DEFAULT_HELP_VOLUME;
     /** 【1.50】屏蔽门「该项没单独调过」的哨兵（不是合法音量，合法区间 1~1000）。 */
     public static final int PSD_TONE_VOLUME_UNSET = LIFT_TONE_VOLUME_UNSET;
-    /** 【1.50】屏蔽门提示音默认可闻范围 = 16 格（站台尺度；理由见上面那段注释）。 */
-    public static final int DEFAULT_PSD_HELP_ROUND = 16;
+    /**
+     * 【1.50】屏蔽门提示音默认可闻范围（水平）= **10 格**（站台尺度；理由见上面那段注释）。
+     * ★★【10-03 用户点名】从 16 改到 10 —— 三类 PSD 范围 + 讲述人范围都派生自本常量，
+     * 所以一处改动全部跟着走（见下面 {@code DEFAULT_PSD_MIDIUM/ARRIVE_ROUND_XZ}）。
+     */
+    public static final int DEFAULT_PSD_HELP_ROUND_XZ = 10;
+    /** 【09-29】屏蔽门提示音默认可闻范围（垂直）= 5 格（与 {@code /jsr round} 的 y 默认同值）。 */
+    public static final int DEFAULT_PSD_HELP_ROUND_Y = 5;
     /** 【1.50】屏蔽门提示音范围上下限（复用扶梯/直梯那一组：1~128）。 */
     public static final int PSD_HELP_ROUND_MIN = ROUND_MIN;
     public static final int PSD_HELP_ROUND_MAX = ROUND_MAX;
@@ -830,13 +979,15 @@ public class EscalatorSpeedData extends SavedData {
     /**
      * 【1.23】到站播报 / 进站报站各自的默认可闻范围 = 16 格。
      *
-     * <p>与 {@link #DEFAULT_PSD_HELP_ROUND} **同值**是刻意的：老存档里没有这两个字段 ⇒
+     * <p>与 {@link #DEFAULT_PSD_HELP_ROUND_XZ} **同值**是刻意的：老存档里没有这两个字段 ⇒
      * 读回字段初始值 16 ⇒ 与 1.22 及以前「三类声音共用提示音那一个范围」的行为逐位相同。
      * ★ 上下限**复用同一组常量**（1~128），不另开一套 —— 三处输入框 / 指令参数校验要是各写一份，
      * 迟早出现「界面上限跟指令上限不是一个数」这种静默不一致。
      */
-    public static final int DEFAULT_PSD_MIDIUM_ROUND = DEFAULT_PSD_HELP_ROUND;
-    public static final int DEFAULT_PSD_ARRIVE_ROUND = DEFAULT_PSD_HELP_ROUND;
+    public static final int DEFAULT_PSD_MIDIUM_ROUND_XZ = DEFAULT_PSD_HELP_ROUND_XZ;
+    public static final int DEFAULT_PSD_MIDIUM_ROUND_Y = DEFAULT_PSD_HELP_ROUND_Y;
+    public static final int DEFAULT_PSD_ARRIVE_ROUND_XZ = DEFAULT_PSD_HELP_ROUND_XZ;
+    public static final int DEFAULT_PSD_ARRIVE_ROUND_Y = DEFAULT_PSD_HELP_ROUND_Y;
     public static final int PSD_MIDIUM_ROUND_MIN = PSD_HELP_ROUND_MIN;
     public static final int PSD_MIDIUM_ROUND_MAX = PSD_HELP_ROUND_MAX;
     public static final int PSD_ARRIVE_ROUND_MIN = PSD_HELP_ROUND_MIN;
@@ -940,13 +1091,34 @@ public class EscalatorSpeedData extends SavedData {
     public static final int PSD_NARRATE_SHANGHAI = 1;
     /** 【09-28】讲述人报站样式 = **开启(香港)**：中英双语「前往X的列车即将到达…」。 */
     public static final int PSD_NARRATE_HONGKONG = 2;
-    /** 【09-28】样式的合法上界（{@link #clampPsdNarrateMode} 用；加新样式时改这一个数）。 */
-    public static final int PSD_NARRATE_MODE_MAX = PSD_NARRATE_HONGKONG;
+    /**
+     * 【09-30】玩家**自定义报站词**的档位起点：mode 3 = user1、4 = user2……
+     * （词的本体存在**客户端**配置 {@code config/smoothlift-jsr.properties}，
+     * 存档里只记档位号 —— 同一串门对每个玩家念各自的词，正是「玩家自定义」的含义）。
+     */
+    public static final int PSD_NARRATE_USER_BASE = 3;
+    /**
+     * 【09-30】自定义档（userN）的条数上限 —— ui 一行一条、指令里 {@code /jsr on userN}
+     * 的 N 也以它为界；同时挡住手改存档写进来的离谱档位号。
+     */
+    public static final int MAX_PSD_NARRATE_USER_STYLES = 64;
+    /**
+     * 【09-28】样式的合法上界（{@link #clampPsdNarrateMode} 用；加新样式时改这一个数）。
+     * 【09-30】自定义档算进来：2 个内置 + {@link #MAX_PSD_NARRATE_USER_STYLES} 个 userN。
+     */
+    public static final int PSD_NARRATE_MODE_MAX =
+            PSD_NARRATE_USER_BASE + MAX_PSD_NARRATE_USER_STYLES - 1;
 
-    /** 【09-28】讲述人报站**默认开着**、样式 = 上海（装上就念；想静下来用 UI 的「关闭」或 /jsr off）。 */
-    public static final int DEFAULT_PSD_NARRATE_MODE = PSD_NARRATE_SHANGHAI;
+    /** 【09-28】【10-01 续】讲述人报站**默认开着**、样式 = **香港**（用户点名「第一次加载模组：
+     * 进站广播＝香港预设」；旧值上海，新存档与老布尔迁移都落到这里）。 */
+    public static final int DEFAULT_PSD_NARRATE_MODE = PSD_NARRATE_HONGKONG;
     /** 【09-28】讲述人报站的默认秒数 = 0（与进站报站同款默认：列车到站那一刻念）。 */
     public static final int DEFAULT_PSD_NARRATE_SECONDS = 0;
+    /** 【10-01】进站讲述人「提前量」**默认 = -20 秒**（用户点名：第一次加载模组就是
+     * 「最近一班车还剩 20 秒到站时开念」）。
+     * ★ 与 {@link #DEFAULT_PSD_NARRATE_SECONDS} **不是同一个**：那条还被「站台广播（讲述人）」
+     * 的等待秒数共用（方向相反 [0,+∞)，改它会把站台讲述人也带成 -20）。 */
+    public static final int DEFAULT_PSD_NARRATE_LEAD_SECONDS = -20;
     /**
      * 【09-28】讲述人报站秒数的**上界** = 0（与 {@link #PSD_ARRIVE_SECONDS_MAX} 同口径）。
      *
@@ -955,10 +1127,38 @@ public class EscalatorSpeedData extends SavedData {
      */
     public static final int PSD_NARRATE_SECONDS_MAX = 0;
 
+    // ------------------------------------------------------------------
+    // 【10-03 五改】一项新的**逐串（runKey）**设置 —— 用户点名的屏蔽门 UI 那一行
+    //
+    //   「关门后等待 X 秒发车」{@code departDelaySeconds} ∈ (-∞, +∞)：
+    //      改的是**列车自己**的发车时刻，与上面那一族「等待秒数」**不是一回事**
+    //      （那些等的是本模组放音频，这一项等的是发车）：
+    //        X > 0 = 门全关之后**再等** X 秒才发车；
+    //        X < 0 = 门**还没关完**就发车（提前 |X| 秒）；
+    //        X = 0 = MTR 原样（默认）。
+    //
+    //   ★ 这一项**故意不加维度默认层**：它改的是列车的行为，不是音频设置，
+    //     没有「整个维度一起改」的需求；「这条串没设过」（记录里是 null）一律当 0。
+    // ------------------------------------------------------------------
+
+    /** 【10-03 五改】「关门后等待 X 秒发车」的默认值 = 0（MTR 原样）。 */
+    public static final int DEFAULT_PSD_DEPART_DELAY_SECONDS = 0;
+
     /** 【1.50】「用内置素材」的哨兵值（与直梯共用同一个字符串，语义一致）。 */
     public static final String PSD_TONE_DEFAULT = LIFT_TONE_DEFAULT;
     /** 【1.50】「这扇门不播」的哨兵值。 */
     public static final String PSD_TONE_OFF = LIFT_TONE_OFF;
+
+    /**
+     * 【09-30】闸机（进站 / 出站）提示音的哨兵值（与直梯 / 屏蔽门共用同一批字符串，语义一致）。
+     * <p>★ 这里**只有**「内置」与「不播」两个哨兵，没有子开关字段 —— 闸机没有那层闸门
+     * （用户点名的是「设置闸机声音」，不是「开关闸机声音」）。
+     */
+    public static final String ZHAJI_TONE_DEFAULT = LIFT_TONE_DEFAULT;
+    /** 【09-30】「闸机这一侧不播」的哨兵值。 */
+    public static final String ZHAJI_TONE_OFF = LIFT_TONE_OFF;
+    /** 【09-30】闸机提示音音量缺省 = 100（原始音量）；量程与直梯 / 屏蔽门共用 1~1000。 */
+    public static final int DEFAULT_ZHAJI_VOLUME = DEFAULT_HELP_VOLUME;
 
     // ------------------------------------------------------------------
     // 【1.15】四段**内置**素材的名字（用户在指令里写的那个词）
@@ -1209,23 +1409,66 @@ public class EscalatorSpeedData extends SavedData {
     }
 
     /**
-     * 【09-28 续】讲述人报站**样式**的夹取（三档：关 / 上海 / 香港）。
+     * 【09-30 续 3】「站台广播（讲述人）」秒数的夹取 ∈ [0, +∞) —— 与
+     * {@link #clampPsdMidiumWaitSeconds} 同一口径（开门音播完**之后**再等 Y 秒，负数没意义）。
+     *
+     * <p>★ 注意方向与进站讲述人的 {@link #clampPsdNarrateSeconds}（(-∞, 0]，只有上界）
+     * **正好相反** —— 两条是独立的设置，别合并。
+     */
+    public static int clampPsdMidiumNarrateSeconds(int seconds) {
+        return Math.max(0, seconds);
+    }
+
+    /**
+     * 【10-03 五改】「关门后等待 X 秒发车」的夹取 —— **恒等**（用户点名范围 {@code (-∞, +∞)}）。
+     *
+     * <p>★ 与{@link #clampPsdOpenWaitSeconds} 同一口径：负数是**有意义**的
+     * （X &lt; 0 = 门还没关完就发车），所以**不许**补下界；上界落在
+     * {@code Integer.parseInt} 的类型上界上（「正无穷」在 int 里的全部空间）。
+     */
+    public static int clampPsdDepartDelaySeconds(int seconds) {
+        return seconds;
+    }
+
+    /**
+     * 【09-28 续】讲述人报站**样式**的夹取（关 / 上海 / 香港 / 自定义 userN）。
      *
      * <p>挡住三个方向：{@code null} 走不到这里（那一层在「门覆盖 &gt; 维度默认」判据里处理）、
-     * 越界（0..2 之外，例如旧存档里的布尔 {@code true}/{@code false} 被别的路径读成 int）
-     * 折成最近的合法档。★ 上界用 {@link #PSD_NARRATE_MODE_MAX} —— 加样式时只改那一个常量。
+     * 越界（0..{@link #PSD_NARRATE_MODE_MAX} 之外，例如旧存档里的布尔 {@code true}/{@code false}
+     * 被别的路径读成 int）折成最近的合法档。★ 上界用 {@link #PSD_NARRATE_MODE_MAX} ——
+     * 加样式时只改那一个常量。
      */
     public static int clampPsdNarrateMode(int mode) {
         return Math.max(PSD_NARRATE_OFF, Math.min(PSD_NARRATE_MODE_MAX, mode));
     }
 
+    /** 【09-30】这一档是不是玩家**自定义**档（userN）。 */
+    public static boolean isPsdNarrateUserStyle(int mode) {
+        return mode >= PSD_NARRATE_USER_BASE;
+    }
+
+    /** 【09-30】自定义档的**编号** → 档位号：第 0 条（user1）→ 3、第 1 条（user2）→ 4…… */
+    public static int psdNarrateUserMode(int zeroBasedIndex) {
+        return PSD_NARRATE_USER_BASE + zeroBasedIndex;
+    }
+
+    /** 【09-30】档位号 → 自定义档的**编号**（0 起，user1 → 0）；内置档（0/1/2）返回负数。 */
+    public static int psdNarrateUserIndex(int mode) {
+        return mode - PSD_NARRATE_USER_BASE;
+    }
+
     /**
      * 【09-28 续】样式的**中文名**（只用于日志 / UI 状态行 / 指令回执，一处定义免得各处各写一份）。
      *
-     * @return 「关闭」/「开启(上海)」/「开启(香港)」；越界值先夹再取名（所以永远有结果）
+     * @return 「关闭」/「开启(上海)」/「开启(香港)」/「自定义(userN)」；越界值先夹再取名（所以永远有结果）
      */
     public static String psdNarrateModeName(int mode) {
-        switch (clampPsdNarrateMode(mode)) {
+        int m = clampPsdNarrateMode(mode);
+        // 【09-30】自定义档排在最前面判 —— 旧版 switch 的 default 分支会把它们全叫成「开启(上海)」。
+        if (isPsdNarrateUserStyle(m)) {
+            return "自定义(user" + (psdNarrateUserIndex(m) + 1) + ")";
+        }
+        switch (m) {
             case PSD_NARRATE_OFF:
                 return "关闭";
             case PSD_NARRATE_HONGKONG:
@@ -1347,14 +1590,25 @@ public class EscalatorSpeedData extends SavedData {
         if (tag.contains("defaultHelpVolume")) {
             data.defaultHelpVolume = clampHelpVolume(tag.getInt("defaultHelpVolume"));
         }
-        // 【1.24】两个淡入淡出范围（旧存档没有这一段 → 底噪 16 格、提示音 4 格，与 1.23 的行为完全一致）
+        // 【1.24】两个淡入淡出范围（旧存档没有这一段 → 底噪 10 格、提示音 4 格）
+        // ★【10-03】两个范围各拆成**水平 / 垂直**两维。旧存档只有单值旧键（`blockRound` /
+        //   `defaultRound` …）⇒ 它读进**水平**那一维；垂直维没有键 ⇒ 保持字段初始值 5。
+        //   即「没设过 y 的老玩家，垂直范围就是默认 5」，与 PSD 那三类的迁移策略完全一致。
         data.blockRound.putAll(readRoundMap(tag.getCompound("blockRound")));
+        data.blockRoundY.putAll(readRoundMap(tag.getCompound("blockRoundY")));
         if (tag.contains("defaultRound")) {
             data.defaultRound = clampRound(tag.getInt("defaultRound"));
         }
+        if (tag.contains("defaultRoundY")) {
+            data.defaultRoundY = clampRound(tag.getInt("defaultRoundY"));
+        }
         data.blockHelpRound.putAll(readHelpRoundMap(tag.getCompound("blockHelpRound")));
+        data.blockHelpRoundY.putAll(readHelpRoundMap(tag.getCompound("blockHelpRoundY")));
         if (tag.contains("defaultHelpRound")) {
             data.defaultHelpRound = clampHelpRound(tag.getInt("defaultHelpRound"));
+        }
+        if (tag.contains("defaultHelpRoundY")) {
+            data.defaultHelpRoundY = clampHelpRound(tag.getInt("defaultHelpRoundY"));
         }
         // 【1.31】无障碍提示音速率（旧存档没有这一段 → 入口 10 Hz、出口 1 Hz，与 1.27 定版音色一致）
         data.blockHelpSpeedIn.putAll(readHelpSpeedInMap(tag.getCompound("blockHelpSpeedIn")));
@@ -1458,8 +1712,13 @@ public class EscalatorSpeedData extends SavedData {
             data.defaultLiftToneAudioClose = normalizeLiftToneAudio(tag.getString("defaultLiftToneAudioClose"));
         }
         // 【1.47】直梯提示音淡入淡出范围：旧存档缺字段 → 默认 4 格（同「第一次载入」）
+        // ★【10-03】拆成水平 / 垂直两维；旧存档只有单值键 `defaultLiftHelpRound` ⇒ 它读进**水平**维，
+        //   垂直维缺键 ⇒ 保持初始值 5。
         if (tag.contains("defaultLiftHelpRound")) {
             data.defaultLiftHelpRound = clampLiftHelpRound(tag.getInt("defaultLiftHelpRound"));
+        }
+        if (tag.contains("defaultLiftHelpRoundY")) {
+            data.defaultLiftHelpRoundY = clampLiftHelpRound(tag.getInt("defaultLiftHelpRoundY"));
         }
         // 【1.48】四项各自音量：旧存档缺字段 → -1（跟随共用默认）。
         //   【1.28】旧 `chime` 字段迁移到 open / close 两头。
@@ -1522,16 +1781,68 @@ public class EscalatorSpeedData extends SavedData {
         if (tag.contains("defaultPsdToneVolumeClose")) {
             data.defaultPsdToneVolumeClose = clampPsdToneVolume(tag.getInt("defaultPsdToneVolumeClose"));
         }
-        if (tag.contains("defaultPsdHelpRound")) {
-            data.defaultPsdHelpRound = clampPsdHelpRound(tag.getInt("defaultPsdHelpRound"));
+        // 【09-30】闸机（进站 / 出站）提示音：维度默认素材 + 音量（同上，只有这一层）。
+        //   ★ 两个键都不在旧档里 ⇒ 保持字段初始值（default / 100）= 「等于没有这个功能」的行为，
+        //     旧档不需要任何迁移。
+        if (tag.contains("defaultZhajiToneAudioIn")) {
+            data.defaultZhajiToneAudioIn = normalizeZhajiToneAudio(tag.getString("defaultZhajiToneAudioIn"));
         }
-        // 【1.23】到站 / 进站播报各自的可闻范围（格）。旧存档没有这两个键 → 保持字段初始值 16，
-        //   与 1.22 及以前「三类声音共用提示音那一个范围」的行为逐位相同。
-        if (tag.contains("defaultPsdMidiumRound")) {
-            data.defaultPsdMidiumRound = clampPsdMidiumRound(tag.getInt("defaultPsdMidiumRound"));
+        if (tag.contains("defaultZhajiToneAudioOut")) {
+            data.defaultZhajiToneAudioOut = normalizeZhajiToneAudio(tag.getString("defaultZhajiToneAudioOut"));
         }
-        if (tag.contains("defaultPsdArriveRound")) {
-            data.defaultPsdArriveRound = clampPsdArriveRound(tag.getInt("defaultPsdArriveRound"));
+        if (tag.contains("defaultZhajiToneVolumeIn")) {
+            data.defaultZhajiToneVolumeIn = clampZhajiVolume(tag.getInt("defaultZhajiToneVolumeIn"));
+        }
+        if (tag.contains("defaultZhajiToneVolumeOut")) {
+            data.defaultZhajiToneVolumeOut = clampZhajiVolume(tag.getInt("defaultZhajiToneVolumeOut"));
+        }
+        // 【09-30 续】闸机「一组闸机」表。旧存档没有它 → 空表（全部走维度默认，行为与 09-30 之前一致）。
+        //   格式：ListTag，元素 `{ "k": <long>, "ain": <str>, "aout": <str>, "vin": <int>, "vout": <int> }`。
+        //   ★ 音量**缺键 = 跟维度默认**（不是 0、也不是 -1）；读侧只在 contains 时才赋非 null。
+        if (tag.contains("zhajiTone", 9)) {
+            for (net.minecraft.nbt.Tag item : tag.getList("zhajiTone", 10)) {
+                CompoundTag entry = (CompoundTag) item;
+                long key = entry.getLong("k");
+                String ain = entry.contains("ain") ? entry.getString("ain") : ZHAJI_TONE_DEFAULT;
+                String aout = entry.contains("aout") ? entry.getString("aout") : ZHAJI_TONE_DEFAULT;
+                Integer vin = entry.contains("vin") ? clampZhajiVolume(entry.getInt("vin")) : null;
+                Integer vout = entry.contains("vout") ? clampZhajiVolume(entry.getInt("vout")) : null;
+                ZhajiTone tone = new ZhajiTone(normalizeZhajiToneAudio(ain),
+                        normalizeZhajiToneAudio(aout), vin, vout);
+                if (!tone.isEmpty()) {
+                    data.zhajiTone.put(key, tone);
+                }
+            }
+        }
+        // 【09-29】屏蔽门三类的可闻范围（格）——拆成水平/垂直两维。旧存档只有一个单值旧键：
+        //   ★ 迁移策略与 /jsr round 完全一致 —— 旧单值回退给**水平**，垂直用默认 5
+        //   （因为旧单值是「三维距离」，它服务的正是水平站台尺度；垂直站台很少超过 5 格）。
+        //   这一版新键写的是 Xz/Y 两个，读回时**新键优先**（老存档没有新键 → 走旧键迁移）。
+        if (tag.contains("defaultPsdHelpRoundXz")) {
+            data.defaultPsdHelpRoundXz = clampPsdHelpRound(tag.getInt("defaultPsdHelpRoundXz"));
+        } else if (tag.contains("defaultPsdHelpRound")) {
+            data.defaultPsdHelpRoundXz = clampPsdHelpRound(tag.getInt("defaultPsdHelpRound"));
+        }
+        if (tag.contains("defaultPsdHelpRoundY")) {
+            data.defaultPsdHelpRoundY = clampPsdHelpRound(tag.getInt("defaultPsdHelpRoundY"));
+        }
+        // 【1.23】到站播报的可闻范围（格）。旧存档只有单值旧键 → 同上：旧值回退给水平。
+        if (tag.contains("defaultPsdMidiumRoundXz")) {
+            data.defaultPsdMidiumRoundXz = clampPsdMidiumRound(tag.getInt("defaultPsdMidiumRoundXz"));
+        } else if (tag.contains("defaultPsdMidiumRound")) {
+            data.defaultPsdMidiumRoundXz = clampPsdMidiumRound(tag.getInt("defaultPsdMidiumRound"));
+        }
+        if (tag.contains("defaultPsdMidiumRoundY")) {
+            data.defaultPsdMidiumRoundY = clampPsdMidiumRound(tag.getInt("defaultPsdMidiumRoundY"));
+        }
+        // 【1.23】进站报站的可闻范围（格）；迁移策略同上。
+        if (tag.contains("defaultPsdArriveRoundXz")) {
+            data.defaultPsdArriveRoundXz = clampPsdArriveRound(tag.getInt("defaultPsdArriveRoundXz"));
+        } else if (tag.contains("defaultPsdArriveRound")) {
+            data.defaultPsdArriveRoundXz = clampPsdArriveRound(tag.getInt("defaultPsdArriveRound"));
+        }
+        if (tag.contains("defaultPsdArriveRoundY")) {
+            data.defaultPsdArriveRoundY = clampPsdArriveRound(tag.getInt("defaultPsdArriveRoundY"));
         }
         // 【1.16】关门提示音的强制等待时长（秒）。★ 旧存档**没有**这个键 → 不覆盖，
         //   于是保持字段初始值 = DEFAULT_PSD_CLOSE_WAIT_SECONDS（5 秒）。
@@ -1568,20 +1879,38 @@ public class EscalatorSpeedData extends SavedData {
             data.defaultPsdArriveVolume = clampPsdToneVolume(tag.getInt("defaultPsdArriveVolume"));
         }
         // 【09-28】讲述人报站的维度默认（样式 + 秒数）。老存档没有这两个键 ⇒ 保持字段初始值
-        //   （开启(上海) / 0 秒），与「装上就念、到站那一刻念」的默认行为一致。
+        //   （开启(香港) / -20 秒 —— 【10-01】用户点名的新默认），与「装上就念、提前 20 秒念」一致。
         if (tag.contains("defaultPsdNarrateMode")) {
             data.defaultPsdNarrateMode =
                     clampPsdNarrateMode(tag.getInt("defaultPsdNarrateMode"));
         } else if (tag.contains("defaultPsdNarrateOn", 1)) {
             // ★ 1.28.1204 那一版在这里存的是**布尔开关**（byte 类型）：直接 getInt 会静默返回 0
-            //   ⇒ 把「开着」读成「关闭」。按「开 = 开启(上海) / 关 = 关闭」搬过来（那时只有一档）。
+            //   ⇒ 把「开着」读成「关闭」。按「开 = 开启(香港) / 关 = 关闭」搬过来
+            //   （【10-01】默认样式已是香港，老布尔迁移也落到同一个常量）。
             data.defaultPsdNarrateMode = tag.getBoolean("defaultPsdNarrateOn")
-                    ? PSD_NARRATE_SHANGHAI : PSD_NARRATE_OFF;
+                    ? PSD_NARRATE_HONGKONG : PSD_NARRATE_OFF;
         }
         if (tag.contains("defaultPsdNarrateSeconds")) {
             data.defaultPsdNarrateSeconds =
                     clampPsdNarrateSeconds(tag.getInt("defaultPsdNarrateSeconds"));
         }
+        // 【09-30 续 3】「站台广播（讲述人）」的维度默认（样式 + 秒数）。老存档没有这两个键
+        //   ⇒ 保持字段初始值（开启(上海) / 0 秒），与进站讲述人的默认口径一致。
+        if (tag.contains("defaultPsdMidiumNarrateMode")) {
+            data.defaultPsdMidiumNarrateMode =
+                    clampPsdNarrateMode(tag.getInt("defaultPsdMidiumNarrateMode"));
+        }
+        if (tag.contains("defaultPsdMidiumNarrateSeconds")) {
+            data.defaultPsdMidiumNarrateSeconds =
+                    clampPsdMidiumNarrateSeconds(tag.getInt("defaultPsdMidiumNarrateSeconds"));
+        }
+        // 【10-01】两条讲述人广播的「玩家自定义文字」：按存档存（ListTag of String）。
+        //   老存档没有这两个键 → getList 返回空表 = 「还没有自定义词」（与旧版本行为一致）。
+        //   ★ 条数夹到 MAX_PSD_NARRATE_USER_STYLES（手改存档写进超量档位文字也收得住）。
+        data.defaultPsdArriveNarrateUserTexts =
+                readNarrateUserTexts(tag.getList("defaultPsdArriveNarrateUserTexts", 8));
+        data.defaultPsdMidiumNarrateUserTexts =
+                readNarrateUserTexts(tag.getList("defaultPsdMidiumNarrateUserTexts", 8));
         // 【1.15】屏蔽门维度默认素材。旧存档没有这两个键 → 读回 default
         //   （= 两项都走内置素材），与 1.50 的行为逐字一致，不需要迁移。
         if (tag.contains("defaultPsdToneAudioOpen")) {
@@ -1610,10 +1939,41 @@ public class EscalatorSpeedData extends SavedData {
                         optInt(entry, "arriveVolume"),
                         // 【09-28】进站广播（讲述人）：样式（0/1/2）+ 秒数（老存档没有这两个键 ⇒ null = 跟维度默认）
                         //   ★ 样式是 int 三档（见 PSD_NARRATE_*）：读出来先夹一次，手改过的存档也能收住。
-                        optNarrateMode(entry, "narrate"), optInt(entry, "narrateSeconds"));
+                        optNarrateMode(entry, "narrate"), optInt(entry, "narrateSeconds"),
+                        // 【09-30 续 3】站台广播（讲述人）：同一套档位 + 等待秒数（老存档 ⇒ null = 跟维度默认）
+                        optNarrateMode(entry, "midiumNarrate"), optInt(entry, "midiumNarrateSeconds"));
                 // ★ 判空改用 isEmpty()：现在「只设了音量、素材两项都是默认」也是一条**有内容**的记录。
                 if (key != 0L && !v.isEmpty()) {
                     data.psdToneAudio.put(key, v);
+                }
+                // 【10-03 五改 修订】**旧档迁移**：第一版把「关门后等待发车」写在车站级的
+                //   psdToneAudio 记录里（键 = 车站级 runKey）；第二版搬到门串级 psdRunSettings。
+                //   旧档读到这里时把这个值搬过去（键仍是旧键 = 车站级 runKey）——
+                //   新档的读侧会**先查门串锚点、查不到再回落这个车站级键**（见管理端 getPsdRun*Resolved），
+                //   所以旧档的值不会丢；玩家在新版里重新设过之后，门串锚点那一格会盖过它。
+                if (entry.contains("departDelaySeconds")) {
+                    PsdRunSetting legacy = new PsdRunSetting(
+                            optInt(entry, "departDelaySeconds"), null);
+                    if (!legacy.isEmpty() && key != 0L) {
+                        data.psdRunSettings.merge(key, legacy, (oldRun, legacyRun) -> new PsdRunSetting(
+                                legacyRun.departDelaySeconds() != null
+                                        ? legacyRun.departDelaySeconds() : oldRun.departDelaySeconds(),
+                                oldRun.platformId() != null ? oldRun.platformId() : legacyRun.platformId()));
+                    }
+                }
+            }
+        }
+        // 【10-03 五改】**门串级**设置（关门后等待发车）：键 = 门串锚点。
+        //   ★ 与上面那张车站级表**分开两张**（见 PsdRunSetting 的注释：混表会运行期错位）。
+        if (tag.contains("psdRunSettings", 9)) {
+            for (net.minecraft.nbt.Tag item : tag.getList("psdRunSettings", 10)) {
+                CompoundTag entry = (CompoundTag) item;
+                long key = entry.getLong("key");
+                PsdRunSetting v = new PsdRunSetting(
+                        optInt(entry, "departDelaySeconds"),
+                        entry.contains("platformId") ? entry.getLong("platformId") : null);
+                if (key != 0L && !v.isEmpty()) {
+                    data.psdRunSettings.put(key, v);
                 }
             }
         }
@@ -1645,6 +2005,31 @@ public class EscalatorSpeedData extends SavedData {
         for (Map.Entry<BlockPos, String> entry : map.entrySet()) {
             BlockPos pos = entry.getKey();
             out.putString(pos.getX() + "," + pos.getY() + "," + pos.getZ(), entry.getValue());
+        }
+        return out;
+    }
+
+    /** 【10-01】读「讲述人自定义文字」列表：夹到 {@link #MAX_PSD_NARRATE_USER_STYLES} 条、逐条去首尾空白。 */
+    private static List<String> readNarrateUserTexts(ListTag list) {
+        List<String> out = new ArrayList<>();
+        if (list == null) {
+            return out;
+        }
+        for (int i = 0; i < list.size() && out.size() < MAX_PSD_NARRATE_USER_STYLES; i++) {
+            String s = list.getString(i);
+            out.add(s == null ? "" : s.trim());
+        }
+        return out;
+    }
+
+    /** 【10-01】写「讲述人自定义文字」列表（与 {@link #readNarrateUserTexts} 成对）。 */
+    private static ListTag writeNarrateUserTexts(List<String> texts) {
+        ListTag out = new ListTag();
+        if (texts != null) {
+            int n = Math.min(texts.size(), MAX_PSD_NARRATE_USER_STYLES);
+            for (int i = 0; i < n; i++) {
+                out.add(net.minecraft.nbt.StringTag.valueOf(texts.get(i) == null ? "" : texts.get(i)));
+            }
         }
         return out;
     }
@@ -1722,8 +2107,12 @@ public class EscalatorSpeedData extends SavedData {
         // 【1.24】两个淡入淡出范围（底噪 / 提示音）
         tag.putInt("defaultRound", defaultRound);
         tag.put("blockRound", writeIntMap(blockRound));
+        tag.putInt("defaultRoundY", defaultRoundY);
+        tag.put("blockRoundY", writeIntMap(blockRoundY));
         tag.putInt("defaultHelpRound", defaultHelpRound);
         tag.put("blockHelpRound", writeIntMap(blockHelpRound));
+        tag.putInt("defaultHelpRoundY", defaultHelpRoundY);
+        tag.put("blockHelpRoundY", writeIntMap(blockHelpRoundY));
         // 【1.31】无障碍提示音速率（入口 / 出口各一套）
         tag.putInt("defaultHelpSpeedIn", defaultHelpSpeedIn);
         tag.put("blockHelpSpeedIn", writeIntMap(blockHelpSpeedIn));
@@ -1761,6 +2150,7 @@ public class EscalatorSpeedData extends SavedData {
         tag.putString("defaultLiftToneAudioChime", defaultLiftToneAudioOpen);
         // 【1.47】直梯提示音淡入淡出范围（四项共用）
         tag.putInt("defaultLiftHelpRound", defaultLiftHelpRound);
+        tag.putInt("defaultLiftHelpRoundY", defaultLiftHelpRoundY);
         // 【1.48】四项各自音量（-1 = 跟随共用默认）
         tag.putInt("defaultLiftToneVolumeUp", defaultLiftToneVolumeUp);
         tag.putInt("defaultLiftToneVolumeDown", defaultLiftToneVolumeDown);
@@ -1787,10 +2177,47 @@ public class EscalatorSpeedData extends SavedData {
         tag.putInt("defaultPsdHelpVolume", defaultPsdHelpVolume);
         tag.putInt("defaultPsdToneVolumeOpen", defaultPsdToneVolumeOpen);
         tag.putInt("defaultPsdToneVolumeClose", defaultPsdToneVolumeClose);
-        tag.putInt("defaultPsdHelpRound", defaultPsdHelpRound);
+        // 【09-30】闸机（进站 / 出站）提示音：维度默认素材 + 音量。
+        //   ★ 只有这一层（没有「按方块单独设置」那张表）—— 见字段注释里的理由。
+        tag.putString("defaultZhajiToneAudioIn", defaultZhajiToneAudioIn);
+        tag.putString("defaultZhajiToneAudioOut", defaultZhajiToneAudioOut);
+        tag.putInt("defaultZhajiToneVolumeIn", defaultZhajiToneVolumeIn);
+        tag.putInt("defaultZhajiToneVolumeOut", defaultZhajiToneVolumeOut);
+        // 【09-30 续】闸机「一组闸机」表：ListTag，每个元素 `{ "k": <long 组锚点 asLong>,
+        //   "ain": <str>, "aout": <str>, "vin": <int>, "vout": <int> }`。
+        //   ★ 音量**只有非 null 才写**（缺键 = 跟维度默认）—— 不用 -1 哨兵，
+        //     免得跟 LIFT_TONE_VOLUME_UNSET 那个「跟随共用默认」的语义撞在一起。
+        ListTag zhajiToneList = new ListTag();
+        for (Map.Entry<Long, ZhajiTone> entry : zhajiTone.entrySet()) {
+            ZhajiTone v = entry.getValue();
+            if (v == null || v.isEmpty()) {
+                continue; // 等于没设置过：不落盘（表里不留空条目）
+            }
+            CompoundTag t = new CompoundTag();
+            t.putLong("k", entry.getKey());
+            t.putString("ain", normalizeZhajiToneAudio(v.audioIn()));
+            t.putString("aout", normalizeZhajiToneAudio(v.audioOut()));
+            if (v.volumeIn() != null) {
+                t.putInt("vin", clampZhajiVolume(v.volumeIn()));
+            }
+            if (v.volumeOut() != null) {
+                t.putInt("vout", clampZhajiVolume(v.volumeOut()));
+            }
+            zhajiToneList.add(t);
+        }
+        tag.put("zhajiTone", zhajiToneList);
+        // 【09-29】三类的可闻范围拆成水平/垂直两维。旧单值旧键**仍写**（= 水平值），
+        //   供将来回退 / 老版本读档不被静默丢弃（编写与 TrainAnnounceSwitch 的 KEY_ROUND 同款）。
+        tag.putInt("defaultPsdHelpRoundXz", defaultPsdHelpRoundXz);
+        tag.putInt("defaultPsdHelpRoundY", defaultPsdHelpRoundY);
+        tag.putInt("defaultPsdHelpRound", defaultPsdHelpRoundXz);
         // 【1.23】到站 / 进站播报各自的可闻范围（格）——与上面那一格同形，各存一份
-        tag.putInt("defaultPsdMidiumRound", defaultPsdMidiumRound);
-        tag.putInt("defaultPsdArriveRound", defaultPsdArriveRound);
+        tag.putInt("defaultPsdMidiumRoundXz", defaultPsdMidiumRoundXz);
+        tag.putInt("defaultPsdMidiumRoundY", defaultPsdMidiumRoundY);
+        tag.putInt("defaultPsdMidiumRound", defaultPsdMidiumRoundXz);
+        tag.putInt("defaultPsdArriveRoundXz", defaultPsdArriveRoundXz);
+        tag.putInt("defaultPsdArriveRoundY", defaultPsdArriveRoundY);
+        tag.putInt("defaultPsdArriveRound", defaultPsdArriveRoundXz);
         // 【1.16】关门提示音强制等待时长（秒）——停站不够放完人声时的兜底
         tag.putInt("defaultPsdCloseWaitSeconds", defaultPsdCloseWaitSeconds);
         // 【1.17】到站播报（素材 + 等待秒数）
@@ -1804,6 +2231,12 @@ public class EscalatorSpeedData extends SavedData {
         // 【09-28】讲述人报站的维度默认（读侧同名同型）
         tag.putInt("defaultPsdNarrateMode", defaultPsdNarrateMode);
         tag.putInt("defaultPsdNarrateSeconds", defaultPsdNarrateSeconds);
+        // 【09-30 续 3】「站台广播（讲述人）」的维度默认（读侧同名同型）
+        tag.putInt("defaultPsdMidiumNarrateMode", defaultPsdMidiumNarrateMode);
+        tag.putInt("defaultPsdMidiumNarrateSeconds", defaultPsdMidiumNarrateSeconds);
+        // 【10-01】两条讲述人广播的「玩家自定义文字」（按存档存；读侧同名同型，见 fromTag）
+        tag.put("defaultPsdArriveNarrateUserTexts", writeNarrateUserTexts(defaultPsdArriveNarrateUserTexts));
+        tag.put("defaultPsdMidiumNarrateUserTexts", writeNarrateUserTexts(defaultPsdMidiumNarrateUserTexts));
         // 【1.15】屏蔽门两项的维度默认素材（/pbmmusic open|close <名字>）
         tag.putString("defaultPsdToneAudioOpen", defaultPsdToneAudioOpen);
         tag.putString("defaultPsdToneAudioClose", defaultPsdToneAudioClose);
@@ -1833,9 +2266,29 @@ public class EscalatorSpeedData extends SavedData {
             // 【09-28】进站广播（讲述人）：开关 + 秒数（null = 跟维度默认 ⇒ 一个键都不写）
             putOptInt(t, "narrate", v.narrate());
             putOptInt(t, "narrateSeconds", v.narrateSeconds());
+            // 【09-30 续 3】站台广播（讲述人）：同一套档位 + 等待秒数
+            putOptInt(t, "midiumNarrate", v.midiumNarrate());
+            putOptInt(t, "midiumNarrateSeconds", v.midiumNarrateSeconds());
             psdList.add(t);
         }
         tag.put("psdToneAudio", psdList);
+        // 【10-03 五改】门串级设置（关门后等待发车）：与上面那张表分开存。
+        //   ★ 只写**设过的**键（null = 没设过 ⇒ 一个键都不写），老版本读这份存档时看不到这一层。
+        ListTag runList = new ListTag();
+        for (Map.Entry<Long, PsdRunSetting> entry : psdRunSettings.entrySet()) {
+            PsdRunSetting v = entry.getValue();
+            if (v.isEmpty()) {
+                continue;
+            }
+            CompoundTag t = new CompoundTag();
+            t.putLong("key", entry.getKey());
+            putOptInt(t, "departDelaySeconds", v.departDelaySeconds());
+            if (v.platformId() != null) {
+                t.putLong("platformId", v.platformId());
+            }
+            runList.add(t);
+        }
+        tag.put("psdRunSettings", runList);
         return tag;
     }
 
@@ -2009,10 +2462,16 @@ public class EscalatorSpeedData extends SavedData {
         return Math.max(ROUND_MIN, Math.min(ROUND_MAX, round));
     }
 
-    /** 【1.24】这条扶梯运行底噪的生效范围；没单独设置过就是维度默认（初始 16 格）。 */
+    /** 【1.24】这条扶梯运行底噪的**水平**生效范围；没单独设置过就是维度默认（初始 10 格）。 */
     public int getRound(BlockPos pos) {
         Integer v = blockRound.get(pos);
         return v != null ? v : defaultRound;
+    }
+
+    /** ★【10-03】这条扶梯运行底噪的**垂直（y 轴）**生效范围；没单独设置过就是维度默认 5 格。 */
+    public int getRoundY(BlockPos pos) {
+        Integer v = blockRoundY.get(pos);
+        return v != null ? v : defaultRoundY;
     }
 
     /** 【1.24】这条扶梯**单独设置**的底噪范围；没单独设置返回 null（用维度默认）。 */
@@ -2021,22 +2480,34 @@ public class EscalatorSpeedData extends SavedData {
     }
 
     /**
-     * 【1.24】设置某条扶梯运行底噪的范围。
-     * 值等于**维度默认**（{@link #defaultRound}）时**删掉记录**，让 NBT 只保留真正被调过的扶梯。
+     * 【1.24】设置某条扶梯运行底噪的范围（★【10-03】双维：水平 xz + 垂直 y）。
+     * 某一维等于**该维维度默认**时就把那一维**删掉记录**，让 NBT 只保留真正被调过的扶梯。
      */
-    public void setRound(BlockPos pos, int round) {
-        int v = clampRound(round);
-        if (v == defaultRound) {
+    public void setRound(BlockPos pos, int xz, int y) {
+        int vx = clampRound(xz);
+        int vy = clampRound(y);
+        if (vx == defaultRound) {
             blockRound.remove(pos);
         } else {
-            blockRound.put(pos, v);
+            blockRound.put(pos, vx);
+        }
+        if (vy == defaultRoundY) {
+            blockRoundY.remove(pos);
+        } else {
+            blockRoundY.put(pos, vy);
         }
     }
 
-    /** 【1.24】这条扶梯无障碍提示音的生效范围；没单独设置过就是维度默认（初始 4 格）。 */
+    /** 【1.24】这条扶梯无障碍提示音的**水平**生效范围；没单独设置过就是维度默认（初始 4 格）。 */
     public int getHelpRound(BlockPos pos) {
         Integer v = blockHelpRound.get(pos);
         return v != null ? v : defaultHelpRound;
+    }
+
+    /** ★【10-03】这条扶梯无障碍提示音的**垂直（y 轴）**生效范围；没单独设置过就是维度默认 5 格。 */
+    public int getHelpRoundY(BlockPos pos) {
+        Integer v = blockHelpRoundY.get(pos);
+        return v != null ? v : defaultHelpRoundY;
     }
 
     /** 【1.24】这条扶梯**单独设置**的提示音范围；没单独设置返回 null（用维度默认）。 */
@@ -2044,13 +2515,19 @@ public class EscalatorSpeedData extends SavedData {
         return blockHelpRound.get(pos);
     }
 
-    /** 【1.24】设置某条扶梯无障碍提示音的范围；等于维度默认时删掉记录。 */
-    public void setHelpRound(BlockPos pos, int round) {
-        int v = clampHelpRound(round);
-        if (v == defaultHelpRound) {
+    /** 【1.24】设置某条扶梯无障碍提示音的范围（★【10-03】双维）；某一维等于该维默认时删掉那一维记录。 */
+    public void setHelpRound(BlockPos pos, int xz, int y) {
+        int vx = clampHelpRound(xz);
+        int vy = clampHelpRound(y);
+        if (vx == defaultHelpRound) {
             blockHelpRound.remove(pos);
         } else {
-            blockHelpRound.put(pos, v);
+            blockHelpRound.put(pos, vx);
+        }
+        if (vy == defaultHelpRoundY) {
+            blockHelpRoundY.remove(pos);
+        } else {
+            blockHelpRoundY.put(pos, vy);
         }
     }
 
@@ -2068,6 +2545,30 @@ public class EscalatorSpeedData extends SavedData {
     /** 【1.31】把任意输入夹到合法**提示音速率**（{@link #HELP_SPEED_MIN}~{@link #HELP_SPEED_MAX} Hz）。 */
     public static int clampHelpSpeed(int speed) {
         return Math.max(HELP_SPEED_MIN, Math.min(HELP_SPEED_MAX, speed));
+    }
+
+    /**
+     * 【09-30】闸机素材的归一化 —— 与直梯 / 屏蔽门**同一份实现**（空串 / 未知 → 内置）。
+     *
+     * <p>三个域（扶梯 / 直梯 / 屏蔽门 / 闸机）共用同一个字符串哨兵（{@code default} / {@code off}），
+     * 所以归一化也共用一份；这里只留一个**按域命名**的别名，读代码时不必跳去查「这到底是哪个域的」。
+     */
+    public static String normalizeZhajiToneAudio(String audioId) {
+        return normalizeLiftToneAudio(audioId);
+    }
+
+    /**
+     * 【09-30】把任意输入夹到合法**闸机提示音音量**（1~1000）。
+     *
+     * <p>与直梯 / 屏蔽门同一量程、同一实现（100 = 原始音量、1000 = 10× 放大，见
+     * {@link #clampLiftToneVolume}）。名称按域分开只是为了读起来清楚，语义完全一致。
+     *
+     * <p>★ 唯一的差别：**不**放行 {@link #LIFT_TONE_VOLUME_UNSET}（-1）。那个哨兵的含义是
+     * 「跟随共用默认音量」，而闸机没有共用默认音量这一层（进 / 出站各自一份、缺省 100）——
+     * 放行它会让一个损坏存档里的 -1 一路传到播放端算出负音量。
+     */
+    public static int clampZhajiVolume(int volume) {
+        return Math.max(HELP_VOLUME_MIN, Math.min(HELP_VOLUME_MAX, volume));
     }
 
     /**
@@ -2303,6 +2804,35 @@ public class EscalatorSpeedData extends SavedData {
         if (audioId.equals(defaultPsdArriveAudio)) {
             defaultPsdArriveAudio = PSD_ARRIVE_OFF;
         }
+        // 【09-30】闸机那一套也共用**同一个**音频库 ⇒ 一起清。
+        //   ★ 与直梯 / 屏蔽门同一个「悬空引用」家族：不清的话播放端查库查不到 → 该侧静默不响，
+        //     而用户看到的是「我明明设了声音」。闸机同侧只有一份，所以两行就够。
+        if (audioId.equals(defaultZhajiToneAudioIn)) {
+            defaultZhajiToneAudioIn = ZHAJI_TONE_DEFAULT;
+        }
+        if (audioId.equals(defaultZhajiToneAudioOut)) {
+            defaultZhajiToneAudioOut = ZHAJI_TONE_DEFAULT;
+        }
+        // 【09-30 续】逐组那一层同理：把引用了这段素材的组条目里那一侧回落成「跟维度默认」。
+        //   与屏蔽门 psdToneAudio 的清理同一套写法（先收集再整体换，边遍历边改会 CME）。
+        Map<Long, ZhajiTone> zhajiTones = new HashMap<>();
+        for (Map.Entry<Long, ZhajiTone> entry : zhajiTone.entrySet()) {
+            ZhajiTone t = entry.getValue();
+            if (t == null) {
+                continue;
+            }
+            if (audioId.equals(t.audioIn())) {
+                t = t.withAudio("in", ZHAJI_TONE_DEFAULT);
+            }
+            if (audioId.equals(t.audioOut())) {
+                t = t.withAudio("out", ZHAJI_TONE_DEFAULT);
+            }
+            if (!t.isEmpty()) {
+                zhajiTones.put(entry.getKey(), t);
+            }
+        }
+        zhajiTone.clear();
+        zhajiTone.putAll(zhajiTones);
     }
 
     /** 【1.18.1204】删除图片库中的一份地图图片（只删存档里的，不动 MBM_Picture 文件夹的文件）。 */
@@ -2327,6 +2857,57 @@ public class EscalatorSpeedData extends SavedData {
     public record LiftToneAudio(String up, String down, String open, String close) {
         public static final LiftToneAudio NONE = new LiftToneAudio(
                 LIFT_TONE_DEFAULT, LIFT_TONE_DEFAULT, LIFT_TONE_DEFAULT, LIFT_TONE_DEFAULT);
+    }
+
+    /**
+     * 【09-30 续】石斧右键**那一组闸机**的提示音（一组 = 连着的、同一功能的那些闸机）。
+     *
+     * <p>字段语义与 {@link PsdToneAudio} 一一对应（闸机只有「进站 / 出站」两项 + 各自音量）：
+     * <ul>
+     *   <li>素材：{@link #ZHAJI_TONE_DEFAULT} = 本组**跟维度默认**；
+     *       {@link #ZHAJI_TONE_OFF} = 本组不播；其它 = 音频库文件名；</li>
+     *   <li>音量：装箱 {@code Integer} 的 {@code null} = 本组**跟维度默认**。</li>
+     * </ul>
+     *
+     * <p>★ 为什么不给素材也用「装箱 null」表达「跟」：{@code default} 是**对外语义词**
+     * （指令里玩家能写、界面第 1 行就叫「默认」），换掉它会牵动指令解析与两处界面；
+     * 这是屏蔽门【1.20】就定下的口径，闸机照抄以免多一套语义（见 {@link PsdToneAudio} 的说明）。
+     */
+    public record ZhajiTone(String audioIn, String audioOut, Integer volumeIn, Integer volumeOut) {
+        /** 一组闸机**什么都没单独设过**（两项素材与两个音量都跟维度默认）。 */
+        public static final ZhajiTone NONE = new ZhajiTone(
+                ZHAJI_TONE_DEFAULT, ZHAJI_TONE_DEFAULT, null, null);
+
+        /** 四项都等于「跟维度默认」= 等于没设置过（表里这一条可以删掉，表越干净越好查）。 */
+        public boolean isEmpty() {
+            return (audioIn == null || ZHAJI_TONE_DEFAULT.equals(audioIn))
+                    && (audioOut == null || ZHAJI_TONE_DEFAULT.equals(audioOut))
+                    && volumeIn == null && volumeOut == null;
+        }
+
+        /** 这一组的某一侧素材（原样，不做回落 —— 回落由 Manager 那两层读法负责）。 */
+        public String audioFor(String which) {
+            return "out".equals(which) ? audioOut : audioIn;
+        }
+
+        /** 这一组的某一侧音量（{@code null} = 跟维度默认）。 */
+        public Integer volumeFor(String which) {
+            return "out".equals(which) ? volumeOut : volumeIn;
+        }
+
+        /** 换掉某一侧的素材（另一侧与两个音量原样保留）。 */
+        public ZhajiTone withAudio(String which, String id) {
+            return "out".equals(which)
+                    ? new ZhajiTone(audioIn, id, volumeIn, volumeOut)
+                    : new ZhajiTone(id, audioOut, volumeIn, volumeOut);
+        }
+
+        /** 换掉某一侧的音量（{@code null} = 恢复「跟维度默认」）。 */
+        public ZhajiTone withVolume(String which, Integer v) {
+            return "out".equals(which)
+                    ? new ZhajiTone(audioIn, audioOut, volumeIn, v)
+                    : new ZhajiTone(audioIn, audioOut, v, volumeOut);
+        }
     }
 
     /**
@@ -2364,16 +2945,19 @@ public class EscalatorSpeedData extends SavedData {
                                Integer openWaitSeconds, Integer closeWaitSeconds,
                                String midium, Integer midiumWaitSeconds, Integer midiumVolume,
                                String arrive, Integer arriveSeconds, Integer arriveVolume,
-                               Integer narrate, Integer narrateSeconds) {
+                               Integer narrate, Integer narrateSeconds,
+                               Integer midiumNarrate, Integer midiumNarrateSeconds) {
         /** 一扇门**什么都没单独设过**（全部跟维度默认）。 */
         public static final PsdToneAudio NONE = new PsdToneAudio(
                 PSD_TONE_DEFAULT, PSD_TONE_DEFAULT,
-                null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null);
+                null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null,
+                null, null);
 
         /** 只带素材两项的构造（老调用点 / 老存档用）。 */
         public static PsdToneAudio tone(String open, String close) {
             return new PsdToneAudio(open, close,
-                    null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null);
+                    null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null,
+                    null, null);
         }
 
         /** 这一条还有没有任何**实际内容**？全空 ⇒ 调用方应把这条记录删掉（表越干净越好查）。 */
@@ -2386,102 +2970,103 @@ public class EscalatorSpeedData extends SavedData {
                     && midium == null && midiumWaitSeconds == null
                     && midiumVolume == null
                     && arrive == null && arriveSeconds == null && arriveVolume == null
-                    && narrate == null && narrateSeconds == null;
+                    && narrate == null && narrateSeconds == null
+                    && midiumNarrate == null && midiumNarrateSeconds == null;
         }
 
         /** 换掉某一端的素材（另一项以及全部覆盖项原样保留）。 */
         public PsdToneAudio withTone(String which, String id) {
             return "open".equals(which) ? new PsdToneAudio(id, close, help, openEnabled, closeEnabled,
                     volume, openVolume, closeVolume, openWaitSeconds, closeWaitSeconds, midium, midiumWaitSeconds, midiumVolume,
-                    arrive, arriveSeconds, arriveVolume, narrate, narrateSeconds)
+                    arrive, arriveSeconds, arriveVolume, narrate, narrateSeconds, midiumNarrate, midiumNarrateSeconds)
                     : new PsdToneAudio(open, id, help, openEnabled, closeEnabled,
                     volume, openVolume, closeVolume, openWaitSeconds, closeWaitSeconds, midium, midiumWaitSeconds, midiumVolume,
-                    arrive, arriveSeconds, arriveVolume, narrate, narrateSeconds);
+                    arrive, arriveSeconds, arriveVolume, narrate, narrateSeconds, midiumNarrate, midiumNarrateSeconds);
         }
 
         public PsdToneAudio withHelp(Boolean v) {
             return new PsdToneAudio(open, close, v, openEnabled, closeEnabled,
                     volume, openVolume, closeVolume, openWaitSeconds, closeWaitSeconds, midium, midiumWaitSeconds, midiumVolume,
-                    arrive, arriveSeconds, arriveVolume, narrate, narrateSeconds);
+                    arrive, arriveSeconds, arriveVolume, narrate, narrateSeconds, midiumNarrate, midiumNarrateSeconds);
         }
 
         public PsdToneAudio withToneEnabled(String which, Boolean v) {
             return "open".equals(which)
                     ? new PsdToneAudio(open, close, help, v, closeEnabled,
                     volume, openVolume, closeVolume, openWaitSeconds, closeWaitSeconds, midium, midiumWaitSeconds, midiumVolume,
-                    arrive, arriveSeconds, arriveVolume, narrate, narrateSeconds)
+                    arrive, arriveSeconds, arriveVolume, narrate, narrateSeconds, midiumNarrate, midiumNarrateSeconds)
                     : new PsdToneAudio(open, close, help, openEnabled, v,
                     volume, openVolume, closeVolume, openWaitSeconds, closeWaitSeconds, midium, midiumWaitSeconds, midiumVolume,
-                    arrive, arriveSeconds, arriveVolume, narrate, narrateSeconds);
+                    arrive, arriveSeconds, arriveVolume, narrate, narrateSeconds, midiumNarrate, midiumNarrateSeconds);
         }
 
         public PsdToneAudio withVolume(Integer v) {
             return new PsdToneAudio(open, close, help, openEnabled, closeEnabled,
                     v, openVolume, closeVolume, openWaitSeconds, closeWaitSeconds, midium, midiumWaitSeconds, midiumVolume,
-                    arrive, arriveSeconds, arriveVolume, narrate, narrateSeconds);
+                    arrive, arriveSeconds, arriveVolume, narrate, narrateSeconds, midiumNarrate, midiumNarrateSeconds);
         }
 
         public PsdToneAudio withToneVolume(String which, Integer v) {
             return "open".equals(which)
                     ? new PsdToneAudio(open, close, help, openEnabled, closeEnabled,
                     volume, v, closeVolume, openWaitSeconds, closeWaitSeconds, midium, midiumWaitSeconds, midiumVolume,
-                    arrive, arriveSeconds, arriveVolume, narrate, narrateSeconds)
+                    arrive, arriveSeconds, arriveVolume, narrate, narrateSeconds, midiumNarrate, midiumNarrateSeconds)
                     : new PsdToneAudio(open, close, help, openEnabled, closeEnabled,
                     volume, openVolume, v, openWaitSeconds, closeWaitSeconds, midium, midiumWaitSeconds, midiumVolume,
-                    arrive, arriveSeconds, arriveVolume, narrate, narrateSeconds);
+                    arrive, arriveSeconds, arriveVolume, narrate, narrateSeconds, midiumNarrate, midiumNarrateSeconds);
         }
 
         /** 【1.23】开门提示音的「强制等待」秒数（对称项；播放端暂未消费，预留对称）。 */
         public PsdToneAudio withOpenWaitSeconds(Integer v) {
             return new PsdToneAudio(open, close, help, openEnabled, closeEnabled,
                     volume, openVolume, closeVolume, v, closeWaitSeconds, midium, midiumWaitSeconds, midiumVolume,
-                    arrive, arriveSeconds, arriveVolume, narrate, narrateSeconds);
+                    arrive, arriveSeconds, arriveVolume, narrate, narrateSeconds, midiumNarrate, midiumNarrateSeconds);
         }
 
         public PsdToneAudio withCloseWaitSeconds(Integer v) {
             return new PsdToneAudio(open, close, help, openEnabled, closeEnabled,
                     volume, openVolume, closeVolume, openWaitSeconds, v, midium, midiumWaitSeconds, midiumVolume,
-                    arrive, arriveSeconds, arriveVolume, narrate, narrateSeconds);
+                    arrive, arriveSeconds, arriveVolume, narrate, narrateSeconds, midiumNarrate, midiumNarrateSeconds);
         }
 
         public PsdToneAudio withMidium(String v) {
             return new PsdToneAudio(open, close, help, openEnabled, closeEnabled,
                     volume, openVolume, closeVolume, openWaitSeconds, closeWaitSeconds, v, midiumWaitSeconds, midiumVolume,
-                    arrive, arriveSeconds, arriveVolume, narrate, narrateSeconds);
+                    arrive, arriveSeconds, arriveVolume, narrate, narrateSeconds, midiumNarrate, midiumNarrateSeconds);
         }
 
         public PsdToneAudio withMidiumWaitSeconds(Integer v) {
             return new PsdToneAudio(open, close, help, openEnabled, closeEnabled,
                     volume, openVolume, closeVolume, openWaitSeconds, closeWaitSeconds, midium, v, midiumVolume,
-                    arrive, arriveSeconds, arriveVolume, narrate, narrateSeconds);
+                    arrive, arriveSeconds, arriveVolume, narrate, narrateSeconds, midiumNarrate, midiumNarrateSeconds);
         }
 
         /** 【1.22】换掉这一串门「到站播报」的音量（-1 = 跟随共用默认）。 */
         public PsdToneAudio withMidiumVolume(Integer v) {
             return new PsdToneAudio(open, close, help, openEnabled, closeEnabled,
                     volume, openVolume, closeVolume, openWaitSeconds, closeWaitSeconds, midium, midiumWaitSeconds, v,
-                    arrive, arriveSeconds, arriveVolume, narrate, narrateSeconds);
+                    arrive, arriveSeconds, arriveVolume, narrate, narrateSeconds, midiumNarrate, midiumNarrateSeconds);
         }
 
         /** 【1.21】换掉这扇门的「进站报站」素材（其它项原样保留）。 */
         public PsdToneAudio withArrive(String v) {
             return new PsdToneAudio(open, close, help, openEnabled, closeEnabled,
                     volume, openVolume, closeVolume, openWaitSeconds, closeWaitSeconds, midium, midiumWaitSeconds, midiumVolume,
-                    v, arriveSeconds, arriveVolume, narrate, narrateSeconds);
+                    v, arriveSeconds, arriveVolume, narrate, narrateSeconds, midiumNarrate, midiumNarrateSeconds);
         }
 
         /** 【1.21】换掉这一串门的「进站报站」秒数（其它项原样保留）。 */
         public PsdToneAudio withArriveSeconds(Integer v) {
             return new PsdToneAudio(open, close, help, openEnabled, closeEnabled,
                     volume, openVolume, closeVolume, openWaitSeconds, closeWaitSeconds, midium, midiumWaitSeconds, midiumVolume,
-                    arrive, v, arriveVolume, narrate, narrateSeconds);
+                    arrive, v, arriveVolume, narrate, narrateSeconds, midiumNarrate, midiumNarrateSeconds);
         }
 
         /** 【1.22】换掉这一串门「进站报站」的音量（-1 = 跟随共用默认）。 */
         public PsdToneAudio withArriveVolume(Integer v) {
             return new PsdToneAudio(open, close, help, openEnabled, closeEnabled,
                     volume, openVolume, closeVolume, openWaitSeconds, closeWaitSeconds, midium, midiumWaitSeconds, midiumVolume,
-                    arrive, arriveSeconds, v, narrate, narrateSeconds);
+                    arrive, arriveSeconds, v, narrate, narrateSeconds, midiumNarrate, midiumNarrateSeconds);
         }
 
         /**
@@ -2493,15 +3078,89 @@ public class EscalatorSpeedData extends SavedData {
         public PsdToneAudio withNarrate(Integer v) {
             return new PsdToneAudio(open, close, help, openEnabled, closeEnabled,
                     volume, openVolume, closeVolume, openWaitSeconds, closeWaitSeconds, midium, midiumWaitSeconds, midiumVolume,
-                    arrive, arriveSeconds, arriveVolume, v, narrateSeconds);
+                    arrive, arriveSeconds, arriveVolume, v, narrateSeconds, midiumNarrate, midiumNarrateSeconds);
         }
 
         /** 【1.63】换掉这一串门「讲述人进站广播」的提前秒数（独立窗口，(-∞,0]）。 */
         public PsdToneAudio withNarrateSeconds(Integer v) {
             return new PsdToneAudio(open, close, help, openEnabled, closeEnabled,
                     volume, openVolume, closeVolume, openWaitSeconds, closeWaitSeconds, midium, midiumWaitSeconds, midiumVolume,
-                    arrive, arriveSeconds, arriveVolume, narrate, v);
+                    arrive, arriveSeconds, arriveVolume, narrate, v, midiumNarrate, midiumNarrateSeconds);
         }
+
+        /**
+         * 【09-30 续 3】换掉这一串门「站台广播（讲述人）」的**样式**（其它项原样保留）。
+         * 档位编号与进站讲述人共用同一套（{@link #PSD_NARRATE_OFF} / SHANGHAI / HONGKONG /
+         * userN = 3+）；{@code null} = 抹掉这一串的覆盖 ⇒ 跟维度默认。
+         */
+        public PsdToneAudio withMidiumNarrate(Integer v) {
+            return new PsdToneAudio(open, close, help, openEnabled, closeEnabled,
+                    volume, openVolume, closeVolume, openWaitSeconds, closeWaitSeconds, midium, midiumWaitSeconds, midiumVolume,
+                    arrive, arriveSeconds, arriveVolume, narrate, narrateSeconds, v, midiumNarrateSeconds);
+        }
+
+        /** 【09-30 续 3】换掉这一串门「站台广播（讲述人）」的等待秒数（独立窗口，[0,+∞)）。 */
+        public PsdToneAudio withMidiumNarrateSeconds(Integer v) {
+            return new PsdToneAudio(open, close, help, openEnabled, closeEnabled,
+                    volume, openVolume, closeVolume, openWaitSeconds, closeWaitSeconds, midium, midiumWaitSeconds, midiumVolume,
+                    arrive, arriveSeconds, arriveVolume, narrate, narrateSeconds, midiumNarrate, v);
+        }
+    }
+
+    // ------------------------------------------------------------------
+    // 【10-03 五改 修订】「关门后等待 X 秒发车」—— **逐「门串」**的设置
+    //
+    //   ★★ 用户点名（第二版）：这一项**必须按「连在一起的屏蔽门（门 + 幕墙 + 幕墙尾部）」
+    //   各自独有**，改一串不许影响同一车站的其它串。
+    //   而上面那张 {@code psdToneAudio} 表是**车站级**的键（{@code PsdDoorTracker.runKeyOf}
+    //   在【09-30 续 9】把身份升到了车站：同站两侧 + 被缺口切开的几段共用一条记录）——
+    //   拿它存这一项就会「改一串、整站跟着变」，正是用户报的那个现象。
+    //
+    //   ⇒ 因此**另起一张表**，键 = 「门串锚点」（{@code PsdDoorTracker} 的连通串锚点
+    //     = 一串相连方块里 {@code BlockPos.asLong} 最小的那个），
+    //     并把「这一串落在哪个 MTR 站台」也一起存下来 —— 列车那侧（服务端）拿不到几何，
+    //     只有站台 id 能跟列车对上（见 {@link EscalatorSpeedManager#getPsdDepartDelayForPlatform}）。
+    //
+    //   ★ 与车站级那张表**同域不同表**：两类键都是 long，混在一张表里迟早会出现
+    //     「车站级 getter 读到门串级记录」这种只在运行期才看得见的错位。
+    // ------------------------------------------------------------------
+
+    /** 【10-03 五改】一条「门串级」设置。{@code null} = 那一项没设过（= MTR 原样）。 */
+    public record PsdRunSetting(Integer departDelaySeconds, Long platformId) {
+
+        public static final PsdRunSetting NONE = new PsdRunSetting(null, null);
+
+        /** 这一条还有没有任何实际内容（都没设过 ⇒ 调用方应把记录删掉）。 */
+        public boolean isEmpty() {
+            return departDelaySeconds == null;
+        }
+
+        public PsdRunSetting withDepartDelaySeconds(Integer v) {
+            return new PsdRunSetting(v, platformId);
+        }
+
+        /** 记下「这一串落在哪个 MTR 站台」（列车那侧要用；认不到时是 null）。 */
+        public PsdRunSetting withPlatformId(Long v) {
+            return new PsdRunSetting(departDelaySeconds, v);
+        }
+    }
+
+    /** 【10-03 五改】门串锚点 → 这一串的关门后等待发车。 */
+    public final Map<Long, PsdRunSetting> psdRunSettings = new HashMap<>();
+
+    /**
+     * 【10-03 五改】门串记录里「这一串还没认到 MTR 站台」的哨兵。
+     *
+     * <p>与 {@code MtrDwellAccess.PLATFORM_ID_NONE} 同值同义 —— 那边是**客户端反射层**，
+     * 服务端（列车那侧）不能引用它，所以这里给一个同值的常量，两端语义一致。
+     * ★ 站台 id 本身可正可负（MTR4 是 {@code Random().nextLong()}），所以判「认到没认到」
+     * **只能比哨兵**，不许写 {@code > 0}。
+     */
+    public static final long PSD_PLATFORM_ID_NONE = Long.MIN_VALUE;
+
+    /** 这个站台 id 是不是「认出来了」的。 */
+    public static boolean psdPlatformKnown(long platformId) {
+        return platformId != PSD_PLATFORM_ID_NONE;
     }
 
     // ------------------------------------------------------------------

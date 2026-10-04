@@ -9,6 +9,10 @@
 #
 # 覆盖：
 #   check-mixin-plugin-safety.py  Mixin 准备阶段不得加载类（会崩别的模组的 mixin）
+#   check-mixin-package-refs.py   mixin 包里只许放 @Mixin 类与插件类
+#                                 ★ 2026-10-01 真事故：普通工具类住进 mixin 包 ⇒
+#                                   目标类（mtr.data.LiftServer）的注入处理器一引用它就
+#                                   IllegalClassLoadError ⇒ MTR3 世界一加载就崩
 #   check-psd-anchor.py           屏蔽门锚点几何 + 开关门跳变判定
 #   check-psd-nbt.py              存档字段「写/读」成对 + 数值夹取
 #   check-psd-tone.py             屏蔽门提示音素材（三段内置 + 两层回落 + 指令/UI/同步）
@@ -53,6 +57,14 @@
 #                                 ≠ 自定义进站广播（音频素材）；「不播」只关后者、
 #                                 /jsr off 只关前者，两条可同时存在、只共用「提前 N 秒」这个窗口。
 #                                 用户报「设了不播之后讲述人又没声音了」就出在这里
+#   check-psd-midium-once.py      【10-01】LOG013「站台讲述人同一份话念两遍」：
+#                                 ① 排计划那道闸的键必须与写表/放回表**同一个**（都是 runKey）；
+#                                 ② 起播后必须把记录**放回表里**（旧实现「起播即摘表」把守卫窗口
+#                                    压成 0 ⇒ 同一串后开门的门能再念一遍）；
+#                                 ③ 铃声距离基准收窄到**同一 MTR 站台**（nearestOnPlatform），
+#                                    播报仍按车站级（传 PLATFORM_ID_NONE）；
+#                                 ④ 纯逻辑复现器：LOG013 那两对（隔 2 tick / 8 秒）必须只念 1 次；
+#                                    删掉「放回表里」⇒ 必须复现成 2 次。脚本自带对照实验。
 #   check-escalator-step-engine.py 【1.26】扶梯阶梯渲染引擎（/mtrxr）：
 #                                 ★ 根因「/mtrxr off 后阶梯整片消失、退重进才回来」——
 #                                 apply() 只许 invalidate()/**不得** reset()（LOADED 登记表被清空
@@ -110,16 +122,55 @@
 #                                 底部淡入淡出秒数（默认 1 / 上限 60 / 越界当非法不夹取）、
 #                                 ★ 界面只许「标题 + 音量」两种文字（绘制调用点 == 2）、
 #                                 骨架底线（翻页不发包 / 选用不假装成功 / syncTrain 不回「已同步」）
-#   check-audio-category.py        【1.28】音频分类隔离：15 个分类常量（含列车五项 train/*）、界面按分类取数、
+#   check-audio-category.py        【1.28】音频分类隔离：17 个分类常量（含列车五项 train/*、闸机两项 zhaji/*）、
+#                                 界面按分类取数、
 #                                 DELETE / IMPORT_PSD_MIDIUM 两个通道带 category、同步包按分类结构、
 #                                 列车五页 ↔ 五分类同序、老分类键/文件夹双迁移、
 #                                 补全带分类（只影响 1.20.4；1.20.1 / Forge-1.20.1 无此功能）
+#   check-zhaji-tone.py           【09-30】**闸机（MTR Ticket Barrier）提示音**：
+#                                 石斧右键闸机开「仿直梯」界面（一级两行 + 1~1000 音量框、二级两列列表）、
+#                                 指令 /zhaji in|out XXX 与 /zhajiloud（1~1000）、
+#                                 MBM_Audio/zhaji/in|out 两个分类；
+#                                 ★★ 四条静默炸点：① 4 个 NBT 字段读写成对（漏一个 = 设置悄悄丢）；
+#                                 ② 粒度只有「维度默认」一层（不许有 key 表 / 子开关层）；
+#                                 ③ 方块判据是**精确**注册名（startsWith 会连带命中 ticket_processor_*）；
+#                                 ④ 同步包 ZHAJI_TONE_SYNC_CHANNEL **独立**一条、读写逐格同序
+#                                 （错位不报错，只是 in/out 串字段）；
+#                                 以及播放端拦 mtr:ticket_barrier(_concessionary) 时必须
+#                                 「default 放行原声 / off 吃掉 / 自定义播自己的」，
+#                                 音量上限**成对**放开（GainManagedSound + AL_MAX_GAIN）
+#   check-open-folder.py          【09-29】所有界面右上角「同步所有」**左边**那个「打开文件夹」按钮：
+#                                 一级菜单开「组」目录（MBM_Audio/pbm…）、二级页开「分类」子目录
+#                                 （MBM_Audio/pbm/arrive…），
+#                                 ★★ 按钮开的目录必须 == 那一页列表读的目录（分类映射只有一份）、
+#                                 整排右上角按钮的几何只有 SyncPopupScreen.ENTRY_* 一处定义、
+#                                 路径白名单 MBM_(Audio|Picture)(/[a-z]+)* 整串匹配（挡 .. / 绝对路径）、
+#                                 通道 MBM_OPEN_FOLDER_CHANNEL 写读逐格配对、
+#                                 /MBM picture fold 是字面量且落在 picture 那一支
 #   check-lift-chime.py           直梯提示音：开关/倍速/音量链路 + 同步包读写顺序配对
 #   check-lift-tone.py            直梯四提示音（up/down/open/close）素材：数据/指令/UI/播放端
 #   check-lift-move-sound.py      直梯「准备移动」up.ogg / down.ogg 的触发判据与素材选择
+#   check-fade-curves.py          ★ 全项目「淡入淡出范围」的距离曲线一律**按比例线性** (1 - d/R)
+#                                  （扶梯底噪 / 扶梯提示音 / 直梯提示音 / 屏蔽门三类，四份源码逐份钉）
+#                                  2026-10-03 用户点名统一；讲述人 TTS 不参与（无音量接口）
 #   check-chime-tiers.py          无障碍提示音分档素材（5 档 pitch）
 #   check-lift-track-look.py      直梯楼层轨道外观
 #   check-command-tree.sh         指令树可达性 / 补全 / 边界拒绝 / 别名同形
+#   check-view-tilt.py            【1.31.1204】「玩家视角随列车倾斜」（/mtrqx on|off）：
+#                                 ★★★ @Inject 处理器的 static 必须与目标一致
+#                                 （movePlayer(DDD)V / sendUpdate(Z)V 是 static ⇒ 处理器 static；
+#                                   transformForwards/Backwards 是实例 ⇒ 处理器不许 static）——
+#                                 不一致时 Mixin 拒收注入，而 require=0 让它**完全静默**；
+#                                 ★★★ 回调参数必须与目标「返回值形态」一致：transformForwards/Backwards
+#                                 是泛型有返回值方法（<T> T，擦除后返回 Object）⇒ 必须收
+#                                 CallbackInfoReturnable<Object>；写成 CallbackInfo 会被 Mixin 判
+#                                 InvalidInjectionException: CallbackInfoReturnable is required!
+#                                 并**整条静默拒收**（真踩过：装了 MTR4 视角纹丝不动）；
+#                                 ★★ 快照两条判据缺一不可（帧号「有新值」+ 线程「本线程刚写」，
+#                                 因为渲染线程也在写同一个俯仰角）；★ 符号必须取负
+#                                 （xRot += -toDegrees(Δpitch)），§5 用纯逻辑重放钉死并带反向对照；
+#                                 ★ 下车要按 appliedTiltDegrees 原样还回去；
+#                                 反照：改成取正 / 去掉 static / 退回 CallbackInfo / 删掉门禁 ⇒ 对应判据当场变红
 set -u
 cd "$(dirname "$0")/.."
 
@@ -145,6 +196,7 @@ run() {
 }
 
 run "mixin 插件安全"        "$PY" _tools/check-mixin-plugin-safety.py
+run "mixin 包守卫(类)"      "$PY" _tools/check-mixin-package-refs.py
 run "屏蔽门锚点与跳变"      "$PY" _tools/check-psd-anchor.py
 run "屏蔽门存档字段"        "$PY" _tools/check-psd-nbt.py
 run "屏蔽门提示音素材"      "$PY" _tools/check-psd-tone.py
@@ -158,21 +210,30 @@ run "屏蔽门1.28身份迁移与列车倍率" "$PY" _tools/check-psd-128.py
 run "屏蔽门铃声/播报归属"   "$PY" _tools/check-psd-scope.py
 run "屏蔽门1.31借用与列车挡" "$PY" _tools/check-psd-131.py
 run "屏蔽门讲述人/自定义拆开" "$PY" _tools/check-train-announce.py
+run "屏蔽门讲述人只念一次"  "$PY" _tools/check-psd-midium-once.py
+run "讲述人默认值/预设/按存档文字" "$PY" _tools/check-narrate-preset-save.py
+run "讲述人香港档与UI清全局"  "$PY" _tools/check-narrate-ui-hk.py
 run "扶梯阶梯渲染引擎"      "$PY" _tools/check-escalator-step-engine.py
 run "扶梯黑面修复(原版MTR)" "$PY" _tools/check-escalator-light-repair.py
 run "扶梯黑面修复(Sodium兼容)" "$PY" _tools/check-sodium-light-repair.py
 run "扶梯三页UI两列版式+五改"    "$PY" _tools/check-escalator-ui-twocol.py
 run "MBM批量音频指令"       "$PY" _tools/check-mbm-command.py
 run "音频分类隔离"          "$PY" _tools/check-audio-category.py
+run "闸机提示音"            "$PY" _tools/check-zhaji-tone.py
+run "打开文件夹按钮"        "$PY" _tools/check-open-folder.py
 run "预设选择界面与预设" "$PY" _tools/check-mbm-help.py
 run "同步所有按钮与弹窗" "$PY" _tools/check-1.55-sync.py
 run "列车音效界面与侧线" "$PY" _tools/check-1.57-train-siding.py
 run "直梯提示音链路"        "$PY" _tools/check-lift-chime.py
 run "直梯四提示音素材"      "$PY" _tools/check-lift-tone.py
 run "直梯准备移动音"        "$PY" _tools/check-lift-move-sound.py
+run "淡入淡出全按比例"      "$PY" _tools/check-fade-curves.py
 run "无障碍提示音分档"      "$PY" _tools/check-chime-tiers.py
 run "直梯楼层轨道外观"      "$PY" _tools/check-lift-track-look.py
 run "指令树"                bash _tools/check-command-tree.sh
+run "PIDS 站台名掩码"      "$PY" _tools/check-pids-name-mask.py
+run "关门等待发车"          "$PY" _tools/check-psd-depart.py
+run "玩家视角随列车倾斜"    "$PY" _tools/check-view-tilt.py
 
 echo
 echo "############################################################"

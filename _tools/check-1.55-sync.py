@@ -259,7 +259,14 @@ if m:
         b = squash(mb.group(1))
         check(b.startswith("host.width"), "★ x 从 host.width 往左推（靠右）", b)
         check("-" in b.split(",")[0], "★ x 是「宽 − 按钮宽」（贴着右沿）", b.split(",")[0])
-        check(b.split(",")[1].strip() == "6", "★ y = 6（贴顶）", b)
+        # 【09-29】y 从魔数 6 抽成了**具名常量** ENTRY_Y —— 右上角现在是「打开文件夹 + 同步所有」
+        #   一整排按钮，几何只能有一处定义（见 _tools/check-open-folder.py）。
+        #   ★ 判据改成看**它解析出来的值**，别盯排版：常量值仍然必须是 6（贴顶）。
+        _y = b.split(",")[1].strip()
+        _ym = re.fullmatch(r"\d+", _y) or re.search(
+            r"public static final int %s\s*=\s*(\d+)\s*;" % re.escape(_y), popup_no)
+        _y_val = int(_ym.group(1)) if _ym else None
+        check(_y_val == 6, "★ y = 6（贴顶；魔数或具名常量 ENTRY_Y 都行，值必须还是 6）", b)
     check("ENTRY_W" in fb, "按钮宽度用具名常量 ENTRY_W（不是魔数）")
 
 # ======================================================================

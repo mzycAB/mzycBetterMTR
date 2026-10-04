@@ -1,0 +1,1136 @@
+﻿
+############################################################
+# mixin 插件安全
+############################################################
+  ==> 通过
+
+############################################################
+# mixin 包守卫(类)
+############################################################
+  ==> 失败（完整输出见下方）
+���� = C:\Users\user\Desktop\2\mzycBetterMTR-1.20.4
+
+===== 1) Դ��ࣺmixin ��Ŀ¼��ֻ���� @Mixin �� / ����� =====
+-- ȫ�����õ� plugin �� = smooth.lift.client.mixin.sodium.SodiumLightMixinPlugin��smooth.lift.mixin.mtr.Mtr3LiftMixinPlugin��smooth.lift.mixin.mtr.PsdDoorMixinPlugin
+-- src/client/resources/smoothlift.client.mixins.json   �� = smooth.lift.client.mixin
+[PASS] src/client/resources/smoothlift.client.mixins.json�������� 17 �����ļ�
+[PASS] src/client/resources/smoothlift.client.mixins.json������ 17 ����ȫ���� @Mixin ������  -- ��Υ��
+-- src/client/resources/smoothlift.psd.mixins.json   �� = smooth.lift.client.mixin
+[PASS] src/client/resources/smoothlift.psd.mixins.json�������� 17 �����ļ�
+[PASS] src/client/resources/smoothlift.psd.mixins.json������ 17 ����ȫ���� @Mixin ������  -- ��Υ��
+-- src/client/resources/smoothlift.sodium.mixins.json   �� = smooth.lift.client.mixin.sodium
+[PASS] src/client/resources/smoothlift.sodium.mixins.json�������� 3 �����ļ�
+[PASS] src/client/resources/smoothlift.sodium.mixins.json������ 3 ����ȫ���� @Mixin ������  -- ��Υ��
+-- src/main/resources/smoothlift.mtr.mixins.json   �� = smooth.lift.mixin.mtr
+[PASS] src/main/resources/smoothlift.mtr.mixins.json�������� 4 �����ļ�
+[PASS] src/main/resources/smoothlift.mtr.mixins.json������ 4 ����ȫ���� @Mixin ������  -- ��Υ��
+-- src/main/resources/smooth_escalator.mixins.json   �� = smooth.lift.mixin
+[PASS] src/main/resources/smooth_escalator.mixins.json�������� 2 �����ļ�
+[PASS] src/main/resources/smooth_escalator.mixins.json������ 2 ����ȫ���� @Mixin ������  -- ��Υ��
+
+===== 2) ����ࣺjar �������İ����࣬���붼��ĳ�������е� =====
+-- jar = build/libs/mzycBetterMTR-1.30.1204.jar
+[PASS] jar ������� 5 �� mixins.json������ 4 ����
+[PASS] jar �� mixin ����û�С�δ�Ǽǡ�����  -- ����ÿ��Ҫô�� mixins.json ���š�Ҫô�� plugin
+
+===== 3) ��λ��˭�����ˡ�����δ�ǼǵĹ¶��ࡹ =====
+-- �¶��� = ���ޣ�
+Traceback (most recent call last):
+  File "C:\Users\user\Desktop\2\mzycBetterMTR-1.20.4\_tools\check-mixin-package-refs.py", line 308, in <module>
+    main()
+    ~~~~^^
+  File "C:\Users\user\Desktop\2\mzycBetterMTR-1.20.4\_tools\check-mixin-package-refs.py", line 296, in main
+    scan_jar(cfgs)
+    ~~~~~~~~^^^^^^
+  File "C:\Users\user\Desktop\2\mzycBetterMTR-1.20.4\_tools\check-mixin-package-refs.py", line 251, in scan_jar
+    check(not hits and not inner,
+    ~~~~~^^^^^^^^^^^^^^^^^^^^^^^^
+          "����û�С�δ�ǼǵĹ¶��ࡹ��Ҳû��˭������",
+          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+          detail)
+          ^^^^^^^
+  File "C:\Users\user\Desktop\2\mzycBetterMTR-1.20.4\_tools\check-mixin-package-refs.py", line 68, in check
+    print("[%s] %s%s" % ("PASS" if ok else "FAIL", label,
+    ~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+                         ("  -- " + detail) if detail else ""))
+                         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+UnicodeEncodeError: 'gbk' codec can't encode character '\u21d2' in position 46: illegal multibyte sequence
+
+############################################################
+# 屏蔽门锚点与跳变
+############################################################
+  ==> 失败（完整输出见下方）
+===== 1) ê�㣺�������� + ���°������۵�ͬһ�� =====
+[PASS] facing=NORTH������ �� ���� �� 4 ��λ�� �� ê��Ψһ  -- ê���� = 1
+[PASS] facing=NORTH��ê�� = ������ asLong ��С���Ǹ�
+[PASS] facing=SOUTH������ �� ���� �� 4 ��λ�� �� ê��Ψһ  -- ê���� = 1
+[PASS] facing=SOUTH��ê�� = ������ asLong ��С���Ǹ�
+[PASS] facing=EAST������ �� ���� �� 4 ��λ�� �� ê��Ψһ  -- ê���� = 1
+[PASS] facing=EAST��ê�� = ������ asLong ��С���Ǹ�
+[PASS] facing=WEST������ �� ���� �� 4 ��λ�� �� ê��Ψһ  -- ê���� = 1
+[PASS] facing=WEST��ê�� = ������ asLong ��С���Ǹ�
+
+===== 2) ��Է�������� MTR getDoorValue() һ�£���������õ���һ�Ը��ӣ�=====
+[PASS] facing=NORTH��MTR ������ LEFT �� RIGHT����ʵ��ͬ��
+[PASS] facing=NORTH������������䵽 (99, 64, 200) �� ��ȷ����һ��
+[PASS] facing=SOUTH��MTR ������ LEFT �� RIGHT����ʵ��ͬ��
+[PASS] facing=SOUTH������������䵽 (101, 64, 200) �� ��ȷ����һ��
+[PASS] facing=EAST��MTR ������ LEFT �� RIGHT����ʵ��ͬ��
+[PASS] facing=EAST������������䵽 (100, 64, 199) �� ��ȷ����һ��
+[PASS] facing=WEST��MTR ������ LEFT �� RIGHT����ʵ��ͬ��
+[PASS] facing=WEST������������䵽 (100, 64, 201) �� ��ȷ����һ��
+
+===== 3) ���ŷ��飨����/���壩�˻�������������������� =====
+[PASS] ���ŷ��� anchorOf = ������������������ϣ�
+Traceback (most recent call last):
+  File "C:\Users\user\Desktop\2\mzycBetterMTR-1.20.4\_tools\check-psd-anchor.py", line 146, in <module>
+    check(anchor_of(glass, gx, gy, gz) != anchor_of(
+    ~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+        {"__isPsdDoor": True, "half": "LOWER", "side": "LEFT", "facing": "SOUTH"}, *left),
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+          "���ŷ���� key ���ŵ� key ��ͬ \u21d2 ���ụ�ඥ��")
+          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\user\Desktop\2\mzycBetterMTR-1.20.4\_tools\check-psd-anchor.py", line 31, in check
+    print("[%s] %s%s" % ("PASS" if ok else "FAIL", label, ("  -- " + detail) if detail else ""))
+    ~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+UnicodeEncodeError: 'gbk' codec can't encode character '\u21d2' in position 28: illegal multibyte sequence
+
+############################################################
+# 屏蔽门存档字段
+############################################################
+  ==> 失败（完整输出见下方）
+===== 1) �� / д ������ȫ��ȣ�ȫ�֣�=====
+        �� 105 ���ֶΡ�д 103 ���ֶΣ�����Ǩ�ƾɼ� 2 ����
+[PASS] û�С�����ȴ��д�����ֶΣ�����ֵһ����Ͷ���  -- ��
+[PASS] û�С�д��ȴ���������ֶΣ��������ô���û�����  -- ��
+
+===== 2) ��������һ���ֶα��� 13 ����ȫ���� + д���ڣ�=====
+[PASS] ������ defaultPsdHelp
+[PASS] д���� defaultPsdHelp
+[PASS] ������ defaultPsdToneOpenEnabled
+[PASS] д���� defaultPsdToneOpenEnabled
+[PASS] ������ defaultPsdToneCloseEnabled
+[PASS] д���� defaultPsdToneCloseEnabled
+[PASS] ������ defaultPsdHelpVolume
+[PASS] д���� defaultPsdHelpVolume
+[PASS] ������ defaultPsdToneVolumeOpen
+[PASS] д���� defaultPsdToneVolumeOpen
+[PASS] ������ defaultPsdToneVolumeClose
+[PASS] д���� defaultPsdToneVolumeClose
+[PASS] ������ defaultPsdHelpRound
+[PASS] д���� defaultPsdHelpRound
+[PASS] ������ psdToneAudio
+[PASS] д���� psdToneAudio
+[PASS] ������ defaultPsdToneAudioOpen
+[PASS] д���� defaultPsdToneAudioOpen
+[PASS] ������ defaultPsdToneAudioClose
+[PASS] д���� defaultPsdToneAudioClose
+[PASS] ������ defaultPsdCloseWaitSeconds
+[PASS] д���� defaultPsdCloseWaitSeconds
+[PASS] ������ defaultPsdMidiumAudio
+[PASS] д���� defaultPsdMidiumAudio
+[PASS] ������ defaultPsdMidiumWaitSeconds
+[PASS] д���� defaultPsdMidiumWaitSeconds
+[PASS] ������ defaultPsdArriveAudio
+[PASS] д���� defaultPsdArriveAudio
+[PASS] ������ defaultPsdArriveSeconds
+[PASS] д���� defaultPsdArriveSeconds
+[PASS] �������ֶ��嵥 = 14 ������ + 1 ���б���� 15 �
+
+===== 3) �������ֶ��� Manager ������С�������ڡ��������������ݣ�=====
+[PASS] Manager �ṩ getPsdArriveAudio�������ֶ� defaultPsdArriveAudio��
+[PASS] Manager �ṩ getPsdArriveSeconds�������ֶ� defaultPsdArriveSeconds��
+[PASS] Manager �ṩ getPsdCloseWaitSeconds�������ֶ� defaultPsdCloseWaitSeconds��
+[PASS] Manager �ṩ isPsdHelpEnabled�������ֶ� defaultPsdHelp��
+[PASS] Manager �ṩ getPsdHelpRound�������ֶ� defaultPsdHelpRound��
+[PASS] Manager �ṩ getPsdHelpVolume�������ֶ� defaultPsdHelpVolume��
+[PASS] Manager �ṩ getPsdMidiumAudio�������ֶ� defaultPsdMidiumAudio��
+[PASS] Manager �ṩ getPsdMidiumWaitSeconds�������ֶ� defaultPsdMidiumWaitSeconds��
+[PASS] Manager �ṩ getPsdToneAudio�������ֶ� defaultPsdToneAudioClose��
+[PASS] Manager �ṩ getPsdToneAudio�������ֶ� defaultPsdToneAudioOpen��
+[PASS] Manager �ṩ isPsdToneEnabled�������ֶ� defaultPsdToneCloseEnabled��
+[PASS] Manager �ṩ isPsdToneEnabled�������ֶ� defaultPsdToneOpenEnabled��
+[PASS] Manager �ṩ getPsdToneVolume�������ֶ� defaultPsdToneVolumeClose��
+[PASS] Manager �ṩ getPsdToneVolume�������ֶ� defaultPsdToneVolumeOpen��
+[PASS] Manager �ṩ getClientPsdTone�������ֶ� psdToneAudio��
+
+===== 4) ����������ֵ�����ȡ����ס���ⲿ�Ļ��Ĵ浵ֵ��=====
+Traceback (most recent call last):
+  File "C:\Users\user\Desktop\2\mzycBetterMTR-1.20.4\_tools\check-psd-nbt.py", line 174, in <module>
+    check(clamp + "(" in seg,
+    ~~~~~^^^^^^^^^^^^^^^^^^^^
+          "�� %s ʱ���� %s������Խ��ֵ��ԭ������ѹ��ȥ \u21d2 ���ֳɡ�����û�á���" % (key, clamp),
+          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+          re.sub(r"\s+", " ", seg).strip()[:70])
+          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\user\Desktop\2\mzycBetterMTR-1.20.4\_tools\check-psd-nbt.py", line 35, in check
+    print("[%s] %s%s" % ("PASS" if ok else "FAIL", label, ("  -- " + detail) if detail else ""))
+    ~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+UnicodeEncodeError: 'gbk' codec can't encode character '\u21d2' in position 68: illegal multibyte sequence
+
+############################################################
+# 屏蔽门提示音素材
+############################################################
+  ==> 失败（完整输出见下方）
+== 1. �زģ��������� ogg + sounds.json ע�ᣩ ==
+[PASS] �����ز��ļ����ڣ�dooropen.ogg
+[PASS] �����ز��ļ����ڣ�doorclose.ogg
+[PASS] �����ز��ļ����ڣ�mdoorclose.ogg
+[PASS] sounds.json ע���� audio/dooropen
+[PASS] sounds.json ע���� audio/doorclose
+[PASS] sounds.json ע���� audio/mdoorclose
+[PASS] �ɵĺϳ��ز� psd_open / psd_close �Ѵ� sounds.json �Ƴ������ټӻ�����
+[PASS] �ɵ� psd_open.ogg / psd_close.ogg �ļ���ɾ��
+
+== 2. ���ݲ㣨�ĸ����������� + ����ӳ�� + ����ά��Ĭ���ֶΣ� ==
+[PASS] PSD_TONE_BUILTIN_OPEN = default������һ�� / ���˱������ã�
+[PASS] PSD_TONE_BUILTIN_CLOSE = default-c����ʽ doorclose.ogg��
+[PASS] PSD_TONE_BUILTIN_CLOSE_M = default-m����ʽ mdoorclose.ogg��
+[PASS] PSD_TONE_BUILTIN_CLOSE_S = default-s����Ĭ�ϣ��̣�����ͬ�زĵ�������������Σ�
+[PASS] ���ݲ��ṩ isPsdBuiltinName���ĸ��������ж���
+[PASS] ���ݲ��ṩ isPsdBuiltinShort��˭����ֻ�����֡������ж� ���� ���Ŷ˲��Լ�����������
+[PASS] �ҵ� psdBuiltinKey������ �� ���õ� key��
+[PASS] default ���˱��䣺���� dooropen / **���� mdoorclose**���û�������Ĭ����Ч��
+[PASS] default-c �� doorclose
+[PASS] default-m �� mdoorclose
+Traceback (most recent call last):
+  File "C:\Users\user\Desktop\2\mzycBetterMTR-1.20.4\_tools\check-psd-tone.py", line 138, in <module>
+    check("PSD_TONE_BUILTIN_CLOSE_S.equals(id)" in bk
+    ~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+          and bk.count('"open".equals(which) ? "dooropen" : "mdoorclose"') == 1,
+          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+          "�� default-s �� default ����**ͬһ��**���˱��֧��������һ������ֵ��"
+          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+          " \u21d2 �����ǵ��Ķ���Ƶ��ֻ��һ�����Ų���")
+          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\user\Desktop\2\mzycBetterMTR-1.20.4\_tools\check-psd-tone.py", line 70, in check
+    print("[%s] %s%s" % ("PASS" if ok else "FAIL", label, ("  -- " + detail) if detail else ""))
+    ~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+UnicodeEncodeError: 'gbk' codec can't encode character '\u21d2' in position 54: illegal multibyte sequence
+
+############################################################
+# 屏蔽门关门提示音对齐
+############################################################
+  ==> 失败（完整输出见下方）
+===== 1) �ų̣��� MTR4 / MTR3 ���ֽ��빫ʽ������㣨�ɺ���� tick ����=====
+        MTR4��80 tick = 4000ms��ÿ tick �� 1/80 �ų̣�
+        MTR3��34 tick = 1700ms��ÿ tick �� 0.95/32 �ų̣�
+[PASS] MTR4 �ų� = 80 tick = 4000ms���ֽ���ֱ�㣩
+[PASS] MTR3 �ų����� 30~40 tick����1.7 �룩���� MTR4 ��һ������  -- �õ� 34 tick
+Traceback (most recent call last):
+  File "C:\Users\user\Desktop\2\mzycBetterMTR-1.20.4\_tools\check-psd-align.py", line 160, in <module>
+    check(MTR4_MS > 2 * MTR3_MS * 0.9,
+    ~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+          "�����汾�ų̲ 2 ������ \u21d2 �ų�ֻ����**ʵ��ֵ**��д��һ��������һ��",
+          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+          "MTR4 %dms vs MTR3 %dms" % (MTR4_MS, MTR3_MS))
+          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\user\Desktop\2\mzycBetterMTR-1.20.4\_tools\check-psd-align.py", line 86, in check
+    print("[%s] %s%s" % ("PASS" if ok else "FAIL", label, ("  -- " + detail) if detail else ""))
+    ~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+UnicodeEncodeError: 'gbk' codec can't encode character '\u21d2' in position 22: illegal multibyte sequence
+
+############################################################
+# 屏蔽门提示音顺序
+############################################################
+  ==> 失败（完整输出见下方）
+===== 0) �������� Java Դ����������������һ�ݣ�=====
+[PASS] EscalatorAudioPlayer.SPLIT_MIN_SILENCE_MS = 400��ʵ����ֽ� 514ms���� 114ms ������  -- �õ� 400
+[PASS] SPLIT_MIN_TAIL_MS = 1500���ֽ��֮��Ҫ��ʣһ�������֣�  -- �õ� 1500
+[PASS] SPLIT_SILENCE_LEVEL = 1e-3��-60dBFS��  -- �õ� 0.001
+[PASS] PsdChimePlayer.PLAN_GRACE_TICKS = 40������ 2 �� = ��һ�����ȥ�ˣ���������  -- �õ� 40
+
+===== 1) �زĽṹ���ֽ����**��������**��Java �㷨��֡�հᣩ=====
+        mdoorclose.ogg  10806ms  �ֽ�� = 6707ms   �ϸ񰲾���㣺6707ms
+        doorclose.ogg   10536ms  �ֽ�� = 6424ms   �ϸ񰲾���㣺6424ms
+        dooropen.ogg     2283ms  �ֽ�� = -1�������νṹ��   �ϸ񰲾���㣺���ޣ�
+[PASS] mdoorclose.ogg �ֽ�� �� 6707ms��6.707s �� 514ms �������㣬���� ��30ms Ư�ƣ�  -- �õ� 6707ms
+[PASS] doorclose.ogg �ֽ�� �� 6424ms������ ��30ms Ư�ƣ�  -- �õ� 6424ms
+Traceback (most recent call last):
+  File "C:\Users\user\Desktop\2\mzycBetterMTR-1.20.4\_tools\check-psd-split.py", line 247, in <module>
+    check(split == -1,
+    ~~~~~^^^^^^^^^^^^^
+          "dooropen.ogg �ֽ�� = -1��û�С�����+���֡��ṹ��\u21d2 ���Ŷ����ϵ����β���һ��δ��",
+          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+          "�õ� %s" % split)
+          ^^^^^^^^^^^^^^^^^^
+  File "C:\Users\user\Desktop\2\mzycBetterMTR-1.20.4\_tools\check-psd-split.py", line 106, in check
+    print("[%s] %s%s" % ("PASS" if ok else "FAIL", label, ("  -- " + detail) if detail else ""))
+    ~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+UnicodeEncodeError: 'gbk' codec can't encode character '\u21d2' in position 41: illegal multibyte sequence
+
+############################################################
+# 屏蔽门提前量状态机
+############################################################
+  ==> 失败（完整输出见下方）
+===== 0) �������� Java Դ��������� =====
+[PASS] EDGE = 0.02���С�ȫ��/ȫ�ء����ݲ  -- �õ� 0.02
+[PASS] PLAN_GRACE_TICKS = 40  -- �õ� 40
+[PASS] ALIGN_MAX_WAIT_TICKS = 5  -- �õ� 5
+[PASS] ��ֵ���� = 1/80 = 0.0125���ֽ���ʵ�⣩
+Traceback (most recent call last):
+  File "C:\Users\user\Desktop\2\mzycBetterMTR-1.20.4\_tools\check-psd-predict.py", line 112, in <module>
+    print("        EDGE=%.3f  vs  ����=%.4f  \u21d2 ��ֵ���ڿ�� = һ������" % (EDGE, STEP))
+    ~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+UnicodeEncodeError: 'gbk' codec can't encode character '\u21d2' in position 35: illegal multibyte sequence
+
+############################################################
+# 屏蔽门音量与淡入淡出
+############################################################
+  ==> 失败（完整输出见下方）
+
+===== 1) ������ָ�� + ������Χ 1~1000 =====
+[PASS] ע���� /pbmmusicloud
+[PASS] ע���� /pbmmidiumloud
+[PASS] ע���� /pbmarriveloud
+[PASS] �� /pbmmusicloud �� /pbmloud **ͬһ������**������ pbmLoudShow / pbmLoudGlobal��
+[PASS] ������ָ��� -f��ǿ������ά�ȣ���֧
+[PASS] ������ָ��� X / X to Y ��״����
+[PASS] AUDIO_VOLUME_MIN = 1
+[PASS] AUDIO_VOLUME_MAX = 1000
+[PASS] volumeArg() = integer(1, 1000)��ָ����У���õľ���������������
+[PASS] HELP_VOLUME_MIN/MAX ֱ������ AUDIO_VOLUME_MIN/MAX���������������߸��ģ�
+[PASS] DEFAULT_PSD_HELP_VOLUME ���ù���Ĭ�ϣ�������һ��������
+
+===== 2) ������ͨ������վ���� / ��վ������ =====
+[PASS] SET_PSD_MIDIUM_LOUD_CHANNEL �� id = smoothlift:set_psd_midium_loud
+[PASS] SET_PSD_MIDIUM_LOUD_CHANNEL �з���˽�����
+[PASS] �������䵽 setDoorPsdMidiumVolume(...)
+[PASS] SET_PSD_ARRIVE_LOUD_CHANNEL �� id = smoothlift:set_psd_arrive_loud
+[PASS] SET_PSD_ARRIVE_LOUD_CHANNEL �з���˽�����
+[PASS] �������䵽 setDoorPsdArriveVolume(...)
+[PASS] �� �غ���״�� key(long) �� volume(VarInt)����**��**������ 1.21�����ð� runKey��һ�£�
+[PASS] �����������������ˡ��������á����������ĵ��Ǽ��������ֵ�����ͻ���Ҫ���ã�
+
+===== 3) ���ݲ㣺PsdToneAudio 15 �ֶ� + �ڱ� -1 =====
+[PASS] �ҵõ� PsdToneAudio record ����
+[FAIL] �� PsdToneAudio �� 18 �ֶΣ�1.20 �� 13 + ��վ/��վ 2 + ���� 1 + ��09-28�������� 2��  -- �õ� 22��String open, String close, Boolean help, Boolean openEnabled, Boolean closeEnabled, Integer volume, Integer openVolume, Integer closeVolume, Integer openWaitSeconds, Integer closeWaitSeconds, String midium, Integer midiumWaitSeconds, Integer midiumVolume, String arrive, Integer arriveSeconds, Integer arriveVolume, Integer narrate, Integer narrateSeconds, Integer midiumNarrate, Integer midiumNarrateSeconds, Integer departDelaySeconds, Integer blinkCount
+[FAIL] �� narrate��������ʽ����09-28 ������ Boolean �ĳ� Integer��/ narrateSeconds ��ĩβ��׷��ʽ�İ��ı�׼���ƣ���λ��һ����û����  -- �õ� ['Integer departDelaySeconds', 'Integer blinkCount']
+[PASS] �� midiumVolume ��� midiumWaitSeconds��ͬһ���µ������ֶξ���һ�𣬱�ɢ����  -- �õ� ['String midium', 'Integer midiumWaitSeconds', 'Integer midiumVolume']
+[PASS] 7 �����ɿպ�װ������/�����ֶζ��ڣ�null = ��ά��Ĭ�ϣ�
+[PASS] PSD_TONE_VOLUME_UNSET ���� LIFT_TONE_VOLUME_UNSET��ͬһ���ڱ����壩
+[PASS] �ڱ�ֵ = -1
+Traceback (most recent call last):
+  File "C:\Users\user\Desktop\2\mzycBetterMTR-1.20.4\_tools\check-psd-volume.py", line 200, in <module>
+    check(re.search(r"public int defaultPsdMidiumVolume\s*=\s*PSD_TONE_VOLUME_UNSET\s*;", data)
+    ~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+          is not None
+          ^^^^^^^^^^^
+          and re.search(r"public int defaultPsdArriveVolume\s*=\s*PSD_TONE_VOLUME_UNSET\s*;", data)
+          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+          is not None,
+          ^^^^^^^^^^^^
+          "������ά��Ĭ���ֶγ�ֵ = �ڱ���û���� \u21d2 ������Ĭ�ϣ�")
+          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\user\Desktop\2\mzycBetterMTR-1.20.4\_tools\check-psd-volume.py", line 80, in check
+    print("[%s] %s%s" % ("PASS" if ok else "FAIL", label, ("  -- " + detail) if detail else ""))
+    ~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+UnicodeEncodeError: 'gbk' codec can't encode character '\u21d2' in position 28: illegal multibyte sequence
+
+############################################################
+# 屏蔽门站台广播
+############################################################
+  ==> 失败（完整输出见下方）
+
+===== 1) ֢״��ֵ����һ���ŵĿ�� vs ��� =====
+[PASS] ���㣺12 �ȡ���� 5 ��һ���ſ�� = **55 ��**��ԶԶ����Ĭ����� 16 ��
+[PASS] �� ���㣺վ**�м�**�������ֻ�� **7/12** ���� 16 ���ڣ�վ**һ��**ֻʣ **4/12** ��  -- �м� [-48.0, -43.0, -38.0, -33.0, -28.0, -23.0, -18.0] / һ�� [-58.0, -53.0, -48.0, -43.0]
+[PASS] ��� ���ۣ�**վ��վ̨�κ�һ�����Աߣ��������� 5 ����Զ�������**������ǡ��е��Ų��졹��
+[PASS] ��� ���㣺LOG4 ������**����� 17 ��**���ţ�x=-28���߽���һ������ = **0** ���� ������һ�����죬������Ϊ����оݰ������������ˣ�������û���ɼ���
+[PASS] �� ���㣺�����**Ӳ�߽�**��15.999 ���� 0.00006��16 ���� = 0�� ���� ��������ֻ�����̫�᡹��������ˡ�Ӳ�س� 0��
+Traceback (most recent call last):
+  File "C:\Users\user\Desktop\2\mzycBetterMTR-1.20.4\_tools\check-psd-broadcast.py", line 127, in <module>
+    check(stat == 1.0,
+    ~~~~~^^^^^^^^^^^^^
+          "��� ���գ�ͬһ�����λ�ã�����밴��**����������������һ��**���� \u21d2 ���� **1.0**"
+          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+          "����Ҿ���ĳһ�����Աߣ�\u21d2 �����Ĳ��������� ���� ����ǡ�1.26���ĸķ�")
+          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\user\Desktop\2\mzycBetterMTR-1.20.4\_tools\check-psd-broadcast.py", line 58, in check
+    print("[%s] %s%s" % ("PASS" if ok else "FAIL", label, ("  -- " + detail) if detail else ""))
+    ~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+UnicodeEncodeError: 'gbk' codec can't encode character '\u21d2' in position 44: illegal multibyte sequence
+
+############################################################
+# 屏蔽门串身份=站台
+############################################################
+  ==> 失败（完整输出见下方）
+
+===== 1) LOG5 ȡ֤��վ̨�Ǳ�ȱ���п��ļ��Σ�����һ�� =====
+Traceback (most recent call last):
+  File "C:\Users\user\Desktop\2\mzycBetterMTR-1.20.4\_tools\check-psd-platform-group.py", line 123, in <module>
+    check(d_sep == 38,
+    ~~~~~^^^^^^^^^^^^^
+          "�о� A��ͬһ�̣���վ̨ %s �� 00:29:41 ͬһ������С���վ̨ @%s�����С��� @%s��"
+          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+          % (SAME_INSTANT, list(door_a), list(door_b)),
+          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+          "������� **%d ��** ���� ͬһ����ͬһ��ֻ��һ������� \u21d2 ����������" % d_sep)
+          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\user\Desktop\2\mzycBetterMTR-1.20.4\_tools\check-psd-platform-group.py", line 90, in check
+    print("[%s] %s%s" % ("PASS" if ok else "FAIL", label, ("  -- " + detail) if detail else ""))
+    ~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+UnicodeEncodeError: 'gbk' codec can't encode character '\u21d2' in position 136: illegal multibyte sequence
+
+############################################################
+# 屏蔽门1.28身份迁移与列车倍率
+############################################################
+  ==> 通过
+
+############################################################
+# 屏蔽门铃声/播报归属
+############################################################
+  ==> 通过
+
+############################################################
+# 屏蔽门1.31借用与列车挡
+############################################################
+  ==> 失败（完整输出见下方）
+
+===== 1) �ϲ���վ̨�Ĵ���������վ̨��ݣ�UI �������ò������壩 =====
+  ==> ͨ��  borrowPlatformId + ��������̨��������
+  ==> ͨ��  PLATFORM_BORROW_DIST = 12.0����ͷ�ŵ������ž� 4~9 ���ڣ�
+  ==> ͨ��  PLATFORM_BORROW_MARGIN = 8.0���ν����Ը�Զ����Ψһ���ڣ�
+Traceback (most recent call last):
+  File "C:\Users\user\Desktop\2\mzycBetterMTR-1.20.4\_tools\check-psd-131.py", line 69, in <module>
+    check("second - best < PLATFORM_BORROW_MARGIN" in tracker,
+    ~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+          "�� Ψһ���о��ڣ�������ѡ���� \u21d2 ���裬���ɱ�����ͨ����")
+          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\user\Desktop\2\mzycBetterMTR-1.20.4\_tools\check-psd-131.py", line 43, in check
+    print(("  ==> ͨ��  " if ok else "  ==> ʧ��  ") + what + ("  -- " + detail if detail else ""))
+    ~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+UnicodeEncodeError: 'gbk' codec can't encode character '\u21d2' in position 28: illegal multibyte sequence
+
+############################################################
+# 屏蔽门讲述人/自定义拆开
+############################################################
+  ==> 失败（完整输出见下方）
+  ==> ͨ��  �ٵó� tickArriveAnnounce() ������
+
+===== 1) ���������Զ����վ�㲥�����������㲥 =====
+  ==> ʧ��  narrateGlobal ȡ�� /jsr����������һ����**ȫ��**��բ��
+  ==> ʧ��  �� narrateMode = ȫ�� /jsr ? ��һ�����Լ���**��ʽ** : �رգ��ֶ��ģ�ȡ��ʽ�����ǿ�/�أ�������۵��ᱻ����Ϻ��ʣ�
+  ==> ͨ��  �� narrateOn ����ʽ���������� = ��ʽ �� �رգ����� ���롹�Ŀھ�û��
+  ==> ͨ��  �� ��������**û��**��/jsr ���ž����� return���������·������ 1.28 �Ĵ����
+  ==> ͨ��  �� Ҳû���κ��� narrateGlobal Ϊ��������������
+  ==> ͨ��  customOff �����ɱ�������������ֻ���Զ�����һ����ǰ�ᣩ
+  ==> ͨ��  ��������ʱ��������һ�����Ͽھ���˳����״̬��
+  ==> ͨ��  �� û�С�ֻҪ customOff �� continue�����������������۽�����
+  ==> ͨ��  �ٵó� ��-A �Զ����վ�㲥��֧������ = customTodo��
+  ==> ͨ��  �ٵó� ��-B �����˽�վ�㲥��֧������������� narrateTodo��
+Traceback (most recent call last):
+  File "C:\Users\user\Desktop\2\mzycBetterMTR-1.20.4\_tools\check-train-announce.py", line 136, in <module>
+    check("narrateGlobal" not in strip_comments(a_body) and "narrateOn" not in strip_comments(a_body),
+    ~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+          "�� ��-A ��**������**�����˵Ŀ��� \u21d2 �ؽ����˲��������Զ����վ�㲥")
+          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\user\Desktop\2\mzycBetterMTR-1.20.4\_tools\check-train-announce.py", line 64, in check
+    print(("  ==> ͨ��  " if ok else "  ==> ʧ��  ") + what + ("  -- " + detail if detail else ""))
+    ~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+UnicodeEncodeError: 'gbk' codec can't encode character '\u21d2' in position 31: illegal multibyte sequence
+
+############################################################
+# 屏蔽门讲述人只念一次
+############################################################
+  ==> 失败（完整输出见下方）
+===== 0) ��Դ�� =====
+  src/client/java/smooth/lift/client/PsdChimePlayer.java  167248 B
+
+===== 1) �ṹ��ͬһ�೵ֻ��һ�� + ����Żر��� =====
+[PASS] ������������������һ�¡�������Żر���  -- ȫ������
+
+===== 2) ���ѳ��ӣ�������խ��վ̨�������԰���վ =====
+[PASS] nearestOnPlatform �����Ҳ������ֳ�վ��  -- ȫ������
+
+===== 3) ���� =====
+[PASS] MIDIUM_NARRATE_HOLD_TICKS ������Ϊ��  -- = 200
+[PASS] Ӳ���� > ����  -- ����=200 ����=1200
+
+===== 4) ���߼����֣���������գ�=====
+-- ������������=200 tick��Ӳ����=1200 tick
+[PASS] S1 �� 2 tick�������߼�ÿ��ֻ�� 1 �ο�  -- ʵ�� 1 �Σ����� 1��
+Traceback (most recent call last):
+  File "C:\Users\user\Desktop\2\mzycBetterMTR-1.20.4\_tools\check-psd-midium-once.py", line 726, in <module>
+    main()
+    ~~~~^^
+  File "C:\Users\user\Desktop\2\mzycBetterMTR-1.20.4\_tools\check-psd-midium-once.py", line 662, in main
+    rf = replay_fails(hold, max_hold)
+  File "C:\Users\user\Desktop\2\mzycBetterMTR-1.20.4\_tools\check-psd-midium-once.py", line 337, in replay_fails
+    check(got_old == 2,
+    ~~~~~^^^^^^^^^^^^^^
+          "S1 �� 2 tick��ȥ����Żر��\u21d2 ���븴�ֳ� 2 �Σ�LOG013 ֢״��",
+          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+          "ʵ�� %d ��" % got_old)
+          ^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\user\Desktop\2\mzycBetterMTR-1.20.4\_tools\check-psd-midium-once.py", line 120, in check
+    print("[%s] %s%s" % ("PASS" if ok else "FAIL", label,
+    ~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+                         ("  -- " + detail) if detail else ""))
+                         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+UnicodeEncodeError: 'gbk' codec can't encode character '\u21d2' in position 27: illegal multibyte sequence
+
+############################################################
+# 讲述人默认值/预设/按存档文字
+############################################################
+  ==> 通过
+
+############################################################
+# 讲述人香港档与UI清全局
+############################################################
+  ==> 失败（完整输出见下方）
+[PASS] ���� '1' �� ���ľ�+Ӣ�ľ�  -- 'ǰ��1���г�������������ó��ϵĳ˿��³�\nThe train to 1 is arriving, please let passengers exit first.'
+[PASS] ���� 'People Road' �� ���ľ�+Ӣ�ľ�  -- 'ǰ��People Road���г�������������ó��ϵĳ˿��³�\nThe train to People Road is arriving, please let passengers exit first.'
+[PASS] ���� '����·|People Road' �� ���ľ�+Ӣ�ľ�  -- 'ǰ������·���г�������������ó��ϵĳ˿��³�\nThe train to People Road is arriving, please let passengers exit first.'
+[PASS] ���� '����·' �� ���ľ�+Ӣ�ľ�  -- 'ǰ������·���г�������������ó��ϵĳ˿��³�\nThe train to ����· is arriving, please let passengers exit first.'
+[PASS] ���� '' �� ��  -- null
+Traceback (most recent call last):
+  File "C:\Users\user\Desktop\2\mzycBetterMTR-1.20.4\_tools\check-narrate-ui-hk.py", line 184, in <module>
+    main()
+    ~~~~^^
+  File "C:\Users\user\Desktop\2\mzycBetterMTR-1.20.4\_tools\check-narrate-ui-hk.py", line 116, in main
+    check(out1 is not None and "The train to 1 is arriving" in out1
+    ~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+          and u"ǰ��1���г���������" in out1,
+          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+          u"�1���������� \u21d2 ���ľ�+Ӣ�ľ䶼����á�1����ȱ������һ�ζ��ף�",
+          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+          repr(out1) if out1 else "null")
+          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\user\Desktop\2\mzycBetterMTR-1.20.4\_tools\check-narrate-ui-hk.py", line 37, in check
+    print("[%s] %s%s" % ("PASS" if ok else "FAIL", label,
+    ~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+                         ("  -- " + detail) if detail else ""))
+                         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+UnicodeEncodeError: 'gbk' codec can't encode character '\u21d2' in position 16: illegal multibyte sequence
+
+############################################################
+# 扶梯阶梯渲染引擎
+############################################################
+  ==> 失败（完整输出见下方）
+
+===== 1) �� ����apply() ֻ�� invalidate()������ reset() =====
+  ==> ͨ��  apply() ����������� EscalatorStepIndex.invalidate()
+  ==> ͨ��  �� ������գ�apply() ��������**û��** EscalatorStepIndex.reset()���ɵ���ʧ bug��
+  ==> ͨ��  �� ��ע����Ч��apply() �� Javadoc ��� reset()����ע�ͺ���������޸ô�  -- ע�ͱ��� 2 �� / ������ 0 ��
+  ==> ͨ��  invalidate() ���� LOADED������ǼǱ����
+  ==> ͨ��  invalidate() ���ٰ� flattenedDirty ���ࣨ��һ֡��ɨ��
+  ==> ͨ��  reset() ���� LOADED + SECTIONS����ά��/��������ã������� invalidate ȷʵ��ͬ��
+
+===== 2) �� ������LOADED Ϊ��ʱ�����黺���صǼ� =====
+  ==> ͨ��  tick() �� LOADED.isEmpty() ʱ�� rediscoverChunks()������ CHUNK_LOAD Ҳ�ָܻ���
+  ==> ͨ��  rediscoverChunks �ж��� + ���� 1 ������  -- ���� 2 ��
+  ==> ͨ��  rediscoverChunks �� getChunkNow(i, i) �ʿͻ��˻��棨�� ����ƾ�ռ������飩
+  ==> ͨ��  �صǼ��а뾶���� MAX_REDISCOVER_RADIUS����ɨȫͼ��
+  ==> ͨ��  �صǼ���ͳһ��� onChunkLoad���� CHUNK_LOAD �¼�ͬһ��·���Ǽ�/�����߼����ֲ棩
+
+===== 3) �ֶ�ϡ�������ṹ =====
+Traceback (most recent call last):
+  File "C:\Users\user\Desktop\2\mzycBetterMTR-1.20.4\_tools\check-escalator-step-engine.py", line 235, in <module>
+    check(re.search(r"public\s+static\s+final\s+class\s+Section", index_c) is not None,
+    ~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+          "�� Section �ڲ��ࣨ16\xb3 �Σ�")
+          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\user\Desktop\2\mzycBetterMTR-1.20.4\_tools\check-escalator-step-engine.py", line 81, in check
+    print(("  ==> ͨ��  " if ok else "  ==> ʧ��  ") + what + ("  -- " + detail if detail else ""))
+    ~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+UnicodeEncodeError: 'gbk' codec can't encode character '\xb3' in position 26: illegal multibyte sequence
+
+############################################################
+# 扶梯黑面修复(原版MTR)
+############################################################
+  ==> 失败（完整输出见下方）
+== 1) Դ�ļ� ==
+  ==> ͨ��  ���ڣ������о� EscalatorLightRepair.java  -- src\client\java\smooth\lift\client\EscalatorLightRepair.java
+  ==> ͨ��  ���ڣ�mixin EscalatorAoStashMixin.java����¼���ڻ��ķ��ݸ�  -- src\client\java\smooth\lift\client\mixin\EscalatorAoStashMixin.java
+  ==> ͨ��  ���ڣ�mixin EscalatorAoSampleMixin.java��AO ·��ȡ��������  -- src\client\java\smooth\lift\client\mixin\EscalatorAoSampleMixin.java
+  ==> ͨ��  ���ڣ�mixin EscalatorFlatLightMixin.java��ƽ��·��ȡ��������  -- src\client\java\smooth\lift\client\mixin\EscalatorFlatLightMixin.java
+
+== 2) �о���ṹ ==
+  ==> ͨ��  �ڱ� NOT_REPAIRED == -1�����������κκϷ� packed light����0��������ͻ��  -- ʵ�� -1
+  ==> ͨ��  NO_OWN == Long.MAX_VALUE��BlockPos.asLong() ��ȡֵ�����ܵ�����
+  ==> ͨ��  AO �õġ���ǰ���ݸ��� ThreadLocal<long[]>������������ worker �̱߳��룬��̬�ֶλᱻ�ȣ�
+  ==> ͨ��  ThreadLocal �� withInitial����·�� get() ������ null �ж���
+  ==> ͨ��  ʶ����ݸ��� EscalatorUtil.isEscalatorStep / isEscalatorSide����Ӳ���� MTR �ࣩ
+  ==> ͨ��  isEscalator �е��������� lastOther�����ڳ��ȷ����ϣ������������Ҫһ�����ñȽϾ��˳���
+Traceback (most recent call last):
+  File "C:\Users\user\Desktop\2\mzycBetterMTR-1.20.4\_tools\check-escalator-light-repair.py", line 335, in <module>
+    check(re.search(r"ThreadLocal<\s*Boolean\s*>\s*IN_REPAIR", repair_code),
+    ~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+          "�� ������բ ThreadLocal<Boolean> IN_REPAIR"
+          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+          "��2 �� getLightColor ���ֽ�����ǡ�ת�� 3 �Ρ���3 �α� mixin ���� \u21d2 ����բ�����޵ݹ飩")
+          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\user\Desktop\2\mzycBetterMTR-1.20.4\_tools\check-escalator-light-repair.py", line 117, in check
+    print(("  ==> ͨ��  " if ok else "  ==> ʧ��  ") + what + ("  -- " + detail if detail else ""))
+    ~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+UnicodeEncodeError: 'gbk' codec can't encode character '\u21d2' in position 95: illegal multibyte sequence
+
+############################################################
+# 扶梯黑面修复(Sodium兼容)
+############################################################
+  ==> 失败（完整输出见下方）
+== 1) Դ�ļ� ==
+  ==> ͨ��  ���ڣ�����բ�� SodiumLightRepair.java  -- src\client\java\smooth\lift\client\SodiumLightRepair.java
+  ==> ͨ��  ���ڣ�mixin LightDataAccessJellyMixin.java��jellysquid ������  -- src\client\java\smooth\lift\client\mixin\sodium\LightDataAccessJellyMixin.java
+  ==> ͨ��  ���ڣ�mixin LightDataAccessCafMixin.java��caffeinemc ������  -- src\client\java\smooth\lift\client\mixin\sodium\LightDataAccessCafMixin.java
+  ==> ͨ��  ���ڣ��Ž� SodiumLightMixinPlugin.java  -- src\client\java\smooth\lift\client\mixin\sodium\SodiumLightMixinPlugin.java
+  ==> ͨ��  ���ڣ����� smoothlift.sodium.mixins.json  -- src\client\resources\smoothlift.sodium.mixins.json
+
+== 2) ����ע�� ==
+  ==> ͨ��  ���� required = false��Sodium ��ѡ��ȱ���岻����
+  ==> ͨ��  �� defaultRequire = 0��caffeinemc ���尴��ṹ�ȼۼ���д����һ���˰����������Ǳ���Ϸ��
+  ==> ͨ��  ����ע���� SodiumLightMixinPlugin
+  ==> ͨ��  client �б������ mixin
+  ==> ͨ��  refmap ָ���� refmap
+  ==> ͨ��  fabric.mod.json �� mixins �б���ע���� smoothlift.sodium.mixins.json
+
+== 3) ���� mixin ==
+  ==> ͨ��  Jelly��targets = ��ȷ��������  -- ʵ�� me.jellysquid.mods.sodium.client.model.light.data.LightDataAccess
+Traceback (most recent call last):
+  File "C:\Users\user\Desktop\2\mzycBetterMTR-1.20.4\_tools\check-sodium-light-repair.py", line 167, in <module>
+    check(re.search(r'@Pseudo[\s\S]{0,40}?@Mixin\(', code),
+    ~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+          "�� %s������ @Pseudo��Ŀ���಻�ڱ�������·�� \u21d2 �����ڲ�У�飬����ʱ�Ҳ�����Ҳ����������" % label)
+          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\user\Desktop\2\mzycBetterMTR-1.20.4\_tools\check-sodium-light-repair.py", line 64, in check
+    print(("  ==> ͨ��  " if ok else "  ==> ʧ��  ") + what + ("  -- " + detail if detail else ""))
+    ~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+UnicodeEncodeError: 'gbk' codec can't encode character '\u21d2' in position 41: illegal multibyte sequence
+
+############################################################
+# 扶梯三页UI两列版式+五改
+############################################################
+  ==> 失败（完整输出见下方）
+===== 1) һ���˵����� = [��ť] ��ǩ [��]������ = ֱ��һ���˵�ͬ�� =====
+[PASS] BTN_W = 200��= ֱ��һ���˵� BTN_W���û���������Сһ������  -- ʵ�� = 200
+[PASS] MAIN_GAP = 10����ť �� ��ǩ��  -- ʵ�� = 10
+[PASS] MAIN_LABEL_GAP = 6����ǩ �� ��  -- ʵ�� = 6
+[PASS] MAIN_INPUT_W = 70��= ֱ�� MAIN_INPUT_W��  -- ʵ�� = 70
+[PASS] �� �ٶ��б�ǩ =���ٶȡ���ֱ����һ������д���ǡ���������  -- ʵ�� = '�ٶ�'
+[PASS] �� �����б�ǩ =������������ֱ��ͬһ���֣�  -- ʵ�� = '����'
+[PASS] ����ġ����� y = 40 / 62 / 84 / 106 / 128������ 22��  -- ʵ�� = [40, 62, 84, 106, 128]
+[PASS] �� �ٵó��ڲ��� RowNameButton ������
+[PASS] �� RowNameButton �ĳߴ� = BTN_W �� 20����ɵ㰴ťͬһ�ݳ�����  -- RowNameButton(int x, int y, Component label) { super(x, y, BTN_W, 20, label, button -> { }, DEFAULT_NARRATION); this.active = false; } @Override public boolean 
+[PASS] �� RowNameButton �������� active = false���㲻����
+Traceback (most recent call last):
+  File "C:\Users\user\Desktop\2\mzycBetterMTR-1.20.4\_tools\check-escalator-ui-twocol.py", line 163, in <module>
+    check("public boolean isHovered()" in rnb and "return false;" in rnb,
+    ~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+          "�� ѹ�� hover \u21d2 ��Զ�������õ��� hover����һ����ֱ�ݰ�ťͬһ��")
+          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\user\Desktop\2\mzycBetterMTR-1.20.4\_tools\check-escalator-ui-twocol.py", line 83, in check
+    print("[%s] %s%s" % ("PASS" if ok else "FAIL", label, ("  -- " + detail) if detail else ""))
+    ~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+UnicodeEncodeError: 'gbk' codec can't encode character '\u21d2' in position 18: illegal multibyte sequence
+
+############################################################
+# MBM批量音频指令
+############################################################
+  ==> 通过
+
+############################################################
+# 音频分类隔离
+############################################################
+  ==> 失败（完整输出见下方）
+== 1. ���ೣ�� ==
+[PASS] 17 �����ೣ������ Manager �ﶨ��
+[PASS] ALL_CATEGORIES �������
+[PASS] futi/music=���롢futi/help=��ʾ���train/*=�г����2026-09-27 ���θİ棩
+[PASS] �� ��ֵ "pbm/music" ֻ��ΪǨ������������ ��2��migrateCategoryKey + LEGACY_FOLDERS�������ٵ�������  -- ���� 2 ��
+[PASS] �� futi/ train/ pbm/ lift/ zhaji/ ֻ�Ƿ���Ŀ¼��û���κη���ǡ�õ��ڷ����������治�� ogg��  -- ����ֵ = ['futi/help', 'futi/music', 'lift/close', 'lift/down', 'lift/open', 'lift/up', 'pbm/arrive', 'pbm/close', 'pbm/midium', 'pbm/open', 'train/in', 'train/out', 'train/round', 'train/run', 'train/switch', 'zhaji/in', 'zhaji/out']
+[PASS] 17 ������ֵ = Ŀ¼����futi/* ��2��train/* ��5��pbm/* ��4��lift/* ��4��zhaji/* ��2��  -- ʵ�� = ['futi/help', 'futi/music', 'lift/close', 'lift/down', 'lift/open', 'lift/up', 'pbm/arrive', 'pbm/close', 'pbm/midium', 'pbm/open', 'train/in', 'train/out', 'train/round', 'train/run', 'train/switch', 'zhaji/in', 'zhaji/out']
+[PASS] �������ķ������� pbm/ ��
+[PASS] ֱ���ķ������� lift/ ��
+[PASS] �09-30��բ���������� zhaji/ �£���վ / ��վ��һ�����ļ��У�
+[PASS] migrateCategoryKey��pbm/futi|futi �� CAT_FUTI��pbm/help �� CAT_HELP��pbm/music �� CAT_TRAIN_RUN
+[PASS] �� Ǩ�Ʊ�**����** futi/music �� train/run�������������ÿ����һ�ξͱ���Ǩ������ bug��
+[PASS] ���� audioCategoryNames �ļ��� migrateCategoryKey���ɴ浵�������Ѵ��롹��
+[PASS] �� �Ϸ���**�ļ���**Ǩ�ƴ��ڣ��ļ������Ǩ�����ף�
+[PASS] ���ļ��б��pbm/futi��CAT_FUTI��pbm/help��CAT_HELP��pbm/music��CAT_TRAIN_RUN
+[PASS] ���ļ���Ǩ��ֻ�� .ogg��ͬ�������ǡ���ղ�ɾԴĿ¼�������ݹ�ɾ��
+[PASS] ALL_CATEGORIES ˳�� = ȫ�� 17 ������ͬ������д˳��һ�£�  -- ʵ�� ['CAT_FUTI', 'CAT_HELP', 'CAT_TRAIN_RUN', 'CAT_TRAIN_ROUND', 'CAT_TRAIN_SWITCH', 'CAT_TRAIN_IN', 'CAT_TRAIN_OUT', 'CAT_PSD_OPEN', 'CAT_PSD_CLOSE', 'CAT_PSD_MIDIUM', 'CAT_PSD_ARRIVE', 'CAT_LIFT_UP', 'CAT_LIFT_DOWN', 'CAT_LIFT_OPEN', 'CAT_LIFT_CLOSE', 'CAT_ZHAJI_IN', 'CAT_ZHAJI_OUT']
+[PASS] �� ������ CAT_MUSIC �ѳ����Ƴ������� CAT_TRAIN_RUN �������
+[PASS] ���ݲ㣺���� �� �ѵ���ע��� + ���� �� �����뾵��ȡ����ƽ���ֶΣ�
+
+== 2. �ͻ������б������ȡ ==
+[PASS] AudioSetupScreen.java �����б�����������
+[PASS] AudioSetupScreen.java ���������أ����Ѵ����ࣩ
+[PASS] HelpAudioSetupScreen.java �����б�����������
+[PASS] HelpAudioSetupScreen.java ���������أ����Ѵ����ࣩ
+[PASS] LiftToneSetupScreen.java �����б�����������
+[PASS] LiftToneSetupScreen.java �а�ҳȡ������߼�
+[PASS] PsdToneSetupScreen.java �����б�����������
+[PASS] PsdToneSetupScreen.java �а�ҳȡ������߼�
+[PASS] TrainSoundScreen.java �����б�����������
+[PASS] TrainSoundScreen.java �а�ҳȡ������߼�
+[PASS] ZhajiToneSetupScreen.java �����б�����������
+[PASS] ZhajiToneSetupScreen.java �а�ҳȡ������߼�
+
+== 3. DELETE_AUDIO �������� ==
+[PASS] ����� DELETE �������ȶ�����(utf64) �ٶ�����(utf128)
+[PASS] ������ɾ��deleteAudio(level, category, id)��
+[PASS] AudioSetupScreen.java��DELETE ���� = writeUtf(����,64) + writeUtf(����,128)  -- ǰ����д [('EscalatorSpeedManager.CAT_FUTI', '64'), ('name', '128')]
+[PASS] HelpAudioSetupScreen.java��DELETE ���� = writeUtf(����,64) + writeUtf(����,128)  -- ǰ����д [('EscalatorSpeedManager.CAT_HELP', '64'), ('name', '128')]
+[PASS] PsdToneSetupScreen.java��DELETE ���� = writeUtf(����,64) + writeUtf(����,128)  -- ǰ����д [('category', '64'), ('id', '128')]
+[PASS] TrainSoundScreen.java��DELETE ���� = writeUtf(����,64) + writeUtf(����,128)  -- ǰ����д [('currentCategory()', '64'), ('id', '128')]
+[PASS] ZhajiToneSetupScreen.java��DELETE ���� = writeUtf(����,64) + writeUtf(����,128)  -- ǰ����д [('categoryFor(which)', '64'), ('id', '128')]
+
+== 4. IMPORT_PSD_MIDIUM_AUDIO_CHANNEL ������ ==
+[PASS] ����˴�����������ȶ�����(utf64) �ٶ�����(utf128)
+[PASS] ������ķ��ർ�루����д�� CAT_PSD_MIDIUM��
+[PASS] TrainSoundScreen.java�������뷢�͵�����ࣨcurrentCategory()��
+[PASS] PsdToneSetupScreen.java�������뷢�͵�����ࣨcategoryForPage��
+
+== 5. ͬ����������ṹ��д�� == ���ࣩ ==
+[PASS] д�ࣺ��д������
+[PASS] д�ࣺÿ������ɨ�Լ������ļ���
+[PASS] д�ࣺÿ������д�ѵ���ע���
+[PASS] ���ࣺ������ �� ������������� + �ѵ�������
+[PASS] ��������ŷ����ι�� applyClientAudioData����ǩ����
+
+== 6. ָ�ȫ������ ==
+[PASS] liftToneNameCandidates ���������
+[PASS] psdNameCandidates ���������
+[PASS] psdMidiumSuggestions ���������
+[PASS] psdArriveSuggestions ���������
+[PASS] getServerAudioLibraryKeys ֻ����һ�Σ������ࣩ
+
+== 7. �� UPLOAD ��ͨ����ɾ�������� Forge����й©·����� ==
+[PASS] �� UPLOAD_AUDIO_CHANNEL �Ѵӷ���� + �ͻ���**����ɾ��**������ = �ƹ�����ע�����⣩
+[PASS] �� �ϴ�����handleAudioUploadChunk / storeAudio / PENDING_UPLOADS / MAX_AUDIO_NAME�������
+[PASS] �� AUDIO_CHUNK_SIZE �����ͬ���ְ������ã����ϴ����޹أ�
+Traceback (most recent call last):
+  File "C:\Users\user\Desktop\2\mzycBetterMTR-1.20.4\_tools\check-audio-category.py", line 234, in <module>
+    print("\n== 8. �� �г���ҳ \u2194 �����ͬ������/ת��/����/��վ/��վ�� ==")
+    ~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+UnicodeEncodeError: 'gbk' codec can't encode character '\u2194' in position 15: illegal multibyte sequence
+
+############################################################
+# 闸机提示音
+############################################################
+  ==> 失败（完整输出见下方）
+===== 1) ���ݲ㣺4 ���ֶ� + NBT ��д�ɶ� + ������ȡ =====
+  ==> ͨ��  ZHAJI_TONE_DEFAULT �ж���  -- ʵ�� = LIFT_TONE_DEFAULT
+  ==> ͨ��  �� ZHAJI_TONE_DEFAULT ���� LIFT_TONE_DEFAULT����ֱ��/������ͬһ���ڱ���ȱʡֵ��������һ�ݣ�  -- ʵ�� = LIFT_TONE_DEFAULT
+  ==> ͨ��  ZHAJI_TONE_OFF �ж���  -- ʵ�� = LIFT_TONE_OFF
+  ==> ͨ��  �� ZHAJI_TONE_OFF ���� LIFT_TONE_OFF����ֱ��/������ͬһ���ڱ���ȱʡֵ��������һ�ݣ�  -- ʵ�� = LIFT_TONE_OFF
+  ==> ͨ��  DEFAULT_ZHAJI_VOLUME �ж���  -- ʵ�� = DEFAULT_HELP_VOLUME
+  ==> ͨ��  �� DEFAULT_ZHAJI_VOLUME ���� DEFAULT_HELP_VOLUME����ֱ��/������ͬһ���ڱ���ȱʡֵ��������һ�ݣ�  -- ʵ�� = DEFAULT_HELP_VOLUME
+  ==> ͨ��  �ֶ� defaultZhajiToneAudioIn �ж���
+  ==> ͨ��  �ֶ� defaultZhajiToneAudioOut �ж���
+  ==> ͨ��  �ֶ� defaultZhajiToneVolumeIn �ж���
+  ==> ͨ��  �ֶ� defaultZhajiToneVolumeOut �ж���
+  ==> ͨ��  д����defaultZhajiToneAudioIn �� NBT
+  ==> ͨ��  д����defaultZhajiToneAudioOut �� NBT
+  ==> ͨ��  д����defaultZhajiToneVolumeIn �� NBT
+  ==> ͨ��  д����defaultZhajiToneVolumeOut �� NBT
+Traceback (most recent call last):
+  File "C:\Users\user\Desktop\2\mzycBetterMTR-1.20.4\_tools\check-zhaji-tone.py", line 169, in <module>
+    check('tag.contains("%s")' % f in data_no,
+    ~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+          "�� ������%s �� contains �������ϴ浵ȱ�� \u21d2 ��Ĭ�ϣ����ף�" % f)
+          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\user\Desktop\2\mzycBetterMTR-1.20.4\_tools\check-zhaji-tone.py", line 81, in check
+    print("  ==> %s  %s%s" % ("ͨ��" if ok else "ʧ��", label,
+    ~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+                              ("  -- " + detail) if detail else ""))
+                              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+UnicodeEncodeError: 'gbk' codec can't encode character '\u21d2' in position 59: illegal multibyte sequence
+
+############################################################
+# 打开文件夹按钮
+############################################################
+  ==> 失败（完整输出见下方）
+===== 1) ���Ͻ����Ű�ť�ļ���ֻ��һ������ =====
+  ==> ͨ��  ENTRY_W �� public ������ = 76  -- ʵ�� = 76
+  ==> ͨ��  ENTRY_MARGIN �� public ������ = 4  -- ʵ�� = 4
+  ==> ͨ��  ENTRY_GAP �� public ������ = 4  -- ʵ�� = 4
+  ==> ͨ��  ENTRY_Y �� public ������ = 6  -- ʵ�� = 6
+  ==> ͨ��  ENTRY_H �� public ������ = 20  -- ʵ�� = 20
+  ==> ͨ��  �� syncButton �Լ�����һ�׳����������� -4 / 6 / 20 ��ħ����
+Traceback (most recent call last):
+  File "C:\Users\user\Desktop\2\mzycBetterMTR-1.20.4\_tools\check-open-folder.py", line 107, in <module>
+    check(FOLDER_X in folder_t,
+    ~~~~~^^^^^^^^^^^^^^^^^^^^^^
+          "��� �����ļ��С��� x = width \u2212 �ұ߾� \u2212 ͬ����ť�� \u2212 ��� \u2212 �Լ��� \u21d2 ������ͬ����ť���",
+          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+          "ʵ��ʽ�� = %s" % (_m.group(1) if _m else "(û�ҵ�)"))
+          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\user\Desktop\2\mzycBetterMTR-1.20.4\_tools\check-open-folder.py", line 51, in check
+    print(("  ==> ͨ��  " if ok else "  ==> ʧ��  ") + what + ("  -- " + detail if detail else ""))
+    ~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+UnicodeEncodeError: 'gbk' codec can't encode character '\u2212' in position 32: illegal multibyte sequence
+
+############################################################
+# 预设选择界面与预设
+############################################################
+  ==> 失败（完整输出见下方）
+
+===== 1) ����Ԥ���ָ���嵥��ǰ 10 �����û�ԭ�����ֱȶԣ�=====
+  ==> ͨ��  �ٵó� PRESET_CLASSIC_MTR ����
+  ==> ͨ��  ���������Ԥ�衹��ǰ 10 �����û�ԭ��**��������**һ��  -- ʵ��ǰ 10 �� = ['futimusic -f default', 'futihelp -f on', 'lifthelp -f on', 'lifthelp open -f on', 'lifthelp close -f on', 'lifthelp up -f on', 'lifthelp down -f on', 'pbmclosewait -f 1', 'pbmmusic open -f default', 'pbmmusic close -f default-m']
+  ==> ͨ��  ���������Ԥ�衹= �û��� 10 �� + 2 �����ӿ��� + 1 ����������ʽ  -- ʵ�� = ['futimusic -f default', 'futihelp -f on', 'lifthelp -f on', 'lifthelp open -f on', 'lifthelp close -f on', 'lifthelp up -f on', 'lifthelp down -f on', 'pbmclosewait -f 1', 'pbmmusic open -f default', 'pbmmusic close -f default-m', 'pbmmusic open -f on', 'pbmmusic close -f on', 'pbmnarrate hongkong -f']
+  ==> ͨ��  �ٵó� PRESET_SIMPLE_MTR ����
+  ==> ͨ��  ���򵥸���Ԥ�衹��ǰ 10 �����û�ԭ��**��������**һ��  -- ʵ��ǰ 10 �� = ['futimusic -f default', 'futihelp -f off', 'lifthelp -f on', 'lifthelp open -f off', 'lifthelp close -f off', 'lifthelp up -f on', 'lifthelp down -f on', 'pbmclosewait -f 1', 'pbmmusic open -f default', 'pbmmusic close -f default-s']
+  ==> ͨ��  ���򵥸���Ԥ�衹= �û��� 10 �� + 2 �����ӿ��� + 1 ����������ʽ  -- ʵ�� = ['futimusic -f default', 'futihelp -f off', 'lifthelp -f on', 'lifthelp open -f off', 'lifthelp close -f off', 'lifthelp up -f on', 'lifthelp down -f on', 'pbmclosewait -f 1', 'pbmmusic open -f default', 'pbmmusic close -f default-s', 'pbmmusic open -f on', 'pbmmusic close -f on', 'pbmnarrate off -f']
+  ==> ͨ��  �ٵó� PRESET_BLANK ����
+  ==> ͨ��  ���հ�Ԥ�衹��ǰ 10 �����û�ԭ��**��������**һ��  -- ʵ��ǰ 10 �� = ['futimusic -f off', 'futihelp -f off', 'lifthelp -f off', 'lifthelp open -f off', 'lifthelp close -f off', 'lifthelp up -f off', 'lifthelp down -f off', 'pbmclosewait -f 1', 'pbmmusic open -f off', 'pbmmusic close -f off']
+  ==> ͨ��  ���հ�Ԥ�衹= �û��� 10 �� + 0 �����ӿ��� + 1 ����������ʽ  -- ʵ�� = ['futimusic -f off', 'futihelp -f off', 'lifthelp -f off', 'lifthelp open -f off', 'lifthelp close -f off', 'lifthelp up -f off', 'lifthelp down -f off', 'pbmclosewait -f 1', 'pbmmusic open -f off', 'pbmmusic close -f off', 'pbmnarrate off -f']
+  ==> ͨ��  ������հײ���ͬһ���嵥����ֹ����ճ����©��
+  ==> ͨ��  ����հײ���ͬһ���嵥
+
+===== 1c) �����ˣ��������������(���)���򵥸��� / �հף��ر� =====
+  ==> ͨ��  ���������Ԥ�衹�Ľ�������Ŀ = ['pbmnarrate hongkong -f']  -- ʵ�� = ['pbmnarrate hongkong -f']
+  ==> ͨ��  ���򵥸���Ԥ�衹�Ľ�������Ŀ = ['pbmnarrate off -f']  -- ʵ�� = ['pbmnarrate off -f']
+  ==> ͨ��  ���հ�Ԥ�衹�Ľ�������Ŀ = ['pbmnarrate off -f']  -- ʵ�� = ['pbmnarrate off -f']
+  ==> ͨ��  ��������Ԥ�衹��**���һ��**���ǽ�������һ��������������ȱ��  -- ʵ��ĩ�� = pbmnarrate hongkong -f
+  ==> ͨ��  ��������Ԥ�衹�ｲ������Ŀ**ǡ��һ��**���������ʽ�����ģ�  -- ʵ�� = ['pbmnarrate hongkong -f']
+  ==> ͨ��  ��򵥸���Ԥ�衹��**���һ��**���ǽ�������һ��������������ȱ��  -- ʵ��ĩ�� = pbmnarrate off -f
+  ==> ͨ��  ��򵥸���Ԥ�衹�ｲ������Ŀ**ǡ��һ��**���������ʽ�����ģ�  -- ʵ�� = ['pbmnarrate off -f']
+  ==> ͨ��  ��հ�Ԥ�衹��**���һ��**���ǽ�������һ��������������ȱ��  -- ʵ��ĩ�� = pbmnarrate off -f
+  ==> ͨ��  ��հ�Ԥ�衹�ｲ������Ŀ**ǡ��һ��**���������ʽ�����ģ�  -- ʵ�� = ['pbmnarrate off -f']
+  ==> ͨ��  ��� �������Ԥ���**���һ��** = /pbmnarrate hongkong -f������(���)���û�������
+  ==> ͨ��  ��� �򵥸���Ԥ���**���һ��** = /pbmnarrate off -f��**�ر�**�����ˣ��û�������
+  ==> ͨ��  ��� �հ�Ԥ���**���һ��** = /pbmnarrate off -f��**�ر�**�����ˣ��û�������
+  ==> ͨ��  ��� �򵥸���**����**���ǿ���(�Ϻ�)���� 2 �ǰ��ѱ��� 4 �Ʒ���
+  ==> ͨ��  ��� ����Ԥ���ﶼ������� `pbmnarrate shanghai`���Ϻ���ֻ������Լ�ѡ��
+  ==> ͨ��  �ٵó� MbmHelpScreen.sendPreset ������
+Traceback (most recent call last):
+  File "C:\Users\user\Desktop\2\mzycBetterMTR-1.20.4\_tools\check-mbm-help.py", line 260, in <module>
+    check(re.search(r"if \(ID_CLASSIC\.equals\(presetId\)\)\s*\{\s*"
+    ~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+                    r"TrainAnnounceSwitch\.enableForPreset\(\);", sb) is not None,
+                    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+          "��� �������Ԥ�� \u21d2 �ͻ���˳��**��**��բ")
+          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\user\Desktop\2\mzycBetterMTR-1.20.4\_tools\check-mbm-help.py", line 56, in check
+    print(("  ==> ͨ��  " if ok else "  ==> ʧ��  ") + what + ("  -- " + detail if detail else ""))
+    ~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+UnicodeEncodeError: 'gbk' codec can't encode character '\u21d2' in position 20: illegal multibyte sequence
+
+############################################################
+# 同步所有按钮与弹窗
+############################################################
+  ==> 失败（完整输出见下方）
+
+===== 1) ����������ϽǸ�һ����ͬ�����С���� =====
+  ==> ͨ��  ����һ�����������ã���ǡ��һ�� syncButton ����  -- ʵ�� 1 ��
+  ==> ͨ��  ����һ�����������ã���syncButton ���ʵ����ȫ  -- ʵ�� = ['this', '"esc"', 'SmoothLift.SYNC_TOP_LEVEL', 'pos.asLong()', 'this::applyChanges']
+  ==> ͨ��  ����һ�����������ã���host = this�������ص��ص������棩  -- this
+  ==> ͨ��  ����һ�����������ã����� = esc  -- "esc"
+  ==> ͨ��  ����һ�����������ã������ = SmoothLift.SYNC_TOP_LEVEL  -- SmoothLift.SYNC_TOP_LEVEL
+  ==> ͨ��  ����һ�����������ã������ = pos.asLong()  -- pos.asLong()
+  ==> ͨ��  ����һ�����������ã�����ػص� = this::applyChanges  -- this::applyChanges
+  ==> ͨ��  ���ݶ�����ѡ��������֣���ǡ��һ�� syncButton ����  -- ʵ�� 1 ��
+  ==> ͨ��  ���ݶ�����ѡ��������֣���syncButton ���ʵ����ȫ  -- ʵ�� = ['this', '"esc"', 'SmoothLift.SYNC_ESC_AUDIO', 'pos.asLong()', 'null']
+  ==> ͨ��  ���ݶ�����ѡ��������֣���host = this�������ص��ص������棩  -- this
+  ==> ͨ��  ���ݶ�����ѡ��������֣����� = esc  -- "esc"
+  ==> ͨ��  ���ݶ�����ѡ��������֣������ = SmoothLift.SYNC_ESC_AUDIO  -- SmoothLift.SYNC_ESC_AUDIO
+  ==> ͨ��  ���ݶ�����ѡ��������֣������ = pos.asLong()  -- pos.asLong()
+  ==> ͨ��  ���ݶ�����ѡ��������֣�����ػص� = null  -- null
+  ==> ͨ��  ���ݶ�����ѡ�����ϰ���ʾ�����ǡ��һ�� syncButton ����  -- ʵ�� 1 ��
+  ==> ͨ��  ���ݶ�����ѡ�����ϰ���ʾ�����syncButton ���ʵ����ȫ  -- ʵ�� = ['this', '"esc"', 'SmoothLift.SYNC_ESC_HELP_AUDIO', 'pos.asLong()', 'null']
+  ==> ͨ��  ���ݶ�����ѡ�����ϰ���ʾ�����host = this�������ص��ص������棩  -- this
+  ==> ͨ��  ���ݶ�����ѡ�����ϰ���ʾ������� = esc  -- "esc"
+  ==> ͨ��  ���ݶ�����ѡ�����ϰ���ʾ�������� = SmoothLift.SYNC_ESC_HELP_AUDIO  -- SmoothLift.SYNC_ESC_HELP_AUDIO
+  ==> ͨ��  ���ݶ�����ѡ�����ϰ���ʾ�������� = pos.asLong()  -- pos.asLong()
+  ==> ͨ��  ���ݶ�����ѡ�����ϰ���ʾ�������ػص� = null  -- null
+  ==> ͨ��  ֱ�ݣ�һ���˵� + �����б�ҳ����ǡ��һ�� syncButton ����  -- ʵ�� 1 ��
+  ==> ͨ��  ֱ�ݣ�һ���˵� + �����б�ҳ����syncButton ���ʵ����ȫ  -- ʵ�� = ['this', '"lift"', 'page', 'key', 'page > 0 ? null : this::applyMainVolumes']
+  ==> ͨ��  ֱ�ݣ�һ���˵� + �����б�ҳ����host = this�������ص��ص������棩  -- this
+  ==> ͨ��  ֱ�ݣ�һ���˵� + �����б�ҳ������ = lift  -- "lift"
+  ==> ͨ��  ֱ�ݣ�һ���˵� + �����б�ҳ������� = page  -- page
+  ==> ͨ��  ֱ�ݣ�һ���˵� + �����б�ҳ������� = key  -- key
+  ==> ͨ��  ֱ�ݣ�һ���˵� + �����б�ҳ������ػص� = page > 0 ? null : this::applyMainVolumes  -- page > 0 ? null : this::applyMainVolumes
+  ==> ͨ��  �����ţ������� + �ĸ�����ҳ����ǡ��һ�� syncButton ����  -- ʵ�� 1 ��
+  ==> ͨ��  �����ţ������� + �ĸ�����ҳ����syncButton ���ʵ����ȫ  -- ʵ�� = ['this', '"psd"', 'page', 'runKey', 'this::applyMainInputs']
+  ==> ͨ��  �����ţ������� + �ĸ�����ҳ����host = this�������ص��ص������棩  -- this
+  ==> ͨ��  �����ţ������� + �ĸ�����ҳ������ = psd  -- "psd"
+  ==> ͨ��  �����ţ������� + �ĸ�����ҳ������� = page  -- page
+  ==> ͨ��  �����ţ������� + �ĸ�����ҳ������� = runKey  -- runKey
+  ==> ͨ��  �����ţ������� + �ĸ�����ҳ������ػص� = this::applyMainInputs  -- this::applyMainInputs
+  ==> ͨ��  �õ����򼯺� == {esc, lift, psd}  -- ʵ�� = ['esc', 'lift', 'psd']
+
+===== 2) ��ڰ�ť��λ�����Ͻ� =====
+  ==> ͨ��  �ٵó� syncButton() ������
+  ==> ͨ��  syncButton ���� .bounds(...)
+  ==> ͨ��  �� x �� host.width �����ƣ����ң�  -- host.width - ENTRY_MARGIN - ENTRY_W, ENTRY_Y, ENTRY_W, ENTRY_H
+Traceback (most recent call last):
+  File "C:\Users\user\Desktop\2\mzycBetterMTR-1.20.4\_tools\check-1.55-sync.py", line 261, in <module>
+    check("-" in b.split(",")[0], "�� x �ǡ��� \u2212 ��ť������������أ�", b.split(",")[0])
+    ~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\user\Desktop\2\mzycBetterMTR-1.20.4\_tools\check-1.55-sync.py", line 50, in check
+    print(("  ==> ͨ��  " if ok else "  ==> ʧ��  ") + what + ("  -- " + detail if detail else ""))
+    ~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+UnicodeEncodeError: 'gbk' codec can't encode character '\u2212' in position 18: illegal multibyte sequence
+
+############################################################
+# 列车音效界面与侧线
+############################################################
+  ==> 失败（完整输出见下方）
+  ����β���TrainSoundScreen CRLF=0 / SmoothLift CRLF=0��
+
+== 1) ��ڣ���ָ���ʯ���Ҽ� ==
+  ==> ͨ��  ����˲����� train_music_open Ƶ������
+  ==> ͨ��  ����˲����� smoothlift:train_music_open ����
+  ==> ͨ��  ����˲����� mbmTrainMusicOpen ����
+  ==> ͨ��  �� ָ�����ﲻ�� train �տǷ���ڵ㣨���˻��� /MBM train �����������ڡ���
+  ==> ͨ��  �ͻ��˲���ע����ֻ�հ�������
+  ==> ͨ��  �ͻ����Ҽ��ص��� mtr:rail �з���
+  ==> ͨ��  �ͻ��˿� MtrSidingAccess �ϲ���
+  ==> ͨ��  ������Ų�����ݴ�
+  ==> ͨ��  �� �ϲ������ߣ�NO_SIDING��ʱ**�ڿ�����֮ǰ**�� return������һ����ݲ����Ľ���
+  ==> ͨ��  ��˳����ס������������ֻ�հ�������û�����ɾ�����ˣ�
+
+== 2) �����оݣ�mtr:rail��ͬʱ�������ռ䣬��ײ��ԭ�� minecraft:rail��==
+  ==> ͨ��  SmoothLift ���� isMtrRail
+  ==> ͨ��  �� �оݲ��������ռ� = mtr
+  ==> ͨ��  �оݲ���·�� = rail
+Traceback (most recent call last):
+  File "C:\Users\user\Desktop\2\mzycBetterMTR-1.20.4\_tools\check-1.57-train-siding.py", line 222, in <module>
+    check('"mtr".equals(id.getNamespace()) && "rail".equals(id.getPath())' in body,
+    ~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+          "�� �����оݱ�������ͬһ�����ʽ�ֻ��·���Ļ���ԭ�� minecraft:rail ��·��Ҳ�� "
+          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+          "rail����һ������ \u21d2 ʯ���Ҽ���ͨ����Ҳ�����棩")
+          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\user\Desktop\2\mzycBetterMTR-1.20.4\_tools\check-1.57-train-siding.py", line 41, in check
+    print(("  ==> ͨ��  " if ok else "  ==> ʧ��  ") + what + ("  -- " + detail if detail else ""))
+    ~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+UnicodeEncodeError: 'gbk' codec can't encode character '\u21d2' in position 70: illegal multibyte sequence
+
+############################################################
+# 直梯提示音链路
+############################################################
+  ==> 失败（完整输出见下方）
+�������ĳ��������=0.8s  ����=4��  ����=2��  ����=0.5~2.0  eps=0.001  20tps=20
+
+[PASS] MTR3 ��һ����ĸ == 24���ɼ�ȫ��ֵ��= min(doorValue/24,1) �ķ�ĸ��  -- ʵ�� 24.0����Ϊ 48 �������ʾ����� 1.2 ��
+[PASS] MTR4 ��һ����ĸ == 1��getDoorValue() �������ǿɼ����϶ȣ�  -- ʵ�� 1.0
+[PASS] MtrLiftAccess ��¼�� doorValue/24 ���ֽ������ݣ�LiftClient.tickClient��
+
+MTR3������ ['opening', 'closing']��[(1, 'opening', 1.0), (113, 'closing', 23.0)]��
+[PASS] MTR3 һ������ǡ�ô��� 1 �ο��� + 1 �ι���  -- ʵ�� ['opening', 'closing']
+[PASS] MTR3 ���Ŵ������ڿɼ�������㣨doorValue��1��  -- ����ʱ doorValue=1.0
+[PASS] MTR3 ���Ŵ������ڿɼ�������㣨doorValue��23�������� 47��  -- ����ʱ doorValue=23.0����д 48 ʱ���� ��47��
+[PASS] MTR3 ���Ŵ��������� doorValue��(24,48] �Ŀɼ��յ���  -- ����ʱ doorValue=23.0
+MTR4������ ['opening', 'closing']��[(502, 'opening', 0.00125), (4102, 'closing', 0.99875)]��
+[PASS] MTR4 һ������ǡ�ô��� 1 �ο��� + 1 �ι���  -- ʵ�� ['opening', 'closing']
+[PASS] MTR4 ���Ŵ������� cooldown��500���ɼ�������㣩  -- ����ʱ cooldown=502 ms
+[PASS] MTR4 ���Ŵ������� cooldown��4101���ɼ�������㣩  -- ����ʱ cooldown=4102 ms
+
+[PASS] ���գ���ĸ���˻� 48�����Ŵ������䵽 doorValue��47�����ڿɼ��յ� �� �� 1.2 �룩  -- ���ս�� (89, 'closing', 47.0)
+
+[PASS] ������� max(1, round(0.8/speed��20)) �� 1 tick �Ա�����[0.5,2.0]ȫ������  -- �쳣 []
+[PASS] �������� 4 �Ρ��������� 2 �Σ�����ԭ�ģ�  -- ���ſ�� 128tick(6.4s) ���ſ�� 64tick(3.2s) @��������
+[PASS] �ҵ� detect ������
+[PASS] *��1.52������� ogg��customId != null���������� = 1��ֻ��һ�Σ����롸�Զ����زİ�ԭ�ٲ���д��ͬһ����֧��
+[PASS] *��1.52�������ز����ߡ����� 4 �� / ���� 2 �Ρ������������� else ��֧�
+[PASS] �ϵġ����������� 4/2 �㡢�ٱ��Զ���������ǡ�д������ʧ�����ž����������򲢴棬���ŷֲ棩
+[PASS] �����زģ����� 4 �Ρ����� 2 �Σ��û������Ľ��࣬���β�����
+[PASS] *����� ogg�����š����Ŷ�**ֻ��һ��**����1.52���û�������
+Traceback (most recent call last):
+  File "C:\Users\user\Desktop\2\mzycBetterMTR-1.20.4\_tools\check-lift-chime.py", line 317, in <module>
+    check(plays(False, True) != plays(False, False) and plays(True, True) != plays(True, False),
+    ~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+          "���գ�������ز���Դ������Ҳ�� 4/2 �Σ�\u21d2 �����Ÿ����� 1 / 3 ��"
+          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+          " \u21d2 �������������м����������Ǻ���",
+          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+          "���վ� = ���� %d �� / ���� %d �Σ����� = 1 �� / 1 ��"
+          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+          % (plays(True, False), plays(False, False)))
+          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\user\Desktop\2\mzycBetterMTR-1.20.4\_tools\check-lift-chime.py", line 84, in check
+    print(line)
+    ~~~~~^^^^^^
+UnicodeEncodeError: 'gbk' codec can't encode character '\u21d2' in position 29: illegal multibyte sequence
+
+############################################################
+# 直梯四提示音素材
+############################################################
+  ==> 失败（完整输出见下方）
+== 1. ͨ�����ͻ���/����˸�һ���շ��㣩 ==
+[PASS] SmoothLift ������������1.45��ͨ��  -- set=set_lift_tone import=import_folder_lift_tone sync=lift_tone_sync
+[PASS] �����ע�����������������ͳ��߶����յ������
+[PASS] �ͻ���ע���� LIFT_TONE_SYNC ���������������£�
+[PASS] JOIN / REQUEST_SYNC ������������ֱ����ʾ��������������õ���
+
+== 2. ���ݲ㣨������ key + ���ֶ� + �������壩 ==
+[PASS] SavedData ����������� �� ����Ƶ id �ı�
+[PASS] default / off �����ڱ�ֵ���������ݲ㣨����� HELP_AUDIO ͬ���
+[PASS] NBT ��д�ɶԴ��ڣ��ɴ浵ȱ�� �� �ձ� = ȫ��Ĭ���زģ�
+Traceback (most recent call last):
+  File "C:\Users\user\Desktop\2\mzycBetterMTR-1.20.4\_tools\check-lift-tone.py", line 110, in <module>
+    check("record LiftToneAudio(String up, String down, String open, String close)" in data,
+    ~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+          "������ record���ֶ� final \u21d2 ɾ����Ƶ��Ĭ��ʱҪ�����滻���ű��� 5 �ν����飩")
+          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\user\Desktop\2\mzycBetterMTR-1.20.4\_tools\check-lift-tone.py", line 53, in check
+    print("[%s] %s%s" % ("PASS" if ok else "FAIL", label, ("  -- " + detail) if detail else ""))
+    ~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+UnicodeEncodeError: 'gbk' codec can't encode character '\u21d2' in position 27: illegal multibyte sequence
+
+############################################################
+# 直梯准备移动音
+############################################################
+  ==> 失败（完整输出见下方）
+== 1. �ز� ==
+[PASS] assets/smoothlift/sounds/audio/up.ogg �����ҷǿ�  -- 54540 B
+[PASS] up.ogg �� OggS ������Minecraft ֻ�� OGG Vorbis��  -- ħ�� b'OggS'
+[PASS] up.ogg ʱ�� 3.39 s < 10 s�����زģ���ֱ����Ƕ���� stream��
+[SKIP] ��������û�� up.ogg����������ԭ�ز����ֽ���ͬ����һ��
+[PASS] assets/smoothlift/sounds/audio/down.ogg �����ҷǿ�  -- 58152 B
+[PASS] down.ogg �� OggS ������Minecraft ֻ�� OGG Vorbis��  -- ħ�� b'OggS'
+[PASS] down.ogg ʱ�� 3.62 s < 10 s�����زģ���ֱ����Ƕ���� stream��
+[SKIP] ��������û�� down.ogg����������ԭ�ز����ֽ���ͬ����һ��
+
+== 2. sounds.json ==
+[PASS] sounds.json ע���� audio/up �� smoothlift:audio/up  -- ʵ�� smoothlift:audio/up
+[PASS] audio/up ָ��� .ogg �ļ�����ڣ�ע����ȴû���ļ� = ���澲Ĭ���죬���Ѳ�����ࣩ
+[PASS] sounds.json ע���� audio/down �� smoothlift:audio/down  -- ʵ�� smoothlift:audio/down
+[PASS] audio/down ָ��� .ogg �ļ�����ڣ�ע����ȴû���ļ� = ���澲Ĭ���죬���Ѳ�����ࣩ
+[PASS] ���գ����ű�ȷʵ�����֡���ע�᡹�롸���ļ�������һ�������ڵ�������֤��õ���
+
+== 3. LiftChimePlayer ==
+[PASS] LIFT_UP ָ�� smoothlift:audio/up  -- ʵ�� audio/up
+[PASS] LIFT_DOWN ָ�� smoothlift:audio/down  -- ʵ�� audio/down
+[PASS] �ҵ� detectMove ������
+[PASS] �о��� `now != NONE && now != prev`��д�� now==NONE || now==prev ��ǰ return��  -- ����ǡ�һ�� NONE��UP/DOWN ����ֻ��һ�Ρ���ȫ������
+Traceback (most recent call last):
+  File "C:\Users\user\Desktop\2\mzycBetterMTR-1.20.4\_tools\check-lift-move-sound.py", line 189, in <module>
+    check("playsLeft" not in body and "nextPlayTick" not in body,
+    ~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+          "detectMove �����������ڣ�playsLeft/nextPlayTick��\u21d2 ���ᶥ�����ڽ��еĹ�������")
+          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\user\Desktop\2\mzycBetterMTR-1.20.4\_tools\check-lift-move-sound.py", line 69, in check
+    print("[%s] %s%s" % ("PASS" if ok else "FAIL", label, ("  -- " + detail) if detail else ""))
+    ~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+UnicodeEncodeError: 'gbk' codec can't encode character '\u21d2' in position 48: illegal multibyte sequence
+
+############################################################
+# 淡入淡出全按比例
+############################################################
+  ==> 失败（完整输出见下方）
+== 1. �ھ�������û�����������д�ɲ���������`1 - d/R`�� ==
+[PASS] R=10������ 0 �� = 100%  -- 1.0000
+[PASS] R=10������ 1 �� = 90%���û����� 1��  -- 0.9000
+[PASS] R=10������ 5 �� = 50%�����Դ����ơ����е㣩  -- 0.5000
+[PASS] R=5������ 1 �� = 80%���û����� 2��  -- 0.8000
+[PASS] R=5������ 4 �� = 20%  -- 0.2000
+[PASS] �� R ������ 0������Ӳ�� 0�����Ǳ为 / ������һ��β�ͣ�
+Traceback (most recent call last):
+  File "C:\Users\user\Desktop\2\mzycBetterMTR-1.20.4\_tools\check-fade-curves.py", line 133, in <module>
+    check(all(abs((_steps[i] - _steps[i + 1]) - 0.1) < 1e-12 for i in range(10)),
+    ~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+          "R=10������ÿ���**��ֵ�㶨 0.1** \u21d2 ����ǡ���������������ƽ��/ָ��",
+          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+          " / ".join("%.1f" % v for v in _steps))
+          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\user\Desktop\2\mzycBetterMTR-1.20.4\_tools\check-fade-curves.py", line 77, in check
+    print("[%s] %s%s" % ("PASS" if ok else "FAIL", label, ("  -- " + detail) if detail else ""))
+    ~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+UnicodeEncodeError: 'gbk' codec can't encode character '\u21d2' in position 30: illegal multibyte sequence
+
+############################################################
+# 无障碍提示音分档
+############################################################
+  ==> 失败（完整输出见下方）
+�زģ�ԭʼ���ʣ�:
+  CHIME_1HZ       1 Hz  audio/escalator_chime_alight             ����
+  CHIME_4HZ       4 Hz  audio/escalator_chime_rate4              ����
+  CHIME_10HZ     10 Hz  audio/escalator_chime_board              ����
+  CHIME_25HZ     25 Hz  audio/escalator_chime_rate25             ����
+  CHIME_50HZ     50 Hz  audio/escalator_chime_rate50             ����
+�ֵ�:
+Traceback (most recent call last):
+  File "C:\Users\user\Desktop\2\mzycBetterMTR-1.20.4\_tools\check-chime-tiers.py", line 165, in <module>
+    sys.exit(main())
+             ~~~~^^
+  File "C:\Users\user\Desktop\2\mzycBetterMTR-1.20.4\_tools\check-chime-tiers.py", line 129, in main
+    print("  hz <= %-4s -> %-12s (ԭʼ %3d Hz, ���� %-5g \u21d2 ���� [%.2f, %.2f])%s"
+    ~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+          % (span, name, rate, div, rate * 0.5, rate * 2.0, "" if reg else "  **sounds.json ȱ��Ŀ**"))
+          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+UnicodeEncodeError: 'gbk' codec can't encode character '\u21d2' in position 50: illegal multibyte sequence
+
+############################################################
+# 直梯楼层轨道外观
+############################################################
+  ==> 失败（完整输出见下方）
+[PASS] �����ļ����ڣ�assets/mtr/models/block/lift_track_floor_1.json��= MTR3 ��ʽ���û�����Ҫ�ģ�  -- src\main\resources\assets\mtr\models\block\lift_track_floor_1.json
+[PASS] �����ļ��ǺϷ� JSON
+[PASS] ���� == MTR3 ��խ������from [6, 0, 0] to [10, 16, 1]��  -- ʵ�� [([6, 0, 0], [10, 16, 1])]
+[PASS] ��ͼ���� block/smooth_stone�����౾����һ���������滻��ͼ�ļ���  -- ʵ�� {'particle': 'block/smooth_stone'}
+[PASS] cullface ֻ�� down/up/north��խ�������ø� east/west �� cullface��  -- ʵ�ʴ� cullface ���棺['down', 'north', 'up']
+      �� ���򸲸��ʣ����� 25.00%������ 1.56%������ 6.25%
+Traceback (most recent call last):
+  File "C:\Users\user\Desktop\2\mzycBetterMTR-1.20.4\_tools\check-lift-track-look.py", line 190, in <module>
+    print("      �� ��� %s px \u21d2 ���治͸���� = ���/16 = %.4f" % (w, (w or 0) / 16.0))
+    ~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+UnicodeEncodeError: 'gbk' codec can't encode character '\u21d2' in position 16: illegal multibyte sequence
+
+############################################################
+# 指令树
+############################################################
+  ==> 通过
+
+############################################################
+# PIDS 站台名掩码
+############################################################
+  ==> 失败（完整输出见下方）
+== [1] mask �߼����� ==
+[PASS] mask('5%A%AB') == '5AB'
+[PASS] mask('AB%C%DE') == 'ABDE'
+[PASS] mask('5A') == '5A'
+[PASS] mask('') == ''
+[PASS] mask('%A%') == ''
+[PASS] mask('a%b%c%d%e') == 'ace'
+[PASS] mask('5%AB') == '5'
+[PASS] mask('5AB') == '5AB'
+[PASS] mask('') == ''
+==> ͨ��
+
+== [2] Դ��ṹ���� ==
+[PASS] PlatformNameMask.java ����  -- src\client\java\smooth\lift\client\PlatformNameMask.java
+[PASS] PlatformNameMask ��¶ public static String mask(String)
+[FAIL] �� % ʱ����ͬһ��ʵ���������ݾ���
+[FAIL] �㷨�ǳɶԿ��أ�toggle����hidden = !hidden
+[FAIL] ���� % ��ת���������ַ�����
+[PASS] Mtr4PidsNameMixin.java ����  -- src\client\java\smooth\lift\client\mixin\Mtr4PidsNameMixin.java
+[PASS] Mtr3PidsNameMixin.java ����  -- src\client\java\smooth\lift\client\mixin\Mtr3PidsNameMixin.java
+[PASS] Mtr4PidsNameMixin Ŀ�� = org.mtr.core.operation.ArrivalResponse
+[PASS] Mtr4PidsNameMixin �� @Pseudo
+[PASS] Mtr4PidsNameMixin ע�� getPlatformName()Ljava/lang/String;
+[PASS] Mtr4PidsNameMixin �� PlatformNameMask.mask
+[PASS] Mtr3PidsNameMixin Ŀ�� = mtr.render.RenderPIDS
+[PASS] Mtr3PidsNameMixin �� @Pseudo
+[PASS] Mtr3PidsNameMixin �ض��� lambda$getSchedules$0
+[PASS] Mtr3PidsNameMixin �ض��� Map.put
+[PASS] Mtr3PidsNameMixin �� require = 0��lambda ��ȱʧҲ������
+[PASS] Mtr3PidsNameMixin �� PlatformNameMask.mask
+[PASS] smoothlift.psd.mixins.json ����  -- src\client\resources\smoothlift.psd.mixins.json
+[PASS] Mtr4PidsNameMixin �� client ����  -- ['Mtr3PsdDoorMixin', 'Mtr4PsdDoorMixin', 'Mtr3PidsNameMixin', 'Mtr4PidsNameMixin', 'Mtr4NameMaskMixin', 'Mtr4SavedRailRawMixin', 'Mtr4EditNameRawMixin', 'Mtr4DashboardRawMixin', 'Mtr4RouteArrowAliasMixin']
+[PASS] Mtr3PidsNameMixin �� client ����  -- ['Mtr3PsdDoorMixin', 'Mtr4PsdDoorMixin', 'Mtr3PidsNameMixin', 'Mtr4PidsNameMixin', 'Mtr4NameMaskMixin', 'Mtr4SavedRailRawMixin', 'Mtr4EditNameRawMixin', 'Mtr4DashboardRawMixin', 'Mtr4RouteArrowAliasMixin']
+[PASS] PsdDoorMixinPlugin.java ����  -- src\main\java\smooth\lift\mixin\mtr\PsdDoorMixinPlugin.java
+[PASS] PsdDoorMixinPlugin �� Mtr4PidsNameMixin ���з�֧
+[PASS] PsdDoorMixinPlugin �� Mtr3PidsNameMixin ���з�֧
+[PASS] PsdDoorMixinPlugin ���������ɣ��������� Class.forName / loadClass
+[PASS] MtrDwellAccess.java ����  -- src\client\java\smooth\lift\client\MtrDwellAccess.java
+[FAIL] MtrDwellAccess �� PlatformNameMask.mask( ���� 2 �����������������ڣ�  -- ʵ�� 4 ��
+[PASS] MTR3 ���������루Platform.name �� public �ֶΡ����� getter�������������ڣ�
+Traceback (most recent call last):
+  File "C:\Users\user\Desktop\2\mzycBetterMTR-1.20.4\_tools\check-pids-name-mask.py", line 204, in <module>
+    check("PlatformNameMask.mask(textOf(response, arrivalGetPlatformName))" in dbody,
+    ~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+          "MTR4 ���������루�� MTR3 ��ͬһ���ڣ�mask �ݵ� \u21d2 �ڶ����Ǳ��ղ����ظ���")
+          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\user\Desktop\2\mzycBetterMTR-1.20.4\_tools\check-pids-name-mask.py", line 43, in check
+    print("[%s] %s%s" % ("PASS" if ok else "FAIL", label, ("  -- " + detail) if detail else ""))
+    ~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+UnicodeEncodeError: 'gbk' codec can't encode character '\u21d2' in position 39: illegal multibyte sequence
+
+############################################################
+# 有回归失败，见上面明细
+############################################################

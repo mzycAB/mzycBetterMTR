@@ -167,9 +167,11 @@ if m_a and m_b:
           "★ ③-B 不再直接调 arriveText（那样会把香港档也念成上海词）")
     check(re.search(r"text == null \? \"跳过（这一档拼不出话，例如终点站读不到）\"", b_body) is not None,
           "★ 香港档拼不出话（终点站读不到）时 text == null ⇒ 明说是「跳过」，不是「念不出」")
-    check(re.search(r"boolean spoke = text != null && TrainAnnounceNarrator\.speak\(text\);", b_body)
-          is not None,
-          "★ 空文本不喂给 speak（否则会打一条「念不出」的假诊断）")
+    check(re.search(r"boolean spoke = text != null\s*"
+                    r"&& TrainAnnounceNarrator\.speak\(text, runKey, door\.x\(\), door\.y\(\), door\.z\(\)\);",
+                    b_body) is not None,
+          "★ 空文本不喂给 speak（否则会打一条「念不出」的假诊断）；"
+          "★【09-29】speak 还带**声源身份**（runKey + 坐标）—— 越界即掐那条护栏要用它")
     check("state.firedArrivalNarrate = arrivalMs;" in b_body,
           "★ 念不出声也算处理过这一班车（否则每 tick 重试、日志刷屏）—— 记在**讲述人自己**那一格")
 
@@ -192,7 +194,7 @@ print("===== 2) 窗口 / 去重各自独立，只有声源位置共用 =====")
 i_custom_sec = body.find("getDoorPsdArriveSeconds(mc.level, runKey)")
 i_narr_sec = body.find("getDoorPsdNarrateSeconds(mc.level, runKey)")
 i_a = body.find("if (customTodo) {")
-i_b = body.find("if (narrateTodo && inRange) {")
+i_b = body.find("if (narrateTodo && narrateInRange && runKey == nearestNarrateRun) {")
 check(i_custom_sec != -1 and i_narr_sec != -1 and i_a != -1 and i_b != -1,
       "四个锚点都在",
       "自定义秒数@%d 讲述人秒数@%d ③-A@%d ③-B@%d" % (i_custom_sec, i_narr_sec, i_a, i_b))
@@ -210,10 +212,12 @@ check(body.count("Arrive state = arriveVoice.computeIfAbsent(runKey") == 1,
       "去重状态表只取一次（表本身仍按串锚点）")
 check(body.count("double distance = player == null") == 1,
       "声源距离只算一次（两条共用 —— 本来就只有一个声源）")
-check(body.count("boolean inRange = gain(distance, ROUND_ARRIVE) > 0.0;") == 1,
-      "可闻范围只算一次 = gain(距离)。没有音量项 ⇒ 讲述人不吃自定义那条的音量")
-check(body.count("gain(distance, ROUND_ARRIVE)") == 2,
-      "gain(距离) 正好两处：① 上面那份 inRange；② ③-A 里乘音量 —— ③-B 不再自己算一份")
+check(body.count("boolean narrateInRange = !TrainAnnounceSwitch.isOutsideNarrateRange(") == 1,
+      "★★ 讲述人的可闻范围**只算一次** = 它**自己**的 /jsr round AAA BBB"
+      "（【09-29】不再借用 /pbmarriveround 那份）；讲述人没有音量项 ⇒ 不吃自定义那条的音量")
+check(body.count("gain(distanceXz, distanceY, ROUND_ARRIVE)") == 1,
+      "gain(双维距离, ROUND_ARRIVE) **只剩 ③-A 里那一处**（乘音量）"
+      " —— ③-B 不再自己算一份增益（它的范围走 narrateInRange 那条 /jsr 判据）")
 check(re.search(r"private static boolean sameTrainAs\(long recorded, long arrivalMs\)\s*\{", player)
       is not None,
       "★ 同一班车判定收成一个函数 sameTrainAs（两条各传各的记录，改容差只改一处）")
@@ -261,15 +265,17 @@ check(re.search(r"public static String arriveText\(String destination,\s*"
       "arriveText(destination, platformName) —— 两个入参各自可缺，缺谁删谁那一小句")
 check(re.search(r"String terminus = trimToNull\(destination\);\s*"
                 r"if \(terminus != null\)\s*\{\s*"
-                r"text\.append\(TERMINUS_LEAD\)\.append\(terminus\);", narrator) is not None,
-      "终点站读不到就**整句不接**（不是接一个空值）")
+                r"text\.append\(TERMINUS_LEAD\)\.append\(chineseOnlyName\(terminus\)\);",
+                narrator) is not None,
+      "终点站读不到就**整句不接**（不是接一个空值）；"
+      "★【09-29】接的时候只取**中文名**（chineseOnlyName）—— 双语字段别把英文也念出来")
 check(re.search(r"if \(platform == null\)\s*\{\s*text\.append\(NO_PLATFORM_TAIL\);", narrator)
       is not None,
       "站台名读不到走兜底句（两个分支真的分叉，不是「有值没值都接同一句」）")
 
 # ---- 3.2 分段四：「开启(香港)」那一档 ----
 print()
-print("----- 3.2) 香港档：中英双语两句 + 只有一种语言时只念那一种 -----")
+print("----- 3.2) 香港档：中英双语两句【10-01 起始终都念】 -------------------")
 check(re.search(r'public static String arriveTextHongKong\(String destination\)', narrator) is not None,
       "★★【09-28 续 3】arriveTextHongKong(String destination) —— 入参是**终点站**"
       "（不是车站名、也不是站台名）")
@@ -310,12 +316,18 @@ check(re.search(r"\} else if \(foreign == null\)\s*\{\s*foreign = piece;", narra
       "★ 其余段同样只取第一段（英文 / 数字 / 日韩…都落这个桶）")
 check(re.search(r"if \(chinese == null && foreign == null\)\s*\{\s*return null;", narrator) is not None,
       "★ 拆完两个桶都空 ⇒ null（站台名读不到 / 全是空白）")
-check(re.search(r"if \(chinese != null\)\s*\{\s*text\.append\(HK_CN_LEAD\)\.append\(chinese\)"
-                r"\.append\(HK_CN_TAIL\);", narrator) is not None,
-      "★ 有中文段才接中文句（**只有英文名 ⇒ 中文句整句不接**，用户规矩②）")
-check(re.search(r"if \(foreign != null\)\s*\{\s*if \(text\.length\(\) > 0\)\s*\{\s*"
-                r"text\.append\(HK_LINE_BREAK\);", narrator) is not None,
-      "★ 有「非中文段」才接英文句，且两句之间用换行分隔（**只有中文名 ⇒ 英文句整句不接**，规矩①）")
+# ★★【10-01 用户点名改规矩】香港档**始终**两句都念：缺段用 raw 兜底，两句**无条件**拼。
+check(re.search(r"if \(chinese == null\)\s*\{\s*chinese = foreign;", narrator) is not None,
+      "★ 缺中文段用另一段兜底（chinese = foreign —— 用户 10-01 改的规矩）")
+check(re.search(r"if \(foreign == null\)\s*\{\s*foreign = chinese;", narrator) is not None,
+      "★ 缺英文段用另一段兜底（foreign = chinese）")
+check(re.search(r"text\.append\(HK_CN_LEAD\)\.append\(chinese\)\.append\(HK_CN_TAIL\);", narrator) is not None,
+      "★ 中文句**无条件**接（不再有「只有英文名 ⇒ 中文句整句不接」的守卫，旧规矩②已废）")
+check(re.search(r"text\.append\(HK_EN_LEAD\)\.append\(foreign\)\.append\(HK_EN_TAIL\);", narrator) is not None,
+      "★ 英文句**无条件**接（不再有「只有中文名 ⇒ 英文句整句不接」的守卫，旧规矩①已废）")
+check(re.search(r"if \(chinese != null\)\s*\{\s*text\.append\(HK_CN_LEAD\)", narrator) is None
+      and re.search(r"if \(foreign != null\)\s*\{\s*if \(text\.length\(\) > 0\)", narrator) is None,
+      "★ 两句都不许再被「有哪段才念哪段」的守卫包住（防回退到旧规矩①②）")
 check(re.search(r'HK_LINE_BREAK\s*=\s*"\\n"', narrator) is not None,
       "两句之间的分隔 = 换行（用户把这两句写成了两行）")
 check(re.search(r"private static boolean isChinese\(String text\)\s*\{(.*?)\n    \}", narrator,
@@ -453,8 +465,8 @@ check(re.search(r'putOptInt\(t, "narrate", v\.narrate\(\)\);', data) is not None
       and re.search(r'putOptInt\(t, "narrateSeconds", v\.narrateSeconds\(\)\);', data) is not None,
       "存档写：narrate / narrateSeconds 两键（都走 putOptInt，读侧同名同型）")
 check(re.search(r"public int defaultPsdNarrateMode = DEFAULT_PSD_NARRATE_MODE;", data) is not None
-      and re.search(r"public int defaultPsdNarrateSeconds = DEFAULT_PSD_NARRATE_SECONDS;", data)
-      is not None, "维度默认两格（defaultPsdNarrateMode（int 三档）/ defaultPsdNarrateSeconds）")
+      and re.search(r"public int defaultPsdNarrateSeconds = DEFAULT_PSD_NARRATE_LEAD_SECONDS;", data)
+      is not None, "维度默认两格（defaultPsdNarrateMode（int 三档）/ defaultPsdNarrateSeconds（【10-01】起默认 -20））")
 check(re.search(r'if \(tag\.contains\("defaultPsdNarrateMode"\)\)\s*\{\s*data\.defaultPsdNarrateMode\s*='
                 r'\s*clampPsdNarrateMode\(tag\.getInt\("defaultPsdNarrateMode"\)\);', data) is not None
       and re.search(r'tag\.putInt\("defaultPsdNarrateMode", defaultPsdNarrateMode\);', data) is not None,
@@ -473,9 +485,9 @@ check(re.search(r"public static final int PSD_NARRATE_OFF = 0;", data) is not No
 check(re.search(r"public static final int PSD_NARRATE_MODE_MAX = PSD_NARRATE_HONGKONG;", data)
       is not None,
       "★ 上界写成一个常量（加新样式时只改这一处，不散在 clamp 里）")
-check(re.search(r"public static final int DEFAULT_PSD_NARRATE_MODE = PSD_NARRATE_SHANGHAI;", data)
+check(re.search(r"public static final int DEFAULT_PSD_NARRATE_MODE = PSD_NARRATE_HONGKONG;", data)
       is not None,
-      "★ 默认档 = 开启(上海)（与升级前「默认开」的可见行为一致）")
+      "★ 默认档 = 开启(香港)（【10-01】用户点名：第一次加载模组＝香港预设；旧值上海）")
 check(re.search(r"public static int clampPsdNarrateMode\(int mode\)\s*\{\s*"
                 r"return Math\.max\(PSD_NARRATE_OFF, Math\.min\(PSD_NARRATE_MODE_MAX, mode\)\);", data)
       is not None,
@@ -673,8 +685,9 @@ if m_rp:
     check(re.search(r'"进站广播\(讲述人\)"', rpb) is not None, "页标题 = 「进站广播(讲述人)」")
     check("未导入存档" not in rpb and "已导入存档" not in rpb,
           "★ 不画「未导入 / 已导入」表头（没有列表这回事）")
-    check("EscalatorSpeedData.psdNarrateModeName(mode)" in rpb,
-          "★ 状态行显示三档中文名（「这一串门当前：开启(香港)」），不再只写开/关")
+    check("psdNarrateModeName" not in rpb,
+          "★【1.30】讲述人页底部状态行已按点名删（psdNarrateModeName 不再画在 renderNarratePage；"
+          "三档中文名只留在指令回执/日志里）")
 
 check(re.search(r"private void sendSetNarrateLead\(int lead\)", screen) is not None
       and re.search(r"private void sendSetNarrate\(int mode\)", screen) is not None,
@@ -839,8 +852,11 @@ def j_hongkong(destination):
 
     ★ 入参是**本次列车终点站**（MTR 的 {@code 中文|English} 字段），既不是车站名、也不是站台名
       —— 见 §8.6。
+    ★★【10-01 用户点名改规矩】香港档**始终**两句都念：拆完段后缺哪段就用**另一段**兜底
+      （`if chinese is None: chinese = foreign` / `if foreign is None: foreign = chinese`），
+      再**无条件**拼「中文句 + 换行 + 英文句」。旧规矩①②（缺哪半只念哪半）已废。
     ★ Java 的 split 会砍掉**结尾的空段**、Python 的不会；这里之所以不影响结果：
-      两边的空段都会被「逐段 trimToNull + 空就 continue」吃掉（下面两个用例专门盯这一点）。
+      两边的空段都会被「逐段 trimToNull + 空就 continue」吃掉（下面几个用例专门盯这一点）。
     """
     raw = j_trim_to_null(destination)
     if raw is None:
@@ -858,14 +874,13 @@ def j_hongkong(destination):
             foreign = piece
     if chinese is None and foreign is None:
         return None
-    text = ""
-    if chinese is not None:
-        text += LITERALS["HK_CN_LEAD"] + chinese + LITERALS["HK_CN_TAIL"]
-    if foreign is not None:
-        if len(text) > 0:
-            text += "\n"
-        text += LITERALS["HK_EN_LEAD"] + foreign + LITERALS["HK_EN_TAIL"]
-    return text
+    if chinese is None:
+        chinese = foreign
+    if foreign is None:
+        foreign = chinese
+    return (LITERALS["HK_CN_LEAD"] + chinese + LITERALS["HK_CN_TAIL"]
+            + "\n"
+            + LITERALS["HK_EN_LEAD"] + foreign + LITERALS["HK_EN_TAIL"])
 
 
 HK_CN = LITERALS["HK_CN_LEAD"] + "%s" + LITERALS["HK_CN_TAIL"]
@@ -887,33 +902,39 @@ for dest, plat, want in SHANGHAI_CASES:
     check(got == want, "上海档 (%r, %r) → %r" % (dest, plat, got),
           "" if got == want else "期望 %r" % want)
 
-# ---- 8.4 香港档：用户点名的三条规矩 + 各种边界 ----
+# ---- 8.4 香港档：用户点名的【10-01 改】规矩「始终两句都念」+ 各种边界 ----
 #   ★★【09-28 续 3】表里这些名字 = **本次列车终点站**（与上海档同一个字段）。
 #     名字本身长什么样与「它叫什么」无关 —— 这一节只核**拆分**行为；名源对不对见 §8.6。
+#   ★★【10-01 用户点名改规矩】香港档**始终**两句都念：缺哪段就用**另一段**兜底
+#     （不再「缺哪半只念哪半」）。⇒ 单语言名（「上海站」「Shanghai Station」「1」）
+#     都拼出两句，缺的那半用现有那段顶上。
 HONGKONG_CASES = [
     # 用户原话的完整句式（中英都有）
     ("上海站|Shanghai Station", HK_CN % "上海站" + "\n" + HK_EN % "Shanghai Station",
-     "中英双语两句，中间换行"),
-    # 规矩①：只有中文名 ⇒ 只念中文句
-    ("上海站", HK_CN % "上海站", "只有中文名 ⇒ 只念中文句（英文句整句不接）"),
-    # 规矩②：只有英文名 ⇒ 只念英文句
-    ("Shanghai Station", HK_EN % "Shanghai Station", "只有英文名 ⇒ 只念英文句"),
-    # 规矩③：其它语言（韩文）⇒ 只念英文句，用名字本身（= ZZZ）
-    ("서울", HK_EN % "서울", "韩文（谚文）⇒ 只念英文句、用名字本身"),
-    ("도쿄", HK_EN % "도쿄", "韩文（谚文）⇒ 同上"),
-    # 规矩③：其它语言（日文，带假名）⇒ 只念英文句
-    ("東京タワー", HK_EN % "東京タワー", "日文含假名 ⇒ 只念英文句、用名字本身"),
-    ("とうきょう", HK_EN % "とうきょう", "纯平假名 ⇒ 只念英文句"),
-    # 数字名字（站台编号、线路号都长这样）既不是中文也不是英文 ⇒ 按「其它语言」处理
-    ("1", HK_EN % "1", "纯数字 ⇒ 只念英文句（既非中文段也非英文段，落非中文桶）"),
+     "中英双语两句，中间换行（各取各段）"),
+    # 【10-01 改】只有中文名 ⇒ 两句都念，英文句用中文名兜底
+    ("上海站", HK_CN % "上海站" + "\n" + HK_EN % "上海站",
+     "只有中文名 ⇒ 两句都念（英文句用中文名兜底）"),
+    # 【10-01 改】只有英文名 ⇒ 两句都念，中文句用英文名兜底
+    ("Shanghai Station", HK_CN % "Shanghai Station" + "\n" + HK_EN % "Shanghai Station",
+     "只有英文名 ⇒ 两句都念（中文句用英文名兜底）"),
+    # 其它语言（韩文 / 日文）落「非中文段」桶 ⇒ 两句都念、都用名字本身
+    ("서울", HK_CN % "서울" + "\n" + HK_EN % "서울", "韩文（谚文）⇒ 两句都念、用名字本身"),
+    ("도쿄", HK_CN % "도쿄" + "\n" + HK_EN % "도쿄", "韩文（谚文）⇒ 同上"),
+    ("東京タワー", HK_CN % "東京タワー" + "\n" + HK_EN % "東京タワー",
+     "日文含假名 ⇒ 两句都念、用名字本身"),
+    ("とうきょう", HK_CN % "とうきょう" + "\n" + HK_EN % "とうきょう", "纯平假名 ⇒ 两句都念"),
+    # ★ 数字名字（站台编号、线路号都长这样）—— **用户报的那一例**：MTR3 目的地「1」
+    ("1", HK_CN % "1" + "\n" + HK_EN % "1",
+     "★★ 纯数字（MTR3 单语言目的地「1」）⇒ 中文句+英文句都念，都用「1」"),
     # 中文段带数字 / 单位：含汉字就算中文段
     ("1站台|Platform 1", HK_CN % "1站台" + "\n" + HK_EN % "Platform 1", "中文段含汉字即算中文"),
     # 已知边界：纯汉字日文名与中文无从区分 ⇒ 会被当中文段（写进 skill 的上限）
     ("東京|Tokyo", HK_CN % "東京" + "\n" + HK_EN % "Tokyo",
      "★ 已知边界：纯汉字日文名按中文段处理（字形判据的固有上限）"),
-    # 只给一段、另一段是空的
-    ("上海站|", HK_CN % "上海站", "后面空段被吃掉 ⇒ 只剩中文句"),
-    ("|Shanghai", HK_EN % "Shanghai", "前面空段被吃掉 ⇒ 只剩英文句"),
+    # 只给一段、另一段是空的 ⇒ 空段被吃掉，缺的那半用现有那段兜底
+    ("上海站|", HK_CN % "上海站" + "\n" + HK_EN % "上海站", "后面空段被吃掉 ⇒ 英文句用中文名兜底"),
+    ("|Shanghai", HK_CN % "Shanghai" + "\n" + HK_EN % "Shanghai", "前面空段被吃掉 ⇒ 中文句用名字兜底"),
     ("上海站 | Shanghai", HK_CN % "上海站" + "\n" + HK_EN % "Shanghai", "两段各自去首尾空白"),
     # 读不到 / 全是空
     (None, None, "终点站读不到 ⇒ null（调用方跳过这一条）"),
@@ -970,10 +991,11 @@ check(HK_CN % "江苏北路" in j_for_style(True, _USER_DEST, _USER_PLATFORM)
 # 两档名源相同 ⇒ 只换句式：把 destination 固定，香港第 1 句去掉首尾壳应等于终点站中文段
 check(j_for_style(True, _USER_DEST, _USER_PLATFORM).startswith(HK_CN % "江苏北路"),
       "★ 两档**只差句式不差名源**：名源换成非终点站的值就会当场变红（见下条反向对照）")
-# 反向对照的判据（写死在脚本里，供人工注入 mutation 时对照）：若名源误用站台名 → 只会剩英文半句
-check(j_for_style(True, _USER_PLATFORM, _USER_PLATFORM) == HK_EN % "4A",
-      "★ 若把名源错当成站台名（「4A」单语）⇒ 只剩英文半句 —— "
-      "这正是**更早一版**的行为（用户第一次报「香港档只念英文」）")
+# 反向对照的判据（写死在脚本里，供人工注入 mutation 时对照）：
+# ★【10-01 改】香港档现在**始终两句都念**：单语言名「4A」⇒ 中文句与英文句都用「4A」
+check(j_for_style(True, _USER_PLATFORM, _USER_PLATFORM) == HK_CN % "4A" + "\n" + HK_EN % "4A",
+      "★ 名源若是站台名（「4A」单语）⇒ 中文句+英文句都念「4A」"
+      "（与真值「江苏北路|North JiangSu Road」一眼可辨；旧规矩下这里只剩英文半句）")
 check(j_for_style(True, None, _USER_PLATFORM) is None,
       "★ 香港档：终点站读不到 ⇒ null（这一条跳过；不会退回站台名瞎念）")
 

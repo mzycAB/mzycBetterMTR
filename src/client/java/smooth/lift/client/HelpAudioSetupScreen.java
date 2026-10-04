@@ -233,6 +233,9 @@ public class HelpAudioSetupScreen extends Screen {
         //   进 / 出两端一起同步（服务端那一支自己会跑两端）。没有输入框 ⇒ beforeOpen 传 null。
         addRenderableWidget(SyncPopupScreen.syncButton(this, "esc", SmoothLift.SYNC_ESC_HELP_AUDIO,
                 pos.asLong(), null));
+        // 【09-29】右上角「打开文件夹」：本页是二级菜单 ⇒ 精确开 MBM_Audio/futi/help。
+        addRenderableWidget(FolderOpenButton.of(this,
+                FolderOpenButton.audioPath(EscalatorSpeedManager.CAT_HELP)));
 
         // 左列：本分类文件夹里**还没入库**的 OGG —— 点一下 = 导入存档并设为这一头的提示音。
         for (int i = 0; i < pending.size(); i++) {
@@ -412,16 +415,10 @@ public class HelpAudioSetupScreen extends Screen {
             guiGraphics.fill(barX, thumbY, barX + 4, thumbY + thumbH, 0xFFAAAAAA);
         }
 
-        // 无反馈时这一行显示「当前正在设置的那一头」的设置状态；有反馈时换成黄色反馈文字。
-        String info = statusText;
-        if (info == null) {
-            String prefix = individualAudio ? "单独设置：" : "跟随默认：";
-            info = endLabel() + "　" + prefix + truncate(helpAudioLabel(effectiveAudioId), 18)
-                    + "　音量 " + boundVolume + "%";
-        }
-        guiGraphics.drawCenteredString(this.font, Component.literal(info), cx,
-                this.height + SoundListLayout.STATUS_Y_LIST,
-                statusText == null ? 0xFFFFFF : 0xFFFF55);
+        // ★【1.30】用户点名「所有 UI 里按完按钮出现在下方的黄色和白色小字全部删掉」⇒
+        //   底部这一行**状态 / 反馈字整段删除**（「进入扶梯跟随默认：… 音量 100」这类
+        //   白字常驻状态 + 黄字操作反馈都不再画）。setStatus()/statusText 仍保留，
+        //   改动照旧走同步与聊天回执，只是界面上不再画字。
     }
 
     /**

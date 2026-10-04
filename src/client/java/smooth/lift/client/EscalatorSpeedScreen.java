@@ -191,6 +191,11 @@ public class EscalatorSpeedScreen extends Screen {
         //   「这条扶梯此刻的值」时读的是存档，没落地的新值读不到。
         addRenderableWidget(SyncPopupScreen.syncButton(this, "esc", SmoothLift.SYNC_TOP_LEVEL,
                 pos.asLong(), this::applyChanges));
+        // 【09-29】右上角「打开文件夹」（在「同步所有」左边）：这一页是一级菜单 ⇒ 开扶梯那一
+        //   **组**目录 futi/，下面 music/（运行底噪）与 help/（提示音）两个分类文件夹一眼可见；
+        //   两个二级页各自把按钮指到对应的分类子文件夹上（见 AudioSetupScreen / HelpAudioSetupScreen）。
+        addRenderableWidget(FolderOpenButton.of(this,
+                FolderOpenButton.audioPath(EscalatorSpeedManager.GROUP_FUTI)));
     }
 
     /**
@@ -356,6 +361,9 @@ public class EscalatorSpeedScreen extends Screen {
     @Override
     public void onClose() {
         applyChanges();
+        // 【10-01】真正「退出界面」：让服务端把本次界面会话的结果回一条（成功 / 失败）。
+        //   界面内部的逐条操作不再单独往聊天框打长句。
+        SmoothLiftClient.sendUiClose(true);
         // Screen.onClose() 内部就是 minecraft.setScreen(null)。
         super.onClose();
     }

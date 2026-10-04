@@ -373,7 +373,15 @@ if not (javap and jars["mtr3"] and jars["mtr4"]):
 else:
     v4, d4 = javap_shape(javap, jars["mtr4"],
                          "org.mtr.mod.block.BlockLiftTrackFloor", "getOutlineShape2")
-    v3, _d3 = javap_shape(javap, jars["mtr3"], "mtr.block.BlockLiftTrack", "method_9530")
+    # ★ MTR3 的体素形状方法在两种映射下名字不同：
+    #   Fabric/intermediary = method_9530，Forge/SRG = m_5940_。
+    #   工作区里放的是哪个 jar 不由本脚本决定（移植时两个都在），所以两种都试。
+    #   不补这条 ⇒ 只放 Forge 版 MTR3 时取到空值，本节会判假红并当场 IndexError 崩掉。
+    v3, _d3 = [], None
+    for _m3 in ("method_9530", "m_5940_"):
+        v3, _d3 = javap_shape(javap, jars["mtr3"], "mtr.block.BlockLiftTrack", _m3)
+        if v3:
+            break
 
     check(v4 == MTR4_SHAPE,
           "【1.44】MTR4 真实字节码形状 == 全宽薄板 (0,0,0,16,16,1) ⇒ 这就是隐形墙的来源",
@@ -386,16 +394,20 @@ else:
           "mixin %s\n          真实 %s" % (call_str, d4))
 
     by_index = {a[2]: a[3] for a in args}
-    check(by_index.get(0) == v3[0] and by_index.get(3) == v3[3],
+    # ★ v3 没取到时必须**判红**（不许静默跳过），但也不许让脚本半途崩 ——
+    #   崩了会截断本节输出、还可能连累 check-all 后面的小节（工程里踩过）。
+    v3_ok = len(v3) >= 6
+    _v3 = lambda i: (v3[i] if v3_ok else "?")
+    check(v3_ok and by_index.get(0) == v3[0] and by_index.get(3) == v3[3],
           "【1.44】mixin 的替换值 == MTR3 的 minX/maxX（6.0 / 10.0）",
           "mixin index0=%s index3=%s；MTR3 minX=%s maxX=%s"
-          % (by_index.get(0), by_index.get(3), v3[0], v3[3]))
-    check(v3[1] == v4[1] and v3[2] == v4[2] and v3[4] == v4[4] and v3[5] == v4[5],
+          % (by_index.get(0), by_index.get(3), _v3(0), _v3(3)))
+    check(v3_ok and v3[1] == v4[1] and v3[2] == v4[2] and v3[4] == v4[4] and v3[5] == v4[5],
           "【1.44】对照：minY/minZ/maxY/maxZ 两版本来就相同 ⇒ 只需改 X 那两个值",
           "MTR3 %s vs MTR4 %s" % (v3, v4))
 
     own_flat = [float(x) for x in (list(own_geo[0][0]) + list(own_geo[0][1]))] if own_geo else []
-    check(own_flat == v3,
+    check(v3_ok and own_flat == v3,
           "【1.44】★ 核心不变量：我们发的模型几何 == 改完形状后的体素边界"
           "（看得见的 == 挡得住的）",
           "模型 %s vs MTR3 形状 %s" % (own_flat, v3))
@@ -405,8 +417,10 @@ mj = {}
 if os.path.isfile(MIXINS_JSON):
     with open(MIXINS_JSON, encoding="utf-8") as fh:
         mj = json.load(fh)
-check(sorted(mj.get("mixins") or []) == ["Mtr3LiftDoorMixin", "Mtr4LiftTrackFloorShapeMixin"],
-      "【1.44】mixins.json 同时注册了两条 mixin",
+check(sorted(mj.get("mixins") or []) == ["Mtr3LiftDoorMixin", "Mtr4LiftTrackFloorShapeMixin",
+                                        "Mtr4TrainDepartHoldMixin"],
+      "【1.44】mixins.json 注册了三条 mixin（★【10-03 五改】多了「关门后等待 X 秒发车」"
+      "那条 Mtr4TrainDepartHoldMixin —— 它与楼层轨道无关，但共用这一份配置",
       "实际 %s" % (mj.get("mixins")))
 
 plug = ""

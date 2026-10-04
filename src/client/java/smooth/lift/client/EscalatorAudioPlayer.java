@@ -354,13 +354,19 @@ public final class EscalatorAudioPlayer {
             note("最近的这条扶梯被设成了「不播」（石斧界面 → 声音设置 → 不播 可改回）");
             return;
         }
-        // 【1.24】可闻范围按**这条扶梯自己的**生效范围算（/futiround 设置，默认 16 格）。
+        // 【1.24】可闻范围按**这条扶梯自己的**生效范围算（/futiround 设置）。
+        // ★【10-03】范围拆双维：水平（xz）默认 10、垂直（y）默认 5，各算一次线性衰减、取较小；
+        //   **任一维越界即静音**（与屏蔽门 /pbmround、/jsr round 的口径完全一致）。
         // 每 tick 现算：范围是网络同步驱动的，绝不能塞进任何「缓存到方块变化为止」的计算里（坑 17）。
-        double range = rangeFor(mc, bestPos);
-        if (bestDist > range) {
+        double rangeXz = rangeFor(mc, bestPos);
+        double rangeY = rangeYFor(mc, bestPos);
+        double dxz = horizontalDistanceToBlock(playerPos, bestNear);
+        double dy = verticalDistanceToBlock(playerPos, bestNear);
+        if (!(dxz < rangeXz) || !(dy < rangeY)) {
             stopAll(mc);
-            note("最近的扶梯整条都在 " + String.format("%.1f", bestDist)
-                    + " 格外（离开整条扶梯 " + String.format("%.0f", range) + " 格内才发声，可用 /futiround 调整）");
+            note("最近的扶梯整条都在 水平 " + String.format("%.1f", dxz) + " / 垂直 " + String.format("%.1f", dy)
+                    + " 格外（离开整条扶梯 水平 " + String.format("%.0f", rangeXz) + "、垂直 "
+                    + String.format("%.0f", rangeY) + " 格内才发声，可用 /futiround 调整）");
             return;
         }
         // 【1.8】内置音频走原版资源包加载（sounds.json 已注册 smoothlift:audio/<key>），
@@ -403,8 +409,10 @@ public final class EscalatorAudioPlayer {
         // 音量 = 距离衰减（离开整条扶梯 range 格内 1.0 -> 0.0）× 这条扶梯自己的音量设定（1~1000）。
         // 【1.12】100 = 原始音量（增益 1.0），1000 = 10× 放大。这里存的是「未夹取」的增益，
         // 引擎每 tick 用实例的 volume/x/y/z 同步到 Channel；>1 的部分靠 SoundEngineVolumeMixin 放行。
-        // 【1.24】range 由 /futiround 决定（默认 16 格），见上面的 rangeFor。
-        float distanceFactor = (float) Math.max(0.0, 1.0 - bestDist / range);
+        // 【1.24】range 由 /futiround 决定（默认 水平 10 / 垂直 5），见上面的 rangeFor / rangeYFor。
+        // ★【10-03】双维：水平 / 垂直各算线性 (1-d/r)，取**较小**（越贴边的那一维先行淡出）。
+        float distanceFactor = (float) Math.max(0.0,
+                Math.min(1.0 - dxz / rangeXz, 1.0 - dy / rangeY));
         int userVolume = EscalatorSpeedManager.getClientBindingVolume(mc.level.dimension(), bestPos);
         float target = distanceFactor * (userVolume / (float) EscalatorSpeedData.DEFAULT_AUDIO_VOLUME);
 
@@ -549,6 +557,21 @@ public final class EscalatorAudioPlayer {
         return Math.sqrt(dx * dx + dy * dy + dz * dz);
     }
 
+    /**
+     * ★【10-03】点到方块实心体的**水平（xz）**分量，格 —— 与 {@link #distanceToBlock} 的 dx/dz 同口径
+     * （站在方块正上方 / 正下方时水平分量为 0），拆双维后供距离衰减按 xz 那一维单独比。
+     */
+    private static double horizontalDistanceToBlock(Vec3 p, BlockPos pos) {
+        double dx = Math.max(0.0, Math.max(pos.getX() - p.x, p.x - (pos.getX() + 1.0)));
+        double dz = Math.max(0.0, Math.max(pos.getZ() - p.z, p.z - (pos.getZ() + 1.0)));
+        return Math.sqrt(dx * dx + dz * dz);
+    }
+
+    /** ★【10-03】点到方块实心体的**垂直（y）**分量，格（站在方块正上/正下方那一格内时为 0）。 */
+    private static double verticalDistanceToBlock(Vec3 p, BlockPos pos) {
+        return Math.max(0.0, Math.max(pos.getY() - p.y, p.y - (pos.getY() + 1.0)));
+    }
+
     // ------------------------------------------------------------------
     // 【1.11】默认音频：玩家附近最近的扶梯（带缓存）
     // ------------------------------------------------------------------
@@ -608,13 +631,19 @@ public final class EscalatorAudioPlayer {
     }
 
     /**
-     * 【1.24】这条扶梯**生效的**运行底噪可闻范围（格）：单独设置 &gt; 维度默认（/futiround，初始 16）。
+     * 【1.24】这条扶梯**生效的**运行底噪可闻范围（格）——**水平（xz）**维：单独设置 &gt; 维度默认
+     * （/futiround，★【10-03】初始 10）。
      *
      * <p>每 tick 调用一次，结果直接参与距离衰减与「该不该响」的判定 —— 所以
      * {@code /futiround} 改完**下一个 tick** 就生效，不需要重进世界。
      */
     public static double rangeFor(Minecraft mc, BlockPos pos) {
         return EscalatorSpeedManager.getRound(mc.level, pos);
+    }
+
+    /** ★【10-03】同 {@link #rangeFor}，但取**垂直（y 轴）**维（初始 5 格）。 */
+    public static double rangeYFor(Minecraft mc, BlockPos pos) {
+        return EscalatorSpeedManager.getRoundY(mc.level, pos);
     }
 
     /** 断开连接：停掉所有扶梯声音。 */

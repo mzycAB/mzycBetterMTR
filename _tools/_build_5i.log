@@ -1,0 +1,53 @@
+﻿
+> Configure project :
+Fabric Loom: 1.6.12
+Not publishing sources jar as it was not found. Use java.withSourcesJar() to fix.
+
+> Task :compileJava FAILED
+.\gradlew : C:\Users\user\Desktop\2\mzycBetterMTR-1.20.4\src\main\java\smooth\lift\mixin\mtr\Mtr3LiftDoorMixin.java:72:
+ ע: @Inject target 'tickServer' in @Pseudo mixin will not be obfuscated
+所在位置 行:1 字符: 261
++ ... TR-1.20.4'; .\gradlew build --offline -x test --console=plain 2>&1 |  ...
++                 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : NotSpecified: (C:\Users\user\D...t be obfuscated:String) [], RemoteException
+    + FullyQualifiedErrorId : NativeCommandError
+ 
+    @Inject(method = "tickServer", at = @At("TAIL"))
+    ^
+C:\Users\user\Desktop\2\mzycBetterMTR-1.20.4\src\main\java\smooth\lift\mixin\mtr\Mtr4TrainDepartHoldMixin.java:70: ����
+: Unable to locate obfuscation mapping for @Shadow field
+    @Shadow
+    ^
+C:\Users\user\Desktop\2\mzycBetterMTR-1.20.4\src\main\java\smooth\lift\SmoothLift.java:1119: ����: �Ҳ�������
+                LOGGER.info("[SmoothLift/PsdDepart] �Ŵ� {} �Ĺ��ź�ȴ����� = {} �루ƽ̨ id {}��",
+                ^
+  ����:   ���� LOGGER
+  λ��: �� SmoothLift
+C:\Users\user\Desktop\2\mzycBetterMTR-1.20.4\src\main\java\smooth\lift\SmoothLift.java:1137: ����: �Ҳ�������
+                LOGGER.info("[SmoothLift/PsdLamp] �Ŵ� {} �Ľ�վ���ƴ��� = {}��ƽ̨ id {}��",
+                ^
+  ����:   ���� LOGGER
+  λ��: �� SmoothLift
+ע: C:\Users\user\Desktop\2\mzycBetterMTR-1.20.4\src\main\java\smooth\lift\PictureBlocks.javaʹ�û򸲸����ѹ�ʱ�� API��
+ע: �й���ϸ��Ϣ, ��ʹ�� -Xlint:deprecation ���±��롣
+2 ������
+1 ������
+
+FAILURE: Build failed with an exception.
+
+* What went wrong:
+Execution failed for task ':compileJava'.
+> Compilation failed; see the compiler error output for details.
+
+* Try:
+> Run with --info option to get more log output.
+> Run with --scan to get full insights.
+
+Deprecated Gradle features were used in this build, making it incompatible with Gradle 9.0.
+
+You can use '--warning-mode all' to show the individual deprecation warnings and determine if they come from your own scripts or plugins.
+
+For more on this, please refer to https://docs.gradle.org/8.10.2/userguide/command_line_interface.html#sec:command_line_warnings in the Gradle documentation.
+
+BUILD FAILED in 3s
+1 actionable task: 1 executed

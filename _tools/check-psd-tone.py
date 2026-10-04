@@ -289,9 +289,16 @@ check("new PsdMusicInstance(tone.event()," in player,
 #   【1.22】play() 有了多参重载，5 参那个成了只转发的壳
 #   ⇒ 正则必须**钉在多参那个**上，否则会匹配到空壳、这段断言就失去意义。
 #   【1.23】多一格 roundKind；【1.25】删掉 factorOnly ⇒ 那时是 7 参；
-#   【1.26】再多一格 chainRunKey（站台广播按哪一串算距离）⇒ 现在 8 参，尾锚跟着往后挪一格。
+#   【1.26】再多一格 chainRunKey（站台广播按哪一串算距离）⇒ 那时 8 参；
+#   【09-30 续 10】再末尾多一格 chainDoubleDim（true=双维播报 / false=单维提示音，
+#     提示音改按「整串最近门」算距离）⇒ 那时 9 参；
+#   【10-01】再末尾多一格 chainPlatformId（铃声响度基准收窄到**同一个 MTR 站台**，
+#     传 PLATFORM_ID_NONE = 保持车站级 —— 站台广播那条 9 参重载就是转传 NONE）
+#     ⇒ 现在 10 参，尾锚再往后挪一格。★ 9 参那个成了只转发的壳，
+#     正则必须钉在**10 参**那个上（钉错就会匹配到空壳、这段断言失去意义）。
 m = re.search(r"private static \w+ play\(Minecraft mc, Tone tone[^)]*"
-              r"boolean trainAttenuated,\s*int roundKind,\s*long chainRunKey\)(.*?)\n    \}",
+              r"boolean trainAttenuated,\s*int roundKind,\s*long chainRunKey,"
+              r"\s*boolean chainDoubleDim,\s*long chainPlatformId\)(.*?)\n    \}",
               player, re.S)
 pl = m.group(1) if m else ""
 check(bool(pl) and "if (tone.customId() == null)" in pl,
@@ -408,11 +415,13 @@ check(re.search(r"int closeWaitSeconds,\s*String midiumAudio, int midiumWaitSeco
       " → arriveAudio → arriveSeconds")
 check(re.search(r"toneAudioOpen, toneAudioClose, closeWaitSeconds,\s*"
                 r"midiumAudio, midiumWaitSeconds, arriveAudio, arriveSeconds,\s*"
-                r"midiumVolume, arriveVolume, midiumRound, arriveRound,\s*"
+                r"midiumVolume, arriveVolume,\s*"
+                r"midiumRoundXz, midiumRoundY, arriveRoundXz, arriveRoundY,\s*"
                 r"narrateMode, narrateSeconds\)", client) is not None,
       "★ 调用点的**实参顺序**与形参一致（这里错位同样不报错，只会把值串到别的字段上）"
       "—— 含【1.21】追加的 arriveAudio → arriveSeconds、"
-      "【09-28】追加的 narrateMode → narrateSeconds（样式那格已由 boolean 改成三档 int）")
+      "【09-28】追加的 narrateMode → narrateSeconds（样式那格已由 boolean 改成三档 int）、"
+      "【09-29】范围拆成**水平 / 垂直两格**（midium / arrive 各 Xz + Y）")
 check("data.psdMidiumAudio = EscalatorSpeedData.normalizePsdMidiumAudio(midiumAudio)" in mgr
       and "data.psdMidiumWaitSeconds = EscalatorSpeedData.clampPsdMidiumWaitSeconds(midiumWaitSeconds)"
       in mgr,
@@ -649,13 +658,21 @@ check(mgr.count("writeDoorOptBool(") >= 3 and mgr.count("writeDoorOptInt(") >= 5
 check("applyClientPsdDoorLocal" in mgr,
       "管理端提供 applyClientPsdDoorLocal（客户端本地回显 per-door 的落地实现）")
 
-# ---- 客户端接收：按写入顺序读回 16 个可选字段建记录（顺序错会整条错位） ----
-_client_reads = re.findall(r"readDoorOpt(?:Bool|Int|String)\(", client)
-check(len(_client_reads) == 16 and "new EscalatorSpeedData.PsdToneAudio(" in client,
+# ---- 客户端接收：按写入顺序读回 18 个可选字段建记录（顺序错会整条错位） ----
+#   ★【09-30 续】这一段必须**按接收器切片**再数，不能数整个文件：闸机那套（ZhajiChimePlayer）
+#   也用同一对 readDoorOptInt/writeDoorOptInt，全文件计数会把闸机的 2 格算进来（16 → 18）
+#   —— 那是「扫描范围不是全域」的假红，真正要钉的只是**本接收器**的读写同序。
+_psd_recv_at = client.find("SmoothLift.PSD_TONE_SYNC_CHANNEL")
+_psd_recv_end = client.find("ClientPlayNetworking.registerGlobalReceiver", _psd_recv_at + 10)
+_psd_recv = client[_psd_recv_at:_psd_recv_end if _psd_recv_end > 0 else len(client)]
+_client_reads = re.findall(r"readDoorOpt(?:Bool|Int|String)\(", _psd_recv)
+check(len(_client_reads) == 16 and "new EscalatorSpeedData.PsdToneAudio(" in _psd_recv,
       "★ 客户端 PSD_TONE_SYNC 接收端按**写入顺序**读回 16 个可选字段建 18 字段记录"
       "（顺序错 = 整条记录错位，而且不报错）"
       "　★【1.23】可选字段 13 → 14（多了开门提示等待秒数）"
-      "　★【09-28】可选字段 14 → 16（多了讲述人 narrate / narrateSeconds 两格）",
+      "　★【09-28】可选字段 14 → 16（多了讲述人 narrate / narrateSeconds 两格）"
+      "　★【10-03 五改】门串级那两项**不在这一族**（另一个键空间、另起一段读，见本段后面的"
+      " runCount 那一段），所以这里仍是 16",
       "读回可选字段 %d 个" % len(_client_reads))
 _srv_writes = re.findall(r"writeDoorOpt(?:Bool|Int|String)\(",
                          re.search(r"buildPsdTonePacket\(ServerLevel level\)\s*\{(.*?)\n    \}",
@@ -753,8 +770,15 @@ check("RUN_CACHE.clear()" in tracker,
 #   「把 get/is DoorPsd* 的第一个实参全抓出来，逐个看它是不是串锚点」，
 #   不再数 `door.runKey()` 的出现次数（数次数会绑死写法：本轮把它从 8 降到 6）。
 _reads = re.findall(r"(?:get|is)DoorPsd\w+\(mc\.level,\s*([^,()]+(?:\(\))?)", player)
-check(bool(_reads) and all("runKey" in t for t in _reads),
-      "★ 播放端读配置的第一个实参一律是**串锚点**（runKey / door.runKey() / plan.runKey）"
+# ★【09-29】「串锚点」有**四种合法写法**（后两种是 1.26/1.28 起新加的等价写法，
+#   代码自己就在用 `run.getKey()` 当 runKey，见 PsdChimePlayer 的 `long runKey = run.getKey();`）：
+#     runKey / door.runKey() / plan.runKey / run.getKey()
+#   曾经只认 `"runKey" in t` ⇒ 把 `run.getKey()` 这种**合法**写法误判成「按门锚点读配置」（假红）。
+#   要禁的永远是**门锚点**（door.key() / anchorOf(...)）—— 所以判据改成「像不像串锚点」。
+_RUN_ANCHOR = re.compile(r"(runKey|\.runKey\(\)|run\.getKey\(\))")
+check(bool(_reads) and all(_RUN_ANCHOR.search(t) for t in _reads),
+      "★ 播放端读配置的第一个实参一律是**串锚点**"
+      "（runKey / door.runKey() / plan.runKey / run.getKey()）"
       " —— 「改一个 = 改一串」；出现 door.key() 就是退回「只改右键那一扇」",
       "得到 %s" % sorted(set(t.strip() for t in _reads)))
 check("getDoorPsdMidiumAudio(mc.level, door.key())" not in player
@@ -854,10 +878,9 @@ check("(long) (-customThresholdSeconds) * 1000L" in player
       "（customThresholdSeconds / narrateThresholdSeconds），不再共用一个 thresholdMs")
 check("leadMs" not in player,
       "★ 旧的 leadMs（把 X 当「提前几秒开门」讲）彻底消失 —— 口径只与**到站剩余时间**有关")
-check("到站前 " in screen and "、到站前 " in main,
-      "★ UI 状态行与指令反馈都按「到站前 N 秒」措辞"
-      "（口径是**最近一班列车到站的时间** —— 这条由上面 remainMs/thresholdMs 那两条钉住；"
-      "　★【1.22】去括号后不再带「（最近一班车还剩这么多秒到站时起播）」这类括注）")
+check("this.height + STATUS_Y_LIST" not in screen and "、到站前 " in main,
+      "★【1.30】UI 状态行已删（黄字/白字反馈都不再画）⇒「到站前 N 秒」只留在**指令反馈**里"
+      "（口径仍由上面 remainMs/thresholdMs 那两条钉住；★【1.22】去括号后不带括注）")
 check("提前开门提示音" not in screen and "提前秒数" not in screen and "提前秒数" not in main,
       "★ 「提前开门提示音 / 提前秒数」这种把 X 挂在开门时刻上的说法一个字都不许留")
 check("public static long platformIdAt(double x, double y, double z)" in dwell,
@@ -937,20 +960,24 @@ for _new in ("roundShow", "roundGlobal", "roundFromTo", "roundForceAll", "roundF
                     main) is not None,
           "%s 收 (context, kind)" % _new)
 # -f 的语义：setRoundAll / replaceRoundAll 要真的走「所有维度」
-check("setRoundAll(source.getServer(), kind, round)" in main
-      and "replaceRoundAll(source.getServer(), kind, from, to)" in main,
-      "-f 两条分支走 setRoundAll / replaceRoundAll（所有维度）")
+check("setRoundAll(source.getServer(), kind, xz, y)" in main
+      and "replaceRoundAll(source.getServer(), kind, fromXz, fromY, toXz, toY)" in main,
+      "-f 两条分支走 setRoundAll / replaceRoundAll（所有维度；【09-29】范围拆成水平/垂直两格）")
 check("roundForceAll" in main and "roundForceFromTo" in main,
       "-f <值> 与 -f <X> to <Y> 两条分支都在")
 
-print("\n== 9. 数据层：三份范围字段（默认都 = 16 ⇒ 老存档行为逐位不变） ==")
-for _f in ("defaultPsdMidiumRound", "defaultPsdArriveRound"):
+print("\n== 9. 数据层：六份范围字段（【09-29】水平/垂直各一份；默认同旧值 ⇒ 老存档行为逐位不变） ==")
+for _f in ("defaultPsdHelpRoundXz", "defaultPsdHelpRoundY",
+           "defaultPsdMidiumRoundXz", "defaultPsdMidiumRoundY",
+           "defaultPsdArriveRoundXz", "defaultPsdArriveRoundY"):
     check(re.search(r"public int %s = DEFAULT_" % _f, data) is not None,
           "EscalatorSpeedData 有字段 %s" % _f)
-check(re.search(r"DEFAULT_PSD_MIDIUM_ROUND\s*=\s*DEFAULT_PSD_HELP_ROUND;", data) is not None
-      and re.search(r"DEFAULT_PSD_ARRIVE_ROUND\s*=\s*DEFAULT_PSD_HELP_ROUND;", data) is not None,
-      "★ 两个默认范围都**指向** DEFAULT_PSD_HELP_ROUND（16）"
-      " ⇒ 没敲过新指令时行为与 1.22 逐位相同")
+check(re.search(r"DEFAULT_PSD_MIDIUM_ROUND_XZ\s*=\s*DEFAULT_PSD_HELP_ROUND_XZ;", data) is not None
+      and re.search(r"DEFAULT_PSD_MIDIUM_ROUND_Y\s*=\s*DEFAULT_PSD_HELP_ROUND_Y;", data) is not None
+      and re.search(r"DEFAULT_PSD_ARRIVE_ROUND_XZ\s*=\s*DEFAULT_PSD_HELP_ROUND_XZ;", data) is not None
+      and re.search(r"DEFAULT_PSD_ARRIVE_ROUND_Y\s*=\s*DEFAULT_PSD_HELP_ROUND_Y;", data) is not None,
+      "★ 两个默认范围（水平 + 垂直）都**指向** DEFAULT_PSD_HELP_ROUND_XZ / _Y"
+      " ⇒ 没敲过新指令时行为与旧版逐位相同")
 check(re.search(r"PSD_MIDIUM_ROUND_MIN\s*=\s*PSD_HELP_ROUND_MIN;", data) is not None
       and re.search(r"PSD_MIDIUM_ROUND_MAX\s*=\s*PSD_HELP_ROUND_MAX;", data) is not None,
       "到站范围夹取边界指向提示音那一对（1 ~ 128）")
@@ -961,17 +988,25 @@ check(re.search(r"static int clampPsdMidiumRound\(int round\)", data) is not Non
       and re.search(r"static int clampPsdArriveRound\(int round\)", data) is not None,
       "两个 clampPsd*Round(int) 都在")
 # NBT 兼容：写出去 + 读回来（旧存档没有这两个键 ⇒ 保持默认）
+#   ★【09-29】范围拆成水平/垂直两格 ⇒ 写出 Xz + Y 两键；读侧先认 Xz 新键，再回落旧键（老存档）。
 for _f in ("defaultPsdMidiumRound", "defaultPsdArriveRound"):
-    check('tag.putInt("%s"' % _f in data, "NBT 写出 %s" % _f)
-    check(re.search(r'if \(tag\.contains\("%s"\)\)' % _f, data) is not None,
-          "★★ NBT 读 %s 有 contains 守卫（老存档没有这个键 ⇒ 保持默认，不是读成 0）" % _f)
-# 同步包：维度包追加两格 + 客户端读两格 + apply 两参
-check(re.search(r"buf\.writeVarInt\(data\.defaultPsdMidiumRound\);", mgr) is not None
-      and re.search(r"buf\.writeVarInt\(data\.defaultPsdArriveRound\);", mgr) is not None,
-      "维度包把两份范围写出去（追加在最后两格）")
-check(re.search(r"int midiumRound = buf\.readVarInt\(\);\s*int arriveRound = buf\.readVarInt\(\);",
-                client) is not None,
-      "★★ 客户端按**同样顺序**读回两格（包上没有字段名，差一格就是静默错位）")
+    check('tag.putInt("%sXz"' % _f in data and 'tag.putInt("%sY"' % _f in data,
+          "NBT 写出 %s 的 Xz / Y 两格" % _f)
+    check(re.search(r'if \(tag\.contains\("%sXz"\)\)' % _f, data) is not None
+          and re.search(r'else if \(tag\.contains\("%s"\)\)' % _f, data) is not None,
+          "★★ NBT 读 %s：先认 Xz 新键、再回落旧键（老存档没有新键 ⇒ 保持默认，不是读成 0）" % _f)
+# 同步包：维度包追加四格（midium Xz/Y + arrive Xz/Y）+ 客户端按同序读四格 + apply 四参
+check(re.search(r"buf\.writeVarInt\(data\.defaultPsdMidiumRoundXz\);", mgr) is not None
+      and re.search(r"buf\.writeVarInt\(data\.defaultPsdMidiumRoundY\);", mgr) is not None
+      and re.search(r"buf\.writeVarInt\(data\.defaultPsdArriveRoundXz\);", mgr) is not None
+      and re.search(r"buf\.writeVarInt\(data\.defaultPsdArriveRoundY\);", mgr) is not None,
+      "维度包把四格范围写出去（midium Xz/Y → arrive Xz/Y，【09-29】拆成水平/垂直各一格）")
+check(re.search(r"int midiumRoundXz = buf\.readVarInt\(\);\s*"
+                r"int midiumRoundY = buf\.readVarInt\(\);\s*"
+                r"int arriveRoundXz = buf\.readVarInt\(\);\s*"
+                r"int arriveRoundY = buf\.readVarInt\(\);", client) is not None,
+      "★★ 客户端按**同样顺序**读回四格（midium Xz→Y → arrive Xz→Y；"
+      "包上没有字段名，差一格就是静默错位）")
 for _need in ("getPsdMidiumRound", "setDefaultPsdMidiumRound", "replaceDefaultPsdMidiumRound",
               "setDefaultPsdMidiumRoundAll", "replaceDefaultPsdMidiumRoundAll",
               "getPsdArriveRound", "setDefaultPsdArriveRound", "replaceDefaultPsdArriveRound",
@@ -1012,6 +1047,42 @@ check('return "close".equals(which) ? 2 : 1;' in screen,
 check('pick(which, EscalatorSpeedData.PSD_TONE_OFF, false)' in screen
       and 'button -> importPending(id)' in screen,
       "左列点=只导入（与广播页同一语义）；右列选用走 pick(which, value, false)")
+
+# ======================================================================
+print("\n== 10. 【10-03】讲述人页左侧输入框**不许吞掉框外点击**（否则下面那两排插入按钮点不动） ==")
+# ----------------------------------------------------------------------
+# 症状（用户报）：「点击选项框之后要点一下其他大按钮才能按输入框下面那 2 排小按钮」。
+# 根因：ContainerEventHandler.mouseClicked（javap 核过）按 children **加入顺序**挨个问，
+#   第一个返回 true 的就收工。editor 在 buildNarratePage 里加得**比** buildInsertButtons 早，
+#   而 WrappingEditBox 原来「只要聚焦着就把所有点击都吞掉」⇒ 点在插入按钮上时 editor 先吃掉。
+# 原版 EditBox **不覆写** mouseClicked（只覆写 onClick），走 AbstractWidget ⇒ 框外返回 false。
+WEB = os.path.join(CLIENT, "WrappingEditBox.java")
+web = strip_comments(read(WEB))
+_wmc = re.search(r"public boolean mouseClicked\(double mouseX, double mouseY, int button\)\s*\{(.*?)\n    \}",
+                 web, flags=re.S)
+check(_wmc is not None, "找到 WrappingEditBox.mouseClicked")
+if _wmc:
+    _wb = _wmc.group(1)
+    check(re.search(r"if \(!inside\)\s*\{\s*return false;", _wb) is not None,
+          "★★【10-03】框外点击一律 return false（让给别的控件）—— "
+          "**别退回**「聚焦着就把所有点击都吞掉」，那正是本 bug")
+    check("setFocused(true);" in _wb and "return true;" in _wb,
+          "框内点击仍然：setFocused(true) + 定位光标 + return true")
+    check("charIndexAt(" in _wb,
+          "★ 框内定位仍走**换行后**坐标的 charIndexAt（本类存在的理由，不是照抄原版 onClick）")
+
+# 成因那一半：加入顺序必须仍然是「输入框在前、插入按钮在后」（换序了这条链就不成立，
+# 得回头重新想 —— 所以把它钉住，别让后人以为顺序无所谓）。
+_e_pos = screen.find("addRenderableWidget(editor);")
+_i_pos = screen.find("buildInsertButtons(")
+check(_e_pos != -1 and _i_pos != -1 and _e_pos < _i_pos,
+      "★ editor 先于 buildInsertButtons 入 children（顺序就是本 bug 的成因）")
+check('String[] cnTokens = {"|", "|SC|", "|WC|", "|LC|", "|DC|"};' in screen
+      and 'String[] enTokens = {"|SE|", "|WE|", "|LE|", "|DE|"};' in screen,
+      "两排插入按钮的记号表原样在（中文 5 列 / 英文 4 列）")
+check("insertAtCursor(cnTokens[col])" in screen and "insertAtCursor(enTokens[col - 1])" in screen
+      and ".bounds(x, row1Y," in screen and ".bounds(x, row2Y," in screen,
+      "两排都在：中文排 row1Y、英文排 row2Y（点一下在光标处填记号）")
 
 if FAILS:
     print("\n== 失败 %d 项 ==" % len(FAILS))

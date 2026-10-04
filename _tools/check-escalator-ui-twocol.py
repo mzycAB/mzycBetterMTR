@@ -415,7 +415,7 @@ _swapped = help.replace('OFF_ROW_LABEL', '@@TMP@@', 1)
 check("@@TMP@@" in _swapped, "「不播」文案可被替换（说明判据确实钉在这段文本上）")
 
 print()
-print("===== 7) 两页共同的「两列」版式：表头 / 竖线 / 滚动条 / 状态行 =====")
+print("===== 7) 两页共同的「两列」版式：表头 / 竖线 / 滚动条（状态行已按【1.30】点名删除） =====")
 
 for fname, src in (("AudioSetupScreen.java", audio), ("HelpAudioSetupScreen.java", help)):
     check('Component.literal("未导入存档")' in src, "%s：左列表头「未导入存档」" % fname)
@@ -425,9 +425,10 @@ for fname, src in (("AudioSetupScreen.java", audio), ("HelpAudioSetupScreen.java
     check("listTop = LIST_TOP + ROW_H;" in squash(src),
           "%s：列表区让出一行表头（listTop = LIST_TOP + ROW_H）" % fname)
     check("SoundListLayout.scrollBarX(this.width)" in squash(src), "%s：滚动条 x 走 scrollBarX()" % fname)
-    check("SoundListLayout.STATUS_Y_LIST" in src, "%s：状态行用 STATUS_Y_LIST" % fname)
-    check("0xFFFF55" in src and "0xFFFFFF" in src,
-          "%s：文字只有白 / 黄两种色（反馈黄、其余白）" % fname)
+    check("SoundListLayout.STATUS_Y_LIST" not in src,
+          "%s：★【1.30】底部状态行已删（不再用 STATUS_Y_LIST 画字）" % fname)
+    check("0xFFFF55" not in src and "0xFFFFFF" in src,
+          "%s：★【1.30】界面上不再有黄字反馈（0xFFFF55 删净，只剩白色标题/表头）" % fname)
     for gray in ("0x808080", "0xFF909090", "0xFFE0E0E0", "0xC0C0C0", "0xA0A0A0", "0x707070"):
         check(gray not in src, "%s：★ 不含灰字色 %s（【1.18】老规矩）" % (fname, gray))
 
@@ -547,7 +548,8 @@ for dead in ("改扶梯速度会同步阶梯速度", "声音=整条扶梯底噪"
 check("默认音量 " not in lift, "★ LiftToneSetupScreen：「默认音量 」常驻信息行已删净")
 check("｜" not in lift, "★ LiftToneSetupScreen：分隔符「｜」已不在（那一行整段删）")
 check("getLiftHelpVolume(mc.level)" not in lift, "★ 不再为那一行读共用默认音量")
-check("if (statusText != null) {" in lift, "★ 改成「只在有操作反馈时才画那一行（黄色）」")
+check("if (statusText != null) {" not in lift and "statusText" in lift,
+      "★【1.30】黄字操作反馈也删了（statusText 机制保留，但界面上一处都不画）")
 
 # 反面对照
 _probe = manager.replace("normaliseDefaultAudio(data == null ? null : data.defaultAudio)",
@@ -601,8 +603,8 @@ check(has(c_audio, "未导入存档") and has(c_audio, "已导入存档") and ha
       "AudioSetupScreen.class：含两列表头 +「默认」")
 check(has(c_audio, "不播"),
       "★★ AudioSetupScreen.class：含「不播」")
-check(has(c_audio, "不播（这条扶梯静音）"),
-      "AudioSetupScreen.class：含状态行文案「不播（这条扶梯静音）」")
+check(not has(c_audio, "不播（这条扶梯静音）"),
+      "★【1.30】AudioSetupScreen.class：状态行文案「不播（这条扶梯静音）」已不在产物里")
 check(not has(c_audio, "内置"),
       "★★ 字节码里**没有**「内置」（内置地铁自动扶梯行确实删了）")
 
@@ -621,6 +623,10 @@ check(not has(c_speed, "改扶梯速度会同步阶梯速度") and not has(c_spe
       "★★ EscalatorSpeedScreen.class 里**没有**那四行灰字（不是只改了注释）")
 check(not has(c_lift, "默认音量 ") and not has(c_lift, "｜"),
       "★★ LiftToneSetupScreen.class 里**没有**「默认音量…｜…」那一行")
+# ★★【09-29 · 二改】直梯右列那只「开关：开/关 + 切换」按用户点名整行删掉 ——
+#   与扶梯页（c_help「开关：」）同一口径，这里也钉到**字节码**上：注释里删干净不算数。
+check(not has(c_lift, "开关：") and not has(c_lift, "切换"),
+      "★★【09-29 · 二改】字节码里**没有**「开关：」/「切换」（直梯那只开关按钮确实没进产物）")
 
 # ======================================================================
 if FAILS:

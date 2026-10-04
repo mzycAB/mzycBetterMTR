@@ -1,0 +1,224 @@
+===== 1) 指令侧：/mtrqx（无参 / on / off）与装配点 =====
+  ==> 通过  注册了 /mtrqx 根指令
+  ==> 通过  无参 -> 显示当前状态（show）
+  ==> 通过  /mtrqx on -> 开启
+  ==> 通过  /mtrqx off -> 关闭
+  ==> 通过  客户端初始化时读回上次的开关（load）
+  ==> 通过  ★ 落地线程：视角写入挂在 END_CLIENT_TICK（主线程），不在渲染线程里改玩家视角
+  ==> 通过  退出世界时复位（帧号 / 基线 / 已加过多少俯仰）
+  ==> 通过  命令类三段结构（show / set / 不经过 brigadier 的 apply）—— 与 /mtrxr 同一套
+  ==> 通过  ★ 状态文案只有 TrainTiltView.name() 一份（命令类不另写一份状态字面量，免得两处走样）
+  ==> 通过  状态文案确实在 TrainTiltView.name() 里（口径已是「转画面」而非「改视线」）
+
+===== 2) config/smoothlift-view.properties 的读法 =====
+  ==> 通过  配置文件名
+  ==> 通过  properties 键名 trainTiltView
+  ==> 通过  ★ 只有明确写成 off 才关（键不存在 / 写坏了都按默认「开」—— 与 EscalatorRenderMode 同一条规矩）
+  ==> 通过  默认开
+  ==> 通过  读：整份 Properties
+  ==> 通过  写：整份覆盖写
+
+===== 3) mixin 登记与门禁（没装 MTR4 必须安静跳过） =====
+  ==> 通过  俯仰角读取那条已登记进 smoothlift.psd.mixins.json
+  ==> 通过  骑乘帧那条已登记进 smoothlift.psd.mixins.json
+  ==> 通过  【二改】玩家模型倾斜那条已登记进 smoothlift.psd.mixins.json（没登记 = 运行期根本不加载）
+  ==> 通过  【三改】相机随列车横滚那条已登记进 smoothlift.psd.mixins.json（没登记 = 运行期根本不加载）
+  ==> 通过  配置 required=false（目标类不在时不许把游戏带崩）
+  ==> 通过  门禁插件里为这两条各有**真分支**（if…{ return tiltTargetPresent(…) }）
+  ==> 通过  ★★ 门禁插件里也为「玩家模型倾斜」放行（整条 if 分支；插件默认 return false ⇒ 漏了这条就静默不生效）
+  ==> 通过  ★★ 门禁插件里也为「相机随列车横滚」放行（整条 if 分支；插件默认 return false ⇒ 漏了这条就静默不生效）
+  ==> 通过  俯仰角那条按它自己的目标类判（org.mtr.mod.render.PositionAndRotation）
+  ==> 通过  骑乘帧那条按它自己的目标类判（org.mtr.mod.client.VehicleRidingMovement）
+  ==> 通过  ★ 门禁只用类路径资源探测（Class.forName/loadClass 会 load 类 ⇒ 崩别的模组的 mixin 准备）
+  ==> 通过  ★ 插件 postApply 打「mixin 已注入」信标（只有「已放行」没「已注入」⇒ 注入被丢弃）
+  ==> 通过  ★ 骑乘心跳：每秒一行（列车pitch / 窗口横滚 / 开关）—— 一眼看出「在骑但没转」
+  ==> 通过  ★ 每次上车打一行「检测到骑乘开始」（证明 movePlayer(DDD)V 那条链路通了）
+  ==> 通过  ★ noteRideMove 拒绝分支①：俯仰角一次都没采到（⇒ PositionAndRotation 注入点没生效）
+  ==> 通过  ★ noteRideMove 拒绝分支②：本帧没有新值（⇒ transform 漏采）
+  ==> 通过  ★ noteRideMove 拒绝分支③：线程判据把这一帧拒了
+  ==> 通过  ★【四改】「不改视角 / 只转画面」那条解释串已删除（① 整条路都没了，不再有这种早退）
+  ==> 通过  TrainTiltView.diagnostics() 给出「分段定位」状态串（含当前窗口横滚角）
+  ==> 通过  ★ 模型倾斜真正生效（角度非零）时留一行正面证据（注入点命中 ≠ 角度非零，要能分开看）
+  ==> 通过  diagnostics() 里有「模型倾斜」那一段（已生效 / 待生效 / 未在车上）
+  ==> 通过  ★ 新的模型倾斜 mixin 也吃 postApply「mixin 已注入」信标（挂在 postApply 的 if 链里，别漏)
+  ==> 通过  ★ 四条倾斜 mixin 都吃 postApply「mixin 已注入」信标（挂在 postApply 的 if 链里，别漏)
+  ==> 通过  ★ 相机横滚真正生效（roll 非零）时留一行正面证据（与模型倾斜/视角两路各自独立）
+  ==> 通过  diagnostics() 里有「相机横滚」那一段（已生效 / 待生效 / 未在车上）
+  ==> 通过  ★ 相机横滚 mixin 也吃 postApply「mixin 已注入」信标（挂在 postApply 的 if 链里，别漏)
+  ==> 通过  ★ /mtrqx（无参数）在游戏里直接打印诊断串（不必翻日志）
+
+===== 4) 注入点 / static 一致性 / 注入体铁律 =====
+  ==> 通过  俯仰角 mixin 的目标类名
+  ==> 通过  骑乘帧 mixin 的目标类名
+  ==> 通过  ★ movePlayer(DDD)V 的处理器是 static（目标 static；不一致 ⇒ 注入被拒且 require=0 完全静默）
+  ==> 通过  ★ sendUpdate(Z)V 的处理器是 static（同上）
+  ==> 通过  ★ transformForwards/Backwards 的处理器是实例方法（目标非 static）
+  ==> 通过  ★★★ 俯仰角 mixin 引入 CallbackInfoReturnable
+  ==> 通过  ★★★ 两个处理器都收 CallbackInfoReturnable<…>（目标有返回值；收 CallbackInfo ⇒ 注入被静默拒收）
+  ==> 通过  ★ 俯仰角 mixin 里没有残留的 CallbackInfo 形参（那两个目标不是 void）
+  ==> 通过  ★ 写全描述符 movePlayer(DDD)V（只写名字会在两个重载之间歧义）
+  ==> 通过  注入点 sendUpdate(Z)V（只读那个 boolean）
+  ==> 通过  ★ 两个 transform 都挂（正常骑乘走 forwards、站台间隙那条走 backwards）
+  ==> 通过  四处注入 require=0（MTR 换版本时安静跳过；配套的「首帧已命中」日志负责暴露没生效）
+  ==> 通过  remap=false（MTR 不参与原版混淆，名字两端一致）
+  ==> 通过  @Shadow 两个 double（pitch / yaw）—— 都是目标类自己的字段
+  ==> 通过  俯仰角 mixin 的注入体里没有任何 MTR / MC 类型
+  ==> 通过  骑乘帧 mixin 的注入体里没有任何 MTR / MC 类型
+  ==> 通过  取值/判断全部交给辅助类 TrainTiltView（辅助类不在 mixin 包里）
+
+===== 4b) 玩家模型倾斜（RideTiltPlayerRenderMixin） =====
+  ==> 通过  目标类 = 原版 LivingEntityRenderer（第一人称下它不会被调，天然只影响第三人称）
+  ==> 通过  ★ 写全描述符（泛型 T 擦除成 LivingEntity；只写方法名在重载/泛型下都靠不住）
+  ==> 通过  ★ 钩 HEAD —— 此刻 poseStack 只做了世界平移 ⇒ mulPose 是**世界系**旋转（脚底不动、身体歪）
+  ==> 通过  ★★ 回调参数是 CallbackInfo（目标 render(...) 是 void；有返回值才用 CallbackInfoReturnable）
+  ==> 通过  只处理本地玩家（别人的车俯仰角拿不到）
+  ==> 通过  唯一动作 = 往矩阵上乘一个绕车体横向轴的旋转（不改坐标、不改原版其它渲染）
+  ==> 通过  取值/判断全部交给 TrainTiltView（mixin 里不出现任何 MTR 类型）
+  ==> 通过  ★ 注入体里没有任何 MTR 类型（编译期没有 MTR 依赖）
+  ==> 通过  require = 0（原版改了签名就安静跳过，不崩）+ 由插件 postApply 给「已注入」正面证据
+
+===== 4c) 相机随列车横滚（RideTiltCameraRollMixin） =====
+  ==> 通过  目标类 = 原版 GameRenderer（视角矩阵就是它拼的；MC 相机本身没有 roll 入口）
+  ==> 通过  ★★★ 写全描述符 renderLevel(FJLcom/mojang/blaze3d/vertex/PoseStack;)V（漏 J(long) ⇒ 注入找不到目标）
+  ==> 通过  ★ 钩在 renderLevel 里第 4 处 mulPose(Quaternionf)（= 相机 Y 旋转，offset 523）之后
+  ==> 通过  ★ Shift.AFTER —— 相机 Y 旋转已经乘上去，此刻补 roll；它之后取逆视图矩阵 / 视锥 / 世界 / 手共用同一 poseStack
+  ==> 通过  ★★ renderLevel 是实例方法 ⇒ 处理器**不许** static（不一致 ⇒ 注入被拒且 require=0 完全静默）
+  ==> 通过  ★★ 回调参数是 CallbackInfo（目标 renderLevel(...) 是 void）
+  ==> 通过  require = 0（原版改了签名就安静跳过，不崩）+ 由插件 postApply 给「已注入」正面证据
+  ==> 通过  取值/判断全部交给 TrainTiltView（mixin 里不出现任何 MTR 类型）
+  ==> 通过  ★ 注入体里没有任何 MTR 类型（编译期没有 MTR 依赖）
+  ==> 通过  唯一动作 = 往矩阵上乘一个旋转（不改坐标、不改原版其它渲染）
+  ==> 通过  ★★★【五改】算式里没有相机视线（无 getLookVector / getMainCamera / Camera 导入 / atan2 / upNow / upTarget）⇒ 旋转角与「往哪看」无关：坡上一定转、扭头不抽
+  ==> 通过  ★★★【五改】连 Minecraft / Vector3f 都不引（只留 PoseStack + JOML Quaternionf + TrainTiltView）
+  ==> 通过  ★★★【五改】往 poseStack 上乘的是 **-pitch**（即 R^{-1}；写成 +pitch 会让列车**双倍**倾斜）
+  ==> 通过  ★★★【五改】轴仍是车体横向轴 r = (-cos yaw, 0, sin yaw)（与模型倾斜那条**同一个 r**）
+  ==> 通过  ★ 平路（pitch 恰为 0）直接 return，不动矩阵（免得平路直行也歪一下）
+
+===== 5) 几何（模型倾斜 / 相机横滚，纯逻辑重放） =====
+  ==> 通过  车体横向轴是**水平**的（r.y ≡ 0）⇒ 绕它转是纯粹的「俯仰」，不含侧倾
+  ==> 通过  r = f × u 与前进方向正交（r·f = r.x·sin yaw + r.z·cos yaw ≡ 0）且是单位向量（(-cos yaw, 0, sin yaw) 的闭式解正确）
+  ==> 通过  ★ 上坡时身体上方向朝**下坡侧**倾（垂直于地板）⇒ 脚底贴合地板、玩家向后仰（n·f = -0.1736）
+  ==> 通过  ★ 地板法线与世界上方夹角 = 列车俯仰角（实测 10.0000° = 10°）
+  ==> 通过  ★★ 「路径点反向」不变量：R(pitch, yaw) ≡ R(-pitch, yaw+π)（实测最大偏差 1.1e-16）⇒ 不用猜方向
+  ==> 通过  ★ R 的不动轴就是 r（R·r ≡ r，实测残差 1.1e-16）：模型倾斜确实是「绕车体横向轴」转
+  ==> 通过  ★ 源码里的轴就是 (-cos yaw, 0, sin yaw)（与上面重放的闭式解同构）
+  ==> 通过  ★★★ 世界乘 R^{-1} 后，列车地板法线逐分量 = 世界上方 ⇒ 列车/地板/窗框在屏幕上**水平**（残差 1.1e-16）
+  ==> 通过  ★★★ 地面（世界竖直）变斜了：与世界上方夹角 = 列车倾斜角（实测 10.0000° = 10°）
+  ==> 通过  ★★ 地面往下坡侧偏、地板法线往上坡侧偏（两者方向相反）⇒ 观感「车厢平、外面坡斜」
+  ==> 通过  ★★★ 相机那条与模型那条**严格互逆**（R·R^{-1} = I，实测最大偏差 2.2e-16）⇒「车厢平 + 模型站直」
+  ==> 通过  ★★★【五改】施加的旋转角 = 列车倾斜角本人（实测 10.0000° = 10°）—— 不再是 0…±17° 那族视线函数
+  ==> 通过  ★★★【五改】换任意车头朝向（yaw = 0/37/123/271°）旋转角都还是 10°（最大偏差 5.0e-14）⇒ 与视线/朝向无关
+  ==> 通过  ★ R^{-1} 的不动轴仍是 r（列车横向轴本身不被转）⇒ 没有「左右侧窗各一个方向」的二义
+  ==> 通过  ★ 源码里往 poseStack 上乘的是 rotateAxis(-pitch, (-cos yaw, 0, sin yaw))（= R^{-1}）
+  ==> 通过  ★★★【五改】源码里四改的 atan2/upNow/upTarget 三件套**整段删除**（不是留着不调用）
+  ==> 通过  ★★★ TrainTiltView 里没有「改玩家视线」的残留（rotateViewDir/appliedViewRot/applyRidePitch/clampView 全无）
+  ==> 通过  ★★★ TrainTiltView 里没有 setXRot / setYRot（一个字节都不写玩家视角）
+  ==> 通过  ★★★ 也不通过 player.setXRot/setYRot 绕过去改视线
+  ==> 通过  ★★★ 也不用 Entity.setRotation 批量写视角（那是 setYRot+xRot 的组合）
+
+===== 6) 快照的两条判据（渲染线程噪声 / 同线程紧邻） =====
+  ==> 通过  ① 有新值才用（帧号）
+  ==> 通过  ★ ② 必须是**本线程**刚写的值 —— 渲染线程（RenderVehicles / RenderLifts）也在写同一个变量
+  ==> 通过  写侧记下是哪条线程写的
+  ==> 通过  消费后推进帧号（否则同一帧会被重复消费）
+  ==> 通过  ★ 下车信号：sendUpdate(true) 只置位，主线程 tick 里清 rideActive（渲染侧下一帧就不再转）
+  ==> 通过  ★ 置位/清位成对（只置不清 ⇒ 之后再也转不起来）
+  ==> 通过  兜底：连续 RIDE_GAP_TICKS 个 tick 没有骑乘帧 ⇒ 也认定已下车（被传送走 / 车被撤掉）
+  ==> 通过  ★【四改】旧的「算增量 → 写视角」收口（applyRidePitch / appliedTiltDegrees）已彻底删除
+  ==> 通过  ★ rideActive 是 volatile（渲染线程读 / 采集与 tick 两个线程写）
+  ==> 通过  ★ 采集端（noteRideMove，渲染线程、与搬运同帧）置位
+  ==> 通过  ★ 消费端（onClientTick 认下车）与 onDisconnect 都要清位（清少了 ⇒ 下车后模型还歪着）
+  ==> 通过  ★ 渲染侧闸门 = 开关 ∧ 正在车上（两者缺一都不倾斜）
+  ==> 通过  ★ 模型倾斜读的是**绝对** pitch（ridePitch），不是别的什么累加量（【四改】已无累加量）
+
+===== 7) 产物侧（jar 字节码） =====
+  ==> 通过  找得到构建产物 build/libs/mzycBetterMTR-*.jar（找不到一律判失败）
+  ==> 通过  jar 名带的是 gradle.properties 里的 mod_version  -- mzycBetterMTR-1.31.1204.jar / 1.31.1204
+  ==> 通过  ★ 版本号就是用户点名的 1.31.1204  -- 得到 1.31.1204
+  ==> 通过  jar 里有 smooth/lift/client/TrainTiltView.class
+  ==> 通过  jar 里有 smooth/lift/client/TrainTiltViewCommand.class
+  ==> 通过  jar 里有 smooth/lift/client/mixin/Mtr4RideTiltPositionMixin.class
+  ==> 通过  jar 里有 smooth/lift/client/mixin/Mtr4RideTiltMovementMixin.class
+  ==> 通过  jar 里有 smooth/lift/client/mixin/RideTiltPlayerRenderMixin.class
+  ==> 通过  jar 里有 smooth/lift/client/mixin/RideTiltCameraRollMixin.class
+  ==> 通过  ★ 打进包的那份 mixins.json 也列着这四条（否则运行时根本不加载）
+  ==> 通过  俯仰角 mixin class 里含 org.mtr.mod.render.PositionAndRotation
+  ==> 通过  俯仰角 mixin class 里含 transformForwards
+  ==> 通过  俯仰角 mixin class 里含 transformBackwards
+  ==> 通过  俯仰角 mixin class 里含 pitch
+  ==> 通过  俯仰角 mixin class 里含 yaw
+  ==> 通过  俯仰角 mixin class 里含 /Pseudo;
+  ==> 通过  俯仰角 mixin class 里含 /Shadow;
+  ==> 通过  俯仰角 mixin class 里含 /Final;
+  ==> 通过  俯仰角 mixin class 里含 /Inject;
+  ==> 通过  俯仰角 mixin class 里含 callback/CallbackInfoReturnable;
+  ==> 通过  俯仰角 mixin class 里含 smooth/lift/client/TrainTiltView
+  ==> 通过  ★ 俯仰角 mixin class 里没有裸 CallbackInfo（那两个目标有返回值）
+  ==> 通过  骑乘帧 mixin class 里含 org.mtr.mod.client.VehicleRidingMovement
+  ==> 通过  骑乘帧 mixin class 里含 movePlayer(DDD)V
+  ==> 通过  骑乘帧 mixin class 里含 sendUpdate(Z)V
+  ==> 通过  骑乘帧 mixin class 里含 /Pseudo;
+  ==> 通过  骑乘帧 mixin class 里含 /Inject;
+  ==> 通过  骑乘帧 mixin class 里含 smooth/lift/client/TrainTiltView
+  ==> 通过  TrainTiltView class 里含 smoothlift-view.properties
+  ==> 通过  TrainTiltView class 里含 trainTiltView
+  ==> 通过  TrainTiltView class 里含 noteTransform
+  ==> 通过  TrainTiltView class 里含 noteRideMove
+  ==> 通过  TrainTiltView class 里含 onRideEnd
+  ==> 通过  TrainTiltView class 里含 onClientTick
+  ==> 通过  TrainTiltView class 里含 onDisconnect
+  ==> 通过  TrainTiltView class 里含 noteModelTilt（模型倾斜 / 相机横滚那两路）
+  ==> 通过  TrainTiltView class 里含 renderTiltPitch（模型倾斜 / 相机横滚那两路）
+  ==> 通过  TrainTiltView class 里含 renderTiltYaw（模型倾斜 / 相机横滚那两路）
+  ==> 通过  TrainTiltView class 里含 rideActive（模型倾斜 / 相机横滚那两路）
+  ==> 通过  TrainTiltView class 里含 noteCameraRoll（模型倾斜 / 相机横滚那两路）
+  ==> 通过  TrainTiltView class 里含 lastRollDegrees（模型倾斜 / 相机横滚那两路）
+  ==> 通过  TrainTiltView class 里含 rideEndRequested（模型倾斜 / 相机横滚那两路）
+  ==> 通过  ★★★ TrainTiltView class 里没有 rotateViewDir/appliedViewRot/setXRot/setYRot（产物级反证：不写视线）
+  ==> 通过  模型倾斜 mixin class 里含 @Mixin 目标已 remap 成 class_922（= 原版 LivingEntityRenderer）
+  ==> 通过  模型倾斜 mixin class 里含 描述符里的 class_1309（= LivingEntity，泛型 T 擦除后）
+  ==> 通过  模型倾斜 mixin class 里含 描述符里的 class_4587（= PoseStack）
+  ==> 通过  模型倾斜 mixin class 里含 描述符里的 class_4597（= MultiBufferSource）
+  ==> 通过  模型倾斜 mixin class 里含 org/joml/Quaternionf（JOML 不 remap，名字原样）
+  ==> 通过  模型倾斜 mixin class 里含 调用的是 method_22907（= PoseStack.mulPose(Quaternionf)，源码里写 mulPose）
+  ==> 通过  模型倾斜 mixin class 里含 mulPose 的描述符 (Lorg/joml/Quaternionf;)V（确认 method_22907 就是它）
+  ==> 通过  模型倾斜 mixin class 里含 取值/判断全交给 TrainTiltView（注入体里没有 MTR 类型）
+  ==> 通过  模型倾斜 mixin class 里含 回调参数 CallbackInfo（目标 render(...) 是 void）
+  ==> 通过  ★ @Inject 的 method 值保留**源码级描述符**（与 refmap 的键逐字一致）
+  ==> 通过  ★ 模型倾斜 mixin 里没有 CallbackInfoReturnable（目标 render(...) 是 void ⇒ 只许 CallbackInfo）
+  ==> 通过  ★ 模型倾斜 mixin 里没有 org/mtr（编译期没有 MTR 依赖）
+  ==> 通过  ★ refmap(client-mzycBetterMTR-refmap.json) 把模型倾斜的目标方法映射到了 class_922;method_4054（原版 render）  -- 条目 {'render(Lnet/minecraft/world/entity/LivingEntity;FFLcom/mojang/blaze3d/vertex/PoseStack;Lnet/minecraft/client/renderer/MultiBufferSource;I)V': 'Lnet/minecraft/class_922;method_4054(Lnet/minecraft/class_1309;FFLnet/minecraft/class_4587;Lnet/minecraft/class_4597;I)V'}
+  ==> 通过  ★ 至少一份 refmap 含模型倾斜的目标方法映射（client 源集 ⇒ client-*-refmap.json）
+  ==> 通过  相机横滚 mixin class 里含 @Mixin 目标已 remap 成 class_757（= 原版 GameRenderer）
+  ==> 通过  相机横滚 mixin class 里含 调用的 method_22907（= PoseStack.mulPose(Quaternionf)）
+  ==> 通过  相机横滚 mixin class 里含 mulPose 描述符 (Lorg/joml/Quaternionf;)V（确认 method_22907 就是它）
+  ==> 通过  相机横滚 mixin class 里含 org/joml/Quaternionf（JOML 不 remap，名字原样）
+  ==> 通过  相机横滚 mixin class 里含 取值/判断全交给 TrainTiltView（注入体里没有 MTR 类型）
+  ==> 通过  相机横滚 mixin class 里含 回调参数 CallbackInfo（目标 renderLevel(...) 是 void）
+  ==> 通过  ★★★ @Inject 的 method 值保留**源码级描述符**且带 J(long)（漏 J ⇒ 编译期就找不到目标）
+  ==> 通过  ★ 没有 CallbackInfoReturnable（目标 renderLevel(...) 是 void ⇒ 只许 CallbackInfo）
+  ==> 通过  ★ 没有 org/mtr（编译期没有 MTR 依赖）
+  ==> 通过  ★ refmap(client-mzycBetterMTR-refmap.json) 把 renderLevel 映射到 class_757;method_3188（原版 GameRenderer.renderLevel）  -- 条目 {'Lcom/mojang/blaze3d/vertex/PoseStack;mulPose(Lorg/joml/Quaternionf;)V': 'Lnet/minecraft/class_4587;method_22907(Lorg/joml/Quaternionf;)V', 'renderLevel(FJLcom/mojang/blaze3d/vertex/PoseStack;)V': 'Lnet/minecraft/class_757;method_3188(FJLnet/minecraft/class_4587;)V'}
+  ==> 通过  ★ refmap(client-mzycBetterMTR-refmap.json) 把 mulPose 映射到 class_4587;method_22907（原版 PoseStack.mulPose）  -- 条目 {'Lcom/mojang/blaze3d/vertex/PoseStack;mulPose(Lorg/joml/Quaternionf;)V': 'Lnet/minecraft/class_4587;method_22907(Lorg/joml/Quaternionf;)V', 'renderLevel(FJLcom/mojang/blaze3d/vertex/PoseStack;)V': 'Lnet/minecraft/class_757;method_3188(FJLnet/minecraft/class_4587;)V'}
+  ==> 通过  ★ 至少一份 refmap 含相机横滚的目标方法映射（client 源集 ⇒ client-*-refmap.json）
+  ==> 通过  ★ refmap(client-mzycBetterMTR-refmap.json) 里没有这两个目标类的映射条目（有 = 字段名会被 remap 掉）  -- 命中 []
+  ==> 通过  ★ refmap(mzycBetterMTR-refmap.json) 里没有这两个目标类的映射条目（有 = 字段名会被 remap 掉）  -- 命中 []
+
+===== 8) 反向对照（mutation 必须变红） =====
+  ==> 通过  往 TrainTiltView 里塞一句 player.setXRot ⇒「一个字节都不写玩家视角」那条判据当场变红
+  ==> 通过  把处理器的 static 去掉 ⇒「static 必须与目标一致」那条判据当场变红
+  ==> 通过  把 CallbackInfoReturnable 退回 CallbackInfo ⇒「回调参数必须与返回值形态一致」那条当场变红
+  ==> 通过  把门禁分支删掉 ⇒「为这两条各有分支」那条判据当场变红
+  ==> 通过  把模型倾斜的门禁真分支删掉（信标子串仍在）⇒「插件默认 return false」那条判据当场变红
+  ==> 通过  把横向轴取反 ⇒「轴 = (-cos yaw, 0, sin yaw)」那条当场变红
+  ==> 通过  反向重放：轴取反后上坡时身体变成**朝上坡侧**倾（n·f = +0.1736 > 0）⇒ 判据必然红
+  ==> 通过  把 void 目标的回调参数换成 CallbackInfoReturnable ⇒ 回调形态那条当场变红
+  ==> 通过  对照全部在内存里做 ⇒ 源码未被污染（还原基线一致）
+  ==> 通过  把 -pitch 改成 +pitch ⇒「矩阵右乘 R^{-1}」那条判据当场变红
+  ==> 通过  反向重放：写成 +pitch 后列车地板法线对不齐世界上方（残差 0.347 ≫ 0）⇒ (a) 必然红
+  ==> 通过  把相机读回算式 ⇒「视角无关（无 getLookVector / getMainCamera / Camera 导入）」那条判据当场变红
+  ==> 通过  把相机横滚的门禁真分支删掉（信标子串仍在）⇒ 门禁那条判据当场变红
+  ==> 通过  把描述符里的 J(long) 删掉 ⇒「写全描述符 renderLevel(FJL…)V」那条当场变红
+  ==> 通过  给处理器加上 static（目标是实例方法）⇒ static 一致性那条当场变红
+
+== 全部通过 ==

@@ -1,4 +1,4 @@
-package smooth.lift.mixin.mtr;
+package smooth.lift;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -54,6 +54,25 @@ import java.lang.reflect.Field;
  * Set）。用 {@code @Shadow} 去影子一个**父类**字段虽然 Mixin 支持，但一旦语义有偏差就是
  * 启动期崩溃；而这两个字段每 tick 只读两次、写一次，反射的开销（Field 已缓存）在
  * 「几十条直梯 × 20 tick/s」下完全不可测量。**用可靠性换掉这点开销是划算的。**
+ *
+ * <h2>★★ 铁律：本类**必须留在 {@code smooth.lift} 包**，绝不能挪进 {@code smooth.lift.mixin.mtr}</h2>
+ * 本类不是 {@code @Mixin}，但它被 {@code Mtr3LiftDoorMixin} 的**注入处理器**调用。
+ * Mixin 会把「注入进来的那次调用」写进目标类 {@code mtr.data.LiftServer} 的字节码里，
+ * 而目标类的常量池解析用的是**游戏类加载器**。Mixin 对自己的 {@code @Mixin} 类有缓存、
+ * 放行这种自引用；但对「只是放在 mixin 包里、却不是 @Mixin 的普通类」没有缓存 ——
+ * 于是那次调用会去 {@code loadClass} 本类，Mixin 立刻抛：
+ *
+ * <pre>
+ * IllegalClassLoadError: smooth.lift.mixin.mtr.Mtr3LiftAutoClose is in a defined mixin
+ * package smooth.lift.mixin.mtr.* owned by smoothlift.mtr.mixins.json and cannot be
+ * referenced directly
+ *     at mtr.data.LiftServer.handler$...$autoCloseIdleDoor(LiftServer.java:574)
+ * </pre>
+ *
+ * 表现是**游戏在刚进世界、服务端 tick 到第一条直梯时直接崩**（2026-10-01 实测）。
+ * 1.20.1 那一版当时就踩过并已挪到 {@code smooth.lift}；1.20.4 直到 10-01 还留在旧位置 ⇒ 一并订正。
+ * 一句话：**{@code smooth.lift.mixin.mtr} 这个包里只许放 {@code @Mixin} 类**（同规见
+ * {@link smooth.lift.client.PlatformNameMask} 的类注释）。
  */
 public final class Mtr3LiftAutoClose {
 

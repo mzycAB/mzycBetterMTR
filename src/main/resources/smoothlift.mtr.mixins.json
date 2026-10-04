@@ -6,7 +6,8 @@
   "plugin": "smooth.lift.mixin.mtr.Mtr3LiftMixinPlugin",
   "mixins": [
     "Mtr3LiftDoorMixin",
-    "Mtr4LiftTrackFloorShapeMixin"
+    "Mtr4LiftTrackFloorShapeMixin",
+    "Mtr4TrainDepartHoldMixin"
   ],
   "injectors": {
     "defaultRequire": 1

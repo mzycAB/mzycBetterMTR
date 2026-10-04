@@ -1,0 +1,65 @@
+﻿
+> Configure project :
+Fabric Loom: 1.6.12
+Not publishing sources jar as it was not found. Use java.withSourcesJar() to fix.
+
+> Task :compileJava
+.\gradlew : C:\Users\user\Desktop\2\mzycBetterMTR-1.20.4\src\main\java\smooth\lift\mixin\mtr\Mtr3LiftDoorMixin.java:72:
+ ע: @Inject target 'tickServer' in @Pseudo mixin will not be obfuscated
+所在位置 行:1 字符: 261
++ ... TR-1.20.4'; .\gradlew build --offline -x test --console=plain 2>&1 |  ...
++                 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : NotSpecified: (C:\Users\user\D...t be obfuscated:String) [], RemoteException
+    + FullyQualifiedErrorId : NativeCommandError
+ 
+    @Inject(method = "tickServer", at = @At("TAIL"))
+    ^
+C:\Users\user\Desktop\2\mzycBetterMTR-1.20.4\src\main\java\smooth\lift\mixin\mtr\Mtr4TrainDepartHoldMixin.java:70: ����
+: Unable to locate obfuscation mapping for @Shadow field
+    @Shadow
+    ^
+ע: C:\Users\user\Desktop\2\mzycBetterMTR-1.20.4\src\main\java\smooth\lift\PictureBlocks.javaʹ�û򸲸����ѹ�ʱ�� API��
+ע: �й���ϸ��Ϣ, ��ʹ�� -Xlint:deprecation ���±��롣
+1 ������
+
+> Task :processResources UP-TO-DATE
+> Task :classes
+
+> Task :compileClientJava
+C:\Users\user\Desktop\2\mzycBetterMTR-1.20.4\src\client\java\smooth\lift\client\mixin\sodium\LightDataAccessCafMixin.ja
+va:38: ����: Unable to locate obfuscation mapping for @Shadow method
+    @Shadow
+    ^
+C:\Users\user\Desktop\2\mzycBetterMTR-1.20.4\src\client\java\smooth\lift\client\mixin\sodium\LightDataAccessCafMixin.ja
+va:41: ����: Unable to locate obfuscation mapping for @Shadow method
+    @Shadow
+    ^
+C:\Users\user\Desktop\2\mzycBetterMTR-1.20.4\src\client\java\smooth\lift\client\mixin\sodium\LightDataAccessJellyMixin.
+java:44: ����: Unable to locate obfuscation mapping for @Shadow method
+    @Shadow
+    ^
+C:\Users\user\Desktop\2\mzycBetterMTR-1.20.4\src\client\java\smooth\lift\client\mixin\sodium\LightDataAccessJellyMixin.
+java:47: ����: Unable to locate obfuscation mapping for @Shadow method
+    @Shadow
+    ^
+ע: ĳЩ�����ļ�ʹ�û򸲸����ѹ�ʱ�� API��
+ע: �й���ϸ��Ϣ, ��ʹ�� -Xlint:deprecation ���±��롣
+4 ������
+
+> Task :processClientResources UP-TO-DATE
+> Task :jar
+> Task :validateAccessWidener UP-TO-DATE
+> Task :check
+> Task :remapJar
+> Task :remapSourcesJar SKIPPED
+> Task :assemble
+> Task :build
+
+Deprecated Gradle features were used in this build, making it incompatible with Gradle 9.0.
+
+You can use '--warning-mode all' to show the individual deprecation warnings and determine if they come from your own scripts or plugins.
+
+For more on this, please refer to https://docs.gradle.org/8.10.2/userguide/command_line_interface.html#sec:command_line_warnings in the Gradle documentation.
+
+BUILD SUCCESSFUL in 6s
+7 actionable tasks: 4 executed, 3 up-to-date
