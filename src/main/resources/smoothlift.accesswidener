@@ -71,3 +71,13 @@ accessible	field	net/minecraft/client/renderer/LevelRenderer	renderChunksInFrust
 accessible	class	net/minecraft/client/renderer/LevelRenderer$RenderChunkInfo
 accessible	field	net/minecraft/client/renderer/LevelRenderer$RenderChunkInfo	chunk	Lnet/minecraft/client/renderer/chunk/ChunkRenderDispatcher$RenderChunk;
 
+
+# ---------------------------------------------------------------------------
+# 【1.18.1204】地图图片方块：运行时更新图集里 sprite 的像素。
+# 把 MBM_Picture 文件夹里的图片切成 4 块、缩放到 1024x1024、加 64px 灰色外边框后，
+# 客户端要把它塞进方块图集（block atlas）里 shsubwaypicture:block/pic_* 对应的
+# SpriteContents。SpriteContents 的构造器是 public 的，但像素数组 byMipLevel
+# 是 package-private，这里放开它：新建 SpriteContents 后替换掉原 sprite 的
+# byMipLevel[0]，再 bind 图集并调 sprite.uploadFirstFrame() 完成上传。
+# ---------------------------------------------------------------------------
+accessible	field	net/minecraft/client/renderer/texture/SpriteContents	byMipLevel	[Lcom/mojang/blaze3d/platform/NativeImage;

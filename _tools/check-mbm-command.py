@@ -180,6 +180,8 @@ else:
     check(b"dtmusic" not in sl_blob, "★ 字节码里没有旧的 dtmusic 字面量")
     check(b"MBM_Audio" in esm_blob, "★ 字节码里文件夹名是 MBM_Audio")
     check(b"smoothlift_audio" not in esm_blob, "★ 字节码里没有旧的 smoothlift_audio")
+    check(b"upload_audio" not in sl_blob and b"storeAudio" not in esm_blob,
+          "★ 字节码里没有 UPLOAD 死通道（【1.7】分块上传已删：会绕过分类注册表入库）")
     check(fm["version"] == "1.26.1201", "jar 内 fabric.mod.json version = 1.26.1201（用户点名）",
           "得到 %s" % fm["version"])
     check(any(n.endswith("MbmHelpScreen.class") for n in names),

@@ -1,5 +1,6 @@
 package smooth.lift.client;
 
+import com.mojang.blaze3d.systems.RenderSystem;
 import com.mojang.blaze3d.vertex.BufferBuilder;
 import com.mojang.blaze3d.vertex.DefaultVertexFormat;
 import com.mojang.blaze3d.vertex.VertexBuffer;
@@ -197,7 +198,21 @@ public final class EscalatorStepCache {
         private void releaseBuffers() {
             for (int i = 0; i < EscalatorStepGroups.SLOT_COUNT; i++) {
                 if (buffers[i] != null) {
-                    buffers[i].close();
+                    final VertexBuffer buffer = buffers[i];
+                    // GL 删除必须发生在渲染线程：onDisconnect 由 Netty 连接线程触发
+                    // （SmoothLiftClient 的连接断开回调），直接 close() 会报
+                    // "Rendersystem called from wrong thread"，并可能连带破坏渲染线程的
+                    // LWJGL MemoryStack 状态（崩溃日志里紧随其后的 Out of stack space）。
+                    // 延迟到渲染线程下一帧执行；引用先置空，不会出现并发使用。
+                    try {
+                        RenderSystem.recordRenderCall(buffer::close);
+                    } catch (Exception e) {
+                        // 渲染循环已停止（如游戏关闭中）：缓冲交由驱动回收，不阻塞清理。
+                        try {
+                            buffer.close();
+                        } catch (Exception ignore) {
+                        }
+                    }
                     buffers[i] = null;
                 }
                 vertexCounts[i] = 0;

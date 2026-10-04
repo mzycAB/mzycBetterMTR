@@ -1,0 +1,3248 @@
+
+############################################################
+# mixin 插件安全
+############################################################
+  ==> 通过
+
+############################################################
+# mixin 包守卫(类)
+############################################################
+  ==> 通过
+
+############################################################
+# 直梯 jar 结构体检
+############################################################
+  ==> 通过
+
+############################################################
+# 扶梯阶梯渲染引擎
+############################################################
+  ==> 通过
+
+############################################################
+# 屏蔽门锚点与跳变
+############################################################
+  ==> 失败（完整输出见下方）
+===== 1) 锚点：左右两块 + 上下半格必须折到同一格 =====
+[PASS] facing=NORTH：左右 × 上下 共 4 个位置 → 锚点唯一  -- 锚点数 = 1
+[PASS] facing=NORTH：锚点 = 两块里 asLong 较小的那个
+[PASS] facing=SOUTH：左右 × 上下 共 4 个位置 → 锚点唯一  -- 锚点数 = 1
+[PASS] facing=SOUTH：锚点 = 两块里 asLong 较小的那个
+[PASS] facing=EAST：左右 × 上下 共 4 个位置 → 锚点唯一  -- 锚点数 = 1
+[PASS] facing=EAST：锚点 = 两块里 asLong 较小的那个
+[PASS] facing=WEST：左右 × 上下 共 4 个位置 → 锚点唯一  -- 锚点数 = 1
+[PASS] facing=WEST：锚点 = 两块里 asLong 较小的那个
+
+===== 2) 配对方向必须与 MTR getDoorValue() 一致（抄错方向会得到另一对格子）=====
+[PASS] facing=NORTH：MTR 规则下 LEFT → RIGHT（本实现同）
+[PASS] facing=NORTH：抄反方向会配到 (99, 64, 200) ≠ 正确的那一格
+[PASS] facing=SOUTH：MTR 规则下 LEFT → RIGHT（本实现同）
+[PASS] facing=SOUTH：抄反方向会配到 (101, 64, 200) ≠ 正确的那一格
+[PASS] facing=EAST：MTR 规则下 LEFT → RIGHT（本实现同）
+[PASS] facing=EAST：抄反方向会配到 (100, 64, 199) ≠ 正确的那一格
+[PASS] facing=WEST：MTR 规则下 LEFT → RIGHT（本实现同）
+[PASS] facing=WEST：抄反方向会配到 (100, 64, 201) ≠ 正确的那一格
+
+===== 3) 非门方块（玻璃/顶板）退化成自身，不吸附到门上 =====
+[PASS] 非门方块 anchorOf = 自身（不会吸附到门上）
+[PASS] 非门方块的 key 与门的 key 不同 ⇒ 不会互相顶掉
+
+===== 4) 开门 / 关门跳变：每次「起动」必须**恰好**触发一次 =====
+[PASS] 整段开门（0→1，30 tick）→ 恰好 1 次开门、0 次关门  -- 得到 (1, 0)
+[PASS] 整段关门（1→0，30 tick）→ 恰好 0 次开门、1 次关门  -- 得到 (0, 1)
+[PASS] 只开一半又收回去（0→0.5→0）→ 1 次开门（门机起动过）、0 次关门（没到过全开）  -- 得到 (1, 0)
+[PASS] 只关一半又推回去（1→0.5→1）→ 0 次开门、1 次关门（对称）  -- 得到 (0, 1)
+[PASS] 开一轮再关一轮 → 各 1 次  -- 得到 (1, 1)
+[PASS] 从半开（0.5）滑到全开 → 不触发（没离开过全关）  -- 得到 (0, 0)
+[PASS] 从半开（0.5）滑到全关 → 不触发（没离开过全开）  -- 得到 (0, 0)
+[PASS] 连开合两轮 → 各 2 次（不漏不多）  -- 得到 (2, 2)
+[PASS] 门一直全关（60 tick 不动）→ 不触发  -- 得到 (0, 0)
+[PASS] 门一直全开（60 tick 不动）→ 不触发  -- 得到 (0, 0)
+
+===== 5) MTR3 的 0.1/32 偏移：补与不补的差别（可核验的数字）=====
+        MTR3 原始返回值区间 = [-0.003125, 0.996875]
+        补 0.1/32 之后         = [0.000000, 1.000000]
+[PASS] 补偏移后「全关」正好是 0.0  -- 0.000000000
+[PASS] 补偏移后「全开」正好是 1.0  -- 1.000000000
+[PASS] 若容差取 1e-3（直梯那套）且不补偏移 → 「全开」到不了 1-1e-3，关门永远不触发  -- 0.996875 >= 0.999 为 False
+[PASS] 容差取 0.02 时，即便不补偏移关门也能触发（本实现两道保险都上了）  -- 0.996875 >= 0.980 为 True
+[PASS] 补了偏移后，即使容差取 1e-3 关门也能触发  -- 1.000000 >= 0.999 为 True
+
+===== 6) MTR4 的量纲：getDoorValue() 已经是 0..1，不该再补偏移 =====
+[PASS] MTR4 原值 [0,1] 直接满足两条边界（无需偏移）
+[PASS] 给 MTR4 补偏移会把「全关」抬离 0（所以 acceptMtr4 不补）  -- 0 + 0.1/32 = 0.003125
+
+===== 7) 组合穷举：4 个朝向 × 2 种半格 × 2 侧，锚点分组数必须恰好 = 1 =====
+[PASS] facing=NORTH：8 种（位置 × 半格）组合 → 1 组  -- 分组 = {27492085661896: [('LEFT', 'LOWER'), ('LEFT', 'UPPER'), ('RIGHT', 'LOWER'), ('RIGHT', 'UPPER')]}
+[PASS] facing=SOUTH：8 种（位置 × 半格）组合 → 1 组  -- 分组 = {27217207754952: [('LEFT', 'LOWER'), ('LEFT', 'UPPER'), ('RIGHT', 'LOWER'), ('RIGHT', 'UPPER')]}
+[PASS] facing=EAST：8 种（位置 × 半格）组合 → 1 组  -- 分组 = {27492085661896: [('LEFT', 'LOWER'), ('LEFT', 'UPPER'), ('RIGHT', 'LOWER'), ('RIGHT', 'UPPER')]}
+[PASS] facing=WEST：8 种（位置 × 半格）组合 → 1 组  -- 分组 = {27492085661895: [('LEFT', 'LOWER'), ('LEFT', 'UPPER'), ('RIGHT', 'LOWER'), ('RIGHT', 'UPPER')]}
+
+===== 8) 数据源门禁：只有真屏蔽门才采集（电梯门必须被挡掉，且先筛后采）=====
+[PASS] 注册名 psd_door           → 采集  -- MTR3/MTR4 屏蔽门主扇
+[PASS] 注册名 psd_door_2         → 采集  -- MTR 第二档屏蔽门
+[PASS] 注册名 apg_door           → 采集  -- 半高安全门 APG
+[PASS] 注册名 lift_door_1        → 丢弃  -- MTR3 电梯门（继承同一基类，曾静默多响一声）
+[PASS] 注册名 lift_door_odd_1    → 丢弃  -- MTR3 电梯门（奇数档）
+[PASS] 注册名 lift_door_even_1   → 丢弃  -- MTR4 电梯门（偶数档）
+[PASS] 注册名 psd_glass          → 丢弃  -- 屏蔽门玻璃：side/half 与门不是同一对，界面刻意不认
+[PASS] 注册名 psd_glass_end_2    → 丢弃  -- 屏蔽门端玻璃
+[PASS] 注册名 psd_top            → 丢弃  -- 屏蔽门顶板
+[PASS] 注册名 apg_glass          → 丢弃  -- APG 玻璃
+[PASS] accept() 里确实调用了 SmoothLift.isPsdDoor（门禁接在采集链路上，不是只在注释里）
+[PASS] 门禁出现在 LIVE.put 之前（先筛后采，不是采完再删）  -- gate@468 put@1540
+[PASS] anchorOf 有 BlockState 重载（门禁查过的 state 复用，同一格不每帧查两次）
+[PASS] 反向对照：拿掉门禁那一行后，判据检测不到它（说明判的是代码，不是注释）
+
+===== 9) 每一扇站台门各自发声 =====
+[PASS] 找得到 onClientTick 里的逐门循环
+[PASS] ★★ 循环体里对**每一扇**门都调 detect（各自带这一扇的距离） —— 不再是「只有最近那一扇」
+[PASS] ★ 距离是按**这一扇门自己**的坐标算的（不是把最近门的距离复用到所有门）
+[PASS] noteCycle 排在 detect 之前（先学周期再判跳变，顺序反了会晚一拍）
+[FAIL] ★★ 旧的「只给离玩家最近的那一扇发声」闸门已**彻底不存在**（留着它 ⇒ 症状照旧：整条屏蔽门只有一个点在响）；★【1.26】nearestInRun / nearestPerRun 是**新的**合法含义（本串最近的门），不受这条限制  -- 命中 DoorView nearest
+[PASS] 幕墙类 psd_glass          进不了快照 ⇒ 结构上不可能发声
+[PASS] 幕墙类 psd_glass_2        进不了快照 ⇒ 结构上不可能发声
+[PASS] 幕墙类 psd_glass_end      进不了快照 ⇒ 结构上不可能发声
+[PASS] 幕墙类 psd_glass_end_2    进不了快照 ⇒ 结构上不可能发声
+[PASS] 幕墙类 psd_top            进不了快照 ⇒ 结构上不可能发声
+[PASS] 幕墙类 apg_glass          进不了快照 ⇒ 结构上不可能发声
+[PASS] 反向对照：改回「最近门」闸门后，判据检测得到它（说明判的是代码，不是注释）
+
+== 失败 1 项 ==
+   - ★★ 旧的「只给离玩家最近的那一扇发声」闸门已**彻底不存在**（留着它 ⇒ 症状照旧：整条屏蔽门只有一个点在响）；★【1.26】nearestInRun / nearestPerRun 是**新的**合法含义（本串最近的门），不受这条限制
+
+############################################################
+# 屏蔽门存档字段
+############################################################
+  ==> 失败（完整输出见下方）
+===== 1) 读 / 写 集合完全相等（全局）=====
+        读 100 个字段、写 98 个字段
+[FAIL] 没有「读了却不写」的字段（否则值一重启就丢）  -- 多出来：['chime', 'defaultPsdNarrateOn']
+[PASS] 没有「写了却不读」的字段（否则设置存了没人理）  -- 无
+
+===== 2) 屏蔽门这一批字段必须 13 项齐全（读 + 写都在）=====
+[PASS] 读侧有 defaultPsdHelp
+[PASS] 写侧有 defaultPsdHelp
+[PASS] 读侧有 defaultPsdToneOpenEnabled
+[PASS] 写侧有 defaultPsdToneOpenEnabled
+[PASS] 读侧有 defaultPsdToneCloseEnabled
+[PASS] 写侧有 defaultPsdToneCloseEnabled
+[PASS] 读侧有 defaultPsdHelpVolume
+[PASS] 写侧有 defaultPsdHelpVolume
+[PASS] 读侧有 defaultPsdToneVolumeOpen
+[PASS] 写侧有 defaultPsdToneVolumeOpen
+[PASS] 读侧有 defaultPsdToneVolumeClose
+[PASS] 写侧有 defaultPsdToneVolumeClose
+[PASS] 读侧有 defaultPsdHelpRound
+[PASS] 写侧有 defaultPsdHelpRound
+[PASS] 读侧有 psdToneAudio
+[PASS] 写侧有 psdToneAudio
+[PASS] 读侧有 defaultPsdToneAudioOpen
+[PASS] 写侧有 defaultPsdToneAudioOpen
+[PASS] 读侧有 defaultPsdToneAudioClose
+[PASS] 写侧有 defaultPsdToneAudioClose
+[PASS] 读侧有 defaultPsdCloseWaitSeconds
+[PASS] 写侧有 defaultPsdCloseWaitSeconds
+[PASS] 读侧有 defaultPsdMidiumAudio
+[PASS] 写侧有 defaultPsdMidiumAudio
+[PASS] 读侧有 defaultPsdMidiumWaitSeconds
+[PASS] 写侧有 defaultPsdMidiumWaitSeconds
+[PASS] 读侧有 defaultPsdArriveAudio
+[PASS] 写侧有 defaultPsdArriveAudio
+[PASS] 读侧有 defaultPsdArriveSeconds
+[PASS] 写侧有 defaultPsdArriveSeconds
+[PASS] 屏蔽门字段清单 = 14 个标量 + 1 个列表（共 15 项）
+
+===== 3) 屏蔽门字段在 Manager 里必须有「读侧入口」（否则是死数据）=====
+[PASS] Manager 提供 getPsdArriveAudio（覆盖字段 defaultPsdArriveAudio）
+[PASS] Manager 提供 getPsdArriveSeconds（覆盖字段 defaultPsdArriveSeconds）
+[PASS] Manager 提供 getPsdCloseWaitSeconds（覆盖字段 defaultPsdCloseWaitSeconds）
+[PASS] Manager 提供 isPsdHelpEnabled（覆盖字段 defaultPsdHelp）
+[PASS] Manager 提供 getPsdHelpRound（覆盖字段 defaultPsdHelpRound）
+[PASS] Manager 提供 getPsdHelpVolume（覆盖字段 defaultPsdHelpVolume）
+[PASS] Manager 提供 getPsdMidiumAudio（覆盖字段 defaultPsdMidiumAudio）
+[PASS] Manager 提供 getPsdMidiumWaitSeconds（覆盖字段 defaultPsdMidiumWaitSeconds）
+[PASS] Manager 提供 getPsdToneAudio（覆盖字段 defaultPsdToneAudioClose）
+[PASS] Manager 提供 getPsdToneAudio（覆盖字段 defaultPsdToneAudioOpen）
+[PASS] Manager 提供 isPsdToneEnabled（覆盖字段 defaultPsdToneCloseEnabled）
+[PASS] Manager 提供 isPsdToneEnabled（覆盖字段 defaultPsdToneOpenEnabled）
+[PASS] Manager 提供 getPsdToneVolume（覆盖字段 defaultPsdToneVolumeClose）
+[PASS] Manager 提供 getPsdToneVolume（覆盖字段 defaultPsdToneVolumeOpen）
+[PASS] Manager 提供 getClientPsdTone（覆盖字段 psdToneAudio）
+
+===== 4) 读进来的数值必须夹取（挡住被外部改坏的存档值）=====
+[PASS] 读 defaultPsdHelpVolume 时套了 clampLiftHelpVolume（避免越界值被原版悄悄压回去 ⇒ 表现成「填了没用」）  -- data.defaultPsdHelpVolume = clampLiftHelpVolume(tag.getInt("defaultPsd
+[PASS] 读 defaultPsdToneVolumeOpen 时套了 clampPsdToneVolume（避免越界值被原版悄悄压回去 ⇒ 表现成「填了没用」）  -- data.defaultPsdToneVolumeOpen = clampPsdToneVolume(tag.getInt("default
+[PASS] 读 defaultPsdToneVolumeClose 时套了 clampPsdToneVolume（避免越界值被原版悄悄压回去 ⇒ 表现成「填了没用」）  -- data.defaultPsdToneVolumeClose = clampPsdToneVolume(tag.getInt("defaul
+[PASS] 读 defaultPsdHelpRound 时套了 clampPsdHelpRound（避免越界值被原版悄悄压回去 ⇒ 表现成「填了没用」）  -- data.defaultPsdHelpRoundXz = clampPsdHelpRound(tag.getInt("defaultPsdH
+[PASS] 读 defaultPsdCloseWaitSeconds 时套了 clampPsdCloseWaitSeconds（避免越界值被原版悄悄压回去 ⇒ 表现成「填了没用」）  -- data.defaultPsdCloseWaitSeconds = clampPsdCloseWaitSeconds(tag.getInt(
+[PASS] 读 defaultPsdMidiumWaitSeconds 时套了 clampPsdMidiumWaitSeconds（避免越界值被原版悄悄压回去 ⇒ 表现成「填了没用」）  -- data.defaultPsdMidiumWaitSeconds = clampPsdMidiumWaitSeconds(tag.getIn
+[PASS] 读 defaultPsdArriveSeconds 时套了 clampPsdArriveSeconds（避免越界值被原版悄悄压回去 ⇒ 表现成「填了没用」）  -- data.defaultPsdArriveSeconds = clampPsdArriveSeconds(tag.getInt("defau
+
+===== 4b) 字符串型「素材 id」读回时也要归一化（挡住任意脏串）=====
+[PASS] 读 defaultPsdMidiumAudio 时套了 normalizePsdMidiumAudio（off/空/脏串都收敛）  -- data.defaultPsdMidiumAudio = normalizePsdMidiumAudio(tag.getString("de
+[PASS] 读 defaultPsdArriveAudio 时套了 normalizePsdArriveAudio（off/空/脏串都收敛）  -- data.defaultPsdArriveAudio = normalizePsdArriveAudio(tag.getString("de
+
+===== 5) 布尔字段必须是「只在 contains 时覆盖」，不能无条件写默认值 =====
+[PASS] 读 defaultPsdHelp 前先判 contains（不会把「没有这个键」当成 false 而覆盖）
+[PASS] 读 defaultPsdToneOpenEnabled 前先判 contains（不会把「没有这个键」当成 false 而覆盖）
+[PASS] 读 defaultPsdToneCloseEnabled 前先判 contains（不会把「没有这个键」当成 false 而覆盖）
+
+== 失败 1 项 ==
+   - 没有「读了却不写」的字段（否则值一重启就丢）
+
+############################################################
+# 屏蔽门提示音素材
+############################################################
+  ==> 失败（完整输出见下方）
+== 1. 素材（三段内置 ogg + sounds.json 注册） ==
+[PASS] 内置素材文件存在：dooropen.ogg
+[PASS] 内置素材文件存在：doorclose.ogg
+[PASS] 内置素材文件存在：mdoorclose.ogg
+[PASS] sounds.json 注册了 audio/dooropen
+[PASS] sounds.json 注册了 audio/doorclose
+[PASS] sounds.json 注册了 audio/mdoorclose
+[PASS] 旧的合成素材 psd_open / psd_close 已从 sounds.json 移除（别再加回来）
+[PASS] 旧的 psd_open.ogg / psd_close.ogg 文件已删除
+
+== 2. 数据层（四个内置名常量 + 别名映射 + 两个维度默认字段） ==
+[PASS] PSD_TONE_BUILTIN_OPEN = default（跟上一层 / 按端别落内置）
+[PASS] PSD_TONE_BUILTIN_CLOSE = default-c（显式 doorclose.ogg）
+[PASS] PSD_TONE_BUILTIN_CLOSE_M = default-m（显式 mdoorclose.ogg）
+[PASS] PSD_TONE_BUILTIN_CLOSE_S = default-s（「默认（短）」：同素材但不播语音播报段）
+[PASS] 数据层提供 isPsdBuiltinName（四个内置名判定）
+[PASS] 数据层提供 isPsdBuiltinShort（谁负责「只播嘀嘀」这条判定 —— 播放端不自己认字面量）
+[PASS] 找到 psdBuiltinKey（名字 → 内置档 key）
+[PASS] default 按端别落：开门 dooropen / **关门 mdoorclose**（用户点名的默认音效）
+[PASS] default-c → doorclose
+[PASS] default-m → mdoorclose
+[PASS] ★ default-s 与 default 共用**同一个**按端别分支（不另起一个返回值） ⇒ 它不是第四段音频，只是一条播放策略
+[PASS] isPsdBuiltinName 收录**全部四个**名字（漏一个 ⇒ UI 点那一行会被判「音频不存在」）
+[PASS] 数据层两个「维度默认素材」字段（初始 default ⇒ 与 1.50 行为一致）
+[PASS] 数据层有「空值→default」与「两项全默认」两个小工具
+[PASS] 两个新字段写/读成对（缺字段读回 default，旧存档兼容）
+[PASS] 删音频时把指向它的**按扇门**与**维度默认**引用都退回 default（不留悬空引用）
+
+== 3. Manager（读写 / 名字解析 / 补全候选 / 同步） ==
+[PASS] Manager：读维度默认 / 取单项字段 / 写单项默认三个入口
+[PASS] 四个设定接口（本维度 / 本维度 X to Y / -f 全部 / -f X to Y）
+[PASS] -f 会清掉「按扇门单独设置」（那些门从此跟维度默认）
+[PASS] Manager：名字解析 + Tab 补全候选
+[FAIL] 找到 resolvePsdToneName
+[FAIL] 补全候选：四段内置名排最前，然后才是 none 与库文件名
+[FAIL] 补全候选里有 default-s（Tab 能补出来）
+[PASS] ★ setServerPsdTone 用 isPsdBuiltinName(id) 放行（**不是**把四个名字各抄一遍） ⇒ 以后再加内置名不会漏掉这一处
+[FAIL] 放行集合 = 内置名 ∪ 不播 ∪ 音频库（三支都在）
+
+== 4. 指令（/pbmmusic open|close 素材分支 + 补全；/pbmloud 音量） ==
+[PASS] /pbmmusic 注册 open / close 两条子树
+[PASS] 指令处理器存在：pbmMusicItemAudioSet
+[PASS] 指令处理器存在：pbmMusicItemAudioFromTo
+[PASS] 指令处理器存在：pbmMusicItemAudioForceSet
+[PASS] 指令处理器存在：pbmMusicItemAudioForceFromTo
+[FAIL] 素材名参数挂了补全提供器（Tab 能补出四个内置名 / none / 导入过的 ogg）
+[PASS] 补全提供器容忍 null source（_tools/CmdTreeCheck 用 null source 解析真指令树）
+[PASS] 指令反馈给 default-s 留了显示名（玩家能看懂「默认（短）」是什么意思）
+[PASS] 找到 pbmMusicItemCommand 构造器
+[PASS] 字面量 -f 排在字符串参数 name 前面（顺序即优先级）
+[PASS] 字面量 on 排在字符串参数 name 前面
+[PASS] 指令调用 setDefaultPsdToneAudio
+[PASS] 指令调用 replaceDefaultPsdToneAudio
+[PASS] 指令调用 setDefaultPsdToneAudioAll
+[PASS] 指令调用 replaceDefaultPsdToneAudioAll
+[PASS] 素材改动既同步 chime 包（维度默认）又同步 tone 包（按扇门表）
+[PASS] 指令反馈里有素材 id 的显示名函数
+[PASS] /pbmloud（音量 1~1000）与 /pbmround（范围）都还在（【1.23】后者改由 roundCommand 产出 —— 四条范围指令共用一条产出器）
+[PASS] /pbmloud 有 open / close 两项单独音量
+
+== 5. 同步包（服务端写 / 客户端读，顺序成对） ==
+[PASS] 找到 buildPsdChimePacket
+[PASS] 包尾追加 open / close 两个默认素材字符串
+[PASS] 写出顺序 open → close
+[PASS] 两个新字段排在最后（不打断旧字段布局）
+[PASS] 客户端接收器按同一顺序读两个新字段
+[PASS] applyClientPsdChime 签名接收两个新字段
+[PASS] 客户端镜像两个字段被赋值（播放端才查得到）
+
+== 6. 播放端（三层映射 + 两层回落 + event 占位非 null） ==
+[PASS] 播放端定义声音事件常量 PSD_DOOR_OPEN
+[PASS] 播放端定义声音事件常量 PSD_DOOR_CLOSE
+[PASS] 播放端定义声音事件常量 PSD_MDOOR_CLOSE
+[PASS] 找到 builtinEvent（内置档 → 声音事件）
+[PASS] dooropen / mdoorclose 两个特殊档单独映射
+[PASS] 其余（doorclose）落默认分支
+[PASS] 找到 psdToneCustomId（播放端查素材的统一入口）
+[PASS] ① 先取这一扇门的单独设置
+[PASS] ② 单独设置是 default（或没设过）→ 回落维度默认素材
+[PASS] ③ 不播用哨兵区分于「没设置」
+[PASS] 播放端用数据层的 psdBuiltinKey 判内置档（判断只写一份）
+[PASS] 【1.15】内置/自定义、字节来源、素材时长都在 resolveTone 里判一次（三个调用点共用 —— 它在 resolvePlayable 里，正是「只判一次」那一道闸）  -- 出现 1 次
+[PASS] 自定义素材走 injectAudio 注入分支（复用扶梯那套解码注入）
+[PASS] 播放实例带「要注入的那一段」的 ID（resolve 覆盖 → 直接播引擎缓存里那段）
+[FAIL] play() 按 tone.customId() 分两条路（null = 内置事件）
+[PASS] ★ play() 返回 PsdMusicInstance（不是 boolean）；类型若被改回 boolean，本项直接 FAIL
+[PASS] 自定义分支给非 null 占位 event（与 LiftChimePlayer 一致，不传 null）
+[PASS] 【1.15】关门端「挂起一 tick 量门速 → 剪头对齐」的入口在（明细见 check-psd-align.py）
+[PASS] 【1.15】关门端「整段提前量（语音播报 + 嘀嘀，结尾落在门上）」那条链的入口在（明细见 check-psd-split.py）
+
+== 7. 石斧 UI（四段内置可选 + 文案与直梯对齐） ==
+[PASS] UI 把 default-c / default-m 两段显式内置摆进列表（否则没法选到 mdoorclose.ogg）
+[PASS] UI 把 default-s（默认（短））摆进列表
+[PASS] ★ 「默认（短）」这一行**只在关门页**加（开门端它的效果与第一行「默认」完全相同，摆两行一样的选项只会让人犯迷糊）
+[PASS] UI 的 audioLabel 认识 default-s（状态栏 / 当前值显示得到中文名）
+[PASS] ★ 行文字截断上限 30（原来 26 ⇒ 最长那两行一旦是「当前值」，行尾的 ✓ 会被截掉）
+[PASS] 四段内置可选行文案都在（去括号版：默认 / doorclose.ogg / mdoorclose.ogg / 默认只播嘀嘀）
+[PASS] 「默认素材」这个词不出现（不与指令里的 default=内置 撞名）
+[PASS] UI 里既有导入通道又有设置通道（待导入行走导入，已入库行走设置）
+[PASS] UI 有开关行（点=切换维度默认子开关）
+[PASS] ★【1.23】开门/关门两行 = 按钮 + 等待秒数框 + 音量框（等待走 SET_PSD_OPEN_WAIT/CLOSE_WAIT）
+[PASS] UI 文案给出音量范围 1~1000
+[PASS] ★【1.18】屏蔽门 UI 里没有任何灰色文字色（灰字已全部清掉）  -- 已清空（白 0xFFFFFF / 黄 0xFFFF55 / 滑块 0xFFAAAAAA 保留）
+[PASS] ★【1.18】那行灰字已删：★ 这段播报不会被掐断
+[PASS] ★【1.18】那行灰字已删：（暂无）
+[PASS] ★【1.18】那行灰字已删：（文件夹里没有待导入的 .ogg）
+[PASS] ★【1.18】那行灰字已删：（存档里还没有音频）
+[PASS] ★【1.18】那行灰字已删：音量 = 1~1000（100 = 原始音量
+[PASS] ★【1.23】主界面「总开关：…」读数行与底部「默认音量/强制等待」框已按点名删除
+[PASS] ★【1.18】到站页两列表头保留（删灰字不等于删表头），颜色由灰改白；文案跟着【1.19】的新语义（左列只导入、右列负责选用/删除）　★【1.22】去括号：括注（点=导入）/（选用 / 删除）已按用户要求删掉
+[PASS] ★【1.18】输入框标签保留（改白）—— 删了按钮后它们是唯一的说明，删掉会让输入框无从辨认
+
+== 7b. 【1.17】到站播报：指令 / 同步包 / 数据层 / UI 版式 ==
+[PASS] /pbmmidium 已注册
+[PASS] ★ 等待秒数参数 = integer(PSD_MIDIUM_WAIT_MIN)，**没有第二个上界实参** （= 用户点名的 [0,+∞)；写成 integer(0, 60) 就会「填大没用」）
+[PASS] /pbmmidium 带 -f（全维度）分支
+[PASS] 四条路齐全：显示 / 只改名字 / <名字> <秒> / -f
+[PASS] 石斧 UI 的「站台广播 / 等待几秒后播放」走 SET_PSD_MIDIUM_CHANNEL（服务端注册 receiver + UI 侧 send 两端都在）
+[PASS] 维度同步仍走 PSD_CHIME_SYNC_CHANNEL（服务端推 / 客户端收）
+[PASS] ★ buildPsdChimePacket 在**尾部**依次写 midiumAudio → midiumWaitSeconds  -- 写 midiumAudio@980 / wait@1039（体长 2048）
+[PASS] ★ 客户端接收器按**同一顺序**读回（midiumAudio → midiumWaitSeconds）  -- 读 midiumAudio@35327 / wait@35378
+[PASS] ★ applyClientPsdChime 形参尾部依次是 closeWaitSeconds → midiumAudio → midiumWaitSeconds → arriveAudio → arriveSeconds
+[FAIL] ★ 调用点的**实参顺序**与形参一致（这里错位同样不报错，只会把值串到别的字段上）—— 含【1.21】追加的 arriveAudio → arriveSeconds
+[PASS] ★ 客户端镜像赋值时一并归一化 / 夹取（同步包不是可信来源）
+[PASS] PSD_MIDIUM_OFF 复用 LIFT_TONE_OFF 字符串（off）—— 到站播报的「不播」
+[PASS] 默认等待 0 秒（开门音一播完就播报）
+[PASS] ★ 只有下界 PSD_MIDIUM_WAIT_MIN = 0，**没有** PSD_MIDIUM_WAIT_MAX（[0,+∞)）
+[PASS] ★ clamp = Math.max(PSD_MIDIUM_WAIT_MIN, seconds) —— 只有 max、没有 min（对比 closeWait 有上下界）
+[PASS] ★ normalizePsdMidiumAudio 的空值走 PSD_MIDIUM_OFF（**不是** LIFT_TONE_DEFAULT）——到站播报没有内置素材，落回 default 会去播一段不存在的音频
+[PASS] isPsdMidiumOff 被播放端用上（不是死代码）
+[FAIL] ★ resolvePsdMidiumName **不收内置名**（到站播报没有内置素材，收下会变成一条播不出的引用）
+[FAIL] ★ resolvePsdMidiumName 带**文件夹自动导入**（与 pbmmusic 同一套：只写了名字也能用）
+[PASS] 补全：psdMidiumSuggestions ↔ pbmMidiumNameSuggestions 两端都在
+[PASS] ★ 从存档删音频时要顺手清掉指向它的「到站播报」（否则留下一条指向空文件的引用）
+[PASS] UI 有「站台广播」按钮（点击进入选择列表）
+[PASS] 「站台广播」是**控件**且点它通向 page 3 = buildArrivalPage（不是画上去的标题）
+[PASS] ★ 到站行是「等待秒数:」+ 输入框（EditBox，不是按钮）；★【1.22】标签改成短的全角冒号版（去括号：原「等待几秒后播放」） + 右边紧跟一个「音量:」框
+[PASS] ★ UI 的解析只卡下界 PSD_MIDIUM_WAIT_MIN（与指令同一个 [0,+∞)）
+[PASS] ★ 右侧「已导入」每行各带一个「删除」按钮（按下从存档移除）
+[PASS] 到站 / 进站两页都有「不播」出口（否则设过一次就再也关不掉）　★【1.22-2】它已从**页底**挪进**右列第 0 行**（用户点名），文案仍是「不播」
+[PASS] ★ 两列布局：左=未导入 / 右=已导入（leftColX / rightColX 由 COL_GAP 分开）
+[PASS] ★ 两列之间**一条竖线**（用户点名「中间一条竖线隔开」）
+[PASS] 两列各有表头文案（画上去的，不是控件）
+[PASS] ★ 音频同步回来时会通知本界面刷新（导入/删除后列表要立刻变）
+
+== 7c. 【1.19】「导入」与「选用」分成两件事 + 导入后列表**立刻**刷新 ==
+[PASS] ★ 右列每行有「选用」按钮（用户点名要的那个）
+[PASS] ★ 左列点一下走**只导入**通道（不再走 SET_PSD_MIDIUM_CHANNEL）
+[PASS] ★★ 左列的 importPending 里**不许**再出现 SET_PSD_MIDIUM_CHANNEL（出现即「导入的又被直接选用」= 用户点名要去掉的那种行为）
+[PASS] ★ 左列（leftColX）那一排按钮绑的是 importPending（点=导入）
+[PASS] ★ 右列（rightColX）名字按钮绑的是 pickMidium（点=选用）
+[PASS] ★ 名字宽度由两个按钮宽度反算（ROW_NAME_W = COL_W - 2*ROW_BTN_W - 2*ROW_BTN_GAP）  —— 断言的是 SoundListLayout 那份唯一来源
+[PASS] ★ 屏蔽门界面的 ROW_NAME_W 是别名（指回 SoundListLayout），不是又抄了一份数字
+[PASS] ★「选用」紧贴名字右侧、「删除」贴到列尾 —— 两个按钮的位置都由列宽算出来（不写死坐标）
+[PASS] ★ 列宽 190（176 会挤不下「名字+两个按钮」，这是改版式时一起量出来的）  —— 读的是 SoundListLayout 里的唯一一份  -- COL_W = 190
+[PASS] ★ 屏蔽门界面的 COL_W 也是别名（190 这个数字只许出现在 SoundListLayout）
+[PASS] ★ 服务端注册了「只导入」通道的 receiver（客户端 send 了没人收 = 点了没反应）
+[PASS] ★★ 导入通道的 receiver 里：importAudioToStore 之后**补发音频库同步包**（sendAudioSyncTo）—— 少了它，导入成功但客户端右列不动，就是用户报的「重启后才出现」
+[PASS] ★★ SET_PSD_MIDIUM_CHANNEL 那条路上也要补发同步包，且**只在真的导入了才发**（libBefore 前后比对音频库大小）—— 这条是用户 bug 的根因所在
+[PASS] 原本的设置同步不能因此被删掉（一个管设置、一个管素材库）。【1.20】这条路的写入已改成 **per-door**（setDoorPsdMidium），所以设置同步也要走 per-door 那条（syncPsdToneToAll）；名字换了、责任没变
+[PASS] ★★ 音频库分块同步：见到 0 号块先 clear 再 put，收满才 remove （保证「导入触发的重发」与上一批不会拼在一起）  -- clear@16967 / put@17048 / remove@17176
+[PASS] ★ 那句 clear 真的在同一批的 put 之前（不是写反位置的死代码）
+
+== 7d. 【1.20】石斧 UI 只改「玩家右键那一扇门」；只有指令才改「全部」 ==
+[PASS] ★★ psdToneAudio 记录扩到 9 个可选覆盖字段（3×Boolean + 5×Integer + 1×String；加上素材 open/close 共 11 字段）—— 用**可空盒装类型**而不是哨兵值，才能区分「跟维度默认」与「已设过的真实值」  -- Boolean x3 / Integer x13
+[PASS] ★ 记录带 withHelp(...)：覆盖字段**逐个**可改，改一个不动其余（不许整条重建）
+[PASS] ★ 记录带 withToneEnabled(...)：覆盖字段**逐个**可改，改一个不动其余（不许整条重建）
+[PASS] ★ 记录带 withVolume(...)：覆盖字段**逐个**可改，改一个不动其余（不许整条重建）
+[PASS] ★ 记录带 withToneVolume(...)：覆盖字段**逐个**可改，改一个不动其余（不许整条重建）
+[PASS] ★ 记录带 withCloseWaitSeconds(...)：覆盖字段**逐个**可改，改一个不动其余（不许整条重建）
+[PASS] ★ 记录带 withMidium(...)：覆盖字段**逐个**可改，改一个不动其余（不许整条重建）
+[PASS] ★ 记录带 withMidiumWaitSeconds(...)：覆盖字段**逐个**可改，改一个不动其余（不许整条重建）
+[PASS] 管理端有 per-door API：setDoorPsdHelp（按 anchor key 取这一扇门）
+[PASS] 管理端有 per-door API：setDoorPsdToneEnabled（按 anchor key 取这一扇门）
+[PASS] 管理端有 per-door API：setDoorPsdHelpVolume（按 anchor key 取这一扇门）
+[PASS] 管理端有 per-door API：setDoorPsdToneVolume（按 anchor key 取这一扇门）
+[PASS] 管理端有 per-door API：setDoorPsdCloseWaitSeconds（按 anchor key 取这一扇门）
+[PASS] 管理端有 per-door API：setDoorPsdMidium（按 anchor key 取这一扇门）
+[PASS] 管理端有 per-door API：isDoorPsdHelpEnabled（按 anchor key 取这一扇门）
+[PASS] 管理端有 per-door API：isDoorPsdToneEnabled（按 anchor key 取这一扇门）
+[PASS] 管理端有 per-door API：getDoorPsdHelpVolume（按 anchor key 取这一扇门）
+[PASS] 管理端有 per-door API：getDoorPsdToneVolume（按 anchor key 取这一扇门）
+[PASS] 管理端有 per-door API：getDoorPsdCloseWaitSeconds（按 anchor key 取这一扇门）
+[PASS] 管理端有 per-door API：getDoorPsdMidiumAudio（按 anchor key 取这一扇门）
+[PASS] 管理端有 per-door API：getDoorPsdMidiumWaitSeconds（按 anchor key 取这一扇门）
+[PASS] ★ hasAnyDoorPsdHelpOn 被播放端用上：维度默认关着时仍要放行「自己开着」的那几扇门（缺了它，per-door 总开关等于没生效 / 只在维度默认开着时才碰巧生效）
+[PASS] 指令那条路仍写**维度默认**（不带 -f 改本维度、-f 改全部维度）：setDefaultPsdHelpAll
+[PASS] 指令那条路仍写**维度默认**（不带 -f 改本维度、-f 改全部维度）：setDefaultPsdToneEnabledAll
+[PASS] 指令那条路仍写**维度默认**（不带 -f 改本维度、-f 改全部维度）：setDefaultPsdHelpVolumeAll
+[PASS] 指令那条路仍写**维度默认**（不带 -f 改本维度、-f 改全部维度）：setDefaultPsdCloseWaitSecondsAll
+[PASS] 指令那条路仍写**维度默认**（不带 -f 改本维度、-f 改全部维度）：setDefaultPsdMidiumAll
+[PASS] ★【1.20】-f = 真的「修改全部」：所有 *All 指令还调 remapPsdDoorOverrides 把「按扇门单独设置」那一项一起处理（否则 UI 单独设过的门不跟着变，全局指令看着像没改到）
+[PASS] remapPsdDoorOverrides 语义完整：null = 不动、新记录 = 替换、清空后为空的记录删掉
+[PASS] ※ 设值型 *All（-f <新值>）把 per-door 那一项抹回「跟维度默认」（withX(null)）
+[PASS] ※ 条件替换型 *All（-f X to Y）只动「正好是 X」的 per-door 项（!= from ? null : ...(to)）—— 与素材那条 replace 的 per-door 半同一语义
+[PASS] ★ UI 的 sendSetPsdVolume 先 writeLong(runKey) 再发 —— 少了它，改动的就是整个维度（正是用户报的那条）
+[PASS] ★ UI 的 sendSetCloseWait 先 writeLong(runKey) 再发 —— 少了它，改动的就是整个维度（正是用户报的那条）
+[PASS] ★ UI 的 sendSetMidium 先 writeLong(runKey) 再发 —— 少了它，改动的就是整个维度（正是用户报的那条）
+[PASS] ★ UI 的 sendSetArrive 先 writeLong(runKey) 再发 —— 少了它，改动的就是整个维度（正是用户报的那条）
+[PASS] ★★ UI 里**没有**遗留的「维度级设置读取」（isPsdHelpEnabled / getPsdHelpVolume / …）—— 石斧 UI 一律按这一扇门读；这几个名字若出现，说明某处读数还是「全部」的  -- 遗留 0 处
+[PASS] ★ UI 本地回显走 per-door（applyClientPsdDoorLocal）：点了立刻变、不必等服务端包回来
+[PASS] ★ SET_PSD_TONE_SWITCH_CHANNEL 接收端：先 readLong() 取这一扇门、再调 setDoorPsd(...)（二者缺一就写错对象）
+[PASS] ★ SET_PSD_CHIME_VOLUME_CHANNEL 接收端：先 readLong() 取这一扇门、再调 setDoorPsdHelpVolume(...)（二者缺一就写错对象）
+[PASS] ★ SET_PSD_CLOSE_WAIT_CHANNEL 接收端：先 readLong() 取这一扇门、再调 setDoorPsdCloseWaitSeconds(...)（二者缺一就写错对象）
+[PASS] ★ SET_PSD_TONE_VOLUME_CHANNEL 接收端：先 readLong() 取这一扇门、再调 setDoorPsdToneVolume(...)（二者缺一就写错对象）
+[PASS] ★ SET_PSD_MIDIUM_CHANNEL 接收端：先 readLong() 取这一扇门、再调 setDoorPsdMidium(...)（二者缺一就写错对象）
+[PASS] ★★ 包编码：per-door 覆盖字段逐个带「存在位」（writeDoorOptBool/Int/String）—— 包没有 NBT 的 contains，可空值必须显式标「存在与否」，否则「跟默认」与「真实值」在线上分不开  -- Bool x4 / Int x16
+[PASS] 管理端提供 applyClientPsdDoorLocal（客户端本地回显 per-door 的落地实现）
+[FAIL] ★ 客户端 PSD_TONE_SYNC 接收端按**写入顺序**读回 14 个可选字段建 16 字段记录（顺序错 = 整条记录错位，而且不报错）　★【1.23】可选字段 13 → 14（多了开门提示等待秒数）  -- 读回可选字段 20 个
+
+== 7.5 【1.21】进站报站 /pbmarrive + 一串门（runKey） ==
+[PASS] 进站报站的「不播」哨兵与提示音同串（off）
+[PASS] ★ 只有**上界** PSD_ARRIVE_SECONDS_MAX = 0，**没有**下界（用户点名的输入范围 (-∞, 0]）
+[PASS] ★ clampPsdArriveSeconds = Math.min(上界, seconds) —— **只有 min、没有 max**（与到站播报的 clampPsdMidiumWaitSeconds 正好相反，谁「顺手补齐」两处一起红）
+[PASS] ★ normalizePsdArriveAudio 的空值走 PSD_ARRIVE_OFF（**不是** LIFT_TONE_DEFAULT）——进站报站没有内置素材，落回 default 会去播一段不存在的音频
+[PASS] 两套 normalize **分开**（不合并）—— 合并的代价是空值语义被另一项拖走
+[PASS] ★ PsdToneAudio 尾部有 arrive / arriveSeconds 两个**可空**字段（null = 跟维度默认）
+[PASS] withArrive / withArriveSeconds 都在（UI 只改其中一项时另一项必须原样保留）
+[PASS] ★ isEmpty() 把 arrive 两项算进「还有没有实际内容」（少了它，只设了进站报站的门会被当成空记录删掉）
+[PASS] 维度默认层有 defaultPsdArriveAudio / defaultPsdArriveSeconds
+[PASS] /pbmarrive 带 -f（全维度）分支
+[PASS] 四条路齐全：显示 / 只改名字 / <名字> <X> / -f
+[PASS] 石斧 UI 的「进站广播 / 到站前秒数」走 SET_PSD_ARRIVE_CHANNEL（服务端 + UI 两端都在）
+[PASS] ★ /pbmarrive 的秒数参数 = (-∞, 0]（Integer.MIN_VALUE ~ PSD_ARRIVE_SECONDS_MAX）—— 与 /pbmmidium 的 [0,+∞) 正好相反
+[PASS] ★ SET_PSD_ARRIVE_CHANNEL 接收端：先 readLong() 取这一串门、再调 setDoorPsdArrive(...)（二者缺一就写错对象）
+[PASS] 管理端一整套进站报站读写口都在
+[FAIL] ★ resolvePsdArriveName **不收内置名**（进站报站没有内置素材，收下会变成一条播不出的引用）
+[PASS] ★ 删音频时一并清「进站报站」（clearPsdArriveIfRemoved 定义 + 调用两端在）
+[PASS] ★ -f <名字> <X> 把「按串单独设置」的进站报站抹回跟维度默认（不抹的话 UI 单独设过的串不跟着变，全局指令看着像没改到）
+[PASS] ★ PsdDoorTracker.runKeyOf：一串门的**配置身份**
+[PASS] ★ DoorView 带 runKey（播放端才拿得到「这一串」）
+[PASS] ★ 一串的白名单 = MTR 屏蔽门**家族**（psd_ / apg_：站台门 + 屏蔽门玻璃 + 玻璃端）—— 用户点名「连在一起的屏蔽门是指站台门，屏蔽门玻璃，屏蔽门玻璃尾部相连的一串屏蔽门」
+[FAIL] ★ floodRun 起点先折到**下半格**（门与玻璃都有 half=UPPER 的同伴格）——不折的话同一个物理串会算出两个 runKey，「改一串」就断成两截
+[FAIL] ★ floodRun 取 asLong 最小 ⇒ 同一串里任何起点都收敛到同一个 key
+[PASS] ★ 串锚点缓存会被清（不清就是「换世界后仍用旧串锚点」的静默错配）
+[FAIL] ★ 播放端读配置的第一个实参一律是**串锚点**（runKey / door.runKey() / plan.runKey） —— 「改一个 = 改一串」；出现 door.key() 就是退回「只改右键那一扇」  -- 得到 ['door.runKey()', 'plan.runKey', 'run.getKey()', 'runKey']
+[PASS] ★ 播放端**没有**遗留的「按门锚点读配置」调用点（那会退回「只改右键那一扇」）
+[PASS] ★ 石斧 UI 的配置身份用 runKeyOf（**不是** anchorOf）——用户点名「修改其中一个，就要一起修改这一串」
+[PASS] ★ UI 的每条设置包都先 writeLong(runKey) 再发
+[PASS] UI 主界面有「进站广播」按钮
+[PASS] ★ 它排在站台广播（ROW_H*3）的**下面**一行（ROW_H*4）
+[FAIL] ★ 主界面状态行的下限也跟着下移（多了一行 ⇒ fixedBottom 必须一起改，否则状态行又会压回「挡住中间播报」那个原始症状上）
+[PASS] UI 有「等待秒数:」+「音量:」两个输入框（退出界面即应用，没有确认按钮）　★【1.22】去括号：原标签「到站前秒数(≤0)」→「等待秒数:」
+[PASS] ★ UI 解析只挡正值（(-∞, 0]），与数据层 clamp 同口径
+[PASS] ★ 秒数变了不发素材（null = 只改秒数、素材不动）—— 与 sendSetMidium 同形
+[PASS] 进站报站有自己一个选择列表页（build / pick / render 三件套都在）
+[PASS] 右列每个已导入音频都有「选用」+「删除」两个按钮
+[PASS] 进站报站列表页有「不播」出口　★【1.22-2】已从页底挪进**右列（已导入存档）第 0 行**，且该行只有「选用」没有「删除」
+[PASS] ★【1.23】所有列表页（开门/关门/站台/进站）都整体下移一行为表头让位（listTop = listPage 那档）
+[PASS] ★ 进站报站有**自己一张表**（不复用任何带停止条件的表）
+[PASS] ★★ 进站报站的状态类**不持播放实例**（源码级：不持句柄 ⇒ 结构上没有「谁能停它」）
+[PASS] ★ 进站报站有一条自己的 tick 路
+[PASS] ★★ reset() 里**不出现** arriveVoice —— reset 的第三个来路恰好是「门全看不见」（列车进站那一刻），在那儿清一下功能立刻就废了
+[FAIL] onDisconnect 清进站报站那一套（只有换世界才清）
+[FAIL] ★ 触发读**时刻表**（不是猜列车位置/速度）—— 用户点名「看时刻表啊，不要猜」
+[PASS] 认站台走 MtrDwellAccess.platformIdAt
+[FAIL] ★ 「同一班车只播一次」的守卫在（没有它，「还剩 |X| 秒到站」那个窗口内会每一 tick 重播一次）
+[PASS] ★ 查时刻表有节流（阈值以秒计，不该每 tick 都查）
+[PASS] ★ tickArrivalAnnounce 排在 doors.isEmpty() 早退之前（原有一条，别被挤到后面）
+[PASS] ★ tickArriveAnnounce 同样排在 doors.isEmpty() 早退之前
+[PASS] 进站报站有自己的素材解析 + 缺库告警集合
+[PASS] ★ MtrDwellAccess 接上 MTR 自己的到达缓存（PIDS / 列车时刻表传感器用的那一个）
+[PASS] ★ 到达缓存这一层是**可选**的（读不到只让进站报站不响，不拖挂停站时长）
+[PASS] ★ 算「最近的一班列车」时，**已经过站**超过 ARRIVAL_PAST_MS 的条目不算数（★ 不许再放宽成 60s 那种松值：刚进站的那班在时刻表里会一直压住后面那班，密集时刻表下整段漏播）
+[PASS] ★ ARRIVAL_PAST_MS 是 public 常数 —— 播放端判「是不是已经晚了」用的就是它（同一件事只留一个数字，别两头各写一份）
+[PASS] ★ 播放端不再自带一份「宽限毫秒」，直接用 MtrDwellAccess.ARRIVAL_PAST_MS
+[FAIL] ★ 触发口径 = 「**最近一班车还剩 |X| 秒到站**」：thresholdMs = -X*1000，remainMs ≤ thresholdMs 就起播（X=-10 ⇒ 剩 10 秒到站时起播）
+[PASS] ★ 旧的 leadMs（把 X 当「提前几秒开门」讲）彻底消失 —— 口径只与**到站剩余时间**有关
+[PASS] ★【1.30】UI 状态行已删（黄字/白字反馈都不再画）⇒「到站前 N 秒」只留在**指令反馈**里（口径是**最近一班列车到站的时间** —— 这条由上面 remainMs/thresholdMs 那两条钉住；　★【1.22】去括号后不再带「（最近一班车还剩这么多秒到站时起播）」这类括注）
+[PASS] ★ 「提前开门提示音 / 提前秒数」这种把 X 挂在开门时刻上的说法一个字都不许留
+[PASS] MtrDwellAccess.platformIdAt 在
+[PASS] ★ platformIdAt 的认亲规则与 dwellMsAt 同一套（优先挑停站时长有效的站台）——否则「进站报站读的时刻表」与「关门提示音读的停站时长」会认到不同站台
+
+== 8. 构建产物 ==
+        检查 jar：mzycBetterMTR-1.30.1201.jar
+[PASS] jar 内含素材 dooropen.ogg
+[PASS] jar 内含素材 doorclose.ogg
+[PASS] jar 内含素材 mdoorclose.ogg
+[PASS] jar 内不含旧的 psd_open.ogg / psd_close.ogg
+[PASS] PsdChimePlayer.class 里有 psdToneCustomId
+[PASS] PsdChimePlayer.class 里编进了 mdoorclose 事件名
+[PASS] EscalatorSpeedData.class 里编进了 default-c / default-m / default-s 三个显式名字
+[PASS] SmoothLift.class 里编进了 pbmmidium（指令真的注册了）
+[PASS] PsdChimePlayer.class 里编进了 arrivalVoice（到站播报播放端）
+[PASS] PsdChimePlayer.class 里编进了 planArrivalAnnounce（到站播报播放端）
+[PASS] PsdChimePlayer.class 里编进了 tickArrivalAnnounce（到站播报播放端）
+[PASS] PsdChimePlayer.class 里编进了 resolveMidiumTone（到站播报播放端）
+[PASS] PsdChimePlayer.class 里编进了 warnedMissingMidium（到站播报播放端）
+[PASS] ★★★ PsdChimePlayer$Arrival.class 里**没有** PsdMusicInstance 引用 —— 到站播报的「计划」不持播放实例，字节码级证明没有「谁能停它」的抓手
+
+== 8. 【1.23】三条「淡入淡出范围」指令（各存一份 + /pbmmusicround 是别名） ==
+[PASS] 注册了 /pbmround（走 roundCommand(...) 唯一那条产出器，形状不会各自演化）
+[PASS] 注册了 /pbmmusicround（走 roundCommand(...) 唯一那条产出器，形状不会各自演化）
+[PASS] 注册了 /pbmmidiumround（走 roundCommand(...) 唯一那条产出器，形状不会各自演化）
+[PASS] 注册了 /pbmarriveround（走 roundCommand(...) 唯一那条产出器，形状不会各自演化）
+[PASS] ★★ /pbmmusicround 与 /pbmround 同为 RoundKind.TONE ⇒ 读写**同一份数据**（用户点名的名字，不是第五份配置）
+[PASS] /pbmmidiumround = RoundKind.MIDIUM（自己的那份）
+[PASS] /pbmarriveround = RoundKind.ARRIVE（自己的那份）
+[PASS] roundCommand(literal, kind) 是四条指令的唯一产出器
+[PASS] roundCommand 里有 <X> to <Y> 分支
+[PASS] roundCommand 里挂了 -f 分支（roundForce(kind)）
+[PASS] -f 字面量在（roundForce 里）
+[PASS] 旧的 pbmRoundShow 已不存在（否则新老两套混在一起，改一半就是静默失效）
+[PASS] 旧的 pbmRoundGlobal 已不存在（否则新老两套混在一起，改一半就是静默失效）
+[PASS] 旧的 pbmRoundFromTo 已不存在（否则新老两套混在一起，改一半就是静默失效）
+[PASS] 旧的 pbmRoundForceAll 已不存在（否则新老两套混在一起，改一半就是静默失效）
+[PASS] 旧的 pbmRoundForceFromTo 已不存在（否则新老两套混在一起，改一半就是静默失效）
+[PASS] 旧的 pbmRoundForce( 已不存在（否则新老两套混在一起，改一半就是静默失效）
+[PASS] roundShow 收 (context, kind)
+[PASS] roundGlobal 收 (context, kind)
+[PASS] roundFromTo 收 (context, kind)
+[PASS] roundForceAll 收 (context, kind)
+[PASS] roundForceFromTo 收 (context, kind)
+[FAIL] -f 两条分支走 setRoundAll / replaceRoundAll（所有维度）
+[PASS] -f <值> 与 -f <X> to <Y> 两条分支都在
+
+== 9. 数据层：三份范围字段（默认都 = 16 ⇒ 老存档行为逐位不变） ==
+[FAIL] EscalatorSpeedData 有字段 defaultPsdMidiumRound
+[FAIL] EscalatorSpeedData 有字段 defaultPsdArriveRound
+[FAIL] ★ 两个默认范围都**指向** DEFAULT_PSD_HELP_ROUND（16） ⇒ 没敲过新指令时行为与 1.22 逐位相同
+[PASS] 到站范围夹取边界指向提示音那一对（1 ~ 128）
+[PASS] 进站范围夹取边界同样 1 ~ 128
+[PASS] 两个 clampPsd*Round(int) 都在
+[PASS] NBT 写出 defaultPsdMidiumRound
+[PASS] ★★ NBT 读 defaultPsdMidiumRound 有 contains 守卫（老存档没有这个键 ⇒ 保持默认，不是读成 0）
+[PASS] NBT 写出 defaultPsdArriveRound
+[PASS] ★★ NBT 读 defaultPsdArriveRound 有 contains 守卫（老存档没有这个键 ⇒ 保持默认，不是读成 0）
+[FAIL] 维度包把两份范围写出去（追加在最后两格）
+[FAIL] ★★ 客户端按**同样顺序**读回两格（包上没有字段名，差一格就是静默错位）
+[PASS] Manager 有 getPsdMidiumRound
+[PASS] Manager 有 setDefaultPsdMidiumRound
+[PASS] Manager 有 replaceDefaultPsdMidiumRound
+[PASS] Manager 有 setDefaultPsdMidiumRoundAll
+[PASS] Manager 有 replaceDefaultPsdMidiumRoundAll
+[PASS] Manager 有 getPsdArriveRound
+[PASS] Manager 有 setDefaultPsdArriveRound
+[PASS] Manager 有 replaceDefaultPsdArriveRound
+[PASS] Manager 有 setDefaultPsdArriveRoundAll
+[PASS] Manager 有 replaceDefaultPsdArriveRoundAll
+[PASS] ★【1.23】主界面按钮 = 开门提示 / 关门提示（去掉「音设置…」尾巴）
+[PASS] ★ 按钮用 96 宽（与站台/进站广播按钮同尺寸）
+[PASS] ★【1.23】开门/关门音量框在主界面落地（applyMainInputs 统一提交）
+[PASS] ★【1.23】两行等待秒数框真的建在主界面（openWait/closeWait）
+[PASS] ✓ 服务端有开门等待通道接收器（setDoorPsdOpenWaitSeconds）
+[PASS] ★【1.23】开门等待框可填负（(-∞,+∞)），关门仍 [0,999999] 上限（6 位）
+[PASS] ★【1.23】屏蔽门 2 级菜单按 Esc = 返回主界面不落地（一级才落地退出）
+[PASS] ★【1.23】/futimusic 补全含 default/off/内置/已导入，并挂到 name/to(-f 同)
+[PASS] ★【1.23】主界面「总开关」按钮已按点名删除（/pbmmusic on|off 指令仍在）
+[PASS] 开门/关门页右列从「不播 + 默认 + 已导入」之后开始（与广播页同一套行数口径）
+[PASS] 关门页默认行 = 默认（长）/默认（短）（开门页只有「默认」）
+[PASS] 默认行数：开门 1 / 关门 2
+[PASS] 左列点=只导入（与广播页同一语义）；右列选用走 pick(which, value, false)
+
+== 10. 【10-03】讲述人页左侧输入框**不许吞掉框外点击**（否则下面那两排插入按钮点不动） ==
+[PASS] 找到 WrappingEditBox.mouseClicked
+[PASS] ★★【10-03】框外点击一律 return false（让给别的控件）—— **别退回**「聚焦着就把所有点击都吞掉」，那正是本 bug
+[PASS] 框内点击仍然：setFocused(true) + 定位光标 + return true
+[PASS] ★ 框内定位仍走**换行后**坐标的 charIndexAt（本类存在的理由，不是照抄原版 onClick）
+[PASS] ★ editor 先于 buildInsertButtons 入 children（顺序就是本 bug 的成因）
+[PASS] 两排插入按钮的记号表原样在（中文 5 列 / 英文 4 列）
+[PASS] 两排都在：中文排 row1Y、英文排 row2Y（点一下在光标处填记号）
+
+== 失败 25 项 ==
+   - 找到 resolvePsdToneName
+   - 补全候选：四段内置名排最前，然后才是 none 与库文件名
+   - 补全候选里有 default-s（Tab 能补出来）
+   - 放行集合 = 内置名 ∪ 不播 ∪ 音频库（三支都在）
+   - 素材名参数挂了补全提供器（Tab 能补出四个内置名 / none / 导入过的 ogg）
+   - play() 按 tone.customId() 分两条路（null = 内置事件）
+   - ★ 调用点的**实参顺序**与形参一致（这里错位同样不报错，只会把值串到别的字段上）—— 含【1.21】追加的 arriveAudio → arriveSeconds
+   - ★ resolvePsdMidiumName **不收内置名**（到站播报没有内置素材，收下会变成一条播不出的引用）
+   - ★ resolvePsdMidiumName 带**文件夹自动导入**（与 pbmmusic 同一套：只写了名字也能用）
+   - ★ 客户端 PSD_TONE_SYNC 接收端按**写入顺序**读回 14 个可选字段建 16 字段记录（顺序错 = 整条记录错位，而且不报错）　★【1.23】可选字段 13 → 14（多了开门提示等待秒数）
+   - ★ resolvePsdArriveName **不收内置名**（进站报站没有内置素材，收下会变成一条播不出的引用）
+   - ★ floodRun 起点先折到**下半格**（门与玻璃都有 half=UPPER 的同伴格）——不折的话同一个物理串会算出两个 runKey，「改一串」就断成两截
+   - ★ floodRun 取 asLong 最小 ⇒ 同一串里任何起点都收敛到同一个 key
+   - ★ 播放端读配置的第一个实参一律是**串锚点**（runKey / door.runKey() / plan.runKey） —— 「改一个 = 改一串」；出现 door.key() 就是退回「只改右键那一扇」
+   - ★ 主界面状态行的下限也跟着下移（多了一行 ⇒ fixedBottom 必须一起改，否则状态行又会压回「挡住中间播报」那个原始症状上）
+   - onDisconnect 清进站报站那一套（只有换世界才清）
+   - ★ 触发读**时刻表**（不是猜列车位置/速度）—— 用户点名「看时刻表啊，不要猜」
+   - ★ 「同一班车只播一次」的守卫在（没有它，「还剩 |X| 秒到站」那个窗口内会每一 tick 重播一次）
+   - ★ 触发口径 = 「**最近一班车还剩 |X| 秒到站**」：thresholdMs = -X*1000，remainMs ≤ thresholdMs 就起播（X=-10 ⇒ 剩 10 秒到站时起播）
+   - -f 两条分支走 setRoundAll / replaceRoundAll（所有维度）
+   - EscalatorSpeedData 有字段 defaultPsdMidiumRound
+   - EscalatorSpeedData 有字段 defaultPsdArriveRound
+   - ★ 两个默认范围都**指向** DEFAULT_PSD_HELP_ROUND（16） ⇒ 没敲过新指令时行为与 1.22 逐位相同
+   - 维度包把两份范围写出去（追加在最后两格）
+   - ★★ 客户端按**同样顺序**读回两格（包上没有字段名，差一格就是静默错位）
+
+############################################################
+# 屏蔽门关门提示音对齐
+############################################################
+  ==> 失败（完整输出见下方）
+===== 1) 门程：把 MTR4 / MTR3 的字节码公式搬过来算（可核验的 tick 数）=====
+        MTR4：80 tick = 4000ms（每 tick 走 1/80 门程）
+        MTR3：34 tick = 1700ms（每 tick 走 0.95/32 门程）
+[PASS] MTR4 门程 = 80 tick = 4000ms（字节码直算）
+[PASS] MTR3 门程落在 30~40 tick（≈1.7 秒），与 MTR4 差一倍以上  -- 得到 34 tick
+[PASS] 两个版本门程差到 2 倍以上 ⇒ 门程只能是**实测值**，写死一个数必歪一边  -- MTR4 4000ms vs MTR3 1700ms
+
+===== 2) 三段素材的真实时长（soundfile 实测，与 Java 侧算式交叉验证）=====
+[PASS] dooropen.ogg 时长：Java 侧算式 = 2283ms，实测 = 2283ms
+        dooropen.ogg  44100Hz 2 声道  100666 帧  = 2.283s
+[PASS] doorclose.ogg 时长：Java 侧算式 = 10536ms，实测 = 10536ms
+        doorclose.ogg  44100Hz 2 声道  464657 帧  = 10.536s
+[PASS] mdoorclose.ogg 时长：Java 侧算式 = 10806ms，实测 = 10806ms
+        mdoorclose.ogg  44100Hz 2 声道  476551 帧  = 10.806s
+
+===== 3) 对齐算式（**路 A 剪头**）：start = 量化(素材时长 − 门还在走的毫秒数) =====
+        路 A 覆盖：default-s（默认（短））/ 素材没有两段结构 / 路 B 没排上的兜底；带人声且排上了提前量的那一档整段提前播，不走这里
+        mdoorclose.ogg：素材 10806ms，门程 4000ms → 从 6850ms 起播，余 3956ms；门在 3950ms 后关上 ⇒ 差 +6ms
+[PASS] mdoorclose.ogg 在 MTR4 上确实剪了头（素材 10.8 秒 > 门程 4 秒）
+[PASS] mdoorclose.ogg 结尾与门关上时刻的误差 ≤ 半格量化（13.5ms）  -- 差 +6ms
+[PASS] mdoorclose.ogg 剪头不改变「整段 = 起点 + 余量」
+        doorclose.ogg：素材 10536ms，门程 4000ms → 从 6575ms 起播，余 3961ms；门在 3950ms 后关上 ⇒ 差 +11ms
+[PASS] doorclose.ogg 在 MTR4 上确实剪了头（素材 10.8 秒 > 门程 4 秒）
+[PASS] doorclose.ogg 结尾与门关上时刻的误差 ≤ 半格量化（13.5ms）  -- 差 +11ms
+[PASS] doorclose.ogg 剪头不改变「整段 = 起点 + 余量」
+        f1 扫 (0.90, 0.999]：结尾误差最大 12ms（出现在 f1=0.992）
+[PASS] ★ 无论在哪一帧检测到关门，结尾误差都 ≤ 半格量化（对齐与检测点无关，只与门速有关）  -- 最差 12ms
+        dooropen.ogg：素材 2283ms，门程 4000ms → 算式得 -1667（≤ 0 即不剪）
+[PASS] 开门素材（2.28 秒）**比门程短** ⇒ 偏移 ≤ 0 ⇒ 退回整段播（开门端行为一字未改）
+[PASS] 对同一素材若改用「推迟 1717ms 再播」，门都开完一半了 —— 这正是**不能**对称处理的原因
+        mdoorclose.ogg（MTR3）：从 9150ms 起播，余 1656ms（门程 1700ms）
+[PASS] MTR3 上也剪（素材 10.8 秒 >> 门程 1.7 秒）
+[PASS] MTR3 上剪完只剩约一个门程的长度（不会剪过头）  -- 余 1656ms vs 门程 1700ms
+[PASS] 素材时长恰好等于门程 ⇒ 偏移 0 ⇒ 整段播（本来就对齐）  -- 得到 0
+        mdoorclose.ogg：剪掉 0~6850ms（RMS 0.1007），保留 6850~10800ms（RMS 0.1242）
+[PASS] ★ 保留的那一段是有声的（不是把提示音剪到静音里）  -- 保留段 RMS 0.1242 vs 全曲 0.1098
+[PASS] 剪点落在「语音播报 → 静音/嘀嘀」交界附近（≈6.85s；分界点实测 6.707s）  -- 剪点 6.850s
+
+===== 4) 挂起一 tick 不会让声音晚出来（推导 + 数值验证）=====
+[PASS] 门程 4000ms：晚一 tick 播 + 少剪一 tick ⇒ 任意时刻听到的内容完全相同
+[PASS] 门程 1700ms：晚一 tick 播 + 少剪一 tick ⇒ 任意时刻听到的内容完全相同
+
+===== 5) 源码结构（对齐只做关门端 + 兜底齐备）=====
+[PASS] PsdChimePlayer 有「挂起 → 下一 tick 播」这条链（pendingClose / resumeClose）
+[PASS] 有等待上限常量（门不动时不能无限等）
+[PASS] ★ 只有 **closing** 才挂起对齐（开门端不走这条路 ⇒ 行为与 1.50 一致）
+[PASS] 兜底①：门反向（关到一半又开回去）→ 整段播一次，那一声不能丢
+[PASS] 兜底②：门这一 tick 没动（红石锁住 / 被挡）→ 再等，超时后整段播
+[PASS] 兜底③：门不在快照里（走出渲染距离）或等到超时 → 整段播
+[FAIL] 三条兜底都落到「整段播」（offset=0），不是静音
+[PASS] 偏移 = 量化(素材时长 − 剩余门程毫秒)
+[PASS] ★ 剪头被夹在「语音播报 / 嘀嘀」分界点之后（不许剪进语音播报里）；本脚本的 align() 模型在**内置素材上**不受这条影响（raw 已在分界点之后）
+[PASS] 剩余门程用 50ms/tick 换算（20 TPS）
+[PASS] resumeClose 每 tick 被调用（门列表为空时也先冲一次，避免挂起的那一声凭空消失）
+[PASS] ★ 路 A（挂起剪头）排在「已经提前播过」那道判断**之后** ⇒ 两条路互斥，本脚本的 align() 模型只对应没走成路 B 的情形  -- fired@57698 pending@58008
+[PASS] ★ 路 B 的入口在 planClose 里，判据 = !announce || split<=0 ⇒ **不猜**、直接交给路 A（与 align() 模型互补：一个保人声、一个保结尾）
+[PASS] ★ 旧「开门时提前播人声」整段删除 ⇒ 源码里只剩这两条路，align() 模型与它一一对应
+
+===== 6) 剪头播放的水管（时长 / 字节来源 / 切片 / 退回）=====
+[PASS] EscalatorAudioPlayer 有量化步长与量化函数
+[PASS] 内置素材的字节从模组 jar 读（内置档在同步表里没有字节）
+[PASS] 类路径前缀指向 assets/smoothlift/sounds/audio/（sounds.json 同一目录）
+[PASS] sliceHead 用「视图」（duplicate/slice）剪头，不复制内存
+[PASS] 剪头按**帧**对齐（否则 16bit 立体声会声道错位）
+[PASS] 偏移编码进播放 ID（注入的缓存 key 与 resolve 的 Sound.getPath() 同源）
+[PASS] 有「按播放 ID 注入」的入口
+[PASS] 解码失败按**素材**记（换个偏移不会反复重解）
+[PASS] ★ 剪头那档连**内置档**也拿字节走注入（原版事件没法从中间开始播）
+[PASS] 剪头那档播不出来 → playbackId 置空、退回整段（宁可不对齐，也不要不出声）
+[PASS] 播放实例二选一：剪头档用播放 ID，否则用素材 ID / null（原版事件）
+
+===== 7) 版本号与产物 =====
+[PASS] gradle.properties 的 mod_version = 1.30.1201（用户点名的号）  -- 得到 1.30.1201
+[PASS] gradle.properties 的 archives_base_name = mzycBetterMTR（jar 名前缀 = 模组显示名）
+[PASS] ★ build.gradle 真的**应用**了 archives_base_name（只声明不应用 ⇒ jar 仍是旧名）
+        检查 jar：mzycBetterMTR-1.30.1201.jar
+[PASS] 打包出来的是 1.30.1201（不是别的号）
+[PASS] jar 文件名以 mzycBetterMTR- 开头（不是 smooth-escalator-）
+[PASS] jar 内含素材 dooropen.ogg
+[PASS] jar 内含素材 doorclose.ogg
+[PASS] jar 内含素材 mdoorclose.ogg
+[PASS] PsdChimePlayer.class 里编进了挂起/恢复链
+[PASS] EscalatorAudioPlayer.class 里编进了剪头播放链路
+
+== 失败 1 项 ==
+   - 三条兜底都落到「整段播」（offset=0），不是静音
+
+############################################################
+# 屏蔽门提示音顺序
+############################################################
+  ==> 失败（完整输出见下方）
+===== 0) 常量：从 Java 源码里读出来（不另抄一份）=====
+[PASS] EscalatorAudioPlayer.SPLIT_MIN_SILENCE_MS = 400（实测真分界 514ms，留 114ms 余量）  -- 得到 400
+[PASS] SPLIT_MIN_TAIL_MS = 1500（分界点之后要还剩一整串嘀嘀）  -- 得到 1500
+[PASS] SPLIT_SILENCE_LEVEL = 1e-3（-60dBFS）  -- 得到 0.001
+[PASS] PsdChimePlayer.PLAN_GRACE_TICKS = 40（过期 2 秒 = 这一轮早过去了，不补播）  -- 得到 40
+
+===== 1) 素材结构：分界点是**量出来的**（Java 算法逐帧照搬）=====
+        mdoorclose.ogg  10806ms  分界点 = 6707ms   合格安静起点：6707ms
+        doorclose.ogg   10536ms  分界点 = 6424ms   合格安静起点：6424ms
+        dooropen.ogg     2283ms  分界点 = -1（无两段结构）   合格安静起点：（无）
+[PASS] mdoorclose.ogg 分界点 ≈ 6707ms（6.707s 处 514ms 静音的起点，允许 ±30ms 漂移）  -- 得到 6707ms
+[PASS] doorclose.ogg 分界点 ≈ 6424ms（允许 ±30ms 漂移）  -- 得到 6424ms
+[PASS] dooropen.ogg 分界点 = -1（没有「播报+嘀嘀」结构）⇒ 开门端走老的整段播，一刀未改  -- 得到 -1
+
+===== 1b) 为什么「阈值大小」不是关键（关键在「取最后一段」）=====
+        mdoorclose.ogg：分界点之后 17 个间隔，极差 10ms（严格等间隔）
+[PASS] mdoorclose.ogg 分界点之后是**20 个左右的等间隔脉冲**（极差 ≤30ms）⇒ 后面确实是「一整串嘀嘀」  -- n=17 极差=10ms
+        语音段里 > 400ms 的停顿：480ms, 890ms, 1150ms, 420ms, 460ms, 580ms, 1050ms
+[PASS] ★ 语音播报段里确实有**超过阈值**的句间停顿（1150ms）—— 它照样被选中、只是被最后的真分界点覆盖 ⇒ 机制是「取最后一段」而不是「阈值大小」  -- 最长 1150ms
+        doorclose.ogg：分界点之后 17 个间隔，极差 10ms（严格等间隔）
+[PASS] doorclose.ogg 分界点之后是**20 个左右的等间隔脉冲**（极差 ≤30ms）⇒ 后面确实是「一整串嘀嘀」  -- n=17 极差=10ms
+        语音段里 > 400ms 的停顿：490ms, 1440ms, 1050ms, 440ms, 1290ms
+[PASS] ★ 语音播报段里确实有**超过阈值**的句间停顿（1440ms）—— 它照样被选中、只是被最后的真分界点覆盖 ⇒ 机制是「取最后一段」而不是「阈值大小」  -- 最长 1440ms
+
+===== 2) 提前量算术（照搬 planClose：fireTick = now + cycle − ceil(时长/50)）=====
+        素材：10806ms（人声 0~6707ms / 嘀嘀 7235~10806ms，18 声）；门程 4000ms；T = 门开始关
+        停站  7000ms：周期 220 tick；起播    +150ms（T-6850ms）；人声结束 T-143ms；第一声嘀 T+385ms；结尾 -44ms vs 门全关
+[PASS] ★ 停 7000ms：起播 -6850ms **早于**门开始关（T=0）⇒ 「不是开始关门才播放提示音」
+[PASS] ★ 停 7000ms：人声在门开始关**之前** 143ms 就播完 ⇒ 用户要的「等待 → 关门人声 → 关门」
+[PASS] ★ 停 7000ms：第一声嘀在门开始关**之后** 385ms 才响 ⇒ 「关门 → 关门嘀嘀嘀」
+[PASS] ★ 停 7000ms：提示音结尾与「门正好关上」相差 -44ms ≤ 1 tick ⇒ 用户第三次的要求成立  -- err=-44ms
+        停站  9000ms：周期 260 tick；起播   +2150ms（T-6850ms）；人声结束 T-143ms；第一声嘀 T+385ms；结尾 -44ms vs 门全关
+[PASS] ★ 停 9000ms：起播 -6850ms **早于**门开始关（T=0）⇒ 「不是开始关门才播放提示音」
+[PASS] ★ 停 9000ms：人声在门开始关**之前** 143ms 就播完 ⇒ 用户要的「等待 → 关门人声 → 关门」
+[PASS] ★ 停 9000ms：第一声嘀在门开始关**之后** 385ms 才响 ⇒ 「关门 → 关门嘀嘀嘀」
+[PASS] ★ 停 9000ms：提示音结尾与「门正好关上」相差 -44ms ≤ 1 tick ⇒ 用户第三次的要求成立  -- err=-44ms
+        停站 15000ms：周期 380 tick；起播   +8150ms（T-6850ms）；人声结束 T-143ms；第一声嘀 T+385ms；结尾 -44ms vs 门全关
+[PASS] ★ 停 15000ms：起播 -6850ms **早于**门开始关（T=0）⇒ 「不是开始关门才播放提示音」
+[PASS] ★ 停 15000ms：人声在门开始关**之前** 143ms 就播完 ⇒ 用户要的「等待 → 关门人声 → 关门」
+[PASS] ★ 停 15000ms：第一声嘀在门开始关**之后** 385ms 才响 ⇒ 「关门 → 关门嘀嘀嘀」
+[PASS] ★ 停 15000ms：提示音结尾与「门正好关上」相差 -44ms ≤ 1 tick ⇒ 用户第三次的要求成立  -- err=-44ms
+        停站 30000ms：周期 680 tick；起播  +23150ms（T-6850ms）；人声结束 T-143ms；第一声嘀 T+385ms；结尾 -44ms vs 门全关
+[PASS] ★ 停 30000ms：起播 -6850ms **早于**门开始关（T=0）⇒ 「不是开始关门才播放提示音」
+[PASS] ★ 停 30000ms：人声在门开始关**之前** 143ms 就播完 ⇒ 用户要的「等待 → 关门人声 → 关门」
+[PASS] ★ 停 30000ms：第一声嘀在门开始关**之后** 385ms 才响 ⇒ 「关门 → 关门嘀嘀嘀」
+[PASS] ★ 停 30000ms：提示音结尾与「门正好关上」相差 -44ms ≤ 1 tick ⇒ 用户第三次的要求成立  -- err=-44ms
+        停站 0ms（极端）：planClose 返回 None（不排）
+[PASS] ★ 周期 ≤ 素材时长（4000ms ≤ 10806ms）时**不排提前量** ⇒ 退回剪头，宁可这一轮没有人声也不让门先关
+[PASS] ★ 周期刚超过素材时长一点点（停 7000ms，提前量 -6850ms）时仍然排得下 ⇒ 判据不是「停站要很长」
+        过期判据：提前量到点后晚 40 tick（2000ms）内还来得及；再晚就算这一轮过去了
+[PASS] ★ 宽限 2000ms 远小于一个正常停站 ⇒ 不会把上一轮的提示音拖到这一轮来补
+
+===== 2c) 预测误差：停站时长抖动的敏感度 =====
+        上一轮 9000ms 不变、这一轮实为  8980ms（差 -20ms）：结尾偏 -24ms
+        上一轮 9000ms 不变、这一轮实为  8998ms（差  -2ms）：结尾偏 -42ms
+        上一轮 9000ms 不变、这一轮实为  9002ms（差  +2ms）：结尾偏 -46ms
+        上一轮 9000ms 不变、这一轮实为  9020ms（差 +20ms）：结尾偏 -64ms
+[PASS] ★ 误差与停站抖动**同阶**（抖动 1 个 tick 量级 ⇒ 偏差 1 tick 量级）—— 这正是「事前预测 + 事后兜底」能成立的前提
+
+===== 2d) 事后兜底：提前播完得太早时补一声（detect 里那段）=====
+        上一轮 9000ms ⇒ 提前播在 +2150ms..+12956ms；这一轮实为 15956ms ⇒ 门全关在 19956ms
+        关门那一刻（T'=15956ms）发现提示音在 -3000ms 就播完了 ⇒ 已是「过去」
+[PASS] ★ 兜底条件可满足：提示音结尾 -3000ms 早于这一轮的关门时刻 T'=15956ms ⇒ detect 会走「退回剪头补一声」而不是静默
+[PASS] ★ 正常情形（停站与上一轮一致）提示音还在响 ⇒ detect 走「不重复播」那一支（两支持有的判据互为补集）
+
+===== 2e) 夹取：嘀嘀段比门程短时不许把播报再放一遍 =====
+        反例：素材 10000ms / 分界点 8000ms / 门程 4000ms
+              不夹取 → 从 6050ms 起播（落在语音播报里！）；夹取后 → 8000ms
+[PASS] ★ 反例确实会算到分界点之前（raw=6050ms < split=8000ms）—— 这一支不是空想
+[PASS] ★ 夹取把它推回分界点 8000ms ⇒ 宁可嘀嘀早播完，也不重放已经放过的语音播报  -- 得到 8000
+[PASS] ★ 内置素材**不触发**夹取（raw=6856ms 已在分界点 6707ms 之后）⇒ 退回剪头这一档的「结尾落在门上」不受影响  -- 得到 6856
+        退回剪头时的剪点 6856ms 与分界点 6707ms 的关系：剪点晚于人声
+[PASS] ★ 兜底剪掉的正是整段人声（剪点 6856ms ≥ 分界点 6707ms）⇒ 兜底那一轮听到的是**结尾仍然落在门上**的一串嘀嘀，不会漏出半句人声
+
+===== 3) default-s（默认（短））：素材一字不改，只是**关门时不放人声** =====
+[PASS] 数据层有 PSD_TONE_BUILTIN_CLOSE_S = "default-s"
+[PASS] ★ default-s 与 default **共用同一个按端别分支** ⇒ 它不是第四段音频，「在开门端写 default-s」也不会把开门声换成关门素材
+[PASS] isPsdBuiltinShort 只认 default-s（判定只有一处真相）
+[PASS] ★ resolveTone 真的去问数据层「这是默认（短）吗」（不自己认字面量）
+[PASS] ★ 命中 default-s 时**仍然量分界点**，只是把 announce 置 false —— 分界点必须留着，关门端那道「不许剪进播报里」的夹取还要用它
+[PASS] Tone 把「分界点」和「要不要播播报」分成**两个**字段（合并成一个 -1 会有副作用，见下）
+[PASS] ★ **没有**把分界点压成 -1 来实现 default-s（那种写法会连带关掉关门端的夹取，对「嘀嘀段比门程短」的导入素材会在关门时漏出一截语音）
+        default  ：靠提前量整段播（含 6707ms 人声，结尾落在门上）
+        default-s：关门那一瞬从 6850ms 起播（人声结束点 6707ms 之后）⇒ 只剩 3956ms 嘀嘀
+[PASS] ★ default-s 的剪点 6850ms 落在人声结束点 6707ms 之后 ⇒ 只听到嘀嘀，且结尾仍对齐门关上
+[PASS] ★ default 那一档走的是提前量（整段），**不剪头** ⇒ 人声保住了（这正是用户报过的 pothole）
+        反例（素材 10000ms / 分界点 8000ms）：不夹取 → 6050ms（落进播报里！）；夹取 → 8000ms
+[PASS] ★ 反例：夹取把起点推回分界点 8000ms ⇒ 即便选了「短」，也不会在关门时漏出一截语音
+
+===== 4) 源码结构（提前量方案的骨架）=====
+[PASS] Tone 记录带上 splitMs（分界点随素材一起走）；announce 见第 3 节
+[PASS] 两个素材来源（内置 / 自定义）都把 splitMs 填进 Tone
+[PASS] EscalatorAudioPlayer 有「探测分界点」与两个取用入口
+[PASS] 分界点缓存与时长缓存同生共死（断线 / 重载两处都清）  -- clear 次数 = 2
+[PASS] 分界点探测只认 16bit PCM（其它位深返回 -1，不猜格式）
+[PASS] ★ 「取最后一段」这条语义在源码里成立（split 被后一段不断改写）
+[FAIL] 找到 detect(...) 的方法体（下面的结构断言都基于它）
+        detect 里的次序：opening@-1 planClose@-1 开门播放@-1 plannedCloseFired@-1 pendingClose@-1
+[FAIL] ★ 「排提前量」挂在 **opening** 分支里（关门没有预警信号，只能趁开门先排）
+[FAIL] ★★★ 排提前量之前**先用 `"close"` 解析出关门那一项**（closePlayable）—— 提前量服务的是关门那一段声音，时长/分界点都必须是关门素材的  -- close 解析@-1，planClose@-1
+[FAIL] ★【1.16】开门那一项也用 `"open"` **单独**解析（openPlayable），且**排在 planClose 之前**：它的时长正是「强制等待」的起点（用户要的是「开门音效**播放完**后再等 X 秒」）；两个方向是两个独立配置项，「开门音关着」不该把「关门音的提前量」也一起取消掉  -- open 解析@-1，planClose@-1
+[FAIL] ★ detect 里恰好解析三次（开门端：close 排提前量 + open 播开门音；关门端：close 播关门音）—— 每一次都**只为它自己那一项的声音**解析，没有复用  -- 出现 0 次
+[PASS] ★★ 反面样本：detect 里**不许**再出现「按跳变方向选一个 which 然后复用给两个用途」那种写法（正是它把开门素材的 splitMs = -1 带进了关门提前量的闸门）
+[FAIL] ★ 先排提前量、再播开门音（顺序反了也不影响，但排在这里最省事：tone/音量都已解好）
+[FAIL] ★ 关门端**先看有没有提前播过**，再考虑挂起剪头 ⇒ 两档互斥，同一条素材不会响两遍（顺序反了会「提前播过」也照样再剪一声）
+[FAIL] ★ 两支分处 opening / closing 两处，不共用落点
+[PASS] ★ 提前播成功后记下**实际起播 tick**（关门那一刻要靠它算「本该何时播完」，从而区分「还在响」与「早播完了」）
+[PASS] ★ 到点时门已不是全开 ⇒ 丢掉这次请求、交给关门那一刻的剪头（不硬播）
+[PASS] ★ 晚过宽限 ⇒ 丢掉（这一轮早过去了，不补播）
+[PASS] ★ 提前播走 resolvePlayable 的同一道闸，而且**不碰** pendingClose（两档互斥）
+[PASS] ★ 剪头仍被夹在分界点之后（不许剪进人声里）—— 兜底时听到的是一串嘀嘀
+[PASS] ★ 「没得剪」时退回整段播（开门端的 2.28 秒素材走这一支）
+[PASS] ★ resolvePlayable 收拢了「这一扇门的总开关 / 子开关 / 设为不播 / 音量」四道闸（只有一处实现）。【1.20】四道闸全部按 **door.key()** 取（per-door），不再取维度默认
+[FAIL] ★ detect 里**不再**自己写那三道闸（写三份必然有一份会和另外两份走偏）  -- detect 里 isPsdToneEnabled 出现 0 次
+[PASS] ★ noteCycle 对**所有**门都记（最近的门会换，每扇门要各自学各自那一份）
+[PASS] ★ noteCycle 的调用点已统一成传 DoorView（日志才能打出坐标，不是一长串 anchor）
+[PASS] ★ 一轮**全关**时把这一轮的提前量计划摘掉 ⇒ 计划只对排它的那一轮有效（否则门中途离开快照又回来时，它会在下一轮停站中途到点、门正好全开 ⇒ 凭空响一声）
+[PASS] ★ reset() 清掉**还没到点**的提前量（那条计划挂在某一轮停站上，这里恰恰意味着看不到门了）
+[PASS] ★ reset() **不清**学到的周期（玩家走远 / 区块卸载不该让每扇门重学一轮）
+[PASS] ★ reset() **不清**「已提前播过」的抑制标记（这里并不停正在响的那条素材，清掉反而会让关门时叠一声）
+[PASS] ★ reset() 不停正在播的**常规**提示音（整段提前播那条 / 剪头那条）（否则一走远就把用户想听的那段话掐断）
+[PASS] ★【1.16】reset() 对**兜底人声**恰恰相反：既清计划、也把正在响的那条停掉 —— 它是我们主动插进去的一段语音，reset() 的三个来路都意味着它已失去归属
+[PASS] ★ onDisconnect 把三张学习 / 预测表一起清掉（换世界后位置与时刻表都不再可比）
+[PASS] ★ 旧 startAnnouncement 已整段删除（留着会让同一条素材在开门 / 关门各响一遍）
+[PASS] ★ 「到点停播报」那套登记表也一并删除
+[PASS] ★ **已删除**「整段从关门那一瞬起播」那一支 —— 它正是用户第三次否掉的行为（门在第 4 秒就关上，声音还剩 6.8 秒）
+[PASS] ★ planClose 收 Playable（不再自己重查一遍设置 —— 那会让日志重复、判据分叉）；【1.16】再多收一个 openPlayable —— 「强制等待」的起点要「开门音**播完**」，所以排计划这一步需要知道开门素材多长
+[PASS] ★【1.16】新增 forcedVoice 计划表 + ForcedVoice 内部类（兜底人声的句柄）
+[PASS] ★【1.16】cachedCloseWaitSeconds 初值 = 内置默认（第一次加入 mod 即 5 秒）
+[PASS] ★★★【1.16】cachedCloseWaitSeconds **只**在「周期塞不下素材」（best <= leadTicks）那一支里被读 —— 停站够长时走上面的「整段提前播」，那条路根本不看这个值（= 用户要的「够长就忽略」）  -- gate@3007，wait@3530
+[PASS] ★★ 反面样本：best <= leadTicks **之前**不许出现 cachedCloseWaitSeconds（否则「够长就忽略」会被悄悄破坏）
+[PASS] ★【1.16】塞不下那一支把计划塞进 forcedVoice（**不再静默 return**）
+[PASS] ★【1.16】等待时长按秒 → tick（×20），并夹到 ≥ 0（负数不倒退）
+[PASS] ★【1.16】人声在 **splitMs** 处收掉 —— 不让它自己的嘀嘀响出来（嘀嘀交给关门端剪头路）
+[PASS] ★【1.16】tickForcedVoice 排在 firePlannedClose / resumeClose **之前** —— 它一旦掐断人声，紧接着那声关门嘀嘀（剪头路放的）才不会被压住  -- tickForcedVoice@2490 firePlannedClose@2546 resumeClose@2603
+[FAIL] ★★【1.16】门一动就掐断兜底人声（detect 关门端），且**排在关门那次 resolvePlayable 之前** —— 关门音被关掉时这段人声照样要断（它与「关门这一项此刻播不播」无关）  -- cutForcedVoice@-1，其后 close 解析@-1
+[PASS] ★★【1.16】tickForcedVoice 两个停止条件：到 splitMs 收尾、或门一动立刻掐断（用户原话「一旦到关门时间嘀嘀嘀开始播放，就立即切断正在播放的人声提示，不管播到哪里」）
+[PASS] ★【1.16】起播在 startTick、且只起播一次（fired 标记），到点前不动
+[PASS] ★【1.15】剪头路（路 A）一字未改：兜底人声收掉后，关门嘀嘀仍由 resumeClose 对齐门关上那一刻
+
+===== 4h) 到站播报（/pbmmidium）：自己的表 + 自己的 tick 路，结构上谁都不许停它 =====
+[PASS] ★【1.17】新增 arrivalVoice 计划表 + Arrival 内部类（与 forcedVoice 并列的第二张表，而不是复用 forcedVoice —— 那张表每条都有停止条件）
+[PASS] ★★★【1.17】Arrival 类里**没有** PsdMusicInstance 字段 —— 不持句柄，就没有「谁能停它」这个问题  -- 类体 681 字符（没抓到类体说明正则失效，需立刻修）
+[PASS] ★★★【1.17】reset() **不碰** arrivalVoice —— reset 的第三个来路就是「门全看不见 / 车开走」，在这里顺手清掉它，功能当场就废  -- reset 体 380 字符，含 arrivalVoice=False
+[PASS] ★【1.17】对照：reset() 里 forcedVoice **照旧**清掉（两张表存活期不同，别顺手一并处理）
+[PASS] ★【1.17】onDisconnect() 里**才**清 arrivalVoice（换世界后旧坐标不再可比）
+[PASS] ★★★【1.17】tickArrivalAnnounce 排在**取门快照 / doors.isEmpty() 早退之前** —— 列车开走后 snapshot() 变空会直接 return，排在后面就永远走不到  -- tickArrivalAnnounce@897 snapshot@979 isEmpty@1166
+[PASS] ★★★【1.17】tickArrivalAnnounce 里**没有任何 stop** —— 起播后实例已交给原版 SoundEngine（一次性、不循环），没人停它就响到自然结束  -- tick 体 1156 字符
+[PASS] ★【1.17】播完只**回收表项**（endTick 到点 remove）—— 与声音无关，只是别让表无限长大（等待秒数允许正无穷）
+[FAIL] ★★【1.17】planArrivalAnnounce 排在 `if (openPlayable == null) return;` **之前** —— 本维度把开门音设成「不播」时，站台广播照样要排  -- planArrivalAnnounce@-1 openPlayable判空@-1
+[PASS] ★【1.17】到站播报设成「不播」时 planArrivalAnnounce **立刻返回**（不排计划）
+[PASS] ★★【1.17】起播刻 = 开门那一刻 + 开门素材时长 + 等待秒数（= 用户要的「开门嘀嘀嘀之后开始播放」）
+[PASS] ★【1.17】等待时长按秒 → tick（×20），并夹到 ≥ 0（负值不倒退）
+[PASS] ★【1.17】回收刻 = 起播刻 + 素材时长（素材时长量不到时退化成 startTick）
+[PASS] ★★【1.17】resolveMidiumTone **没有内置档分支** —— 到站播报没有内置素材（站台广播不可能随模组分发），库里没有就是 null  -- 函数体 572 字符
+[PASS] ★【1.17】素材缺失只**记一次**警告（warnedMissingMidium 去重，不每 tick 刷屏）
+[PASS] play() 返回实例（判空即知成没成；实例在手边，将来要停它 / 改它不必回引擎查）
+
+===== 5) 版本号与产物 =====
+[PASS] gradle.properties 的 mod_version = 1.30.1201（用户点名的号，未升位）  -- 得到 1.30.1201
+[PASS] gradle.properties 的 archives_base_name = mzycBetterMTR
+[PASS] ★ build.gradle 用 base.archivesName 应用了它（不是把名字硬编码进去）
+        检查 jar：mzycBetterMTR-1.30.1201.jar（1714713 字节）
+[PASS] 打包出来的是 1.30.1201
+[PASS] jar 文件名以 mzycBetterMTR- 开头
+[PASS] PsdChimePlayer.class 里编进了 planClose
+[PASS] PsdChimePlayer.class 里编进了 firePlannedClose
+[PASS] PsdChimePlayer.class 里编进了 noteCycle
+[PASS] PsdChimePlayer.class 里编进了 learnedCycleTicks
+[PASS] PsdChimePlayer.class 里编进了 plannedCloseFired
+[PASS] PsdChimePlayer.class 里编进了 plannedCloseStart
+[PASS] PsdChimePlayer.class 里编进了 resolvePlayable
+[PASS] PsdChimePlayer.class 里编进了 resumeClose
+[PASS] PsdChimePlayer.class 里编进了 pendingClose
+[PASS] PsdChimePlayer.class 里编进了 splitMs
+[PASS] PsdChimePlayer.class 里编进了 announce
+[PASS] ★ PsdChimePlayer.class 里**没有** startAnnouncement（旧机制真被删了，不是只留了注释）
+[PASS] EscalatorAudioPlayer.class 里编进了 detectAnnounceSplitMs
+[PASS] EscalatorAudioPlayer.class 里编进了 bundledAnnounceSplitMs
+[PASS] EscalatorAudioPlayer.class 里编进了 customAnnounceSplitMs
+
+== 失败 11 项 ==
+   - 找到 detect(...) 的方法体（下面的结构断言都基于它）
+   - ★ 「排提前量」挂在 **opening** 分支里（关门没有预警信号，只能趁开门先排）
+   - ★★★ 排提前量之前**先用 `"close"` 解析出关门那一项**（closePlayable）—— 提前量服务的是关门那一段声音，时长/分界点都必须是关门素材的
+   - ★【1.16】开门那一项也用 `"open"` **单独**解析（openPlayable），且**排在 planClose 之前**：它的时长正是「强制等待」的起点（用户要的是「开门音效**播放完**后再等 X 秒」）；两个方向是两个独立配置项，「开门音关着」不该把「关门音的提前量」也一起取消掉
+   - ★ detect 里恰好解析三次（开门端：close 排提前量 + open 播开门音；关门端：close 播关门音）—— 每一次都**只为它自己那一项的声音**解析，没有复用
+   - ★ 先排提前量、再播开门音（顺序反了也不影响，但排在这里最省事：tone/音量都已解好）
+   - ★ 关门端**先看有没有提前播过**，再考虑挂起剪头 ⇒ 两档互斥，同一条素材不会响两遍（顺序反了会「提前播过」也照样再剪一声）
+   - ★ 两支分处 opening / closing 两处，不共用落点
+   - ★ detect 里**不再**自己写那三道闸（写三份必然有一份会和另外两份走偏）
+   - ★★【1.16】门一动就掐断兜底人声（detect 关门端），且**排在关门那次 resolvePlayable 之前** —— 关门音被关掉时这段人声照样要断（它与「关门这一项此刻播不播」无关）
+   - ★★【1.17】planArrivalAnnounce 排在 `if (openPlayable == null) return;` **之前** —— 本维度把开门音设成「不播」时，站台广播照样要排
+
+############################################################
+# 屏蔽门提前量状态机
+############################################################
+  ==> 通过
+
+############################################################
+# MTR停站时长单位换算
+############################################################
+  ==> 通过
+
+############################################################
+# 屏蔽门音量与淡入淡出
+############################################################
+  ==> 失败（完整输出见下方）
+
+===== 1) 三个新指令 + 音量范围 1~1000 =====
+[PASS] 注册了 /pbmmusicloud
+[PASS] 注册了 /pbmmidiumloud
+[PASS] 注册了 /pbmarriveloud
+[PASS] ★ /pbmmusicloud 与 /pbmloud **同一份数据**（都走 pbmLoudShow / pbmLoudGlobal）
+[PASS] 两项新指令都带 -f（强制所有维度）分支
+[PASS] 两项新指令的 X / X to Y 形状都在
+[PASS] AUDIO_VOLUME_MIN = 1
+[PASS] AUDIO_VOLUME_MAX = 1000
+[PASS] volumeArg() = integer(1, 1000)（指令树校验拿的就是这两个常量）
+[PASS] HELP_VOLUME_MIN/MAX 直接引用 AUDIO_VOLUME_MIN/MAX（不会两套数各走各的）
+[PASS] DEFAULT_PSD_HELP_VOLUME 复用共用默认（不是又一个新数）
+
+===== 2) 两条新通道（到站音量 / 进站音量） =====
+[PASS] SET_PSD_MIDIUM_LOUD_CHANNEL 的 id = smoothlift:set_psd_midium_loud
+[PASS] SET_PSD_MIDIUM_LOUD_CHANNEL 有服务端接收器
+[PASS] 接收器落到 setDoorPsdMidiumVolume(...)
+[PASS] SET_PSD_ARRIVE_LOUD_CHANNEL 的 id = smoothlift:set_psd_arrive_loud
+[PASS] SET_PSD_ARRIVE_LOUD_CHANNEL 有服务端接收器
+[PASS] 接收器落到 setDoorPsdArriveVolume(...)
+[PASS] ★ 载荷形状是 key(long) → volume(VarInt)（键**先**读：与 1.21「配置按 runKey」一致）
+[PASS] 两条接收器都补发了「按门设置」那条包（改的是键集合里的值，但客户端要重拿）
+
+===== 3) 数据层：PsdToneAudio 15 字段 + 哨兵 -1 =====
+[PASS] 找得到 PsdToneAudio record 声明
+[FAIL] ★ PsdToneAudio 是 16 字段（1.20 的 13 + 到站/进站 2 + 本轮 1）  -- 得到 20：String open, String close, Boolean help, Boolean openEnabled, Boolean closeEnabled, Integer volume, Integer openVolume, Integer closeVolume, Integer openWaitSeconds, Integer closeWaitSeconds, String midium, Integer midiumWaitSeconds, Integer midiumVolume, String arrive, Integer arriveSeconds, Integer arriveVolume, Integer narrate, Integer narrateSeconds, Integer midiumNarrate, Integer midiumNarrateSeconds
+[FAIL] ★ arriveVolume 在末尾（追加式改包的标准姿势：老位置一个都没动）  -- 得到 Integer midiumNarrateSeconds
+[PASS] ★ midiumVolume 紧跟 midiumWaitSeconds（同一件事的三个字段聚在一起，别散开）  -- 得到 ['String midium', 'Integer midiumWaitSeconds', 'Integer midiumVolume']
+[PASS] 7 个「可空盒装」音量/秒数字段都在（null = 跟维度默认）
+[PASS] PSD_TONE_VOLUME_UNSET 复用 LIFT_TONE_VOLUME_UNSET（同一套哨兵语义）
+[PASS] 哨兵值 = -1
+[PASS] 两个新维度默认字段初值 = 哨兵（没调过 ⇒ 跟共用默认）
+[PASS] 找得到 clampPsdToneVolume
+[PASS] ★ 哨兵 -1 **原样放行**（不夹进 [1,1000] —— 夹了用户看到的是「跟随」变成 1）
+[PASS] 其余值走 max(MIN, min(MAX, x))
+[PASS] 夹取复算：-5→1 / 0→1 / 1→1 / 100→100 / 1000→1000 / 1001→1000 / 99999→1000  -- 得到 [(-5, 1), (0, 1), (1, 1), (100, 100), (1000, 1000), (1001, 1000), (99999, 1000)]
+[PASS] ★ 夹取复算：-1 → -1（哨兵穿过）
+
+----- NBT 往返（存档里的键名） -----
+[PASS] 维度默认音量 defaultPsdMidiumVolume 读写成对
+[PASS] 维度默认音量 defaultPsdArriveVolume 读写成对
+[PASS] 按门覆盖 midiumVolume 读写成对（可选：不吃旧存档）
+[PASS] 按门覆盖 arriveVolume 读写成对（可选：不吃旧存档）
+[PASS] ★ 读存档时也夹一次（坏存档 / 手改 NBT 绕过指令树那层 arg 校验）
+
+===== 4) ★★ 包读写序逐格一致（错位不报错，只会把值串到别的字段） =====
+[PASS] 抓得到 buildPsdTonePacket 的包体
+[PASS] 抓得到客户端「按门」接收器的读取段
+        写序：help:Bool, openEnabled:Bool, closeEnabled:Bool, volume:Int, openVolume:Int, closeVolume:Int, openWaitSeconds:Int, closeWaitSeconds:Int, midium:String, midiumWaitSeconds:Int, arrive:String, arriveSeconds:Int, midiumVolume:Int, arriveVolume:Int, narrate:Int, narrateSeconds:Int, midiumNarrate:Int, midiumNarrateSeconds:Int
+        读序：help:Bool, openEnabled:Bool, closeEnabled:Bool, volume:Int, openVolume:Int, closeVolume:Int, openWaitSeconds:Int, closeWaitSeconds:Int, midium:String, midiumWaitSeconds:Int, arrive:String, arriveSeconds:Int, midiumVolume:Int, arriveVolume:Int, narrate:Int, narrateSeconds:Int, midiumNarrate:Int, midiumNarrateSeconds:Int
+[PASS] ★ 读写格数相同（18 vs 18）—— 差一格就是静默错位
+[PASS] ★★ 读写**类型序列**逐格一致（Bool/Int/String 对位）  -- 写在 ['Bool', 'Bool', 'Bool', 'Int', 'Int', 'Int', 'Int', 'Int', 'String', 'Int', 'String', 'Int', 'Int', 'Int', 'Int', 'Int', 'Int', 'Int'] / 读在 ['Bool', 'Bool', 'Bool', 'Int', 'Int', 'Int', 'Int', 'Int', 'String', 'Int', 'String', 'Int', 'Int', 'Int', 'Int', 'Int', 'Int', 'Int']
+[PASS] ★★ 读写**字段名序列**逐格一致（连名字都对上，不只是类型）  -- 写在 ['help', 'openEnabled', 'closeEnabled', 'volume', 'openVolume', 'closeVolume', 'openWaitSeconds', 'closeWaitSeconds', 'midium', 'midiumWaitSeconds', 'arrive', 'arriveSeconds', 'midiumVolume', 'arriveVolume', 'narrate', 'narrateSeconds', 'midiumNarrate', 'midiumNarrateSeconds'] / 读在 ['help', 'openEnabled', 'closeEnabled', 'volume', 'openVolume', 'closeVolume', 'openWaitSeconds', 'closeWaitSeconds', 'midium', 'midiumWaitSeconds', 'arrive', 'arriveSeconds', 'midiumVolume', 'arriveVolume', 'narrate', 'narrateSeconds', 'midiumNarrate', 'midiumNarrateSeconds']
+[FAIL] 1.22 的两个新音量在**两条序列的末尾**（追加式改包的标准姿势）
+[PASS] ★【1.23】范围**不在**按门 packet 里（维度级配置，与 /pbmround 同一层）  -- 得到 ['help', 'openEnabled', 'closeEnabled', 'volume', 'openVolume', 'closeVolume', 'openWaitSeconds', 'closeWaitSeconds', 'midium', 'midiumWaitSeconds', 'arrive', 'arriveSeconds', 'midiumVolume', 'arriveVolume', 'narrate', 'narrateSeconds', 'midiumNarrate', 'midiumNarrateSeconds']
+[PASS] 抓得到维度包的写段 / 读段
+        写序：Utf, Boolean, VarInt, Boolean, Boolean, VarInt, VarInt, VarInt, VarInt, Utf, Utf, VarInt, Utf, VarInt, Utf, VarInt, VarInt, VarInt, VarInt, VarInt, VarInt, VarInt, VarInt, VarInt, VarInt, VarInt
+        读序：Utf, Boolean, VarInt, Boolean, Boolean, VarInt, VarInt, VarInt, VarInt, Utf, Utf, VarInt, Utf, VarInt, Utf, VarInt, VarInt, VarInt, VarInt, VarInt, VarInt, VarInt, VarInt, VarInt, VarInt, VarInt
+[PASS] ★★ 维度包读写类型序列逐格一致  -- 写在 ['Utf', 'Boolean', 'VarInt', 'Boolean', 'Boolean', 'VarInt', 'VarInt', 'VarInt', 'VarInt', 'Utf', 'Utf', 'VarInt', 'Utf', 'VarInt', 'Utf', 'VarInt', 'VarInt', 'VarInt', 'VarInt', 'VarInt', 'VarInt', 'VarInt', 'VarInt', 'VarInt', 'VarInt', 'VarInt'] / 读在 ['Utf', 'Boolean', 'VarInt', 'Boolean', 'Boolean', 'VarInt', 'VarInt', 'VarInt', 'VarInt', 'Utf', 'Utf', 'VarInt', 'Utf', 'VarInt', 'Utf', 'VarInt', 'VarInt', 'VarInt', 'VarInt', 'VarInt', 'VarInt', 'VarInt', 'VarInt', 'VarInt', 'VarInt', 'VarInt']
+[FAIL] ★ 维度包 19 格（1.20 的 13 + 1.16/1.17/1.21 已有的 4 + 1.22 的 2 + 【1.23】的 2）  -- 得到 26
+[PASS] 维度包末尾四格都是 VarInt（两个音量 + 两个范围）  -- ['VarInt', 'VarInt', 'VarInt', 'VarInt']
+[FAIL] ★ 维度包写入的**最后一格**就是 arriveRound（【1.23】追加在最后）  -- 最后一格：buf.writeVarInt(data.defaultPsdMidiumNarrateSeconds);
+[FAIL] ★ 倒数第二格是 midiumRound（两个范围成对追加，顺序与读段一致）  -- 倒数第二格：buf.writeVarInt(data.defaultPsdMidiumNarrateMode);
+[PASS] 找得到 applyClientPsdChime 签名
+[FAIL] ★ applyClientPsdChime 19 入参 = record 15 + dimension + enabled + 【1.23】两个范围（维度包多带这两个，包格数 19 也对得上）  -- 得到 26：ResourceKey<Level> dimension, boolean enabled, int volume, boolean openEnabled, boolean closeEnabled, int roundXz, int roundY, int toneVolumeOpen, int toneVolumeClose, String toneAudioOpen, String toneAudioClose, int closeWaitSeconds, String midiumAudio, int midiumWaitSeconds, String arriveAudio, int arriveSeconds, int midiumVolume, int arriveVolume, int midiumRoundXz, int midiumRoundY, int arriveRoundXz, int arriveRoundY, int narrateMode, int narrateSeconds, int midiumNarrateMode, int midiumNarrateSeconds
+[FAIL] 【1.23】两个范围在 applyClientPsdChime 入参**末尾**  -- 得到 ['int midiumNarrateMode', 'int midiumNarrateSeconds']
+[FAIL] ★ 末尾四格 = 1.22 的音量对 + 1.23 的范围对（顺序与包、与读段三处一致）  -- 得到 ['int narrateMode', 'int narrateSeconds', 'int midiumNarrateMode', 'int midiumNarrateSeconds']
+[PASS] 找得到客户端构造 PsdToneAudio 的地方
+[FAIL] ★ 客户端构造实参 = 16  -- 得到 20
+[PASS] ★★ 客户端构造实参逐个 == record 参数名（顺序 + 名字全对上）  -- 实参=['open', 'close', 'help', 'openEnabled', 'closeEnabled', 'volume', 'openVolume', 'closeVolume', 'openWaitSeconds', 'closeWaitSeconds', 'midium', 'midiumWaitSeconds', 'midiumVolume', 'arrive', 'arriveSeconds', 'arriveVolume', 'narrate', 'narrateSeconds', 'midiumNarrate', 'midiumNarrateSeconds']
+             record=['open', 'close', 'help', 'openEnabled', 'closeEnabled', 'volume', 'openVolume', 'closeVolume', 'openWaitSeconds', 'closeWaitSeconds', 'midium', 'midiumWaitSeconds', 'midiumVolume', 'arrive', 'arriveSeconds', 'arriveVolume', 'narrate', 'narrateSeconds', 'midiumNarrate', 'midiumNarrateSeconds']
+[FAIL] 16 个实参/参数名互不重复（重名会让上面那条断言失去分辨力）
+
+===== 5) 石斧 UI：音量输入框 / 标签 / 底部合并 / 列表 ≥ 5 行 =====
+[PASS] 标签 ROW_WAIT_LABEL = "等待秒数:"
+[PASS] 标签 ROW_LOUD_LABEL = "音量:"
+[PASS] 字段 midiumLoudInput 存在
+[PASS] midiumLoudInput 用 rowLoudBoxX(...) 定位（= 在「等待秒数」框右边）
+[PASS] midiumLoudInput 真的加进了界面
+[PASS] 字段 arriveLoudInput 存在
+[PASS] arriveLoudInput 用 rowLoudBoxX(...) 定位（= 在「等待秒数」框右边）
+[PASS] arriveLoudInput 真的加进了界面
+[PASS] 两个音量框都带「音量:」提示
+[PASS] 两个秒数框都带「等待秒数:」提示
+[PASS] ★ rowLoudBoxX = rowLoudLabelX + 「音量:」自身宽度（跟着字体走，不是写死偏移）
+[PASS] ★ rowLoudLabelX = rowWaitBoxX + ROW_BOX_W + 间隔（**先有秒数框、右边才是音量块**）  -- 得到 rowWaitBoxX(cx) + ROW_BOX_W + 8
+[PASS] ★ rowWaitBoxX 让开「等待秒数:」的宽度（标签不会压到框）
+[PASS] ★【1.23】底部两框已删（强制等待 = 关门行右侧等待秒数框；默认音量走 /pbmloud 指令）
+[PASS] ★ 秒数框紧跟在音量框右边（x 由音量框宽度 + 「强制等待」标签宽度推出）
+[PASS] 底部两框宽度 = 56 / 52
+[PASS] 主界面输入框在 applyMainInputs 里落地（两个新框都在）
+[PASS] 两个新框都走同一个 parseVolume（范围校验只有一处）
+
+----- 列表页可见行数（几何量复算，不靠肉眼） -----
+[PASS] 取到 4 个版式常量
+[PASS] ★ 这四个几何常量在屏蔽门界面里都是别名（数字只许写在 SoundListLayout）
+        ROW_H=22 LIST_TOP=40 BOTTOM_RESERVE_LIST=44 STATUS_Y_LIST=-42
+[PASS] GUI 高 270 时列表可见 7 行（【1.22-2】用户点名 ≥6）
+[PASS] GUI 高 240 时列表可见 6 行（【1.22-2】用户点名 ≥6）
+[PASS] ★ 状态行 y=228 在列表底 y=226 之下（否则盖住最后一行，等于白改）
+[PASS] ★【1.23】所有列表页（开门/关门/站台/进站）整体下移一行（给表头让位）
+[PASS] ★【1.23】列表页（2/3/4）用自己那套预留（不共用主界面的 BOTTOM_RESERVE）
+[PASS] 没有「? "" : ""」这种退化三目残留（去括号留下的空壳）
+
+----- 【1.22-2】右列第 0 行 = 「不播」（只有 选用 / 没有 删除） -----
+[PASS] ★ 常量 RIGHT_COL_FIRST_STORED_ROW = 1（右列第 0 行让给「不播」，存档从第 1 行起）  —— 断言的是 SoundListLayout 那份唯一来源
+[PASS] ★ 屏蔽门界面里的 RIGHT_COL_FIRST_STORED_ROW 是别名（数字 1 只许写在 SoundListLayout）
+[PASS] ★★ 右列起始行只写在 listRowCount() 一处（各页 build 先设 rightStoredStartRow）
+[PASS] ★【1.23】listRowCount() 调用点 = 6（到站/进站 rebuild+滚动条 4 处 + 开门/关门 2 处）
+[PASS] 两页的**存档项**都画在 rowY(i + 1)（第 0 行留给「不播」）
+[PASS] 到站 / 进站两页各有且仅有 1 个「不播」行（rowY(0)）
+[PASS] ★ 页底「不播」用的 MIDIUM_Y 常量已无引用（留着会误导下一个改版式的人）
+[PASS] buildArrivalPage：右列第 0 行是「不播」
+[PASS] ★ buildArrivalPage：「不播」那行有「选用」（点=把该项设成不播）
+[PASS] ★★ buildArrivalPage：「不播」那行**没有「删除」**（它不是一个音频文件，删无可删）—— 这是它与下面每一行的唯一结构差别
+[PASS] buildArrivalPage：「不播」画在**右列**（已导入存档那一列），不是左列
+[PASS] buildArrivePage：右列第 0 行是「不播」
+[PASS] ★ buildArrivePage：「不播」那行有「选用」（点=把该项设成不播）
+[PASS] ★★ buildArrivePage：「不播」那行**没有「删除」**（它不是一个音频文件，删无可删）—— 这是它与下面每一行的唯一结构差别
+[PASS] buildArrivePage：「不播」画在**右列**（已导入存档那一列），不是左列
+[PASS] 下面每一行（存档项）的「删除」键都还在（只挪走了「不播」，没顺手删功能）
+
+===== 6) 播放端：淡入淡出 / 每 tick 现算 / 列车内 -80% =====
+[PASS] import 了 TickableSoundInstance
+[PASS] ★ PsdMusicInstance implements TickableSoundInstance（原版引擎每 tick 才会重取音量）
+[PASS] ★★ tick() 里**现算**音量（淡入淡出的成立前提）
+[PASS] 有 refreshVolume(mc)
+[FAIL] ★★【1.23】现算 = gain(距离, **这条声音自己的类别**) × baseVolume（不再是三类共用提示音那一份范围）
+[PASS] ★★【1.23】找得到 gain(distance, roundKind) —— 范围是**按类别**传进去的
+[PASS] ★★ 单参重载 gain(distance) **故意不存在** —— 逼每个调用点写清「我算哪一类」，而不是顺手用提示音那一份（本项目栽过「调用点漏改」）
+[FAIL] ★ 范围由 roundFor(roundKind) 现取（改完指令下一 tick 就生效，不存快照）
+[PASS] ★ d >= 范围 ⇒ 0（走远无声；用 !(d < r) 而不是 d > r，NaN 也归到 0）
+[PASS] ★★【1.25】公式 = **线性** 1 - d/r（**不是**扶梯那套平方掉块曲线） —— 屏蔽门是一串同声、要整串都听得见；平方曲线 8 格只剩 25%、15 格 0.4%（★【10-03】扶梯提示音 / 直梯提示音也统一成线性了 ⇒ 全项目的距离淡出现在同一条口径）
+[PASS] ★ 线性值再兜一次 Math.max(0, ...)（d 贴近范围时不出现 -0.0 / 负音量）
+[PASS] 【1.23】三类范围的身份常量 ROUND_TONE / ROUND_MIDIUM / ROUND_ARRIVE
+[FAIL] ★★ roundFor 把两类报站音分别落到 cachedMidiumRound / cachedArriveRound（都落回 cachedRound ⇒ 三条指令里有两条是死配置）
+[PASS] ★★【1.25】resolvePlayable（开关门提示音）只取**音量系数**、射程判定用 ROUND_TONE —— 距离增益**不在起播那一刻算死**（那正是「门开时站得远 ⇒ 走近了也不变响」的根因）
+[FAIL] planArrivalAnnounce（到站播报）用 ROUND_MIDIUM
+[FAIL] tickArriveAnnounce（进站报站）用 ROUND_ARRIVE
+[PASS] ★ 没有漏改的 gain(distance) 单参调用点
+[FAIL] refreshSettings 里两份范围都跟着代次刷新（改完指令下一个 tick 生效）
+[FAIL] onDisconnect 里两份范围都复位成各自默认（不是复用提示音那个常量）
+[PASS] 复算：贴脸 = 1.0、范围外 = 0.0  -- 得到 [1.0, 0.75, 0.5, 0.25, 0.0062, 0.0, 0.0]
+[PASS] ★ 复算：随距离**单调不增**（不会走远了反而更响）
+[PASS] ★★【1.25】复算：d = 半个范围 ⇒ **一半**音量（线性；旧平方曲线这里是 1/4）
+[PASS] ★★ 12 格（46 格长的门串里常出现的距离）仍有 0.250 音量 —— 听得见
+[PASS] ★★ 15.5 格仍有 0.0312（旧平方曲线这里是 0.00098 = -60dB，等于没声）
+[PASS] ★★ 对照（现场 LOG3 的距离）：同一距离线性 ≥ 旧平方曲线的 2 倍 —— 8 / 12 / 15.5 格分别 2.0× / 4.0× / 61×  -- 旧 [0.25, 0.0625, 0.001] → 新 [0.5, 0.25, 0.0312]
+[PASS] TRAIN_VOLUME_FACTOR = 0.2f（= 减少 80%）
+[PASS] ★★【1.28】TRAIN_RAMP_TICKS = 20 已删除（1 秒斜坡按点名撤掉）
+[PASS] ★ 斜坡状态字段已全部删除（不再有「变化时刻/起点/方向」状态机）
+[PASS] ★★ 现算时乘的是当前倍率 trainRamp()（阶跃后它就是 0.2 / 1.0 本身）
+[PASS] ★ 旧的双路径写法（实例里直接 ridingTrain() 判断）**不存在**（都走倍率那条路）
+[PASS] 倍率刷新方法 updateTrainRamp() 存在
+[PASS] ★ 每 tick 直接把当前车厢状态投影成倍率 —— 上下车下一 tick 就到位（阶跃本来就不需要状态机）
+[FAIL] ★★ onClientTick 的**第一件事**就是刷新列车倍率（且排在所有早退分支之前） ⇒ 哪怕这一刻没有声音在播，倍率也已是当前值；下一声起播直接拿对
+[PASS] 换世界时把倍率复位成 1.0 ⇒ 下一 tick 由 updateTrainRamp 投影到新的车厢状态（进存档时人在车里也一次到位，不会先响一声大的）
+[PASS] 复算：下车每 tick 都是 1.0 / 上车每 tick 都是 0.2 —— 阶跃，没有过渡值  -- 得到 下车 [1.0, 1.0, 1.0, 1.0, 1.0] / 上车 [0.2, 0.2, 0.2, 0.2, 0.2]
+[PASS] 抠得出 refreshVolume() 方法体
+[PASS] ★【1.30】VOLUME_SMOOTH_PER_TICK = 0.18f（每 tick 走 18% 差距 ⇒ 时间常数 ≈ 250ms）
+[PASS] freshVolume 里按比例逼近（target 每 tick 现算、落到引擎的音量向 target 爬）
+[PASS] ★ 平滑只对报站类（到站 / 进站，长音）；铃声 ROUND_TONE 不参与（保持清脆立即跟随）
+[PASS] ★ 是「差距×比例」不是「每 tick 加固定值」—— 固定值限速会被音量大小拖累（1.23 教训）
+[PASS] ★ 旧斜坡算式（t 按 tick 推进）已不存在
+[PASS] 反射目标 = org.mtr...VehicleRidingMovement#ridingVehicleId
+[PASS] 反射前 setAccessible(true)（private static）
+[PASS] ★ 反射结果被缓存（每 tick 都反射会拖帧；且失败只记一次日志）
+[FAIL] 找得到 ridingTrain()
+[PASS] ★ 恰好 2 处报站音传 trainAttenuated=true：到站 + 进站  -- 得到 2 处：[('MIDIUM', 'plan.runKey, true'), ('ARRIVE', 'runKey, true')]
+[PASS] ★★ 这两处**各自**带对了范围类别（到站 ROUND_MIDIUM / 进站 ROUND_ARRIVE） —— 两处都写 ROUND_MIDIUM 就是「/pbmarriveround 完全没反应」  -- 得到 [('MIDIUM', 'plan.runKey, true'), ('ARRIVE', 'runKey, true')]
+[FAIL] ★★【1.26】两处报站音都把**串锚点**当最后一格传进去 = 站台广播（距离按本串最近的门算） —— 传 NO_BROADCAST_RUN 就退回「每扇门各自 16 格」，一串 55 格的门又只剩中间几扇听得见  -- 得到 ['plan.runKey, true', 'runKey, true']
+[FAIL] ★★【1.25/1.26】开关门提示音也走「音量系数 + 每 tick 现算距离增益」，只剩「不吃列车衰减 + 距离按本扇门算」这两个「不」；范围走 ROUND_TONE
+[PASS] ★★【1.25】factorOnly **整个删掉**（它的 false 分支 = 距离增益在起播那一刻算死 ⇒「门开时玩家站得远，这条声音就永远只剩 0.4% 音量、走近也不变响」）。留着它 = 留一条没人走的死路径（本项目栽过这个形态）
+[PASS] 列车衰减开关贯穿：字段 → 构造 → refreshVolume
+[PASS] 【1.23】范围类别同样贯穿：常量 → play 形参 → 构造 → 字段 → refreshVolume  -- 得到 21 处
+[PASS] ★【1.23】trainAttenuated 与 roundKind 是**两个独立形参**（眼下同进同出，但判据不同 —— 合并 = 本项目栽过的「一个哨兵表达两件事」）
+[PASS] ★ playableMs = max(0, 素材总长 − 剪掉的头部)（剪头那档要按**剩下的**算时长）
+[PASS] ★★ remainingTicks = ceil(playableMs / 50) + 20（向上取整成 tick + 20 tick 余量）
+[PASS] ★ isStopped() 用 remainingTicks <= 0 自己退场（否则实例永远挂在 SoundEngine 里）
+[PASS] tick() 里递减 remainingTicks
+[PASS] canPlaySound() 恒 true
+
+===== 7) 版本号与打包名 =====
+[PASS] gradle.properties 的 mod_version = 1.30.1201（用户点名的号）  -- 得到 1.30.1201
+[PASS] archives_base_name = mzycBetterMTR（jar 名前缀 = 模组显示名 mzycBetterMTR）  -- 得到 mzycBetterMTR
+[PASS] ★★ build.gradle 用 base.archivesName 真的**应用**了它（只声明不应用 ⇒ 产物仍叫 smooth-escalator-*，用户看不到改名）
+[PASS] fabric.mod.json 的 name = mzycBetterMTR（游戏内显示名）
+[PASS] ★ id 仍是 smooth_lift（改了会让 smoothlift: 命名空间整片崩）
+        检查 jar：mzycBetterMTR-1.30.1201.jar（1714713 字节）
+[PASS] ★ 产物名 = mzycBetterMTR-1.30.1201.jar  -- 得到 mzycBetterMTR-1.30.1201.jar
+[PASS] jar 内含 PsdToneAudio.class
+[PASS] SmoothLift.class 里编进了 pbmmusicloud
+[PASS] SmoothLift.class 里编进了 pbmmidiumloud
+[PASS] SmoothLift.class 里编进了 pbmarriveloud
+[PASS] SmoothLift.class 里编进了 set_psd_midium_loud
+[PASS] SmoothLift.class 里编进了 set_psd_arrive_loud
+[PASS] PsdToneAudio.class 里编进了字段 midiumVolume（record 组件名会在字节码里）
+[PASS] PsdToneAudio.class 里编进了字段 arriveVolume（record 组件名会在字节码里）
+[PASS] EscalatorSpeedManager.class 里编进了 setDoorPsdMidiumVolume
+[PASS] EscalatorSpeedManager.class 里编进了 setDoorPsdArriveVolume
+[PASS] EscalatorSpeedManager.class 里编进了 getDoorPsdMidiumVolume
+[PASS] EscalatorSpeedManager.class 里编进了 getDoorPsdArriveVolume
+[PASS] ★ 播放实例是内嵌类 smooth/lift/client/PsdChimePlayer$PsdMusicInstance.class（字节码断言要查它，不是外层）
+[PASS] PsdMusicInstance.class 里编进了 refreshVolume
+[PASS] PsdMusicInstance.class 里编进了 remainingTicks
+[PASS] PsdMusicInstance.class 里编进了 trainAttenuated
+[PASS] PsdMusicInstance.class 里编进了 roundKind
+[PASS] PsdMusicInstance.class 里编进了 chainRunKey
+[PASS] ★★【1.25】PsdMusicInstance.class 里**没有** factorOnly —— 「增益算一次就冻住」那条分支确实从字节码里消失了
+[PASS] ★★ dev jar 里 PsdMusicInstance **真的 implements** TickableSoundInstance（生产 jar 是中间名 class_XXXX，验不了这个）
+[PASS] ★ 继承自 AbstractSoundInstance（原版引擎才会每 tick 调 calculateVolume）
+[PASS] PsdChimePlayer.class 里编进了 ridingVehicleId
+[PASS] PsdChimePlayer.class 里编进了 TRAIN_VOLUME_FACTOR
+[PASS] PsdChimePlayer.class 里编进了 ridingTrain
+[PASS] PsdChimePlayer.class 里编进了 updateTrainRamp
+[PASS] PsdChimePlayer.class 里编进了 trainRamp
+[PASS] PsdChimePlayer.class 里编进了 cachedMidiumRound
+[PASS] PsdChimePlayer.class 里编进了 cachedArriveRound
+[FAIL] PsdChimePlayer.class 里编进了 roundFor
+[PASS] ★【1.28】PsdChimePlayer.class 里**没有** TRAIN_RAMP_TICKS（1 秒斜坡已删）
+[PASS] ★ 反射字段名以**字符串**进了常量池
+[FAIL] ★★【1.23】roundFor / cachedArriveRound 进了常量池 —— 三条 range 指令不是死配置
+[PASS] jar 内含 PsdToneSetupScreen.class
+[PASS] PsdToneSetupScreen.class 里编进了 midiumLoudInput
+[PASS] PsdToneSetupScreen.class 里编进了 arriveLoudInput
+[PASS] PsdToneSetupScreen.class 里编进了 sendSetMidiumLoud
+[PASS] PsdToneSetupScreen.class 里编进了 sendSetArriveLoud
+
+== 失败 24 项 ==
+   - ★ PsdToneAudio 是 16 字段（1.20 的 13 + 到站/进站 2 + 本轮 1）
+   - ★ arriveVolume 在末尾（追加式改包的标准姿势：老位置一个都没动）
+   - 1.22 的两个新音量在**两条序列的末尾**（追加式改包的标准姿势）
+   - ★ 维度包 19 格（1.20 的 13 + 1.16/1.17/1.21 已有的 4 + 1.22 的 2 + 【1.23】的 2）
+   - ★ 维度包写入的**最后一格**就是 arriveRound（【1.23】追加在最后）
+   - ★ 倒数第二格是 midiumRound（两个范围成对追加，顺序与读段一致）
+   - ★ applyClientPsdChime 19 入参 = record 15 + dimension + enabled + 【1.23】两个范围（维度包多带这两个，包格数 19 也对得上）
+   - 【1.23】两个范围在 applyClientPsdChime 入参**末尾**
+   - ★ 末尾四格 = 1.22 的音量对 + 1.23 的范围对（顺序与包、与读段三处一致）
+   - ★ 客户端构造实参 = 16
+   - 16 个实参/参数名互不重复（重名会让上面那条断言失去分辨力）
+   - ★★【1.23】现算 = gain(距离, **这条声音自己的类别**) × baseVolume（不再是三类共用提示音那一份范围）
+   - ★ 范围由 roundFor(roundKind) 现取（改完指令下一 tick 就生效，不存快照）
+   - ★★ roundFor 把两类报站音分别落到 cachedMidiumRound / cachedArriveRound（都落回 cachedRound ⇒ 三条指令里有两条是死配置）
+   - planArrivalAnnounce（到站播报）用 ROUND_MIDIUM
+   - tickArriveAnnounce（进站报站）用 ROUND_ARRIVE
+   - refreshSettings 里两份范围都跟着代次刷新（改完指令下一个 tick 生效）
+   - onDisconnect 里两份范围都复位成各自默认（不是复用提示音那个常量）
+   - ★★ onClientTick 的**第一件事**就是刷新列车倍率（且排在所有早退分支之前） ⇒ 哪怕这一刻没有声音在播，倍率也已是当前值；下一声起播直接拿对
+   - 找得到 ridingTrain()
+   - ★★【1.26】两处报站音都把**串锚点**当最后一格传进去 = 站台广播（距离按本串最近的门算） —— 传 NO_BROADCAST_RUN 就退回「每扇门各自 16 格」，一串 55 格的门又只剩中间几扇听得见
+   - ★★【1.25/1.26】开关门提示音也走「音量系数 + 每 tick 现算距离增益」，只剩「不吃列车衰减 + 距离按本扇门算」这两个「不」；范围走 ROUND_TONE
+   - PsdChimePlayer.class 里编进了 roundFor
+   - ★★【1.23】roundFor / cachedArriveRound 进了常量池 —— 三条 range 指令不是死配置
+
+############################################################
+# 屏蔽门站台广播
+############################################################
+  ==> 失败（完整输出见下方）
+
+===== 1) 症状数值化：一串门的跨度 vs 射程 =====
+[PASS] 复算：12 扇、间距 5 的一串门跨度 = **55 格**（远远大于默认射程 16 格）
+[PASS] ★ 复算：站**中间**那扇最多只有 **7/12** 扇在 16 格内；站**一端**只剩 **4/12** 扇  -- 中间 [-48.0, -43.0, -38.0, -33.0, -28.0, -23.0, -18.0] / 一端 [-58.0, -53.0, -48.0, -43.0]
+[PASS] ★★ 结论：**站在站台任何一扇门旁边，都至少有 5 扇永远在射程外**（这就是「有的门不响」）
+[PASS] ★★ 复算：LOG4 里那扇**距玩家 17 格**的门（x=-28，边界外一格）增益 = **0** —— 整扇门一声不响，正是因为射程判据把它整个丢掉了（不是它没被采集）
+[PASS] ★ 复算：射程是**硬边界**（15.999 格还有 0.00006，16 格整 = 0） —— 线性曲线只解决「太轻」，解决不了「硬截成 0」
+[PASS] ★★ 对照：同一个玩家位置，若距离按「**本串离玩家最近的那一扇**」算 ⇒ 增益 **1.0**（玩家就在某一扇门旁边）⇒ 整串的播报都成立 —— 这就是【1.26】的改法
+
+===== 2) 到站播报：一串一条 + 声源取本串最近门 =====
+[PASS] 到站播报的计划表还在（【1.26】只改键的**含义**，表的生命周期一行不动）
+[PASS] ★★【1.26】planArrivalAnnounce 开头就是「这一串已经有一条还没播完的播报 ⇒ 直接返回」 —— 一串只排一条（旧写法每扇门各排一份 = 同一份按串的配置排 N 遍）
+[PASS] ★★ 写进去的键是 **runKey**（串锚点）—— 键写回 door.key() 不会报错，只会让 12 帧内的开门事件各排一条同内容的 13.8 秒广播
+[PASS] ★ Arrival 多持一份 runKey（日志要按串读「等待几秒」，距离增益也要按串算）
+[PASS] ★★ 起播日志按 **plan.runKey** 读「等待几秒」 —— 拿 door.key() 去读 per-串配置会**静默落回维度默认**（读得到，但读的不是这一串那份）
+[PASS] ★★ planArrivalAnnounce 不再收 `double distance` 形参（那个距离是**本扇门**的 —— 收下它就等于又把广播按门算）
+[PASS] ★ detect 的调用点跟着去掉第四个实参
+[PASS] ★★ 声源 = 本串里离玩家最近的那一扇（PsdDoorTracker.nearestInRun）
+[FAIL] ★★ 射程判据用的距离也来自**那一扇**（source），不是这一扇（door）
+[FAIL] ★ 到站播报的射程判据仍在（类别 ROUND_MIDIUM）—— 改的只是「距离是谁的距离」
+[PASS] ★ 顺带把两个「这一扇门的口径」改成直接用 runKey（原本传的就是 door.runKey()）
+
+===== 3) 进站报站：声源取本串最近门 =====
+[PASS] ★★ 旧的 `seenRun`（「快照里第一个碰到的那个 runKey 就算代表门」）**整个删掉** —— 它是 `HashMap` 迭代序驱动的，现场 LOG4 里同一个串先记 -33、后播 -28
+[PASS] ★ 改成先归并出「每一串里离玩家最近的那一扇」（LinkedHashMap：迭代序跟着门快照，日志好读）
+[PASS] ★ 归并判据走 closerThan（抽成一个方法：两条路都别自己写一份比较）
+[PASS] ★ closerThan(player, cand, cur) 存在（player == null ⇒ false，保持先来的那一扇）
+[FAIL] ★ 两张缓存表跟着新的键集合收敛（键集合换了 ⇒ 收敛口径也得换，否则缓存无限长大）
+[FAIL] ★★ 起播时把 runKey 一并传下去（站台广播：距离按本串最近的门算）
+
+===== 4) PsdDoorTracker：串内最近门 =====
+[PASS] ★ nearestInRun(runKey, player) → DoorView（声源位置用它）
+[PASS] ★ nearestDistanceInRun(runKey, player) → double（每 tick 的距离增益用它）
+[PASS] ★ 两个口共用一份取数逻辑（别写两遍 —— 两遍就会漂移）
+[PASS] ★★ 这一串不在快照里 ⇒ 返回 Double.MAX_VALUE ⇒ 增益自然归 0（走远了就该淡出，而不是「看不见就当贴脸」）
+[PASS] ★ player == null（还没进世界 / 界面）当贴脸 = 0，与 refreshVolume 老口径一致
+[PASS] 找得到 nearestEntryInRun 的实体
+[PASS] ★★ 它**只读不删** —— 它跑在「声音实例每 tick」的路径上，边迭代边改 LIVE 是另一个 bug；清理过期项是 snapshot() 的职责
+[PASS] ★ 判活口径与 snapshot() 同一套（STALE_TICKS），不另立一个常数
+[PASS] ★ 比距离用 distanceToSqr 就够（开方只在最后算一次）—— 每 tick 每实例都会走这里
+[PASS] ★★ 复算：Long.MIN_VALUE 按 asLong 解出来是 (x,y,z) = (**-33554432**, 0, 0)  -- BlockPos.getX(MIN_VALUE) = (int)(MIN_VALUE >> 38)（算术右移 ⇒ 带符号，负号是对的）
+[PASS] ★★ 而原版世界边界是 ±29,999,984 ⇒ **任何真实方块都到不了那一格** ⇒ 哨兵不会撞（只与**绝对值**有关，符号不重要）
+[PASS] ★★ 对照：`-1L` 是**合法**坐标（= 方块 x=-1）⇒ 拿它当哨兵会真撞
+[FAIL] ★★ 所以哨兵取 NO_BROADCAST_RUN = Long.MIN_VALUE（不是 -1）
+[FAIL] ★★ PsdMusicInstance.refreshVolume 按 chainRunKey 分两种口径（位置音 = 到 pos；站台广播 = 到本串最近的门）
+[PASS] ★ play(...) 与构造里 chainRunKey 是**独立的第 8 格** —— 不用 `roundKind != ROUND_TONE` 推出来：范围类别与「是不是广播」是两个判据，合并 ⇔ 以后新加一类范围会**悄悄**变成广播（本项目栽过「一个哨兵表达两件事」）
+
+===== 5) 最近门选择：纯逻辑复算 =====
+[PASS] 复算：玩家 x=-45.0 ⇒ 本串最近门 x=-43.0  -- 得到 -43.0
+[PASS] 复算：玩家 x=-16.0 ⇒ 本串最近门 x=-18.0  -- 得到 -18.0
+[PASS] 复算：玩家 x=-58.0 ⇒ 本串最近门 x=-58.0  -- 得到 -58.0
+[PASS] 复算：玩家 x=-3.0 ⇒ 本串最近门 x=-3.0  -- 得到 -3.0
+[PASS] ★★ 复算：两扇门**正中间**平手时取 **x 更小**的那一扇（closerThan 用严格 < ⇒ 保持先来的） —— 平手必须有确定的规则，否则「代表门」会每 tick 在两扇之间跳  -- 得到 -30.5 ⇒ -33.0，-45.5 ⇒ -48.0
+[PASS] ★★ 复算：站台上**任何**位置到最近门最远只有 2.5 格（= 间距的一半） ⇒ 射程 16 格时，整串 12 扇门覆盖的每一个点都在射程内
+[PASS] ★★ 复算：沿站台走到任何一扇门前 1.25 格，增益都 ≥ 0.8（旧口径下站台两端是 0）
+
+===== 6) 产物字节码 =====
+[PASS] ★ 播放实例是内嵌类 smooth/lift/client/PsdChimePlayer$PsdMusicInstance.class
+[PASS] PsdDoorTracker.class 里编进了 nearestInRun
+[PASS] PsdDoorTracker.class 里编进了 nearestDistanceInRun
+[PASS] PsdDoorTracker.class 里编进了 nearestEntryInRun
+[PASS] PsdChimePlayer.class 里编进了 closerThan
+[PASS] PsdChimePlayer.class 里编进了 chainRunKey
+[PASS] PsdChimePlayer.class 里编进了 nearestPerRun
+[PASS] ★★ PsdMusicInstance 内嵌类里编进了 chainRunKey —— 距离口径真的传到了每 tick 那条路
+
+== 失败 6 项 ==
+   - ★★ 射程判据用的距离也来自**那一扇**（source），不是这一扇（door）
+   - ★ 到站播报的射程判据仍在（类别 ROUND_MIDIUM）—— 改的只是「距离是谁的距离」
+   - ★ 两张缓存表跟着新的键集合收敛（键集合换了 ⇒ 收敛口径也得换，否则缓存无限长大）
+   - ★★ 起播时把 runKey 一并传下去（站台广播：距离按本串最近的门算）
+   - ★★ 所以哨兵取 NO_BROADCAST_RUN = Long.MIN_VALUE（不是 -1）
+   - ★★ PsdMusicInstance.refreshVolume 按 chainRunKey 分两种口径（位置音 = 到 pos；站台广播 = 到本串最近的门）
+
+############################################################
+# 屏蔽门讲述人只念一次
+############################################################
+  ==> 通过
+
+############################################################
+# 讲述人默认值/预设/按存档文字
+############################################################
+  ==> 通过
+
+############################################################
+# 列车报站句式守则
+############################################################
+  ==> 失败（完整输出见下方）
+  ==> 通过  抠得出 tickArriveAnnounce() 方法体
+
+===== 1) 讲述人与自定义进站广播是两条独立广播 =====
+  ==> 失败  narrateGlobal 取自 /jsr（讲述人那一条的**全局**总闸）
+  ==> 失败  ★ narrateMode = 全局 /jsr ? 这一串门自己的**样式** : 关闭（分段四：取样式而不是开/关，否则香港档会被念成上海词）
+  ==> 通过  ★ narrateOn 由样式派生（开着 = 样式 ≠ 关闭）—— 「与」的口径没变
+  ==> 通过  ★ 方法体里**没有**「/jsr 关着就整条 return」的整体短路（那是 1.28 的错法）
+  ==> 通过  ★ 也没有任何以 narrateGlobal 为条件的整条早退
+  ==> 通过  customOff 单独成变量（「不播」只关自定义那一条的前提）
+  ==> 通过  两条都关时才跳过这一串（老口径：顺手清状态）
+  ==> 通过  ★ 没有「只要 customOff 就 continue」——不播不再连累讲述人
+  ==> 通过  抠得出 ③-A 自定义进站广播分支（条件 = customTodo）
+  ==> 通过  抠得出 ③-B 讲述人进站广播分支（条件里必须有 narrateTodo）
+  ==> 通过  ★ ③-A 里**不出现**讲述人的开关 ⇒ 关讲述人不会掐掉自定义进站广播
+  ==> 通过  ★ ③-B 里**不出现** customOff ⇒ 设成不播不会掐掉讲述人（用户报的根因，这条是铁证）
+  ==> 通过  ③-A 仍是「音频素材 + 音量系数 + 距离增益」那条老链路
+  ==> 通过  ★ ③-B 不看音量（text2speech 库根本没有音量参数，用户确认「只做开/关」）
+  ==> 通过  ③-B 体内不算距离也不算音量 ⇒ 射程直接吃上面那份 inRange（与自定义那条同一片范围）
+  ==> 通过  ③-B 真的去念
+  ==> 失败  ★★ ③-B 只把**终点站**与**站台名**交给选句式入口（3 参）—— 香港档两档的名源都是终点站 arrival.destination
+  ==> 失败  ★★ ③-B **拼报站词**那两行里一个字都不提 stationName ⇒ 车站名不掺进报站词（香港档吃车站名是上一版的错，用户报的 bug 就是它）
+  ==> 失败  ★★ ③-B 里 stationName **在拼完 text 之后才取** ⇒ 它只喂 LOGGER.info（排查用），不参与报站词
+  ==> 通过  ★ ③-B 不再直接调 arriveText（那样会把香港档也念成上海词）
+  ==> 通过  ★ 香港档拼不出话（终点站读不到）时 text == null ⇒ 明说是「跳过」，不是「念不出」
+  ==> 通过  ★ 空文本不喂给 speak（否则会打一条「念不出」的假诊断）；★【09-29】speak 还带**声源身份**（runKey + 坐标）—— 越界即掐那条护栏要用它
+  ==> 通过  ★ 念不出声也算处理过这一班车（否则每 tick 重试、日志刷屏）—— 记在**讲述人自己**那一格
+  ==> 通过  ★ customTodo 用 firedArrival（自定义那条自己的记账）
+  ==> 通过  ★ narrateTodo 用 firedArrivalNarrate（讲述人**自己**的记账 —— 两条各记各的）
+  ==> 通过  ★ 没有合并语义的 `fired` 标志了（分段三把两条彻底拆开，不再共用一次记账）
+
+===== 2) 窗口 / 去重各自独立，只有声源位置共用 =====
+  ==> 通过  四个锚点都在  -- 自定义秒数@5151 讲述人秒数@5258 ③-A@6767 ③-B@8341
+  ==> 通过  ★ 两个秒数各在自己的分支之前算好
+  ==> 通过  ★ 自定义那条的窗口 = 它自己的 getDoorPsdArriveSeconds（(-∞,0]，口径不变）
+  ==> 通过  ★ 讲述人那条的窗口 = **它自己**的 getDoorPsdNarrateSeconds（用户点名「取消借用」）
+  ==> 通过  ★ 老的「一个 thresholdMs 两条共用」已经删掉（那正是「借用」的写法）
+  ==> 通过  去重状态表只取一次（表本身仍按串锚点）
+  ==> 通过  声源距离只算一次（两条共用 —— 本来就只有一个声源）
+  ==> 通过  ★★ 讲述人的可闻范围**只算一次** = 它**自己**的 /jsr round AAA BBB（【09-29】不再借用 /pbmarriveround 那份）；讲述人没有音量项 ⇒ 不吃自定义那条的音量
+  ==> 通过  gain(双维距离, ROUND_ARRIVE) **只剩 ③-A 里那一处**（乘音量） —— ③-B 不再自己算一份增益（它的范围走 narrateInRange 那条 /jsr 判据）
+  ==> 通过  ★ 同一班车判定收成一个函数 sameTrainAs（两条各传各的记录，改容差只改一处）
+  ==> 通过  sameTrainAs 的判据 = 记录非空且到站时刻差在容差内
+  ==> 通过  Arrive 里多一格 firedArrivalNarrate（讲述人自己的「这一班念过了」）
+
+===== 3) 讲述人 = MTR 报站的同一个入口（text2speech，不查辅助功能设置） =====
+  ==> 通过  直接 import com.mojang.text2speech.Narrator（MTR narrateOrAnnounce 用的是它）
+  ==> 通过  取平台讲述人用 Narrator.getNarrator()
+  ==> 通过  出声句式 = say(text, true)（true = 先清空再念，与 MTR 写法逐字一致）
+  ==> 通过  ★ 没有退回原版 GameNarrator / 也没有反射调 MTR 自己的报站（两者都要额外的开关）
+  ==> 通过  取不到时按 Narrator.EMPTY（active()==false）判「没有引擎」，只打一条诊断
+  ==> 通过  ★ 讲述人只取一次并缓存（getNarrator() 每次都新建一个 COM 对象）
+  ==> 通过  报站词开头 = 「乘客们，列车马上就要进站了」（用户点名的句式）
+  ==> 通过  接「，本次列车终点站：X」（逐字核字面量，不是只看出现过）
+  ==> 通过  接「，请乘客们在Y站台有序候车」（两截字面量都逐字核）
+  ==> 通过  站台编号读不到 ⇒ 尾句**整句**换成「请乘客们有序候车」（不留缺主语的半截话）
+  ==> 通过  ★ 站台名自带「站台」二字时走 PLATFORM_TAIL_BARE（否则会念成「1站台站台有序候车」）——★ 核的是**三元的取向**，不是「这两个常量出现过」
+  ==> 通过  空值/空白值统一走 trimToNull 按「读不到」处理（不念半截话）
+  ==> 通过  arriveText(destination, platformName) —— 两个入参各自可缺，缺谁删谁那一小句
+  ==> 通过  终点站读不到就**整句不接**（不是接一个空值）；★【09-29】接的时候只取**中文名**（chineseOnlyName）—— 双语字段别把英文也念出来
+  ==> 通过  站台名读不到走兜底句（两个分支真的分叉，不是「有值没值都接同一句」）
+
+----- 3.2) 香港档：中英双语两句【10-01 起始终都念】 -------------------
+  ==> 通过  ★★【09-28 续 3】arriveTextHongKong(String destination) —— 入参是**终点站**（不是车站名、也不是站台名）
+  ==> 失败  ★★ arriveTextForStyle 是 **3 参**（mode, destination, platformName） —— 两档只差句式不差名源，只有上海档多要一个站台名
+  ==> 失败  ★★ arriveTextForStyle(mode, destination, platformName) —— 播放端唯一的选句式入口，**stationName 这个形参已经拿掉**（它曾是错的来源）
+  ==> 通过  ★★ 香港档的名源**就是终点站**（destination）—— 上海档同一个字段，两档只差句式
+  ==> 通过  ★★ 香港档**不许**再出现「车站名优先 / 退回站台名」那套（上一版的错法，把「前往江苏北路」念成了「前往火车站」）
+  ==> 通过  ★ 分派：香港档 → arriveTextHongKong(终点站)；其余（含上海档）→ arriveText(终点站, 站台名)，上海那条**一字未动**
+  ==> 通过  ★ 中文句逐字核：「前往」+ XXX +「的列车即将到达，请先让车上的乘客下车」
+  ==> 通过  ★ 英文句逐字核：「The train to 」+ YYY +「 is arriving, please let passengers exit first.」（句末句点也在字面量里）
+  ==> 通过  ★ 站台名按 MTR 自己的约定用 | 拆（正则 \|，与 RenderPIDS 同款）
+  ==> 通过  ★ 拆的是站台名原文（split 用上面那个常量，不是各处再写一遍字面量）
+  ==> 通过  ★ 中文段取**第一段**判为中文的（chinese == null 才写）
+  ==> 通过  ★ 其余段同样只取第一段（英文 / 数字 / 日韩…都落这个桶）
+  ==> 通过  ★ 拆完两个桶都空 ⇒ null（站台名读不到 / 全是空白）
+  ==> 通过  ★ 缺中文段用另一段兜底（chinese = foreign —— 用户 10-01 改的规矩）
+  ==> 通过  ★ 缺英文段用另一段兜底（foreign = chinese）
+  ==> 通过  ★ 中文句**无条件**接（不再有「只有英文名 ⇒ 中文句整句不接」的守卫，旧规矩②已废）
+  ==> 通过  ★ 英文句**无条件**接（不再有「只有中文名 ⇒ 英文句整句不接」的守卫，旧规矩①已废）
+  ==> 通过  ★ 两句都不许再被「有哪段才念哪段」的守卫包住（防回退到旧规矩①②）
+  ==> 通过  两句之间的分隔 = 换行（用户把这两句写成了两行）
+  ==> 通过  判「这一段是不是中文」收成一个函数 isChinese
+  ==> 通过  ★ 含假名 / 谚文 ⇒ 直接判**不是**中文段（把日文、韩文挡在外面，规矩③）
+  ==> 通过  ★ 其余看有没有汉字（有汉字且无假名谚文 ⇒ 中文段）
+  ==> 通过  三个码位判据（汉字 / 假名 / 谚文）都在
+  ==> 通过  ★ isHan 覆盖 CJK 统一表意文字主区（0x4E00-0x9FFF）
+  ==> 通过  ★ 也覆盖扩展 A（0x3400-0x4DBF，生僻字站名）+ 兼容区
+  ==> 通过  ★ 假名覆盖平假名 0x3040-0x309F 与片假名 0x30A0-0x30FF
+  ==> 通过  ★ 谚文覆盖音节 0xAC00-0xD7AF 与字母 0x1100-0x11FF
+  ==> 通过  TrainAnnounceNarrator 引了 EscalatorSpeedData（分派要用 PSD_NARRATE_HONGKONG）
+  ==> 通过  TrainAnnounceSwitch 仍是讲述人的**全局**总闸之一（配置项 /jsr 不变）
+  ==> 通过  1.28 写的配置文件沿用（键 trainArriveAnnounce 不变）
+
+===== 4) 终点站 / 站台编号从 MTR 的 ArrivalResponse 里读 =====
+  ==> 通过  抠得出 bindArrivals()（到达缓存那一层的绑定）
+  ==> 通过  getArrival 仍是**必需**绑定（拿不到它就整层不可用）
+  ==> 通过  ★ 终点站 / 站台编号用 method(...) 取 ⇒ **可选**绑定：缺一个只少一句台词，不把「剩几秒到站」那条主链路一起拖挂
+  ==> 通过  两个可选绑定在函数入口先清零（重绑定不留旧句柄）
+  ==> 通过  MtrDwellAccess.nearestArrival(long) 存在且是 public
+  ==> 失败  ★ 终点站/站台名都在**同一个 if (remaining < best)** 块里取 ⇒ 不会拼出「A 车的终点站 + B 车的站台」（两条车几乎同时到时才会暴露的那个错）
+  ==> 通过  「最近的一班」判据没变（仍是 remaining 最小 —— 时刻表那条语义不许被改写）
+  ==> 通过  三件事一起回给调用方（时间 + 终点站 + 站台名）
+  ==> 通过  读不到一律 return null（调用方静默跳过，不刷日志）
+  ==> 通过  ArrivalInfo 是 MtrDwellAccess 的公开嵌套类型
+  ==> 通过  ArrivalInfo = 剩余毫秒 + 终点站 + 站台编号
+  ==> 通过  MtrDwellAccess.stationNameForPlatform(long) 仍在（日志里点名「本车站」）
+  ==> 失败  按 platformId 在 MinecraftClientData.platforms 里找那条 Platform
+  ==> 通过  找到后走 stationNameOf（area → Station.getName）
+  ==> 通过  读不到一律 return null（日志里就写「读不到」）
+
+===== 5) 数据层 / 同步层 / 管理器：每串门的开关 + 独立秒数 =====
+  ==> 失败  ★ PsdToneAudio 多两格：**Integer** narrate（三档样式）+ Integer narrateSeconds（末尾追加，不动老字段序）
+  ==> 通过  withNarrate / withNarrateSeconds 两个 copy-on-write 都在（前者已从 Boolean 改成 Integer）
+  ==> 失败  ★ isEmpty() 也把这两格算进去（否则「只设了讲述人」的记录会被当空记录删掉）
+  ==> 失败  存档读：narrate（走 optNarrateMode，读出先夹三档）/ narrateSeconds
+  ==> 通过  ★ optNarrateMode 仍在（每串门讲述人样式的可选读入口）
+  ==> 通过  ★ optNarrateMode：没这个键 ⇒ null（跟维度默认）
+  ==> 通过  ★★ 旧档布尔兼容：NBT byte（1.28.1204 存的 boolean）⇒ true=开启(上海)/false=关闭；不能直接 getInt（类型不符会静默返回 0 = 把「开启」读成「关闭」）
+  ==> 通过  ★ 新档 int ⇒ 先夹一次三档（手改过的存档也能收住）
+  ==> 通过  存档写：narrate / narrateSeconds 两键（都走 putOptInt，读侧同名同型）
+  ==> 通过  维度默认两格（defaultPsdNarrateMode（int 三档）/ defaultPsdNarrateSeconds（【10-01】起默认 -20））
+  ==> 通过  ★ 维度默认样式：存档读写同名同型（新键 defaultPsdNarrateMode，旧档读不到就落默认=上海）
+  ==> 通过  ★ clampPsdNarrateSeconds 与 clampPsdArriveSeconds 同款（上界 0，即 (-∞,0]）
+  ==> 通过  PSD_NARRATE_SECONDS_MAX = 0（不许晚于到站那一刻）
+  ==> 通过  ★ 三档样式常量 0 关闭 / 1 开启(上海) / 2 开启(香港)（一个 int 存，互斥）
+  ==> 失败  ★ 上界写成一个常量（加新样式时只改这一处，不散在 clamp 里）
+  ==> 通过  ★ 默认档 = 开启(香港)（【10-01】用户点名：第一次加载模组＝香港预设；旧值上海）
+  ==> 通过  ★ clampPsdNarrateMode：两头都夹（0..2）
+  ==> 通过  ★ psdNarrateModeName 一处定义三个中文名（日志 / 状态行 / 指令回执共用）
+  ==> 通过  ★ 旧的布尔常量 DEFAULT_PSD_NARRATE_ON 已经**从代码里消失**（只允许留在注释里）
+  ==> 通过  getDoorPsdNarrateMode / getDoorPsdNarrateSeconds 两个「门覆盖 > 维度默认」读数口都在
+  ==> 通过  ★ 样式走「门的覆盖值非 null 就用它，否则回落维度默认」
+  ==> 通过  ★ isDoorPsdNarrateOn 由样式派生（!= 关闭）—— 只保留给「只看开/关」的地方，播放端必须用 getDoorPsdNarrateMode
+  ==> 通过  ★ 秒数同款两层（与样式各判各的）
+  ==> 通过  setDoorPsdNarrate(level, key, **int mode**) —— 写入口从 boolean 改成三档 int
+  ==> 通过  ★ 写之前先夹一次（与其它项的写入口同款）
+  ==> 通过  setDoorPsdNarrateSeconds 仍在（都走 updateDoor）
+  ==> 通过  维度默认样式的读数口 getPsdNarrateMode(Level)（客户端读镜像）
+  ==> 通过  ★ 维度那层同样由样式派生（一处口径，两个层级同构）
+  ==> 通过  维度默认的 setDefaultPsdNarrate（同步所有）/ setDefaultPsdNarrateAll（强制同步）都在（都吃 int mode）
+  ==> 通过  ★ 强制同步先夹一次再落到每个维度（夹在循环外，只算一次）
+  ==> 通过  ★ 强制同步时把按串覆盖一起抹回跟维度默认（-f 口径，与其它项同构）
+  ==> 通过  抠得出 buildPsdTonePacket
+  ==> 通过  ★ 按门包末尾两格都走 writeDoorOptInt（样式那一格由 OptBool 改成 OptInt）
+  ==> 通过  ★ 追加在 arriveVolume **之后**（末尾追加 ⇒ 老客户端读到这里正好读完，不会错位）
+  ==> 通过  ★ 按门包读侧也读 narrate / narrateSeconds，**都走 readDoorOptInt**（读序与写序一致）
+  ==> 通过  ★ 读侧没有残留的 readDoorOptBool 那一格（类型错了会静默读歪）
+  ==> 失败  维度包读侧把 narrateMode / narrateSeconds 传给 applyClientPsdChime
+  ==> 通过  抠得出 buildPsdChimePacket
+  ==> 通过  ★ 维度包末尾两格：讲述人**样式**（VarInt）+ 秒数（格子数不变，第 1 格由 Boolean 改 VarInt）
+  ==> 通过  ★ 写侧也没有残留的 writeBoolean(defaultPsdNarrateOn)
+  ==> 通过  ★ 追加在 arriveRound **之后**（末尾追加，读侧同序）
+  ==> 通过  ★ 维度包读侧第 1 格用 readVarInt（与写侧 writeVarInt 成对）
+  ==> 通过  ★ 读侧没有残留的 readBoolean 那一格
+  ==> 失败  applyClientPsdChime 末尾两个入参（写序 = 入参序）
+  ==> 通过  applyClientPsdChime 体内落地这两格（样式先夹）
+  ==> 通过  ClientDimensionData 多两格镜像（psdNarrateMode（int）/ psdNarrateSeconds）
+  ==> 通过  两条新通道：SET_PSD_NARRATE_CHANNEL（开关）/ SET_PSD_NARRATE_LEAD_CHANNEL（秒数）
+  ==> 通过  ★ 同步页编号 SYNC_PSD_NARRATE_PAGE = 5
+  ==> 通过  syncPsd 里有 scope==5 的分支（右上角「同步所有」射程覆盖第 5 页）
+  ==> 通过  该分支读「这一串门生效的**样式** + 秒数」再写默认（同步按钮也搬三档，不是只搬开关）
+  ==> 通过  force / 非 force 各走 *All / 单维度（与其它项同构）
+  ==> 通过  ★ 回执文案用共用的 psdNarrateModeName（会显示「开启(香港)」而不是笼统的「开启」）
+  ==> 通过  两个服务端接收器都注册了
+
+===== 6) 石斧 UI：主界面「进站广播(讲述人)」一行 + 二级页 =====
+  ==> 通过  ★ 主界面按钮文案 = 「进站广播(讲述人)」（用户点名）
+  ==> 失败  ★ 那一行落在 ROW_H*4 这一格（进站广播 ROW_H*3 的**下一行**，用户点名「放在下面」）
+  ==> 通过  主界面那一行有一个秒数框 narrateLeadInput
+  ==> 通过  秒数框初值 = 这一串门生效的讲述人秒数
+  ==> 失败  ★ buildUi 里 page==5 走 buildNarratePage（不是落到 buildTonePage 的 else）
+  ==> 失败  ★ render 里 page==5 走 renderNarratePage
+  ==> 通过  buildNarratePage / renderNarratePage 都在
+  ==> 通过  抠得出 buildNarratePage 方法体
+  ==> 失败  ★★ 右列三行自上而下 = 关闭 / 开启(香港) / 开启(上海)（用户点名「香港按钮放在上海上面」；原来那个「开启」已改名「开启(上海)」）
+  ==> 失败  ★★ 调显示次序**只许动这两个数组的次序**；三档常量仍是 0/1/2（那是**存档格式**，与页面顺序无关，不许动）
+  ==> 失败  ★★ names/modes **同序同长**，且「香港」都排在「上海」之前（只换一个数组 = 点香港却设成上海，是最容易犯的错）
+  ==> 通过  ★ ✓ 标在**当前生效的那一档**上（三行互斥，只有一个对）
+  ==> 通过  ★ 点名字与点「选择」都走同一个 pickNarrate(target)
+  ==> 通过  ★ 每一行只有一个「选择」按钮（用户点名），行数由 names.length 决定
+  ==> 失败  ★ 没有「删除」也没有「选用」（不是照抄到站/进站页的三按钮版式）
+  ==> 通过  ★ 左列不列任何待导入 / 已导入（用户点名「左侧列表空着就行，因为不用导入什么」）
+  ==> 失败  ★ 当前档取自 getDoorPsdNarrateMode（不是 isDoorPsdNarrateOn —— 那样标不出上海/香港）
+  ==> 通过  页标题 = 「进站广播(讲述人)」
+  ==> 通过  ★ 不画「未导入 / 已导入」表头（没有列表这回事）
+  ==> 通过  ★【1.30】讲述人页底部状态行已按点名删（psdNarrateModeName 不再画在 renderNarratePage；三档中文名只留在指令回执/日志里）
+  ==> 通过  sendSetNarrateLead / sendSetNarrate 两个发包口都在（后者已改成 int mode）
+  ==> 通过  ★ 没有残留的 sendSetNarrate(boolean)
+  ==> 通过  ★ 发出去那一格是 writeVarInt（与 SmoothLift 接收端的 readVarInt 成对）
+  ==> 通过  ★ 发送侧没有残留的 writeBoolean（那一格已是三档 int）
+  ==> 通过  状态提示用共用的中文名
+  ==> 通过  ★ 发秒数后本地回显走 withNarrateSeconds（不回显就要等一个来回才响）
+  ==> 通过  ★ 发样式后本地回显走 withNarrate(夹过的 mode)
+  ==> 通过  ★ applyMainInputs 里秒数没改动就不发包（与进站报站同一口径）
+
+===== 7) 字节码 =====
+  ==> 通过  TrainAnnounceNarrator.class 里真的引用了 text2speech/Narrator
+  ==> 通过  say / getNarrator 都在常量池里
+  ==> 通过  PsdChimePlayer.class 同时引用讲述人实现与开关（两条链路都编进去了）
+  ==> 通过  MtrDwellAccess.class 里编进了 stationNameForPlatform
+  ==> 通过  ★ MtrDwellAccess.class 里引用了 getDestination / getPlatformName（终点站与站台编号，与 MTR 的 RenderPIDS 同一对字段）
+  ==> 通过  MtrDwellAccess.class 里编进了 nearestArrival / ArrivalInfo
+  ==> 通过  PsdChimePlayer.class 走 nearestArrival 拿时刻表信息
+  ==> 通过  ★ PsdChimePlayer.class 引用了 getDoorPsdNarrateMode / getDoorPsdNarrateSeconds（样式与窗口真的接上了 —— 取的是**样式**，不是开/关）
+  ==> 通过  ★ 选句式入口 arriveTextForStyle 编进了玩家与讲述人两个类
+  ==> 通过  ★ 香港档的拼句方法 arriveTextHongKong 编进了 TrainAnnounceNarrator
+  ==> 通过  ★ PsdChimePlayer.class 里编进了 firedArrivalNarrate（讲述人自己的记账）
+  ==> 通过  EscalatorSpeedManager.class 里编进了讲述人的读写口与同步口
+  ==> 通过  ★ 三档中文名 psdNarrateModeName 编进了数据层（一处定义的落点）
+  ==> 通过  ★ 两个新字段名真的编进了管理器（同步包读写靠它）
+  ==> 通过  SmoothLift.class 里编进了两条新通道名
+  ==> 通过  EscalatorSpeedData.class 里编进了 narrate / narrateSeconds
+  ==> 通过  PsdToneSetupScreen.class 里编进了讲述人页的 build / render
+  ==> 通过  PsdToneSetupScreen.class 里编进了两个发包口
+  ==> 通过  ARRIVE_OPENING 字段名在（值被内联是常态）
+
+===== 8) 纯逻辑搬 Python：arriveText（上海）/ arriveTextHongKong（香港） =====
+  ==> 通过  ARRIVE_OPENING 与 Java 侧逐字一致：'乘客们，列车马上就要进站了'
+  ==> 通过  TERMINUS_LEAD 与 Java 侧逐字一致：'，本次列车终点站：'
+  ==> 通过  PLATFORM_LEAD 与 Java 侧逐字一致：'，请乘客们在'
+  ==> 通过  PLATFORM_TAIL 与 Java 侧逐字一致：'站台有序候车'
+  ==> 通过  PLATFORM_TAIL_BARE 与 Java 侧逐字一致：'有序候车'
+  ==> 通过  NO_PLATFORM_TAIL 与 Java 侧逐字一致：'，请乘客们有序候车'
+  ==> 通过  HK_CN_LEAD 与 Java 侧逐字一致：'前往'
+  ==> 通过  HK_CN_TAIL 与 Java 侧逐字一致：'的列车即将到达，请先让车上的乘客下车'
+  ==> 通过  HK_EN_LEAD 与 Java 侧逐字一致：'The train to '
+  ==> 通过  HK_EN_TAIL 与 Java 侧逐字一致：' is arriving, please let passengers exit first.'
+  ==> 通过  上海档 ('XXX', 'Y') → '乘客们，列车马上就要进站了，本次列车终点站：XXX，请乘客们在Y站台有序候车'
+  ==> 通过  上海档 (None, 'Y') → '乘客们，列车马上就要进站了，请乘客们在Y站台有序候车'
+  ==> 通过  上海档 ('XXX', None) → '乘客们，列车马上就要进站了，本次列车终点站：XXX，请乘客们有序候车'
+  ==> 通过  上海档 ('XXX', '1站台') → '乘客们，列车马上就要进站了，本次列车终点站：XXX，请乘客们在1站台有序候车'
+  ==> 通过  上海档 (None, None) → '乘客们，列车马上就要进站了，请乘客们有序候车'
+  ==> 通过  上海档 ('  XXX  ', '  Y  ') → '乘客们，列车马上就要进站了，本次列车终点站：XXX，请乘客们在Y站台有序候车'
+  ==> 通过  香港档 '上海站|Shanghai Station' ⇒ '前往上海站的列车即将到达，请先让车上的乘客下车\nThe train to Shanghai Station is arriving, please let passengers exit first.'  （中英双语两句，中间换行（各取各段））
+  ==> 通过  香港档 '上海站' ⇒ '前往上海站的列车即将到达，请先让车上的乘客下车\nThe train to 上海站 is arriving, please let passengers exit first.'  （只有中文名 ⇒ 两句都念（英文句用中文名兜底））
+  ==> 通过  香港档 'Shanghai Station' ⇒ '前往Shanghai Station的列车即将到达，请先让车上的乘客下车\nThe train to Shanghai Station is arriving, please let passengers exit first.'  （只有英文名 ⇒ 两句都念（中文句用英文名兜底））
+  ==> 通过  香港档 '서울' ⇒ '前往서울的列车即将到达，请先让车上的乘客下车\nThe train to 서울 is arriving, please let passengers exit first.'  （韩文（谚文）⇒ 两句都念、用名字本身）
+  ==> 通过  香港档 '도쿄' ⇒ '前往도쿄的列车即将到达，请先让车上的乘客下车\nThe train to 도쿄 is arriving, please let passengers exit first.'  （韩文（谚文）⇒ 同上）
+  ==> 通过  香港档 '東京タワー' ⇒ '前往東京タワー的列车即将到达，请先让车上的乘客下车\nThe train to 東京タワー is arriving, please let passengers exit first.'  （日文含假名 ⇒ 两句都念、用名字本身）
+  ==> 通过  香港档 'とうきょう' ⇒ '前往とうきょう的列车即将到达，请先让车上的乘客下车\nThe train to とうきょう is arriving, please let passengers exit first.'  （纯平假名 ⇒ 两句都念）
+  ==> 通过  香港档 '1' ⇒ '前往1的列车即将到达，请先让车上的乘客下车\nThe train to 1 is arriving, please let passengers exit first.'  （★★ 纯数字（MTR3 单语言目的地「1」）⇒ 中文句+英文句都念，都用「1」）
+  ==> 通过  香港档 '1站台|Platform 1' ⇒ '前往1站台的列车即将到达，请先让车上的乘客下车\nThe train to Platform 1 is arriving, please let passengers exit first.'  （中文段含汉字即算中文）
+  ==> 通过  香港档 '東京|Tokyo' ⇒ '前往東京的列车即将到达，请先让车上的乘客下车\nThe train to Tokyo is arriving, please let passengers exit first.'  （★ 已知边界：纯汉字日文名按中文段处理（字形判据的固有上限））
+  ==> 通过  香港档 '上海站|' ⇒ '前往上海站的列车即将到达，请先让车上的乘客下车\nThe train to 上海站 is arriving, please let passengers exit first.'  （后面空段被吃掉 ⇒ 英文句用中文名兜底）
+  ==> 通过  香港档 '|Shanghai' ⇒ '前往Shanghai的列车即将到达，请先让车上的乘客下车\nThe train to Shanghai is arriving, please let passengers exit first.'  （前面空段被吃掉 ⇒ 中文句用名字兜底）
+  ==> 通过  香港档 '上海站 | Shanghai' ⇒ '前往上海站的列车即将到达，请先让车上的乘客下车\nThe train to Shanghai is arriving, please let passengers exit first.'  （两段各自去首尾空白）
+  ==> 通过  香港档 None ⇒ None  （终点站读不到 ⇒ null（调用方跳过这一条））
+  ==> 通过  香港档 '' ⇒ None  （空串 ⇒ null）
+  ==> 通过  香港档 '   ' ⇒ None  （全空白 ⇒ null）
+  ==> 通过  香港档 '|' ⇒ None  （只有分隔符 ⇒ 两个桶都空 ⇒ null）
+  ==> 通过  ★ 分派只看「是不是香港档」，其余（含关闭/上海）都走上海句式（关闭档在播放端根本不会走到这里 —— narrateTodo 已经是 false）
+  ==> 通过  ★★ 香港档念的是**江苏北路**（终点站双语都念出来）—— 用户报的 bug 就是这里念成了「火车站」
+  ==> 通过  ★★ 上海档一字未动（用户说「上海预设正常输出终点站为江苏北路」）
+  ==> 通过  ★★ 香港档的输出里**不许出现**当前站名（火车站）—— 这是用户报的那个 bug 的直接判据
+  ==> 通过  ★ 两档**只差句式不差名源**：名源换成非终点站的值就会当场变红（见下条反向对照）
+  ==> 通过  ★ 名源若是站台名（「4A」单语）⇒ 中文句+英文句都念「4A」（与真值「江苏北路|North JiangSu Road」一眼可辨；旧规矩下这里只剩英文半句）
+  ==> 通过  ★ 香港档：终点站读不到 ⇒ null（这一条跳过；不会退回站台名瞎念）
+
+===== 9) /pbmnarrate 指令 + 「-f 只改样式、不动各维度秒数」 =====
+  ==> 通过  ★ 注册了根指令 /pbmnarrate
+  ==> 通过  ★ 三个样式是**字面量**分支 off / shanghai / hongkong（打错当场被 Brigadier 拒绝，补全里也有）
+  ==> 通过  ★ -f 分支 = 所有维度（与其它 PSD setter 同口径）
+  ==> 通过  抠得出 pbmNarrateGlobal 方法体
+  ==> 通过  ★★ 本维度只改样式：秒数传回**当前值**（不是 0）—— 否则 /pbmnarrate 会顺手清掉玩家调的提前量
+  ==> 通过  ★ 改完要同步给客户端（否则在游戏里看不到变化）
+  ==> 通过  抠得出 pbmNarrateForceAll 方法体
+  ==> 通过  ★★ -f 走 setDefaultPsdNarrateModeAll 而不是 setDefaultPsdNarrateAll（后者要求同时给秒数 ⇒ 会把其它维度各自调好的秒数一起冲掉）
+  ==> 通过  抠得出 EscalatorSpeedManager.setDefaultPsdNarrateModeAll
+  ==> 通过  ★★ setDefaultPsdNarrateModeAll **一行都不碰** defaultPsdNarrateSeconds（「副产物最小」：改样式不该动时间）
+  ==> 通过  ★★ 抹按串覆盖时**只抹 narrate 那一格**（narrateSeconds 是另一回事，留着）
+  ==> 通过  ★ TrainAnnounceSwitch.enableForPreset() 存在（客户端那一侧开总闸，服务端指令碰不到 config）
+  ==> 通过  ★ 本来就是开的 ⇒ 直接返回 false、**不写盘**（与模组其它界面「没改动就什么都不做」同一条约定）
+  ==> 通过  ★★【09-28 续 4】TrainAnnounceSwitch.disableForPreset() 存在（简单港铁 / 空白预设要「关闭讲述人」⇒ 总闸也得关）
+  ==> 通过  ★★ disableForPreset 与 enableForPreset **严格对称**：本来就是关的 ⇒ 返回 false 不写盘；否则置 false 并 save()
+  ==> 通过  ★★ /jsr show 里写明三个预设的讲述人取向（经典＝香港，简单/空白＝关闭）
+  ==> 通过  ★★ /jsr show 不许再写「X / Y = 车站名」（续 39 那条错法已被续 40 订正）
+  ==> 失败  ★★ /jsr show 的香港句式说明改为「X = 本次列车终点站」
+
+== 失败 24 项 ==
+   - narrateGlobal 取自 /jsr（讲述人那一条的**全局**总闸）
+   - ★ narrateMode = 全局 /jsr ? 这一串门自己的**样式** : 关闭（分段四：取样式而不是开/关，否则香港档会被念成上海词）
+   - ★★ ③-B 只把**终点站**与**站台名**交给选句式入口（3 参）—— 香港档两档的名源都是终点站 arrival.destination
+   - ★★ ③-B **拼报站词**那两行里一个字都不提 stationName ⇒ 车站名不掺进报站词（香港档吃车站名是上一版的错，用户报的 bug 就是它）
+   - ★★ ③-B 里 stationName **在拼完 text 之后才取** ⇒ 它只喂 LOGGER.info（排查用），不参与报站词
+   - ★★ arriveTextForStyle 是 **3 参**（mode, destination, platformName） —— 两档只差句式不差名源，只有上海档多要一个站台名
+   - ★★ arriveTextForStyle(mode, destination, platformName) —— 播放端唯一的选句式入口，**stationName 这个形参已经拿掉**（它曾是错的来源）
+   - ★ 终点站/站台名都在**同一个 if (remaining < best)** 块里取 ⇒ 不会拼出「A 车的终点站 + B 车的站台」（两条车几乎同时到时才会暴露的那个错）
+   - 按 platformId 在 MinecraftClientData.platforms 里找那条 Platform
+   - ★ PsdToneAudio 多两格：**Integer** narrate（三档样式）+ Integer narrateSeconds（末尾追加，不动老字段序）
+   - ★ isEmpty() 也把这两格算进去（否则「只设了讲述人」的记录会被当空记录删掉）
+   - 存档读：narrate（走 optNarrateMode，读出先夹三档）/ narrateSeconds
+   - ★ 上界写成一个常量（加新样式时只改这一处，不散在 clamp 里）
+   - 维度包读侧把 narrateMode / narrateSeconds 传给 applyClientPsdChime
+   - applyClientPsdChime 末尾两个入参（写序 = 入参序）
+   - ★ 那一行落在 ROW_H*4 这一格（进站广播 ROW_H*3 的**下一行**，用户点名「放在下面」）
+   - ★ buildUi 里 page==5 走 buildNarratePage（不是落到 buildTonePage 的 else）
+   - ★ render 里 page==5 走 renderNarratePage
+   - ★★ 右列三行自上而下 = 关闭 / 开启(香港) / 开启(上海)（用户点名「香港按钮放在上海上面」；原来那个「开启」已改名「开启(上海)」）
+   - ★★ 调显示次序**只许动这两个数组的次序**；三档常量仍是 0/1/2（那是**存档格式**，与页面顺序无关，不许动）
+   - ★★ names/modes **同序同长**，且「香港」都排在「上海」之前（只换一个数组 = 点香港却设成上海，是最容易犯的错）
+   - ★ 没有「删除」也没有「选用」（不是照抄到站/进站页的三按钮版式）
+   - ★ 当前档取自 getDoorPsdNarrateMode（不是 isDoorPsdNarrateOn —— 那样标不出上海/香港）
+   - ★★ /jsr show 的香港句式说明改为「X = 本次列车终点站」
+
+############################################################
+# 讲述人香港档与UI清全局
+############################################################
+  ==> 通过
+
+############################################################
+# MTR3反射不再按字符串名
+############################################################
+  ==> 通过
+
+############################################################
+# 屏蔽门串身份=站台
+############################################################
+  ==> 失败（完整输出见下方）
+
+===== 1) LOG5 取证：站台是被缺口切开的几段，不是一串 =====
+[PASS] 判据 A（同一刻）：站台 6553035176743660435 在 00:29:41 同一秒里既有「认站台 @[-42, -20, 32]」又有「起播 @[-4, -20, 32]」  -- 两者相隔 **38 格** —— 同一个串同一刻只有一扇最近门 ⇒ 至少两个串
+[PASS]   而且这个间隔（38）**大于默认射程 16** ⇒ 远的那一段必然整段静默（正是用户症状）
+[PASS] 判据 B（1 秒内反复重认）：三对交替日志（00:28:53 -42→00:28:54 -50, 00:29:11 -42→00:29:12 -50, 00:29:29 -42→00:29:32 -50）里，每对相隔 1 秒、最近门差 **8 格**  -- 玩家就站在站台上（几十格内）时，一个串不可能 1 秒内整段过期再回来 ⇒ 两个不同的串
+[PASS] 判据 C（对照）：z=72 那 12 扇（间距 5、最大间距 5＝无缺口）整场只打**一行**认站台 ⇒ 真·单串，而它正是 1.26 修好的那一个（用户「z 轴的修好了」）
+[PASS] z=72 线：12 扇、门距 5、最大间距 5 ⇒ 洪水填充 **1 段**（对照：真的是单串）  -- runs=1
+[PASS] x=-37 (站台 ..307) 线：门距 4、间距 [4, 9] ⇒ 洪水填充 **3 段**（每段各自广播 = 现在的 bug）  -- runs=[[17, 21, 25, 29], [38, 42, 46, 50], [59, 63]]
+[PASS] x=-26 (站台 ..094) 线：门距 4、间距 [4, 9] ⇒ 洪水填充 **2 段**（每段各自广播 = 现在的 bug）  -- runs=[[26, 30, 34, 38], [47, 51, 55, 59]]
+[PASS] z=43 (y=-20) 线：门距 4、间距 [4, 9] ⇒ 洪水填充 **3 段**（每段各自广播 = 现在的 bug）  -- runs=[[-63, -59, -55, -51], [-42, -38, -34, -30], [-21, -17, -13, -9]]
+[PASS] z=43 线的三段落在**不同的 4 格栅格**上（[1, 2, 3]）⇒ 是三批独立摆放，不是同一条被跳过几格
+
+===== 2) 症状数值化：站在中段时，前后两段的增益 ≈ 0 =====
+[PASS] 站在中段 z=44：**前段 / 后段的增益都只有 0.0625**（15 格）⇒ 听觉上等于没声音  -- dist={'前段': 15.0, '中段': 2.0, '后段': 15.0} gain={'前段': 0.0625, '中段': 0.875, '后段': 0.0625}
+[PASS] 同一刻中段的增益 0.8750 ⇒ 「只有中间那段响」—— 与用户原话逐字对上
+[PASS] gain(21,16) == 0：射程外是**硬截断**（不是变轻，是一点都不播）
+[PASS] gain(15,16) > 0：射程内还是线性衰减（1.25 的定论没被破坏）
+[PASS] 站台粒度：站在 z=17（站台任意位置）⇒ 整站台最近门 0 格、增益 1.00 ⇒ 听得见
+[PASS] 站台粒度：站在 z=30（站台任意位置）⇒ 整站台最近门 1 格、增益 0.94 ⇒ 听得见
+[PASS] 站台粒度：站在 z=44（站台任意位置）⇒ 整站台最近门 2 格、增益 0.88 ⇒ 听得见
+[PASS] 站台粒度：站在 z=59（站台任意位置）⇒ 整站台最近门 0 格、增益 1.00 ⇒ 听得见
+[PASS] 站台粒度：站在 z=63（站台任意位置）⇒ 整站台最近门 0 格、增益 1.00 ⇒ 听得见
+[PASS] **[现状]** 以「段」为单位：这一段站台会排出 **3 条**播报，其中只有 1 条听得见（['中段']）  -- per_run=[('前段', 0.0625), ('中段', 0.875), ('后段', 0.0625)]
+[PASS] **[1.27]** 以「站台」为单位：**1 条**播报（声源 = 整站台最近门 2 格、增益 0.88）
+
+===== 3) 站台身份与连通串身份在同一命名空间里不撞 =====
+[PASS] 站台身份 id 全为正 ⇒ 编码出的 key 全为负  -- keys=[-595097511064198433, -2900795002022101501, -2670336860111115373, -6132500287448570714]
+[PASS] 撞键需要 (x&0x3FFFFFF) ∈ [44798958, 64943911] ⇒ x ∈ [-22309906, -2164953]
+[PASS] ⇒ 撞键要求 |x| ≥ **2164953** 格（离原点两百万格外）—— 真实存档把屏蔽门摆在那里是不可能的
+[PASS] 反向核对：本仓用过的门坐标（|x| ≤ 63）的 asLong 落在该区间之外  -- |asLong|=17317308067713
+
+===== 4) 源码结构：认站台优先、认到才缓存、随世界作废 =====
+[PASS] ★ 编码函数 platformKey(platformId) = Long.MIN_VALUE + platformId
+[PASS] ★ identity 真的去问了 MTR 站台（MtrDwellAccess.platformIdAt）
+[PASS] ★ 用**锚点**坐标去问（同一扇门的上下/左右半格只认一次，且与播放链路逐位一致）
+[PASS] 找得到 runKeyOf(Level, BlockState, BlockPos, long) 的实体
+[PASS] ★★ runKeyOf 里「return flood;」**只允许一处**（= 认不到站台时的那一个出口；多出来就说明有短路分支让它变成死代码）  -- count=1
+[PASS] ★ 顺序：先算连通串（回落 + 缓存键）→ 再查站台缓存 → 认到就写缓存并 return → 认不到才 return flood  -- idx=367/454/1102/2693
+[PASS] ★ 认到站台时 return 的是 platformKey(id)，而不是 flood
+[PASS] ★ 站台身份按**连通串**缓存（一串只问一次站台，不是每扇门都问）
+[FAIL] ★★ **认到才写缓存**（PLATFORM_CACHE.put 只在 id > 0 这一支里）
+[PASS] ★★ 认不到 → 只排「40 tick 后再试」，绝不把「认不到」钉成永久结果
+[PASS] 认到之后把重试排期摘掉
+[PASS] 一个站台只打一行日志（12 扇门不刷 12 行）
+[PASS] ★ clear() 里作废 PLATFORM_CACHE（断开连接 / 换世界）
+[PASS] ★ 换维度那条路（accept 里的 dimension 判断）也作废 PLATFORM_CACHE  -- count=2
+[PASS] ★ clear() 里作废 PLATFORM_NEXT_TRY（断开连接 / 换世界）
+[PASS] ★ 换维度那条路（accept 里的 dimension 判断）也作废 PLATFORM_NEXT_TRY  -- count=2
+[PASS] ★ clear() 里作废 PLATFORM_LOGGED（断开连接 / 换世界）
+[PASS] ★ 换维度那条路（accept 里的 dimension 判断）也作废 PLATFORM_LOGGED  -- count=2
+[PASS] ★★ 【1.31】PLATFORM_CACHE 写入口 = 2（认到站台 / 借到相邻站台身份），都在「拿到平台身份、返回 platformKey」的那两支里 —— 任何无关分支不许写缓存  -- count=2
+[FAIL] ★ 借用那一支的写缓存紧随 `borrowed > 0`（防串台闸门在前）
+
+===== 5) 1.26 的机器保持原样：四处都按 runKey，于是自动变成「按站台」 =====
+[PASS] 读配置（到站播报） 仍按 runKey（粒度自动升为站台）
+[PASS] 读配置（进站报站） 仍按 runKey（粒度自动升为站台）
+[PASS] 去重（一串只排一条） 仍按 runKey（粒度自动升为站台）
+[PASS] 声源 + 射程（整串最近门） 仍按 runKey（粒度自动升为站台）
+[FAIL] 每 tick 的距离口径 仍按 runKey（粒度自动升为站台）
+[PASS] 1.26 的两个查询口都还在（1.27 只是喂给它们的 runKey 变粗了）
+
+===== 6) 字节码 =====
+[PASS] PsdDoorTracker.class 里编进了 platformKey
+[PASS] PsdDoorTracker.class 里编进了 PLATFORM_CACHE
+[PASS] PsdDoorTracker.class 里编进了 PLATFORM_NEXT_TRY
+[PASS] PsdDoorTracker.class 里编进了 PLATFORM_RETRY_TICKS
+[PASS] ★ 诊断日志的字面量进了常量池（下一份 log 里能直接看到「哪个门归到哪个站台」）
+
+== 失败 3 项 ==
+   - ★★ **认到才写缓存**（PLATFORM_CACHE.put 只在 id > 0 这一支里）
+   - ★ 借用那一支的写缓存紧随 `borrowed > 0`（防串台闸门在前）
+   - 每 tick 的距离口径 仍按 runKey（粒度自动升为站台）
+
+############################################################
+# 屏蔽门1.28身份迁移与列车倍率
+############################################################
+  ==> 通过
+
+############################################################
+# 屏蔽门铃声/播报归属
+############################################################
+  ==> 通过
+
+############################################################
+# 屏蔽门1.31借用与列车挡
+############################################################
+  ==> 通过
+
+############################################################
+# MBM批量音频指令
+############################################################
+  ==> 失败（完整输出见下方）
+
+===== 1) /MBM help | music in | music delete 注册 =====
+  ==> 通过  根字面量 MBM 已注册（走 mbmTree）
+  ==> 通过  小写别名 mbm 也已注册（MC 指令字面量大小写敏感）
+  ==> 通过  裸 /MBM = 与 /MBM help 同义（自带执行器 -> mbmOpenHelp）
+  ==> 通过  MBM help -> mbmOpenHelp
+  ==> 通过  MBM music 子节点存在
+  ==> 通过  MBM music in -> dtMusicImportAll
+  ==> 通过  MBM music delete -> dtMusicDeleteAll
+  ==> 通过  ★ 旧的根字面量 dtmusic 已从指令树里移除（干净改名，不保留别名）
+  ==> 通过  ★ 剥掉注释后的源码里一个 dtmusic 都没有（残留只允许在注释/javadoc 里）  -- 行号 无
+
+===== 2) dtMusicImportAll：全量遍历文件夹导入 =====
+  ==> 通过  抠得出 dtMusicImportAll() 方法体
+  ==> 失败  用 scanAudioFiles 全量扫 MBM_Audio 文件夹
+  ==> 失败  逐条走 importAudioToStore（同一套 ogg 校验）
+  ==> 通过  导入后补发音频库同步包（客户端「已导入」右列刷新）
+  ==> 通过  方法体内没有短路守卫（批量真的会执行）
+
+===== 3) dtMusicDeleteAll：清空音频库、不动 MBM_Audio 文件夹 =====
+  ==> 通过  抠得出 dtMusicDeleteAll() 方法体
+  ==> 失败  遍历 audioLibrary 全量键（快照）
+  ==> 失败  逐条走 deleteAudio（removeAudio 连带清引用）
+  ==> 通过  删除后补三路同步（音频库 / 无障碍 / 屏蔽门）
+  ==> 通过  ★ delete 方法体内**没有任何删除文件夹文件的代码**（MBM_Audio 只读，绝不动）
+  ==> 通过  方法体内没有短路守卫（批量真的会执行）
+
+===== 4) 存档音频文件夹 = MBM_Audio =====
+  ==> 通过  AUDIO_FOLDER 的值是 "MBM_Audio"
+  ==> 通过  EscalatorSpeedManager 里没有旧文件夹名的字符串字面量
+  ==> 通过  文件夹路径仍然统一由 audioFolder(level) 产出
+  ==> 通过  剥注释后全工程源码里没有旧文件夹名 smoothlift_audio  -- 命中 []
+  ==> 通过  改名有【1.53】标记（可追溯）
+
+===== 5) 版本号（用户点名 => 1.26.1201） =====
+  ==> 失败  gradle.properties mod_version = 1.26.1201（用户点名）  -- 得到 1.30.1201
+
+===== 6) 字节码 / jar =====
+  ==> 通过  两个批量 handler 都编进了字节码
+  ==> 通过  根字面量 MBM / mbm 编进了字节码
+  ==> 通过  【1.53】三只新频道（开界面 / 预设 / 全音量）都在字节码里
+  ==> 通过  ★ 字节码里没有旧的 dtmusic 字面量
+  ==> 通过  ★ 字节码里文件夹名是 MBM_Audio
+  ==> 通过  ★ 字节码里没有旧的 smoothlift_audio
+  ==> 通过  ★ 字节码里没有 UPLOAD 死通道（【1.7】分块上传已删：会绕过分类注册表入库）
+  ==> 失败  jar 内 fabric.mod.json version = 1.26.1201（用户点名）  -- 得到 1.30.1201
+  ==> 通过  【1.53】MbmHelpScreen.class 已打进 jar
+
+== 失败 6 项 ==
+   - 用 scanAudioFiles 全量扫 MBM_Audio 文件夹
+   - 逐条走 importAudioToStore（同一套 ogg 校验）
+   - 遍历 audioLibrary 全量键（快照）
+   - 逐条走 deleteAudio（removeAudio 连带清引用）
+   - gradle.properties mod_version = 1.26.1201（用户点名）
+   - jar 内 fabric.mod.json version = 1.26.1201（用户点名）
+
+############################################################
+# 预设选择界面与预设
+############################################################
+  ==> 失败（完整输出见下方）
+
+===== 1) 三个预设的指令清单（前 9 条与用户原文逐字比对）=====
+  ==> 通过  抠得出 PRESET_CLASSIC_MTR 数组
+  ==> 失败  「经典港铁预设」的前 9 条与用户原文**逐字逐序**一致  -- 实际前 9 条 = ['futimusic -f default', 'futihelp -f on', 'lifthelp -f on', 'lifthelp open -f on', 'lifthelp close -f on', 'lifthelp up -f on', 'lifthelp down -f on', 'pbmclosewait -f 1', 'pbmmusic open -f default']
+  ==> 失败  「经典港铁预设」= 用户那 9 条 + 2 条  -- 实际 = ['futimusic -f default', 'futihelp -f on', 'lifthelp -f on', 'lifthelp open -f on', 'lifthelp close -f on', 'lifthelp up -f on', 'lifthelp down -f on', 'pbmclosewait -f 1', 'pbmmusic open -f default', 'pbmmusic close -f default-m', 'pbmmusic open -f on', 'pbmmusic close -f on', 'pbmnarrate hongkong -f']
+  ==> 通过  抠得出 PRESET_SIMPLE_MTR 数组
+  ==> 失败  「简单港铁预设」的前 9 条与用户原文**逐字逐序**一致  -- 实际前 9 条 = ['futimusic -f default', 'futihelp -f off', 'lifthelp -f on', 'lifthelp open -f off', 'lifthelp close -f off', 'lifthelp up -f on', 'lifthelp down -f on', 'pbmclosewait -f 1', 'pbmmusic open -f default']
+  ==> 失败  「简单港铁预设」= 用户那 9 条 + 2 条  -- 实际 = ['futimusic -f default', 'futihelp -f off', 'lifthelp -f on', 'lifthelp open -f off', 'lifthelp close -f off', 'lifthelp up -f on', 'lifthelp down -f on', 'pbmclosewait -f 1', 'pbmmusic open -f default', 'pbmmusic close -f default-s', 'pbmmusic open -f on', 'pbmmusic close -f on', 'pbmnarrate off -f']
+  ==> 通过  抠得出 PRESET_BLANK 数组
+  ==> 失败  「空白预设」的前 9 条与用户原文**逐字逐序**一致  -- 实际前 9 条 = ['futimusic -f off', 'futihelp -f off', 'lifthelp -f off', 'lifthelp open -f off', 'lifthelp close -f off', 'lifthelp up -f off', 'lifthelp down -f off', 'pbmclosewait -f 1', 'pbmmusic open -f off']
+  ==> 失败  「空白预设」= 用户那 9 条 + 0 条  -- 实际 = ['futimusic -f off', 'futihelp -f off', 'lifthelp -f off', 'lifthelp open -f off', 'lifthelp close -f off', 'lifthelp up -f off', 'lifthelp down -f off', 'pbmclosewait -f 1', 'pbmmusic open -f off', 'pbmmusic close -f off', 'pbmnarrate off -f']
+  ==> 通过  经典与空白不是同一份清单（防止复制粘贴改漏）
+  ==> 通过  简单与空白不是同一份清单
+
+===== 1b) 层判据：PSD 那两行必须落在**素材层**，不能落到子开关层 =====
+  ==> 通过  「经典港铁预设」的 PSD 两行落在正确的层（不出现 off）  -- []
+  ==> 通过  「简单港铁预设」的 PSD 两行落在正确的层（不出现 off）  -- []
+  ==> 失败  「空白预设」的 PSD 两行落在正确的层（不出现 off）  -- ['「off」会落到**子开关**层（字面量优先）⇒ 之后配素材也不出声：pbmmusic open -f off', '「off」会落到**子开关**层（字面量优先）⇒ 之后配素材也不出声：pbmmusic close -f off']
+  ==> 通过  ★「经典港铁预设」显式把 open/close 子开关打开（否则救不回被关掉的开关）  -- []
+  ==> 通过  ★「简单港铁预设」显式把 open/close 子开关打开（否则救不回被关掉的开关）  -- []
+  ==> 失败  ★「空白预设」用**正名 none** 表达不播（素材层），不动子开关
+  ==> 失败  ★★「空白预设」里**不许**再出现 `pbmmusic … -f off` —— 那是本轮 bug 的字面形态
+
+===== 2) 预设走「依次派发指令」 =====
+  ==> 通过  presetCommands：classic -> PRESET_CLASSIC_MTR
+  ==> 通过  presetCommands：simple -> PRESET_SIMPLE_MTR
+  ==> 通过  presetCommands：blank -> PRESET_BLANK
+  ==> 通过  抠得出 runCommandBatch() 方法体
+  ==> 通过  用 performPrefixedCommand 派发指令（语义 = 手敲）
+  ==> 通过  ★ 用 withSuppressedOutput 压制每条指令的反馈（否则 8~11 条会刷屏）
+  ==> 通过  是**逐条**执行（for 循环，保留顺序）
+  ==> 通过  用玩家自己的指令源（与手敲同构）
+  ==> 通过  方法体里没有会让整批静默不执行的守卫
+  ==> 通过  界面里出现过预设 id 「classic」
+  ==> 通过  界面里出现过预设 id 「simple」
+  ==> 通过  界面里出现过预设 id 「blank」
+
+===== 3) 全音量 = 11 条指令 =====
+  ==> 通过  抠得出 allVolumeCommands() 方法体
+  ==> 失败  11 条音量指令（含 -f 强制变体）逐条齐全  -- 实际 = ['futiloud -f ', 'futihelploud -f ', 'lifthelploud -f ', 'lifthelploud -f up ', 'lifthelploud -f down ', 'lifthelploud -f open ', 'lifthelploud -f close ', 'pbmloud -f ', 'pbmloud -f open ', 'pbmloud -f close ', 'pbmmidiumloud -f ', 'pbmarriveloud -f ']
+  ==> 通过  用 String.valueOf 拼音量（不是手写死数）
+  ==> 通过  抠得出 applyAllVolumes() 方法体
+  ==> 通过  音量先夹到 1~1000 再派发
+  ==> 通过  全音量也走同一套派发通道
+
+===== 4) /MBM help 打开界面 =====
+  ==> 通过  服务端声明了开界面频道
+  ==> 通过  抠得出 mbmOpenHelp() 方法体
+  ==> 通过  取执行指令的玩家
+  ==> 通过  非玩家执行时给失败提示（不是静默）
+  ==> 通过  把开界面包发给那个玩家
+  ==> 通过  客户端注册了开界面频道
+  ==> 通过  客户端收到后 setScreen(new MbmHelpScreen())
+  ==> 通过  开界面切回客户端线程（网络线程里直接开界面会崩）
+  ==> 通过  MBM_PRESET_CHANNEL：服务端读 presetId（readUtf(16)）
+  ==> 通过  MBM_ALL_VOLUME_CHANNEL：服务端读 volume（readVarInt）
+  ==> 通过  界面写 presetId 用 writeUtf(id, 16)（与读侧配对）
+  ==> 通过  界面写 volume 用 writeVarInt（与读侧配对）
+
+===== 5) MbmHelpScreen 本体 =====
+  ==> 通过  MbmHelpScreen.java 存在
+  ==> 通过  继承 Screen
+  ==> 通过  按钮文字「经典港铁预设」在界面里
+  ==> 通过  「经典港铁预设」按钮点击 -> sendPreset(ID_CLASSIC)
+  ==> 通过  按钮文字「简单港铁预设」在界面里
+  ==> 通过  「简单港铁预设」按钮点击 -> sendPreset(ID_SIMPLE)
+  ==> 通过  按钮文字「空白预设」在界面里
+  ==> 通过  「空白预设」按钮点击 -> sendPreset(ID_BLANK)
+  ==> 通过  ID_CLASSIC = classic
+  ==> 通过  ID_SIMPLE = simple
+  ==> 通过  ID_BLANK = blank
+  ==> 通过  抠得出 presetLabel() 方法体
+  ==> 通过  presetLabel 里 classic 的显示名含「经典港铁预设」（与按钮文字一致）
+  ==> 通过  presetLabel 里 simple 的显示名含「简单港铁预设」（与按钮文字一致）
+  ==> 通过  presetLabel 里 blank 的显示名含「空白预设」（与按钮文字一致）
+  ==> 通过  有输入框 volumeInput
+  ==> 通过  ★ 输入框在界面**最下方**（用 this.height 定位，不是固定 y）
+  ==> 通过  maxLength = 4（1000 够用）
+  ==> 通过  只收数字
+  ==> 通过  打开时回填当前值
+  ==> 通过  ★ onClose() 先 applyVolume() 再 super.onClose()（按 ESC 自动应用）
+  ==> 通过  有 applyVolume()
+  ==> 通过  抠得出 applyVolume() 方法体
+  ==> 通过  ★ 没改动就 return（不静默改音量）
+  ==> 通过  改了就发 MBM_ALL_VOLUME_CHANNEL
+  ==> 通过  不在世界里时不发（防止空指针 / 无意义包）
+  ==> 通过  音量经 parseVolume 解析（夹取在那一层）
+  ==> 通过  parseVolume 里真的夹到 1~1000
+  ==> 通过  isPauseScreen = false（与其它界面一致）
+  ==> 通过  回车 = 应用并退出（与 EscalatorSpeedScreen 一致）
+
+===== 6) 界面无小字（标题 = 预设选择；音量框左边 1 个标签） =====
+  ==> 通过  ★ 标题字面量是「预设选择」（原来的「MBM 帮助」已改名）
+  ==> 通过  ★ 代码里不再出现旧标题「MBM 帮助」（注释里提到不算）
+  ==> 通过  ★ 居中文字只有标题 1 处（剥注释后 drawCenteredString == 1）  -- 实际 1 处 = ['this.font, this.title, this.width / 2, 12, 0xFFFFFF']
+  ==> 通过  那一处画的是 this.title（=「预设选择」），不是任何说明文案
+  ==> 通过  ★ 左对齐文字只有「音量」标签 1 处（剥注释后 drawString == 1）  -- 实际 1 处 = ['this.font, Component.literal("音量"), this.width / 2 - 100 - 4 - this.font.width("音量"), this.height - 42 + (20 - this.font.lineHeight) / 2, 0xA0A0A0, false']
+  ==> 通过  那个标签的文字就是「音量」
+  ==> 通过  「音量」这个标签只有一处（没有第二份重复标签）  -- 实际 1 处
+  ==> 通过  ★ 标签贴在输入框**左沿外侧** 4 px（x = this.width/2 − 100 − 4 − 字体实测宽度）  -- 实际 = this.font, Component.literal("音量"), this.width / 2 - 100 - 4 - this.font.width("音量"), this.height - 42 + (20 - this.font.lineHeight) / 2, 0xA0A0A0, false
+  ==> 通过  标签纵向与 20 px 高的输入框居中对齐
+  ==> 通过  ★ 全界面文字绘制合计 == 2（标题 + 音量标签；多一处即回退）
+  ==> 通过  6 行说明小字全部删净（代码里一处不剩）  -- 残留 = []
+  ==> 通过  音量输入框还在（删的是文字，不是控件）
+  ==> 通过  三个预设按钮的点击回调还在
+  ==> 通过  ESC 自动应用音量的约定还在（没被顺手删）
+  ==> 通过  标签不用 EditBox 的 hint（hint 只在空值/聚焦前显示，回填了数字就永远看不见）
+
+===== 7) 反向对照 =====
+  ==> 通过  反向对照的探针确实插进去了（基线可用）
+  ==> 通过  塞回一行小字 -> 「文字合计 == 2」变红（对照）
+  ==> 通过  塞回旧文案 -> 「小字删净」变红（对照）
+  ==> 通过  「在框左边」的判据对当前写法成立（基线）
+  ==> 通过  「挪到右边」的探针确实改动了表达式（基线可用）
+  ==> 通过  挪到框右边 -> 「标签在框左边」这条判据当场变红（对照）
+  ==> 通过  原样清单比对通过（基线）
+  ==> 通过  多一条会红（对照）
+  ==> 通过  少一条会红（对照）
+  ==> 通过  顺序调了会红（对照）
+  ==> 通过  写错一个素材名会红（对照）
+  ==> 通过  基线：空白预设（none）判据不误报
+  ==> 通过  ★ 把空白预设那两行改回 `-f off` ⇒ 层判据**恰好**报 2 条（这就是本轮 bug 的字面形态）  -- ['「off」会落到**子开关**层（字面量优先）⇒ 之后配素材也不出声：pbmmusic open -f off', '「off」会落到**子开关**层（字面量优先）⇒ 之后配素材也不出声：pbmmusic close -f off']
+  ==> 通过  基线：`on`（子开关层，显式）与 `default-m`（素材层）都不算违规
+  ==> 通过  编造一个不在名单里的层值 ⇒ 也会红（对照）
+  ==> 通过  基线：经典预设的两条「开子开关」都在
+  ==> 通过  ★ 把「开子开关」那两条整段删掉 ⇒ 「必须显式开」这条当场报出缺的两条（对照）  -- ['pbmmusic open -f on', 'pbmmusic close -f on']
+  ==> 通过  只开一半（漏了 close）也会红（对照）
+
+== 失败 10 项 ==
+   - 「经典港铁预设」的前 9 条与用户原文**逐字逐序**一致
+   - 「经典港铁预设」= 用户那 9 条 + 2 条
+   - 「简单港铁预设」的前 9 条与用户原文**逐字逐序**一致
+   - 「简单港铁预设」= 用户那 9 条 + 2 条
+   - 「空白预设」的前 9 条与用户原文**逐字逐序**一致
+   - 「空白预设」= 用户那 9 条 + 0 条
+   - 「空白预设」的 PSD 两行落在正确的层（不出现 off）
+   - ★「空白预设」用**正名 none** 表达不播（素材层），不动子开关
+   - ★★「空白预设」里**不许**再出现 `pbmmusic … -f off` —— 那是本轮 bug 的字面形态
+   - 11 条音量指令（含 -f 强制变体）逐条齐全
+
+############################################################
+# 同步所有按钮与弹窗
+############################################################
+  ==> 失败（完整输出见下方）
+
+===== 1) 五个界面右上角各一处「同步所有」入口 =====
+  ==> 通过  扶梯一级（扶梯设置）：恰好一处 syncButton 调用  -- 实际 1 处
+  ==> 通过  扶梯一级（扶梯设置）：syncButton 五个实参齐全  -- 实际 = ['this', '"esc"', 'SmoothLift.SYNC_TOP_LEVEL', 'pos.asLong()', 'this::applyChanges']
+  ==> 通过  扶梯一级（扶梯设置）：host = this（弹窗关掉后回到本界面）  -- this
+  ==> 通过  扶梯一级（扶梯设置）：域 = esc  -- "esc"
+  ==> 通过  扶梯一级（扶梯设置）：射程 = SmoothLift.SYNC_TOP_LEVEL  -- SmoothLift.SYNC_TOP_LEVEL
+  ==> 通过  扶梯一级（扶梯设置）：身份 = pos.asLong()  -- pos.asLong()
+  ==> 通过  扶梯一级（扶梯设置）：落地回调 = this::applyChanges  -- this::applyChanges
+  ==> 通过  扶梯二级（选择扶梯音乐）：恰好一处 syncButton 调用  -- 实际 1 处
+  ==> 通过  扶梯二级（选择扶梯音乐）：syncButton 五个实参齐全  -- 实际 = ['this', '"esc"', 'SmoothLift.SYNC_ESC_AUDIO', 'pos.asLong()', 'null']
+  ==> 通过  扶梯二级（选择扶梯音乐）：host = this（弹窗关掉后回到本界面）  -- this
+  ==> 通过  扶梯二级（选择扶梯音乐）：域 = esc  -- "esc"
+  ==> 通过  扶梯二级（选择扶梯音乐）：射程 = SmoothLift.SYNC_ESC_AUDIO  -- SmoothLift.SYNC_ESC_AUDIO
+  ==> 通过  扶梯二级（选择扶梯音乐）：身份 = pos.asLong()  -- pos.asLong()
+  ==> 通过  扶梯二级（选择扶梯音乐）：落地回调 = null  -- null
+  ==> 通过  扶梯二级（选择无障碍提示音）：恰好一处 syncButton 调用  -- 实际 1 处
+  ==> 通过  扶梯二级（选择无障碍提示音）：syncButton 五个实参齐全  -- 实际 = ['this', '"esc"', 'SmoothLift.SYNC_ESC_HELP_AUDIO', 'pos.asLong()', 'null']
+  ==> 通过  扶梯二级（选择无障碍提示音）：host = this（弹窗关掉后回到本界面）  -- this
+  ==> 通过  扶梯二级（选择无障碍提示音）：域 = esc  -- "esc"
+  ==> 通过  扶梯二级（选择无障碍提示音）：射程 = SmoothLift.SYNC_ESC_HELP_AUDIO  -- SmoothLift.SYNC_ESC_HELP_AUDIO
+  ==> 通过  扶梯二级（选择无障碍提示音）：身份 = pos.asLong()  -- pos.asLong()
+  ==> 通过  扶梯二级（选择无障碍提示音）：落地回调 = null  -- null
+  ==> 通过  直梯（主界面 + 三项列表页）：恰好一处 syncButton 调用  -- 实际 1 处
+  ==> 通过  直梯（主界面 + 三项列表页）：syncButton 五个实参齐全  -- 实际 = ['this', '"lift"', 'page', 'key', 'page > 0 ? null : this::applyMainVolumes']
+  ==> 通过  直梯（主界面 + 三项列表页）：host = this（弹窗关掉后回到本界面）  -- this
+  ==> 通过  直梯（主界面 + 三项列表页）：域 = lift  -- "lift"
+  ==> 通过  直梯（主界面 + 三项列表页）：射程 = page  -- page
+  ==> 通过  直梯（主界面 + 三项列表页）：身份 = key  -- key
+  ==> 失败  直梯（主界面 + 三项列表页）：落地回调 = tone == null ? this::applyDefaultVolume : () -> applyToneVolume(tone)  -- page > 0 ? null : this::applyMainVolumes
+  ==> 通过  屏蔽门（主界面 + 四个二级页）：恰好一处 syncButton 调用  -- 实际 1 处
+  ==> 通过  屏蔽门（主界面 + 四个二级页）：syncButton 五个实参齐全  -- 实际 = ['this', '"psd"', 'page', 'runKey', 'this::applyMainInputs']
+  ==> 通过  屏蔽门（主界面 + 四个二级页）：host = this（弹窗关掉后回到本界面）  -- this
+  ==> 通过  屏蔽门（主界面 + 四个二级页）：域 = psd  -- "psd"
+  ==> 通过  屏蔽门（主界面 + 四个二级页）：射程 = page  -- page
+  ==> 通过  屏蔽门（主界面 + 四个二级页）：身份 = runKey  -- runKey
+  ==> 通过  屏蔽门（主界面 + 四个二级页）：落地回调 = this::applyMainInputs  -- this::applyMainInputs
+  ==> 通过  用到的域集合 == {esc, lift, psd}  -- 实际 = ['esc', 'lift', 'psd']
+
+===== 2) 入口按钮定位在右上角 =====
+  ==> 通过  抠得出 syncButton() 方法体
+  ==> 通过  syncButton 里有 .bounds(...)
+  ==> 通过  ★ x 从 host.width 往左推（靠右）  -- host.width - ENTRY_MARGIN - ENTRY_W, ENTRY_Y, ENTRY_W, ENTRY_H
+  ==> 通过  ★ x 是「宽 − 按钮宽」（贴着右沿）  -- host.width - ENTRY_MARGIN - ENTRY_W
+  ==> 失败  ★ y = 6（贴顶）  -- host.width - ENTRY_MARGIN - ENTRY_W, ENTRY_Y, ENTRY_W, ENTRY_H
+  ==> 通过  按钮宽度用具名常量 ENTRY_W（不是魔数）
+
+===== 3) 弹窗本体：3 个按钮 + 文案 ↔ 回调 =====
+  ==> 通过  SyncPopupScreen.java 存在
+  ==> 通过  继承 Screen
+  ==> 通过  抠得出 SyncPopupScreen.init()
+  ==> 失败  ★ 弹窗 init() 里正好 3 个按钮  -- 实际 2 个
+  ==> 失败  ★ 弹窗字面量只有 标题「同步」+ 三个按钮（没有多余说明文字）  -- 实际 = ['同步', '同步所有', '取消']
+  ==> 失败  「同步所有」出现 2 次（入口按钮 + 弹窗内按钮）  -- 实际 1 次
+
+===== 4) 写序 / 读序逐格配对 =====
+  ==> 通过  抠得出 send() 方法体
+  ==> 通过  ★ 写入序 = utf16 · varInt · boolean · long  -- 实际 = ['writeUtf', 'writeVarInt', 'writeBoolean', 'writeLong']
+  ==> 通过  domain 用 writeUtf(domain, 16)（带上限）
+  ==> 通过  走 SYNC_SETTINGS_CHANNEL
+  ==> 通过  发完就 onClose() 回原界面
+  ==> 通过  send() 只发一条包  -- 实际 1 条
+  ==> 通过  抠得出 SYNC_SETTINGS_CHANNEL 的接收器读取段
+  ==> 通过  ★ 服务端读序 = utf16 · varInt · boolean · long（与写序同序同类型）  -- 实际 = ['readUtf', 'readVarInt', 'readBoolean', 'readLong']
+  ==> 通过  domain 用 readUtf(16)（与写侧上限一致）
+  ==> 通过  ★ 写读逐格同名配对（错位即静默读出垃圾值）  -- 写 ['writeUtf', 'writeVarInt', 'writeBoolean', 'writeLong'] / 读 ['readUtf', 'readVarInt', 'readBoolean', 'readLong']
+  ==> 通过  服务端声明了 SYNC_SETTINGS_CHANNEL
+  ==> 通过  频道名 = smoothlift:sync_settings
+  ==> 通过  接收器里 server.execute 切回主线程
+  ==> 通过  ★ 同步结果回一条聊天栏消息（退出界面后还看得到）
+
+===== 5) 关闭弹窗回原界面 =====
+  ==> 通过  抠得出 SyncPopupScreen.onClose()
+  ==> 通过  ★ onClose() 把界面设回 returnTo（= 打开弹窗前那个界面）  -- Minecraft mc = Minecraft.getInstance(); mc.setScreen(returnTo == null ? null : returnTo);
+  ==> 通过  ★ 不覆盖 keyPressed（ESC 走 Screen 默认 -> onClose() 这条路）
+  ==> 通过  ★ 不覆盖 shouldCloseOnEsc（覆盖成 false 就把 ESC 关了）
+  ==> 通过  isPauseScreen = false（与模组其它界面一致）
+
+===== 6) 「同步所有」(force=false) 不动单独设置过的项 =====
+  ==> 通过  抠得出 syncEscalator() 方法体
+  ==> 通过  抠得出 syncLift() 方法体
+  ==> 通过  抠得出 syncPsd() 方法体
+  ==> 通过  syncEscalator 里有 if (force) {..} else {..} 分支对  -- 实际 3 对
+  ==> 通过  syncLift 里有 if (force) {..} else {..} 分支对  -- 实际 1 对
+  ==> 通过  syncPsd 里有 if (force) {..} else {..} 分支对  -- 实际 6 对
+  ==> 通过  至少有一处 else 支可供判定
+  ==> 通过  syncEscalator 第 1 个 force 支确实调了强制 setter  -- 实际 = ['forceGlobalRunSpeed', 'forceGlobalStepSpeed', 'forceDefaultVolume', 'forceDefaultHelpVolume', 'forceDefaultHelp']
+  ==> 通过  syncEscalator 第 2 个 force 支确实调了强制 setter  -- 实际 = ['forceDefaultAudio']
+  ==> 通过  syncEscalator 第 3 个 force 支确实调了强制 setter  -- 实际 = ['forceDefaultHelpAudio']
+  ==> 通过  syncLift 第 1 个 force 支确实调了强制 setter  -- 实际 = ['setDefaultLiftToneAudioAll']
+  ==> 通过  syncPsd 第 1 个 force 支确实调了强制 setter  -- 实际 = ['setDefaultPsdCloseWaitSecondsAll', 'setDefaultPsdToneVolumeAll', 'setDefaultPsdMidiumAll', 'setDefaultPsdMidiumVolumeAll', 'setDefaultPsdArriveAll', 'setDefaultPsdArriveVolumeAll']
+  ==> 通过  syncPsd 第 2 个 force 支确实调了强制 setter  -- 实际 = ['setDefaultPsdToneAudioAll']
+  ==> 通过  syncPsd 第 3 个 force 支确实调了强制 setter  -- 实际 = ['setDefaultPsdMidiumAll']
+  ==> 通过  syncPsd 第 4 个 force 支确实调了强制 setter  -- 实际 = ['setDefaultPsdArriveAll']
+  ==> 失败  syncPsd 第 5 个 force 支确实调了强制 setter  -- 实际 = []
+  ==> 失败  syncPsd 第 6 个 force 支确实调了强制 setter  -- 实际 = []
+  ==> 通过  ★★ 「同步所有」那一支（else）一处 force / *All setter 都没有 —— 所以改过的项保持不动  -- 泄漏 = {}
+  ==> 通过  「同步所有」那一支确实在写**默认层**（普通 setter）  -- 实际 = {'syncEscalator#1': ['setGlobalRunSpeed', 'setGlobalStepSpeed', 'setDefaultVolume', 'setDefaultHelpVolume', 'setDefaultHelp'], 'syncEscalator#2': ['setDefaultAudio'], 'syncEscalator#3': ['setDefaultHelpAudio'], 'syncLift#1': ['setDefaultLiftToneAudio'], 'syncPsd#1': ['setDefaultPsdCloseWaitSeconds', 'setDefaultPsdToneVolume', 'setDefaultPsdMidium', 'setDefaultPsdMidiumVolume', 'setDefaultPsdArrive', 'setDefaultPsdArriveVolume'], 'syncPsd#2': ['setDefaultPsdToneAudio'], 'syncPsd#3': ['setDefaultPsdMidium'], 'syncPsd#4': ['setDefaultPsdArrive']}
+
+===== 7) 射程编号：服务端常量 ↔ 界面页号 =====
+  ==> 通过  SYNC_TOP_LEVEL = 0  -- 0
+  ==> 通过  SYNC_ESC_AUDIO = 1  -- 1
+  ==> 通过  SYNC_ESC_HELP_AUDIO = 2  -- 2
+  ==> 通过  SYNC_PSD_MIDIUM_PAGE = 3  -- 3
+  ==> 通过  SYNC_PSD_ARRIVE_PAGE = 4  -- 4
+  ==> 通过  抠得出服务端 SYNC_LIFT_WHICH
+  ==> 通过  ★ 直梯：服务端 SYNC_LIFT_WHICH 与界面 PAGES 同序同内容  -- 服务端 ['up', 'down', 'open', 'close'] / 界面 ['up', 'down', 'open', 'close']
+  ==> 通过  抠得出服务端 SYNC_PSD_WHICH
+  ==> 通过  ★ 屏蔽门：服务端 SYNC_PSD_WHICH 与界面 PAGES 同序同内容  -- 服务端 ['open', 'close'] / 界面 ['open', 'close']
+  ==> 通过  屏蔽门界面：page == 3 -> 到站播报页
+  ==> 通过  屏蔽门界面：page == 4 -> 进站报站页
+  ==> 通过  直梯界面：单项页用 PAGES[page - 1]（与服务端 whichs[scope - 1] 同下标）
+  ==> 通过  服务端：SYNC_LIFT_WHICH[scope - 1]
+  ==> 通过  服务端：SYNC_PSD_WHICH[scope - 1]
+  ==> 通过  syncSettings 分发 "esc"
+  ==> 通过  syncSettings 分发 "lift"
+  ==> 通过  syncSettings 分发 "psd"
+
+===== 8) 弹窗里没有说明小字 =====
+  ==> 通过  ★ 居中文字只有标题 1 处  -- 实际 1 处
+  ==> 通过  那一处画的是 this.title
+  ==> 通过  ★ 一处左对齐小字都没有  -- 实际 0 处 = []
+
+===== 9) 同步回执不带括号 =====
+  ==> 通过  抠得出同步回执文案（>= 8 条）  -- 实际 26 条
+  ==> 通过  ★ 回执文案里没有括号（用户点名的规范）  -- 带括号的 = []
+  ==> 通过  占位符没混进回执（防御性）
+  ==> 通过  ★ 同步方法体里所有字符串都没有括号  -- 带括号的 = []
+
+===== 10) 反向对照 =====
+  ==> 通过  把写序里 varInt 与 boolean 对调 -> 配对判据当场变红（对照）
+  ==> 通过  把读序里 boolean 与 long 对调 -> 配对判据当场变红（对照）
+  ==> 通过  基线：当前 else 支一个 force setter 都没有（对照基线）  -- 实际 = []
+  ==> 通过  ★ 往 else 支塞一个 forceDefaultVolume -> 「不泄漏」这条判据当场变红（对照）  -- 探针命中 = ['forceDefaultVolume']
+  ==> 通过  calls() 不把 setDefaultPsdToneAudioAll 误判成 setDefaultPsdToneAudio（前缀陷阱）
+  ==> 通过  calls() 认得出 setDefaultPsdToneAudioAll 本身
+  ==> 通过  直梯界面域字面量已是 lift（基线）  -- lift
+  ==> 通过  域改成 lifts -> 域集合判据变红（对照）  -- 探针集合 = ['esc', 'lifts', 'psd']
+  ==> 通过  直梯 which 一致（基线）
+  ==> 通过  把界面 PAGES 倒序 -> 一致判据变红（对照）  -- 倒序 = ['close', 'open', 'down', 'up']
+  ==> 失败  把 up 与 chime 对调 -> 一致判据变红（对照）  -- 探针 = ['up', 'down', 'open', 'close']
+  ==> 通过  到站页 = 3（基线）
+  ==> 通过  到站页改成 5 -> 编号判据变红（对照）
+
+== 失败 8 项 ==
+   - 直梯（主界面 + 三项列表页）：落地回调 = tone == null ? this::applyDefaultVolume : () -> applyToneVolume(tone)
+   - ★ y = 6（贴顶）
+   - ★ 弹窗 init() 里正好 3 个按钮
+   - ★ 弹窗字面量只有 标题「同步」+ 三个按钮（没有多余说明文字）
+   - 「同步所有」出现 2 次（入口按钮 + 弹窗内按钮）
+   - syncPsd 第 5 个 force 支确实调了强制 setter
+   - syncPsd 第 6 个 force 支确实调了强制 setter
+   - 把 up 与 chime 对调 -> 一致判据变红（对照）
+
+############################################################
+# 列车音效界面与侧线
+############################################################
+  ==> 通过
+
+############################################################
+# 直梯提示音链路
+############################################################
+  ==> 失败（完整输出见下方）
+解析到的常量：间隔=0.8s  关门=4次  开门=2次  倍速=0.5~2.0  eps=0.001  20tps=20
+
+[PASS] MTR3 归一化分母 == 24（可见全开值，= min(doorValue/24,1) 的分母）  -- 实际 24.0；若为 48 则关门提示音会早 1.2 秒
+[PASS] MTR4 归一化分母 == 1（getDoorValue() 本来就是可见开合度）  -- 实际 1.0
+[PASS] MtrLiftAccess 记录了 doorValue/24 的字节码依据（LiftClient.tickClient）
+
+MTR3：触发 ['opening', 'closing']（[(1, 'opening', 1.0), (113, 'closing', 23.0)]）
+[PASS] MTR3 一个周期恰好触发 1 次开门 + 1 次关门  -- 实际 ['opening', 'closing']
+[PASS] MTR3 开门触发落在可见开门起点（doorValue≈1）  -- 触发时 doorValue=1.0
+[PASS] MTR3 关门触发落在可见关门起点（doorValue≈23，而不是 47）  -- 触发时 doorValue=23.0（错写 48 时会是 ≈47）
+[PASS] MTR3 关门触发不落在 doorValue∈(24,48] 的可见空档里  -- 触发时 doorValue=23.0
+MTR4：触发 ['opening', 'closing']（[(502, 'opening', 0.00125), (4102, 'closing', 0.99875)]）
+[PASS] MTR4 一个周期恰好触发 1 次开门 + 1 次关门  -- 实际 ['opening', 'closing']
+[PASS] MTR4 开门触发落在 cooldown≈500（可见开门起点）  -- 触发时 cooldown=502 ms
+[PASS] MTR4 关门触发落在 cooldown≈4101（可见关门起点）  -- 触发时 cooldown=4102 ms
+
+[PASS] 对照：分母若退回 48，关门触发会落到 doorValue≈47（落在可见空档 → 早 1.2 秒）  -- 对照结果 (89, 'closing', 47.0)
+
+[PASS] 连播间隔 max(1, round(0.8/speed×20)) ≥ 1 tick 对倍速域[0.5,2.0]全部成立  -- 异常 []
+[PASS] 关门连播 4 次、开门连播 2 次（需求原文）  -- 关门跨度 128tick(6.4s) 开门跨度 64tick(3.2s) @最慢倍速
+[PASS] 找到 detect 方法体
+[PASS] *【1.52】导入的 ogg（customId != null）连播次数 = 1（只播一次），与「自定义素材按原速播」写在同一个分支里
+[PASS] *【1.52】内置素材仍走「关门 4 次 / 开门 2 次」（次数分流在 else 分支里）
+[PASS] 老的「先无条件按 4/2 算、再被自定义情况覆盖」写法已消失（留着就是两处规则并存，等着分叉）
+[PASS] 内置素材：关门 4 次、开门 2 次（用户点名的节奏，本次不动）
+[PASS] *导入的 ogg：开门、关门都**只播一次**（【1.52】用户点名）
+[PASS] 对照：若不看素材来源（导入也按 4/2 次）⇒ 开关门各会多放 1 / 3 下 ⇒ 上面那条断言有鉴别力，不是恒真  -- 若照旧 = 关门 4 次 / 开门 2 次；现在 = 1 次 / 1 次
+
+[PASS] sounds.json 注册了 audio/liftmusic  -- 实际键 ['audio/doorclose', 'audio/dooropen', 'audio/down', 'audio/escalator_chime_alight', 'audio/escalator_chime_board', 'audio/escalator_chime_rate25', 'audio/escalator_chime_rate4', 'audio/escalator_chime_rate50', 'audio/liftmusic', 'audio/mdoorclose', 'audio/subway_escalator', 'audio/up']
+[PASS] assets/smoothlift/sounds/audio/liftmusic.ogg 存在且非空  -- 18034 bytes
+
+[PASS] MtrLiftAccess 有 elementsOf(Object) 归一化入口
+[PASS] elementsOf 先判 java.util.Map（取 values()）、再退回 Iterable —— 顺序不能反  -- Map 在第 23779 字符、Iterable 在第 23876 字符
+[PASS] snapshotMtr3 走 elementsOf（MTR3 的 Set 也一起兜住）
+[PASS] snapshotMtr4 走 elementsOf（★ 这个才是修 bug 的那处）
+[PASS] 不再对容器直接判 instanceof Iterable（那正是 MTR4 上永远为空的写法）
+[PASS] 容器形态不认识 / 认得出时各有一次诊断日志（下次一眼看出问题）
+[SKIP] 找不到 MTR4 jar 或 javap —— 跳过与真实字节码的继承链对撞（不算失败）
+
+[PASS] 音量区间 1~1000、默认 100（= 原始音量）  -- min=1.0 max=1000.0 default=100.0
+[PASS] DEFAULT_LIFT_HELP_VOLUME 复用扶梯那套常量（不另写一份数字）  -- ⇒ 三套音量永远不会因为改了一处而悄悄不一致
+[PASS] EscalatorSpeedData 有 defaultLiftHelpVolume 字段
+[PASS] fromTag 读 defaultLiftHelpVolume（旧存档缺字段 → 保持默认 100）
+[PASS] toTag 写 defaultLiftHelpVolume
+[PASS] clampLiftHelpVolume 夹到 [HELP_VOLUME_MIN, HELP_VOLUME_MAX]（数据层就夹住，不只靠指令参数类型）
+[PASS] 注册了 /lifthelploud
+[PASS]   /lifthelploud 分支存在：liftHelpLoudShow
+[PASS]   /lifthelploud 分支存在：liftHelpLoudGlobal
+[PASS]   /lifthelploud 分支存在：liftHelpLoudFromTo
+[PASS]   /lifthelploud 分支存在：liftHelpLoudForceAll
+[PASS]   /lifthelploud 分支存在：liftHelpLoudForceFromTo
+[FAIL] /lifthelploud 挂了 up|down|door 三项分支 + 合并的 -f 节点（【1.48】形状，door = chime 别名）
+[PASS] 找得到同步包的写侧（buildLiftChimePacket）与读侧（SmoothLiftClient）  -- 写 ['Utf', 'Boolean', 'Float', 'VarInt', 'Boolean', 'Boolean', 'Boolean', 'Boolean', 'VarInt', 'VarInt', 'VarInt', 'VarInt', 'VarInt', 'Utf', 'Utf', 'Utf', 'Utf'] / 读 ['Utf', 'Boolean', 'Float', 'VarInt', 'Boolean', 'Boolean', 'Boolean', 'Boolean', 'VarInt', 'VarInt', 'VarInt', 'VarInt', 'VarInt', 'Utf', 'Utf', 'Utf', 'Utf']
+[PASS] 同步包写入顺序 == 读取顺序（dimId → enabled → speed → volume → up → down → chime → round → 单项音量×3）  -- 写 ['Utf', 'Boolean', 'Float', 'VarInt', 'Boolean', 'Boolean', 'Boolean', 'Boolean', 'VarInt', 'VarInt', 'VarInt', 'VarInt', 'VarInt', 'Utf', 'Utf', 'Utf', 'Utf'] 读 ['Utf', 'Boolean', 'Float', 'VarInt', 'Boolean', 'Boolean', 'Boolean', 'Boolean', 'VarInt', 'VarInt', 'VarInt', 'VarInt', 'VarInt', 'Utf', 'Utf', 'Utf', 'Utf']
+[FAIL] 【1.46~1.48】三子开关(up→down→chime) + 范围(round) + 三项各自音量 + 【1.15】三项默认素材(up→down→chime)  -- 实际尾部 ['Boolean', 'Boolean', 'Boolean', 'Boolean', 'VarInt', 'VarInt', 'VarInt', 'VarInt', 'VarInt', 'Utf', 'Utf', 'Utf', 'Utf']
+[FAIL] applyClientLiftChime 接收 (dimension, enabled, speed, volume, up, down, chime, round, 单项音量×3, 【1.15】三项维度默认素材×3) —— 与读侧顺序一致
+[PASS] 数据层有 defaultLiftHelpRound（首次载入默认 4 格）
+[PASS] 播放端范围从同步镜像读（cachedRound，随 /lifthelpround 同步更新）
+[PASS] 注册了 /lifthelpround 指令（三项提示音共用的淡入淡出范围）
+[PASS] LiftMusicInstance 实现 GainManagedSound（让 SoundEngineVolumeMixin 放行 [0,1] 夹取）　★【1.51】同时实现 TickableSoundInstance —— AbstractSoundInstance 本身不实现它，不实现就进不了 tickingSounds、引擎不会每 tick 回来读音量
+[PASS] 开播时把该 OpenAL 源的 AL_MAX_GAIN 抬到 MAX_GAIN（缺这一步仍最多 1.0×）
+[PASS] volumeFactor = 音量/100（100 → 1.0 = 原始音量）
+[PASS] 对照：音量 100 → 增益 1.0（原始音量，与 1.42 的听感一致）  -- 实际 1.0000
+[PASS] 对照：音量 1000 → 增益 10.0× == EscalatorAudioPlayer.MAX_GAIN  -- 实际 10.0000
+[PASS] 对照：越界值被夹到端点（5000→10×、0→0.01×），不会把增益算到区间外  -- 5000→10.0000  0→0.0100
+
+== 失败 3 项 ==
+   - /lifthelploud 挂了 up|down|door 三项分支 + 合并的 -f 节点（【1.48】形状，door = chime 别名）
+   - 【1.46~1.48】三子开关(up→down→chime) + 范围(round) + 三项各自音量 + 【1.15】三项默认素材(up→down→chime)
+   - applyClientLiftChime 接收 (dimension, enabled, speed, volume, up, down, chime, round, 单项音量×3, 【1.15】三项维度默认素材×3) —— 与读侧顺序一致
+
+############################################################
+# 直梯三提示音素材
+############################################################
+  ==> 失败（完整输出见下方）
+== 1. 通道（客户端/服务端各一个收发点） ==
+[PASS] SmoothLift 定义了三个【1.45】通道  -- set=set_lift_tone import=import_folder_lift_tone sync=lift_tone_sync
+[PASS] 服务端注册了三个接收器（送出者都能收到处理）
+[PASS] 客户端注册了 LIFT_TONE_SYNC 接收器（镜像会更新）
+[PASS] JOIN / REQUEST_SYNC 两处都会推送直梯提示音表（进世界就能拿到）
+
+== 2. 数据层（竖井列 key + 三字段 + 三种语义） ==
+[PASS] SavedData 里加了竖井列 → 三音频 id 的表
+[PASS] default / off 两个哨兵值定义在数据层（与扶梯 HELP_AUDIO 同风格）
+[PASS] NBT 读写成对存在（旧存档缺表 → 空表 = 全部默认素材）
+[FAIL] 三项是 record：字段 final ⇒ 删除音频退默认时要整条替换（脚本第 5 段接着验）
+
+== 3. 服务端读写（校验 + 全默认即删除） ==
+[PASS] 服务端读写 / 客户端读取三个入口都在 Manager
+[FAIL] 写入前校验 audioId 必须 ∈ {default, off, 音频库}（否则拒绝）  -- 没有这道校验就能写进任意文件名 → 播放端静默不响还说不清原因
+[PASS] 三项全默认 = 等于没设置 ⇒ 直接删记录（表只留有价值的行）
+
+== 4. 石斧右键（服务端+客户端拦默认交互，UI 三列表） ==
+[PASS] 主类提供 isLiftTrackFloor（注册名前缀判，不依赖 MTR 编译期）
+[PASS] 服务端 UseBlockCallback 拦截石斧右键楼层轨道（防 MTR 默认 onUse）
+[PASS] 客户端石斧右键楼层轨道 → 打开 LiftToneSetupScreen
+[PASS] 三列表 up（上楼提示音）存在
+[PASS] 三列表 down（下楼提示音）存在
+[FAIL] 三列表 chime（开关门提示音）存在
+[PASS] UI 里既有导入通道又有设置通道（待导入行走导入，已入库行走设置）
+[PASS] UI 构造时用右键格的竖井列 key（同一条直梯任意层同 key）
+
+== 5. 播放端（按竖井列查素材；default/off/custom 三分支） ==
+[PASS] 找到 liftToneCustomId（播放端查素材的统一入口）
+[PASS] 按最近直梯位置算竖井列 key
+[PASS] off / default 两个哨兵都处理了（不播 / 内置）
+[PASS] 三字段解析走 Manager.toneField（up/down/chime 一个 switch，别处不再抄一份）
+[PASS] toneField 里 up 参与解析
+[PASS] toneField 里 down 参与解析
+[FAIL] toneField 里 chime 参与解析
+[PASS] 【1.15】单独设置是 default（或没这一项）时回落到维度默认素材
+[PASS] 「不播」用哨兵值区分于「没设置」（没设置 = 内置素材）
+[PASS] 自定义素材走 injectAudio 注入分支（复用扶梯那套解码注入）+ 自定义实例播放
+[PASS] 播放实例带 customId（resolve 覆盖 → 直接播引擎缓存里那段）
+
+== 6. 删除音频 → 直梯引用退默认 ==
+[PASS] removeAudio 把引用已删音频的直梯项退化成默认（record 元素整体替换）
+
+== 6b. 【1.46】三提示音独立子开关（指令 + UI + 播放端 + 同步包） ==
+[FAIL] 【1.15】指令树由 liftToneBranch(字面量, which) 生成，挂在 /lifthelp 下面（up/down/door）
+[PASS] 【1.15】旧的顶级指令构造器 liftToneSwitchCommand 已删除
+[PASS] 【1.15】不再注册顶级指令 /lifthelpup
+[PASS] 【1.15】不再注册顶级指令 /lifthelpdown
+[PASS] 【1.15】不再注册顶级指令 /lifthelpchime
+[PASS] 【1.15】/lifthelpspeed 指令与它的处理函数全部删除
+[PASS] 定义并注册了 UI 开关通道 SET_LIFT_TONE_SWITCH
+[PASS] 数据层三个子开关字段（缺省 true，旧存档兼容）
+[PASS] Manager 提供子开关读写（单维度 / 全维度 / X to Y）
+[PASS] 客户端镜像有本地翻子开关的入口（UI 点完立即回显）
+[PASS] 播放端：维度默认子开关关 → 该项静默（总开关之外还能再关一层）
+[PASS] UI 每个列表第一行是「开关」按钮（点=切换维度默认子开关）
+[FAIL] 开关行显示当前开/关状态
+
+== 6d. 【1.15】直梯音频快捷设置（维度默认素材 + default 命名 + 补全 + 两层查找） ==
+[PASS] 数据层三个「维度默认素材」字段（初始 default ⇒ 与 1.14 行为一致）
+[PASS] 石斧列表第一行文案 =「默认（跟维度默认）」（与指令里的 default=内置素材 区分开）
+[PASS] 三个新字段写/读成对（缺字段读回 default）
+[PASS] 数据层有「空值→default」与「三项全默认」两个小工具
+[FAIL] 删音频时把指向它的**维度默认素材**也退回 default（不能留着指向已删文件）
+[PASS] Manager：名字解析（default / none / off / 库文件名）、补全候选、库键读取
+[PASS] 指令里的 default = 模组内置素材哨兵（不是扶梯那个内置底噪 id）
+[PASS] 「这一项不播」在指令里写作 none（off 被字面量占了）
+[PASS] -f：所有维度都设成它 + 清掉按竖井列的单独设置（含 X to Y 版）
+[FAIL] 音频名字参数挂了补全提供器（Tab 能补出 default 与导入过的 ogg）
+[PASS] 补全提供器容忍 null source（_tools/CmdTreeCheck 用 null source 解析真指令树）
+[PASS] 四个音频素材处理函数（本维度 / 本维度 X to Y / -f 全部 / -f X to Y）
+[PASS] 播放端【1.15】两层查找：竖井列单独设置 →（default 时回落到）维度默认素材
+[PASS] applyClientLiftChime 接收三个新字段（服务端同步过来）
+Traceback (most recent call last):
+  File "C:\Users\user\Desktop\2\mzycBetterMTR-1.20.1\_tools\check-lift-tone.py", line 241, in <module>
+    and pk.index("defaultLiftToneAudioUp") > pk.index("defaultLiftToneVolumeChime")
+                                             ~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+ValueError: substring not found
+
+############################################################
+# 直梯准备移动音
+############################################################
+  ==> 失败（完整输出见下方）
+== 1. 素材 ==
+[PASS] assets/smoothlift/sounds/audio/up.ogg 存在且非空  -- 54540 B
+[PASS] up.ogg 是 OggS 容器（Minecraft 只认 OGG Vorbis）  -- 魔数 b'OggS'
+[PASS] up.ogg 时长 3.39 s < 10 s（短素材，可直接内嵌不必 stream）
+[SKIP] 工作区根没有 up.ogg，跳过「与原素材逐字节相同」这一步
+[PASS] assets/smoothlift/sounds/audio/down.ogg 存在且非空  -- 58152 B
+[PASS] down.ogg 是 OggS 容器（Minecraft 只认 OGG Vorbis）  -- 魔数 b'OggS'
+[PASS] down.ogg 时长 3.62 s < 10 s（短素材，可直接内嵌不必 stream）
+[SKIP] 工作区根没有 down.ogg，跳过「与原素材逐字节相同」这一步
+
+== 2. sounds.json ==
+[PASS] sounds.json 注册了 audio/up → smoothlift:audio/up  -- 实际 smoothlift:audio/up
+[PASS] audio/up 指向的 .ogg 文件真的在（注册了却没有文件 = 引擎静默不响，最难查的那类）
+[PASS] sounds.json 注册了 audio/down → smoothlift:audio/down  -- 实际 smoothlift:audio/down
+[PASS] audio/down 指向的 .ogg 文件真的在（注册了却没有文件 = 引擎静默不响，最难查的那类）
+[PASS] 对照：本脚本确实能区分「有注册」与「有文件」（用一个不存在的名字验证查得到）
+
+== 3. LiftChimePlayer ==
+[PASS] LIFT_UP 指向 smoothlift:audio/up  -- 实际 audio/up
+[PASS] LIFT_DOWN 指向 smoothlift:audio/down  -- 实际 audio/down
+[PASS] 找到 detectMove 方法体
+[PASS] 判据是 `now != NONE && now != prev`（写成 now==NONE || now==prev 提前 return）  -- 这就是「一条 NONE→UP/DOWN 跳变只响一次」的全部条件
+[PASS] detectMove 不碰连播排期（playsLeft/nextPlayTick）⇒ 不会顶掉正在进行的关门连播
+[PASS] 方向 UP 放 LIFT_UP、DOWN 放 LIFT_DOWN（按方向选素材）
+[FAIL] 音量复用 `/lifthelploud` 且按方向取单项；先按【1.51】空间系数判「当前位置还听得见吗」（volumeFactor(toneVolume) × spatialFactor(playerPos(mc), tonePos)）
+[PASS] 【1.48】上楼用 up 单项音量、下楼用 down 单项音量（没单独调过回落共用默认）
+[PASS] 音高复用直梯倍速 cachedSpeed（【1.15】改了它的指令 /lifthelpspeed 已删除）
+[PASS] 音量为 0 时直接不播（/lifthelploud 0、或【1.51】轿厢外超出 /lifthelpround 范围 ⇒ 静音不留空转）
+[PASS] 只在 `lift == nearest` 分支里调 detectMove ⇒ 同一时刻只有最近那条直梯会响  -- 否则一个大车站里几十条直梯会一起响
+[PASS] 首次看到某条直梯时 prev 取当前值 ⇒ 不会因为「第一次看见它」而误响一声
+[PASS] 每条直梯都记录方向（不只是最近那条）⇒ 最近的一条换成另一条时不会误响
+[PASS] 每帧清掉已不在客户端集合里的直梯 ⇒ Map 不会无限长大
+[PASS] reset() 里清空 lastMove ⇒ 玩家进/出维度、重连后不会拿旧状态比
+[PASS] 复用既有指令 /lifthelp（本功能不新增指令）
+[PASS] 复用既有指令 /lifthelploud（本功能不新增指令）
+[PASS] 【1.15】/lifthelpspeed 已从指令树里删除（up/down 两项只跟着 /lifthelp 那套走）
+[FAIL] 对照：脚本确实能读到指令树构造（/lifthelp up|down|door 在）⇒ 上一条断言有鉴别力
+
+== 3b. 【1.51】轿厢内外分档 + 音量逐 tick 重算 ==
+[FAIL] 找到 spatialFactor 方法体
+[PASS] CABIN_RADIUS_H = 1.5 格（盖住 1×1 轿厢的贴边与 2×2 轿厢的厢内中心）  -- 实际 1.5
+[PASS] OUTSIDE_CABIN_FACTOR = 0.2（用户点名的「原先的 20%」）  -- 实际 0.2
+[PASS] * LiftMusicInstance 实现 TickableSoundInstance —— AbstractSoundInstance 本身**不**实现它（javap 实测只实现 SoundInstance），不实现就进不了 SoundEngine.tickingSounds，引擎一辈子不会回来读音量 ⇒ 音量永远是起播时那一个值（用户报的病）
+[FAIL] * tick() 里按玩家当前位置重算 this.volume（引擎每 tick 把它写进 AL_GAIN）
+[PASS] isStopped() 恒 false（一次性音效交回引擎，在通道播完时回收）
+[FAIL] 起播当刻也算一次（既不炸一下、也没有开头空白）
+[FAIL] play() 传给实例的是**不含**空间系数的设置音量（空间系数由实例自己逐 tick 算）
+[PASS] ★★【10-03】源码里轿厢外 = OUTSIDE_CABIN_FACTOR × **按比例线性**淡出（原为平方 `* f * f`；改回去立刻红）
+[PASS] * 轿厢内（水平 0.7 格）= 100%
+[PASS] * 刚迈出轿厢（刚越过轿厢半径 1.5 格）= **正好 20%**（用户点名的数）  -- 0.200000
+[PASS] 边界包含在轿厢内（水平正好 1.5 格仍算『在轿厢里』= 100%），越过才降档
+[PASS] * 越远越小：20% 起单调递减（还没到范围边界时不提前归零）  -- 0.2000 / 0.1600 / 0.1200 / 0.0800 / 0.0400
+[PASS] * 到 /lifthelpround（默认 4 格）归零
+[PASS] ★★【10-03】轿厢外**按比例线性**：round=4、距轿厢表面 1 格 ⇒ 0.12（平方会是 0.072 ⇒ 这条有鉴别力）  -- 0.1200
+[PASS] 范围可调：round=128 时 2 格处仍可闻（乘客/旁观者都听得到，只是淡）  -- 0.1992
+[PASS] 可预期降级：round=1（≤ 轿厢半径 1.5）时轿厢外一律静音 —— 可见范围已被轿厢占满
+[PASS] 对照 1：OUTSIDE_CABIN_FACTOR 改成 1.0 后「出轿厢 = 20%」不成立 ⇒ 上面那条断言有鉴别力，不是恒真  -- 改后 1.0000
+[PASS] 对照 2：旧写法会把 1.00 一直播完，新写法走到 3 格处只剩 0.0800 ⇒ 两者可区分（这正是用户报的「不管走多远都清晰听到」）
+[PASS] 编译产物（dev、未 remap）里 LiftMusicInstance 真的 implements TickableSoundInstance
+
+== 4. MtrLiftAccess ==
+[PASS] Move 枚举恰为 NONE / UP / DOWN（顺序也一致）  -- 实际 ['NONE', 'UP', 'DOWN']
+[PASS] 按 toString() 的**名字**解析（编译期不需要认识任何 MTR 类型）
+[PASS] null / 名字不认识一律 → NONE（宁可不出声，也不按错方向出声）
+[PASS] getLiftDirection 拿不到时只 WARN、不 throw（不能把开关门提示音一起带坏）  -- 缺方向只会让 up/down 不响；缺开关门方法才是真炸
+[PASS] getDirection 拿不到时只 WARN、不 throw（不能把开关门提示音一起带坏）  -- 缺方向只会让 up/down 不响；缺开关门方法才是真炸
+[PASS] directionOf：方法缺失 / 反射抛异常 → NONE（同一套降级）
+[FAIL] 快照 LiftView 里带上了 move 字段（record 的构造口也对上了）
+
+== 5. 语义模拟（把判据搬到 Python 里跑真实轨迹） ==
+[PASS] 模拟：待命→上行（玩家在2楼按Z选3楼） ⇒ 响 1 次  -- 实测 1 次（这正是用户举的例子）
+[PASS] 模拟：待命→下行 ⇒ 响 1 次  -- 实测 1 次
+[PASS] 模拟：纯待命（没人按） ⇒ 响 0 次  -- 实测 0 次（停着就不该响）
+[PASS] 模拟：上行到站停下 ⇒ 响 1 次  -- 实测 1 次（到站变 NONE 不响（那是停，不是准备走））
+[PASS] 模拟：中途反悔：上行途中按了更低那层 ⇒ 响 2 次  -- 实测 2 次（反悔确实算「又准备走一次」，响第 2 声）
+[PASS] 模拟：全程没有跳变 ⇒ 响 0 次  -- 实测 0 次（移动全程保持同一值 ⇒ 只响过起始那一次）
+[PASS] 对照：去掉 `now == prev` 后，同一条上行轨迹会响 61 次（= 61 个 tick 每 tick 都响）  -- ⇒ 证明「方向没变就不响」这个条件是必要的，不是恒真的摆设
+
+== 6. 构建产物 ==
+      校验 build\libs\mzycBetterMTR-1.30.1201.jar（1714713 B）
+[PASS] jar 内含 assets/smoothlift/sounds/audio/up.ogg
+[PASS] jar 内的 up.ogg 与源码里的逐字节相同
+[PASS] jar 内含 assets/smoothlift/sounds/audio/down.ogg
+[PASS] jar 内的 down.ogg 与源码里的逐字节相同
+[PASS] jar 内的 sounds.json 有 audio/up 与 audio/down  -- 实际含 ['audio/up', 'audio/down']
+[PASS] LiftChimePlayer.class 里有 audio/up 与 audio/down 两个字面量（确认编进去了）
+
+== 失败 7 项 ==
+   - 音量复用 `/lifthelploud` 且按方向取单项；先按【1.51】空间系数判「当前位置还听得见吗」（volumeFactor(toneVolume) × spatialFactor(playerPos(mc), tonePos)）
+   - 对照：脚本确实能读到指令树构造（/lifthelp up|down|door 在）⇒ 上一条断言有鉴别力
+   - 找到 spatialFactor 方法体
+   - * tick() 里按玩家当前位置重算 this.volume（引擎每 tick 把它写进 AL_GAIN）
+   - 起播当刻也算一次（既不炸一下、也没有开头空白）
+   - play() 传给实例的是**不含**空间系数的设置音量（空间系数由实例自己逐 tick 算）
+   - 快照 LiftView 里带上了 move 字段（record 的构造口也对上了）
+
+############################################################
+# 淡入淡出全按比例
+############################################################
+  ==> 通过
+
+############################################################
+# 无障碍提示音分档
+############################################################
+  ==> 通过
+
+############################################################
+# 直梯楼层轨道外观
+############################################################
+  ==> 通过
+
+############################################################
+# 指令树
+############################################################
+  ==> 失败（完整输出见下方）
+==================== /futihelp ָ���� ====================
+����ȫ��ָ�                    ��/�� -> []
+futihelp ��ֱ���ӽڵ�            ��futihelp �� -> [-f, off, on]
+futihelp on ����һ��           ��futihelp on �� -> [to]
+futihelp on to ����һ��        ��futihelp on to �� -> [off]
+futihelp off ����һ��          ��futihelp off �� -> [to]
+futihelp off to ����һ��       ��futihelp off to �� -> [on]
+futihelp -f ����һ��           ��futihelp -f �� -> [off, on]
+futihelp -f on ����һ��        ��futihelp -f on �� -> [to]
+futihelp -f on to ����һ��     ��futihelp -f on to �� -> [off]
+futihelp -f off ����һ��       ��futihelp -f off �� -> [to]
+futihelp -f off to ����һ��    ��futihelp -f off to �� -> [on]
+-------------------- /futihelploud ָ���� --------------------
+futihelploud ��ֱ���ӽڵ�        ��futihelploud �� -> [-f]
+futihelploud <����> ����һ��     ��futihelploud 200 �� -> [to]
+futihelploud <X> to ����һ��   ��futihelploud 200 to �� -> []
+futihelploud -f ����һ��       ��futihelploud -f �� -> []
+futihelploud -f <����> ����һ��  ��futihelploud -f 200 �� -> [to]
+futihelploud -f <X> to ����һ�� ��futihelploud -f 200 to �� -> []
+-------------------- /futiround ָ���� --------------------
+futiround ��ֱ���ӽڵ�           ��futiround �� -> [-f]
+futiround <��Χ> ����һ��        ��futiround 20 �� -> [to]
+futiround <X> to ����һ��      ��futiround 20 to �� -> []
+futiround -f ����һ��          ��futiround -f �� -> []
+futiround -f <��Χ> ����һ��     ��futiround -f 20 �� -> [to]
+futiround -f <X> to ����һ��   ��futiround -f 20 to �� -> []
+-------------------- /futihelpround ָ���� --------------------
+futihelpround ��ֱ���ӽڵ�       ��futihelpround �� -> [-f]
+futihelpround <��Χ> ����һ��    ��futihelpround 4 �� -> [to]
+futihelpround <X> to ����һ��  ��futihelpround 4 to �� -> []
+futihelpround -f ����һ��      ��futihelpround -f �� -> []
+futihelpround -f <��Χ> ����һ�� ��futihelpround -f 4 �� -> [to]
+futihelpround -f <X> to ����һ�� ��futihelpround -f 4 to �� -> []
+-------------------- /futihelpspeed ָ���� --------------------
+futihelpspeed ��ֱ���ӽڵ㣨Ӧ�� -f / in / out�� ��futihelpspeed �� -> [-f, in, out]
+futihelpspeed in ����һ�㣨��ֵ�������޲�ȫ�� ��futihelpspeed in �� -> []
+futihelpspeed in <Hz> ����һ�� ��futihelpspeed in 5 �� -> [to]
+futihelpspeed in <X> to ����һ�� ��futihelpspeed in 5 to �� -> []
+futihelpspeed out ����һ�㣨��ֵ�������޲�ȫ�� ��futihelpspeed out �� -> []
+futihelpspeed out <Hz> ����һ�� ��futihelpspeed out 1 �� -> [to]
+futihelpspeed -f ����һ�㣨Ӧ�� in / out�� ��futihelpspeed -f �� -> [in, out]
+futihelpspeed -f in <Hz> ����һ�� ��futihelpspeed -f in 5 �� -> [to]
+futihelpspeed -f in <X> to ����һ�� ��futihelpspeed -f in 5 to �� -> []
+futihelpspeed -f out <Hz> ����һ�� ��futihelpspeed -f out 1 �� -> [to]
+
+==================== /futihelpmusic ָ��������1.41���� /futihelpspeed �� in|out ���룩 ====================
+futihelpmusic ��ֱ���ӽڵ㣨Ӧ�� -f / in / out�� ��futihelpmusic �� -> [-f, in, out]
+futihelpmusic in ����һ�㣨�ַ�����������ȫ�� ��futihelpmusic in �� -> []
+futihelpmusic in <����> ����һ�� ��futihelpmusic in default �� -> [to]
+futihelpmusic in <X> to ����һ�� ��futihelpmusic in default to �� -> []
+futihelpmusic out <����> ����һ�� ��futihelpmusic out default �� -> [to]
+futihelpmusic out <X> to ����һ�� ��futihelpmusic out default to �� -> []
+futihelpmusic -f ����һ�㣨Ӧ�� in / out�� ��futihelpmusic -f �� -> [in, out]
+futihelpmusic -f in ����һ�㣨�ַ�����������ȫ�� ��futihelpmusic -f in �� -> []
+futihelpmusic -f in <����> ����һ�� ��futihelpmusic -f in default �� -> [to]
+futihelpmusic -f in <X> to ����һ�� ��futihelpmusic -f in default to �� -> []
+futihelpmusic -f out <����> ����һ�� ��futihelpmusic -f out default �� -> [to]
+
+==================== ��1.42��/lifthelp ָ���� ====================
+lifthelp ��ֱ���ӽڵ㣨1.15 ����� up/down/door�� ��lifthelp �� -> [-f, close, down, off, on, open, up]
+lifthelp on ����һ��           ��lifthelp on �� -> [to]
+lifthelp on to ����һ��        ��lifthelp on to �� -> [off]
+lifthelp off to ����һ��       ��lifthelp off to �� -> [on]
+lifthelp -f ����һ��           ��lifthelp -f �� -> [off, on]
+lifthelp -f on to ����һ��     ��lifthelp -f on to �� -> [off]
+-------------------- ��1.15��/lifthelp up|down|door ָ���� --------------------
+===== lifthelp up =====
+lifthelp up ��ֱ���ӽڵ㣨������ -f/off/on + ��Ƶ���ֲ����� ��lifthelp up �� -> [-f, off, on]
+�ӿ��� on ����һ��                ��lifthelp up on �� -> [to]
+�ӿ��� on to ����һ��             ��lifthelp up on to �� -> [off]
+�ӿ��� off to ����һ��            ��lifthelp up off to �� -> [on]
+-f ����һ�㣨on / off / ��Ƶ���֣�   ��lifthelp up -f �� -> [off, on]
+-f on to ����һ��              ��lifthelp up -f on to �� -> [off]
+-f <����> to ����һ�㣨�ַ�����������ȫ��  ��lifthelp up -f default to �� -> []
+<����> ����һ�㣨Ӧ�� to��           ��lifthelp up default �� -> [to]
+<����> to ����һ�㣨�ַ�����������ȫ��     ��lifthelp up default to �� -> []
+===== lifthelp down =====
+lifthelp down ��ֱ���ӽڵ㣨������ -f/off/on + ��Ƶ���ֲ����� ��lifthelp down �� -> [-f, off, on]
+�ӿ��� on ����һ��                ��lifthelp down on �� -> [to]
+�ӿ��� on to ����һ��             ��lifthelp down on to �� -> [off]
+�ӿ��� off to ����һ��            ��lifthelp down off to �� -> [on]
+-f ����һ�㣨on / off / ��Ƶ���֣�   ��lifthelp down -f �� -> [off, on]
+-f on to ����һ��              ��lifthelp down -f on to �� -> [off]
+-f <����> to ����һ�㣨�ַ�����������ȫ��  ��lifthelp down -f default to �� -> []
+<����> ����һ�㣨Ӧ�� to��           ��lifthelp down default �� -> [to]
+<����> to ����һ�㣨�ַ�����������ȫ��     ��lifthelp down default to �� -> []
+===== lifthelp door =====
+lifthelp door ��ֱ���ӽڵ㣨������ -f/off/on + ��Ƶ���ֲ����� ��lifthelp door �� -> []
+�ӿ��� on ����һ��                ��lifthelp door on �� -> []
+�ӿ��� on to ����һ��             ��lifthelp door on to �� -> []
+�ӿ��� off to ����һ��            ��lifthelp door off to �� -> []
+-f ����һ�㣨on / off / ��Ƶ���֣�   ��lifthelp door -f �� -> []
+-f on to ����һ��              ��lifthelp door -f on to �� -> []
+-f <����> to ����һ�㣨�ַ�����������ȫ��  ��lifthelp door -f default to �� -> []
+<����> ����һ�㣨Ӧ�� to��           ��lifthelp door default �� -> []
+<����> to ����һ�㣨�ַ�����������ȫ��     ��lifthelp door default to �� -> []
+-------------------- ��1.43��/lifthelploud ָ���� --------------------
+lifthelploud ��ֱ���ӽڵ�        ��lifthelploud �� -> [-f, close, down, open, up]
+lifthelploud <����> ����һ��     ��lifthelploud 200 �� -> [to]
+lifthelploud <X> to ����һ��   ��lifthelploud 200 to �� -> []
+lifthelploud -f ����һ��       ��lifthelploud -f �� -> [close, down, open, up]
+lifthelploud -f <X> to ����һ�� ��lifthelploud -f 200 to �� -> []
+===== lifthelploud up =====
+lifthelploud up ��ֱ���ӽڵ㣨��ֵ�������޲�ȫ�� ��lifthelploud up �� -> []
+lifthelploud up <����> ����һ��  ��lifthelploud up 200 �� -> [to]
+lifthelploud up <X> to ����һ�� ��lifthelploud up 200 to �� -> []
+lifthelploud -f up ��ֱ���ӽڵ㣨��ֵ�������޲�ȫ�� ��lifthelploud -f up �� -> []
+lifthelploud -f up <X> to ����һ�� ��lifthelploud -f up 200 to �� -> []
+===== lifthelploud down =====
+lifthelploud down ��ֱ���ӽڵ㣨��ֵ�������޲�ȫ�� ��lifthelploud down �� -> []
+lifthelploud down <����> ����һ�� ��lifthelploud down 200 �� -> [to]
+lifthelploud down <X> to ����һ�� ��lifthelploud down 200 to �� -> []
+lifthelploud -f down ��ֱ���ӽڵ㣨��ֵ�������޲�ȫ�� ��lifthelploud -f down �� -> []
+lifthelploud -f down <X> to ����һ�� ��lifthelploud -f down 200 to �� -> []
+===== lifthelploud door =====
+lifthelploud door ��ֱ���ӽڵ㣨��ֵ�������޲�ȫ�� ��lifthelploud door �� -> []
+lifthelploud door <����> ����һ�� ��lifthelploud door 200 �� -> []
+lifthelploud door <X> to ����һ�� ��lifthelploud door 200 to �� -> []
+lifthelploud -f door ��ֱ���ӽڵ㣨��ֵ�������޲�ȫ�� ��lifthelploud -f door �� -> []
+lifthelploud -f door <X> to ����һ�� ��lifthelploud -f door 200 to �� -> []
+-------------------- ��1.47��/lifthelpround ָ���� --------------------
+lifthelpround ��ֱ���ӽڵ㣨��ֵ�������޲�ȫ�� ��lifthelpround �� -> [-f]
+lifthelpround <��Χ> ����һ��    ��lifthelpround 4 �� -> [to]
+lifthelpround <X> to ����һ��  ��lifthelpround 4 to �� -> []
+lifthelpround -f ����һ��      ��lifthelpround -f �� -> []
+lifthelpround -f <X> to ����һ�� ��lifthelpround -f 4 to �� -> []
+  OK   ��lifthelpround 0�� Ӧ���޷�ִ�У���Χ������ 1��
+  OK   ��lifthelpround 200�� Ӧ���޷�ִ�У���Χ������ 128��
+-------------------- ��1.15��/lifthelpup|down|chime �����Ѿ������� --------------------
+  OK   ��lifthelpup�� Ӧ���޷�ִ�У���1.15����ɾ���ľ�ָ�
+  OK   ��lifthelpup on�� Ӧ���޷�ִ�У���1.15����ɾ���ľ�ָ�����������
+  OK   ��lifthelpdown�� Ӧ���޷�ִ�У���1.15����ɾ���ľ�ָ�
+  OK   ��lifthelpdown on�� Ӧ���޷�ִ�У���1.15����ɾ���ľ�ָ�����������
+  OK   ��lifthelpchime�� Ӧ���޷�ִ�У���1.15����ɾ���ľ�ָ�
+  OK   ��lifthelpchime on�� Ӧ���޷�ִ�У���1.15����ɾ���ľ�ָ�����������
+  OK   ��lifthelpspeed�� Ӧ���޷�ִ�У���1.15����ɾ���ľ�ָ�
+  OK   ��lifthelpspeed on�� Ӧ���޷�ִ�У���1.15����ɾ���ľ�ָ�����������
+
+==================== ��1.50��/pbmmusic ָ�����������ſ�������ʾ���� ====================
+pbmmusic ��ֱ���ӽڵ㣨Ӧ�� -f / close / off / on / open�� ��pbmmusic �� -> [-f, close, off, on, open]
+pbmmusic on ����һ��           ��pbmmusic on �� -> [to]
+pbmmusic on to ����һ��        ��pbmmusic on to �� -> [off]
+pbmmusic off to ����һ��       ��pbmmusic off to �� -> [on]
+pbmmusic -f ����һ��           ��pbmmusic -f �� -> [off, on]
+pbmmusic -f on to ����һ��     ��pbmmusic -f on to �� -> [off]
+pbmmusic open ��ֱ���ӽڵ�       ��pbmmusic open �� -> [-f, off, on]
+pbmmusic open on ����һ��      ��pbmmusic open on �� -> [to]
+pbmmusic open on to ����һ��   ��pbmmusic open on to �� -> [off]
+pbmmusic open off to ����һ��  ��pbmmusic open off to �� -> [on]
+pbmmusic open -f ����һ��      ��pbmmusic open -f �� -> [off, on]
+pbmmusic open -f on to ����һ�� ��pbmmusic open -f on to �� -> [off]
+��1.15��pbmmusic open -f <����> to ����һ�㣨Ӧ����Ƶ���ֲ��� target�� ��pbmmusic open -f default to �� -> []
+��1.15��pbmmusic open <����> ����һ�㣨Ӧ�� to�� ��pbmmusic open default �� -> [to]
+��1.15��pbmmusic open <X> to ����һ�㣨Ӧ����Ƶ���ֲ��� target�� ��pbmmusic open default to �� -> []
+pbmmusic close ��ֱ���ӽڵ�      ��pbmmusic close �� -> [-f, off, on]
+pbmmusic close -f off to ����һ�� ��pbmmusic close -f off to �� -> [on]
+��1.15��pbmmusic close <X> to ����һ�㣨Ӧ����Ƶ���ֲ��� target�� ��pbmmusic close default to �� -> []
+-------------------- ��1.15���ز������������ resolvePsdToneName�� --------------------
+  OK   resolvePsdToneName(null, CAT_PSD_OPEN, "default") �� id=default off=false error=null������ id=default off=false��
+  OK   resolvePsdToneName(null, CAT_PSD_OPEN, "default-c") �� id=default-c off=false error=null������ id=default-c off=false��
+  OK   resolvePsdToneName(null, CAT_PSD_OPEN, "default-m") �� id=default-m off=false error=null������ id=default-m off=false��
+  OK   resolvePsdToneName(null, CAT_PSD_OPEN, "default-s") �� id=default-s off=false error=null������ id=default-s off=false��
+  OK   resolvePsdToneName(null, CAT_PSD_OPEN, "DEFAULT-S") �� id=default-s off=false error=null������ id=default-s off=false��
+  OK   resolvePsdToneName(null, CAT_PSD_OPEN, "none") �� id=off off=true error=null������ id=off off=true��
+  OK   resolvePsdToneName(null, CAT_PSD_OPEN, "mute") �� id=off off=true error=null������ id=off off=true��
+-------------------- ��1.50��/pbmloud ָ���� --------------------
+pbmloud ��ֱ���ӽڵ㣨Ӧ�� -f / close / open�� ��pbmloud �� -> [-f, close, open]
+pbmloud <����> ����һ��          ��pbmloud 200 �� -> [to]
+pbmloud <X> to ����һ��        ��pbmloud 200 to �� -> []
+pbmloud open ��ֱ���ӽڵ㣨��ֵ�������޲�ȫ�� ��pbmloud open �� -> []
+pbmloud open <X> to ����һ��   ��pbmloud open 200 to �� -> []
+pbmloud close <����> ����һ��    ��pbmloud close 200 �� -> [to]
+pbmloud -f ����һ�㣨Ӧ�� close / open�� ��pbmloud -f �� -> [close, open]
+pbmloud -f <X> to ����һ��     ��pbmloud -f 200 to �� -> []
+pbmloud -f open <X> to ����һ�� ��pbmloud -f open 200 to �� -> []
+pbmloud -f close <����> ����һ�� ��pbmloud -f close 200 �� -> [to]
+-------------------- ��1.50��/pbmround ָ���� --------------------
+pbmround ��ֱ���ӽڵ㣨��ֵ�������޲�ȫ��  ��pbmround �� -> [-f]
+pbmround <��Χ> ����һ��         ��pbmround 20 �� -> []
+pbmround <X> to ����һ��       ��pbmround 20 to �� -> []
+pbmround -f ����һ��           ��pbmround -f �� -> []
+pbmround -f <X> to ����һ��    ��pbmround -f 20 to �� -> []
+-------------------- ��1.23��/pbmmusicround /pbmmidiumround /pbmarriveround ָ���� --------------------
+pbmmusicround ��ֱ���ӽڵ㣨��ֵ�������޲�ȫ�� ��pbmmusicround �� -> [-f]
+pbmmusicround <��Χ> ����һ��    ��pbmmusicround 20 �� -> []
+pbmmusicround <X> to ����һ��  ��pbmmusicround 20 to �� -> []
+pbmmusicround -f ����һ��      ��pbmmusicround -f �� -> []
+pbmmusicround -f <X> to ����һ�� ��pbmmusicround -f 20 to �� -> []
+pbmmidiumround ��ֱ���ӽڵ㣨��ֵ�������޲�ȫ�� ��pbmmidiumround �� -> [-f]
+pbmmidiumround <��Χ> ����һ��   ��pbmmidiumround 20 �� -> []
+pbmmidiumround <X> to ����һ�� ��pbmmidiumround 20 to �� -> []
+pbmmidiumround -f ����һ��     ��pbmmidiumround -f �� -> []
+pbmmidiumround -f <X> to ����һ�� ��pbmmidiumround -f 20 to �� -> []
+pbmarriveround ��ֱ���ӽڵ㣨��ֵ�������޲�ȫ�� ��pbmarriveround �� -> [-f]
+pbmarriveround <��Χ> ����һ��   ��pbmarriveround 20 �� -> []
+pbmarriveround <X> to ����һ�� ��pbmarriveround 20 to �� -> []
+pbmarriveround -f ����һ��     ��pbmarriveround -f �� -> []
+pbmarriveround -f <X> to ����һ�� ��pbmarriveround -f 20 to �� -> []
+-------------------- ��1.16��/pbmclosewait ָ������������ʾ��ǿ�Ƶȴ�ʱ���� --------------------
+pbmclosewait ��ֱ���ӽڵ㣨��ֵ�������޲�ȫ�� ��pbmclosewait �� -> [-f]
+pbmclosewait <��> ����һ�㣨Ӧ�� to�� ��pbmclosewait 5 �� -> [to]
+pbmclosewait <X> to ����һ��   ��pbmclosewait 5 to �� -> []
+pbmclosewait -f ����һ��       ��pbmclosewait -f �� -> []
+pbmclosewait -f <X> to ����һ�� ��pbmclosewait -f 5 to �� -> []
+-------------------- ��1.17��/pbmmidium ָ��������վ�������ز��� + �ȴ������� --------------------
+pbmmidium ��ֱ���ӽڵ㣨Ӧ�� -f���������ַ�����������ȫ�� ��pbmmidium �� -> [-f]
+pbmmidium <����> ����һ�㣨��ֵ�������޲�ȫ�� ��pbmmidium default �� -> []
+pbmmidium -f ����һ�㣨�ַ�����������ȫ�� ��pbmmidium -f �� -> []
+pbmmidium -f <����> ����һ�㣨��ֵ�������޲�ȫ�� ��pbmmidium -f default �� -> []
+  OK   ��pbmmidium�� ��ִ�� = true
+  OK   ��pbmmidium default�� ��ִ�� = true
+  OK   ��pbmmidium default 0�� ��ִ�� = true
+  OK   ��pbmmidium default 5�� ��ִ�� = true
+  OK   ��pbmmidium -f default 5�� ��ִ�� = true
+  OK   ��pbmmidium default 0�� ��ִ�� = true
+  OK   ��pbmmidium -f default 0�� ��ִ�� = true
+  OK   ��pbmmidium default -1�� Ӧ���޷�ִ�У���վ�����ȴ�ʱ���½��� 0 �룩
+  OK   ��pbmmidium -f default -1�� Ӧ���޷�ִ�У�-f ��֧ͬ���½� 0 �룩
+  OK   ��pbmmidium default 2147483647�� ��ִ�� = true
+  OK   ��pbmmidium default 2147483648�� Ӧ���޷�ִ�У����� int ������Ӧ������ʧ�ܣ�
+  OK   clampPsdMidiumWaitSeconds(-1) = 0������ 0��
+  OK   clampPsdMidiumWaitSeconds(0) = 0������ 0��
+  OK   clampPsdMidiumWaitSeconds(5) = 5������ 5��
+  OK   clampPsdMidiumWaitSeconds(3600) = 3600������ 3600��
+  OK   clampPsdMidiumWaitSeconds(2147483647) = 2147483647������ 2147483647��
+  OK   PSD_MIDIUM_WAIT_MIN = 0������ 0���Ͻ���ⲻ�� = �û������� [0,+��)��
+  OK   DEFAULT_PSD_MIDIUM_WAIT_SECONDS = 0������ 0��
+  OK   normalizePsdMidiumAudio(null) = "off"������ "off"��
+  OK   normalizePsdMidiumAudio("") = "off"������ "off"��
+  OK   normalizePsdMidiumAudio("off") = "off"������ "off"��
+  OK   normalizePsdMidiumAudio("OFF") = "off"������ "off"��
+  OK   normalizePsdMidiumAudio("none") = "off"������ "off"��
+  OK   normalizePsdMidiumAudio("NONE") = "off"������ "off"��
+  OK   normalizePsdMidiumAudio("shanghai.ogg") = "shanghai.ogg"������ "shanghai.ogg"��
+  OK   resolvePsdMidiumName(null, CAT_PSD_MIDIUM, "off") = "off"��������off����
+  OK   resolvePsdMidiumName(null, CAT_PSD_MIDIUM, "none") = "off"��������off����
+
+-------------------- ��1.21��/pbmarrive ָ��������վ��վ���ز��� + ������-X = ���һ�೵��ʣ X �뵽վʱ���� --------------------
+pbmarrive ��ֱ���ӽڵ㣨Ӧ�� -f��    ��pbmarrive �� -> [-f]
+pbmarrive <����> ����һ��        ��pbmarrive default �� -> []
+pbmarrive -f ����һ��          ��pbmarrive -f �� -> []
+  OK   ��pbmarrive�� ��ִ�� = true
+  OK   ��pbmarrive default�� ��ִ�� = true
+  OK   ��pbmarrive default 0�� ��ִ�� = true
+  OK   ��pbmarrive default -1�� ��ִ�� = true
+  OK   ��pbmarrive default -50�� ��ִ�� = true
+  OK   ��pbmarrive -f default -50�� ��ִ�� = true
+  OK   ��pbmarrive default 1�� Ӧ���޷�ִ�У���վ��վ�����Ͻ��� 0 �루��ֵ = ���ڵ�վ�������壩��
+  OK   ��pbmarrive -f default 1�� Ӧ���޷�ִ�У�-f ��֧ͬ���Ͻ� 0 �룩
+  OK   ��pbmarrive default -2147483648�� ��ִ�� = true
+  OK   ��pbmarrive default -2147483649�� Ӧ���޷�ִ�У����� int ������Ӧ������ʧ�ܣ�
+  OK   clampPsdArriveSeconds(1) = 0������ 0��
+  OK   clampPsdArriveSeconds(0) = 0������ 0��
+  OK   clampPsdArriveSeconds(-1) = -1������ -1��
+  OK   clampPsdArriveSeconds(-50) = -50������ -50��
+  OK   clampPsdArriveSeconds(-3600) = -3600������ -3600��
+  OK   clampPsdArriveSeconds(-2147483648) = -2147483648������ -2147483648��
+  OK   PSD_ARRIVE_SECONDS_MAX = 0������ 0���½���ⲻ�� = �û������� (-��, 0]��
+  OK   DEFAULT_PSD_ARRIVE_SECONDS = 0������ 0��
+  OK   normalizePsdArriveAudio(null) = [off]������ [off]��
+  OK   normalizePsdArriveAudio([]) = [off]������ [off]��
+  OK   normalizePsdArriveAudio([off]) = [off]������ [off]��
+  OK   normalizePsdArriveAudio([OFF]) = [off]������ [off]��
+  OK   normalizePsdArriveAudio([none]) = [off]������ [off]��
+  OK   normalizePsdArriveAudio([NONE]) = [off]������ [off]��
+  OK   normalizePsdArriveAudio([jinzhan.ogg]) = [jinzhan.ogg]������ [jinzhan.ogg]��
+  OK   resolvePsdArriveName(null, CAT_PSD_ARRIVE, [off]) = [off]������ [off]��
+  OK   resolvePsdArriveName(null, CAT_PSD_ARRIVE, [none]) = [off]������ [off]��
+
+==================== ��1.50��/pbmmusic open|close �� /lifthelp up|down ͬ��״ ====================
+  OK   ��״��(����)�� pbmmusic open=[-f, off, on] / lifthelp up=[-f, off, on]
+  OK   ��״��on �� pbmmusic open=[to] / lifthelp up=[to]
+  OK   ��״��on to �� pbmmusic open=[off] / lifthelp up=[off]
+  OK   ��״��off to �� pbmmusic open=[on] / lifthelp up=[on]
+  OK   ��״��-f �� pbmmusic open=[off, on] / lifthelp up=[off, on]
+  OK   ��״��-f on to �� pbmmusic open=[off] / lifthelp up=[off]
+  OK   ��״��-f off to �� pbmmusic open=[on] / lifthelp up=[on]
+  OK   ��״��default �� pbmmusic open=[to] / lifthelp up=[to]
+  OK   ��״��default to �� pbmmusic open=[] / lifthelp up=[]
+  OK   ��״��-f default �� pbmmusic open=[to] / lifthelp up=[to]
+  OK   ��״��-f default to �� pbmmusic open=[] / lifthelp up=[]
+  OK   ��״��(����)�� pbmmusic close=[-f, off, on] / lifthelp down=[-f, off, on]
+  OK   ��״��on �� pbmmusic close=[to] / lifthelp down=[to]
+  OK   ��״��on to �� pbmmusic close=[off] / lifthelp down=[off]
+  OK   ��״��off to �� pbmmusic close=[on] / lifthelp down=[on]
+  OK   ��״��-f �� pbmmusic close=[off, on] / lifthelp down=[off, on]
+  OK   ��״��-f on to �� pbmmusic close=[off] / lifthelp down=[off]
+  OK   ��״��-f off to �� pbmmusic close=[on] / lifthelp down=[on]
+  OK   ��״��default �� pbmmusic close=[to] / lifthelp down=[to]
+  OK   ��״��default to �� pbmmusic close=[] / lifthelp down=[]
+  OK   ��״��-f default �� pbmmusic close=[to] / lifthelp down=[to]
+  OK   ��״��-f default to �� pbmmusic close=[] / lifthelp down=[]
+-------------------- ��1.50��/pbmloud open|close �� /lifthelploud up|down ͬ��״ --------------------
+  OK   ��״��(����)�� pbmloud open=[] / lifthelploud up=[]
+  OK   ��״��200 �� pbmloud open=[to] / lifthelploud up=[to]
+  OK   ��״��200 to �� pbmloud open=[] / lifthelploud up=[]
+  OK   ��״��(����)�� pbmloud -f open=[] / lifthelploud -f up=[]
+  OK   ��״��200 �� pbmloud -f open=[to] / lifthelploud -f up=[to]
+  OK   ��״��200 to �� pbmloud -f open=[] / lifthelploud -f up=[]
+  OK   ��״��(����)�� pbmloud close=[] / lifthelploud down=[]
+  OK   ��״��200 �� pbmloud close=[to] / lifthelploud down=[to]
+  OK   ��״��200 to �� pbmloud close=[] / lifthelploud down=[]
+-------------------- ��1.50��/pbmround �� /lifthelpround ͬ��״ --------------------
+  OK   ��״��(����)�� pbmround=[-f] / lifthelpround=[-f]
+  FAIL ��״��20 �� pbmround=[] / lifthelpround=[to]
+  OK   ��״��20 to �� pbmround=[] / lifthelpround=[]
+  OK   ��״��-f �� pbmround=[] / lifthelpround=[]
+  FAIL ��״��-f 20 �� pbmround=[] / lifthelpround=[to]
+  OK   ��״��-f 20 to �� pbmround=[] / lifthelpround=[]
+-------------------- ��1.23��/pbmmusicround|/pbmmidiumround|/pbmarriveround �� /pbmround ͬ��״ --------------------
+  OK   ��״��(����)�� pbmmusicround=[-f] / pbmround=[-f]
+  OK   ��״��20 �� pbmmusicround=[] / pbmround=[]
+  OK   ��״��20 to �� pbmmusicround=[] / pbmround=[]
+  OK   ��״��-f �� pbmmusicround=[] / pbmround=[]
+  OK   ��״��-f 20 �� pbmmusicround=[] / pbmround=[]
+  OK   ��״��-f 20 to �� pbmmusicround=[] / pbmround=[]
+  OK   ��״��(����)�� pbmmidiumround=[-f] / pbmround=[-f]
+  OK   ��״��20 �� pbmmidiumround=[] / pbmround=[]
+  OK   ��״��20 to �� pbmmidiumround=[] / pbmround=[]
+  OK   ��״��-f �� pbmmidiumround=[] / pbmround=[]
+  OK   ��״��-f 20 �� pbmmidiumround=[] / pbmround=[]
+  OK   ��״��-f 20 to �� pbmmidiumround=[] / pbmround=[]
+  OK   ��״��(����)�� pbmarriveround=[-f] / pbmround=[-f]
+  OK   ��״��20 �� pbmarriveround=[] / pbmround=[]
+  OK   ��״��20 to �� pbmarriveround=[] / pbmround=[]
+  OK   ��״��-f �� pbmarriveround=[] / pbmround=[]
+  OK   ��״��-f 20 �� pbmarriveround=[] / pbmround=[]
+  OK   ��״��-f 20 to �� pbmarriveround=[] / pbmround=[]
+-------------------- ��1.16��/pbmclosewait �� /pbmround ͬ��״ --------------------
+  OK   ��״��(����)�� pbmclosewait=[-f] / pbmround=[-f]
+  FAIL ��״��5 �� pbmclosewait=[to] / pbmround=[]
+  OK   ��״��5 to �� pbmclosewait=[] / pbmround=[]
+  OK   ��״��-f �� pbmclosewait=[] / pbmround=[]
+  FAIL ��״��-f 5 �� pbmclosewait=[to] / pbmround=[]
+  OK   ��״��-f 5 to �� pbmclosewait=[] / pbmround=[]
+
+==================== ��1.41��/futihelpmusic �� /futihelpspeed ��״���� ====================
+  OK   ��״��(����)�� futihelpmusic=[-f, in, out] / futihelpspeed=[-f, in, out]
+  OK   ��״��in �� futihelpmusic=[] / futihelpspeed=[]
+  OK   ��״��in a �� futihelpmusic=[to] / futihelpspeed=[to]
+  OK   ��״��in a to �� futihelpmusic=[] / futihelpspeed=[]
+  OK   ��״��out �� futihelpmusic=[] / futihelpspeed=[]
+  OK   ��״��out a �� futihelpmusic=[to] / futihelpspeed=[to]
+  OK   ��״��out a to �� futihelpmusic=[] / futihelpspeed=[]
+  OK   ��״��-f �� futihelpmusic=[in, out] / futihelpspeed=[in, out]
+  OK   ��״��-f in �� futihelpmusic=[] / futihelpspeed=[]
+  OK   ��״��-f in a �� futihelpmusic=[to] / futihelpspeed=[to]
+  OK   ��״��-f in a to �� futihelpmusic=[] / futihelpspeed=[]
+  OK   ��״��-f out �� futihelpmusic=[] / futihelpspeed=[]
+  OK   ��״��-f out a �� futihelpmusic=[to] / futihelpspeed=[to]
+  OK   ��״��-f out a to �� futihelpmusic=[] / futihelpspeed=[]
+
+==================== ��1.48��/lifthelploud �����֧���Կ�ִ�� ====================
+  OK   ��lifthelploud up 200�� ��ִ�� = true
+  OK   ��lifthelploud up 200 to 300�� ��ִ�� = true
+  OK   ��lifthelploud -f up 200�� ��ִ�� = true
+  OK   ��lifthelploud -f up 200 to 300�� ��ִ�� = true
+  OK   ��lifthelploud down 200�� ��ִ�� = true
+  OK   ��lifthelploud down 200 to 300�� ��ִ�� = true
+  OK   ��lifthelploud -f down 200�� ��ִ�� = true
+  OK   ��lifthelploud -f down 200 to 300�� ��ִ�� = true
+  FAIL ��lifthelploud door 200�� ��ִ�� = false �쳣=[<argument volume:integer(1, 1000)>]
+  FAIL ��lifthelploud door 200 to 300�� ��ִ�� = false �쳣=[<argument volume:integer(1, 1000)>]
+  FAIL ��lifthelploud -f door 200�� ��ִ�� = false �쳣=[<argument volume:integer(1, 1000)>]
+  FAIL ��lifthelploud -f door 200 to 300�� ��ִ�� = false �쳣=[<argument volume:integer(1, 1000)>]
+
+==================== �����Ĳ�ȫ�� ====================
+  OK   ��futihelp �� ���� [-f, off, on] ʵ�� [-f, off, on]
+  OK   ��futihelp on �� ���� [to] ʵ�� [to]
+  OK   ��futihelp on to �� ���� [off] ʵ�� [off]
+  OK   ��futihelp off �� ���� [to] ʵ�� [to]
+  OK   ��futihelp off to �� ���� [on] ʵ�� [on]
+  OK   ��futihelp -f �� ���� [off, on] ʵ�� [off, on]
+  OK   ��futihelp -f on �� ���� [to] ʵ�� [to]
+  OK   ��futihelp -f on to �� ���� [off] ʵ�� [off]
+  OK   ��futihelp -f off �� ���� [to] ʵ�� [to]
+  OK   ��futihelp -f off to �� ���� [on] ʵ�� [on]
+  OK   ��jietispeed �� ���� [-f] ʵ�� [-f]
+  OK   ��futiloud �� ���� [-f] ʵ�� [-f]
+  OK   ��futihelploud �� ���� [-f] ʵ�� [-f]
+  OK   ��futiround �� ���� [-f] ʵ�� [-f]
+  OK   ��futiround 20 �� ���� [to] ʵ�� [to]
+  OK   ��futiround 20 to �� ���� [] ʵ�� []
+  OK   ��futihelpround �� ���� [-f] ʵ�� [-f]
+  OK   ��futihelpround 4 �� ���� [to] ʵ�� [to]
+  OK   ��futihelpround 4 to �� ���� [] ʵ�� []
+  OK   ��futihelpround -f 4 �� ���� [to] ʵ�� [to]
+  OK   ��futihelpspeed �� ���� [-f, in, out] ʵ�� [-f, in, out]
+  OK   ��futihelpspeed in �� ���� [] ʵ�� []
+  OK   ��futihelpspeed in 5 �� ���� [to] ʵ�� [to]
+  OK   ��futihelpspeed in 5 to �� ���� [] ʵ�� []
+  OK   ��futihelpspeed out 1 �� ���� [to] ʵ�� [to]
+  OK   ��futihelpspeed -f �� ���� [in, out] ʵ�� [in, out]
+  OK   ��futihelpspeed -f in 5 �� ���� [to] ʵ�� [to]
+  OK   ��futihelpspeed -f in 5 to �� ���� [] ʵ�� []
+  OK   ��futihelpspeed -f out 1 �� ���� [to] ʵ�� [to]
+  OK   ��futihelpmusic �� ���� [-f, in, out] ʵ�� [-f, in, out]
+  OK   ��futihelpmusic in �� ���� [] ʵ�� []
+  OK   ��futihelpmusic in default �� ���� [to] ʵ�� [to]
+  OK   ��futihelpmusic in default to �� ���� [] ʵ�� []
+  OK   ��futihelpmusic out default �� ���� [to] ʵ�� [to]
+  OK   ��futihelpmusic out default to �� ���� [] ʵ�� []
+  OK   ��futihelpmusic -f �� ���� [in, out] ʵ�� [in, out]
+  OK   ��futihelpmusic -f in �� ���� [] ʵ�� []
+  OK   ��futihelpmusic -f in default �� ���� [to] ʵ�� [to]
+  OK   ��futihelpmusic -f in default to �� ���� [] ʵ�� []
+  OK   ��futihelpmusic -f out default �� ���� [to] ʵ�� [to]
+  OK   ��futihelpmusic -f out default to �� ���� [] ʵ�� []
+  FAIL ��lifthelp �� ���� [-f, door, down, off, on, up] ʵ�� [-f, close, down, off, on, open, up]
+  OK   ��lifthelp on �� ���� [to] ʵ�� [to]
+  OK   ��lifthelp on to �� ���� [off] ʵ�� [off]
+  OK   ��lifthelp off �� ���� [to] ʵ�� [to]
+  OK   ��lifthelp off to �� ���� [on] ʵ�� [on]
+  OK   ��lifthelp -f �� ���� [off, on] ʵ�� [off, on]
+  OK   ��lifthelp -f on to �� ���� [off] ʵ�� [off]
+  OK   ��lifthelp up �� ���� [-f, off, on] ʵ�� [-f, off, on]
+  OK   ��lifthelp up on �� ���� [to] ʵ�� [to]
+  OK   ��lifthelp up on to �� ���� [off] ʵ�� [off]
+  OK   ��lifthelp up off �� ���� [to] ʵ�� [to]
+  OK   ��lifthelp up off to �� ���� [on] ʵ�� [on]
+  OK   ��lifthelp up -f �� ���� [off, on] ʵ�� [off, on]
+  OK   ��lifthelp up -f on �� ���� [to] ʵ�� [to]
+  OK   ��lifthelp up -f on to �� ���� [off] ʵ�� [off]
+  OK   ��lifthelp up -f off �� ���� [to] ʵ�� [to]
+  OK   ��lifthelp up -f off to �� ���� [on] ʵ�� [on]
+  OK   ��lifthelp up default �� ���� [to] ʵ�� [to]
+  OK   ��lifthelp up default to �� ���� [] ʵ�� []
+  OK   ��lifthelp up -f default �� ���� [to] ʵ�� [to]
+  OK   ��lifthelp up -f default to �� ���� [] ʵ�� []
+  OK   ��lifthelp down �� ���� [-f, off, on] ʵ�� [-f, off, on]
+  OK   ��lifthelp down on �� ���� [to] ʵ�� [to]
+  OK   ��lifthelp down on to �� ���� [off] ʵ�� [off]
+  OK   ��lifthelp down off �� ���� [to] ʵ�� [to]
+  OK   ��lifthelp down off to �� ���� [on] ʵ�� [on]
+  OK   ��lifthelp down -f �� ���� [off, on] ʵ�� [off, on]
+  OK   ��lifthelp down -f on �� ���� [to] ʵ�� [to]
+  OK   ��lifthelp down -f on to �� ���� [off] ʵ�� [off]
+  OK   ��lifthelp down -f off �� ���� [to] ʵ�� [to]
+  OK   ��lifthelp down -f off to �� ���� [on] ʵ�� [on]
+  OK   ��lifthelp down default �� ���� [to] ʵ�� [to]
+  OK   ��lifthelp down default to �� ���� [] ʵ�� []
+  OK   ��lifthelp down -f default �� ���� [to] ʵ�� [to]
+  OK   ��lifthelp down -f default to �� ���� [] ʵ�� []
+  FAIL ��lifthelp door �� ���� [-f, off, on] ʵ�� []
+  FAIL ��lifthelp door on �� ���� [to] ʵ�� []
+  FAIL ��lifthelp door on to �� ���� [off] ʵ�� []
+  FAIL ��lifthelp door off �� ���� [to] ʵ�� []
+  FAIL ��lifthelp door off to �� ���� [on] ʵ�� []
+  FAIL ��lifthelp door -f �� ���� [off, on] ʵ�� []
+  FAIL ��lifthelp door -f on �� ���� [to] ʵ�� []
+  FAIL ��lifthelp door -f on to �� ���� [off] ʵ�� []
+  FAIL ��lifthelp door -f off �� ���� [to] ʵ�� []
+  FAIL ��lifthelp door -f off to �� ���� [on] ʵ�� []
+  FAIL ��lifthelp door default �� ���� [to] ʵ�� []
+  OK   ��lifthelp door default to �� ���� [] ʵ�� []
+  FAIL ��lifthelp door -f default �� ���� [to] ʵ�� []
+  OK   ��lifthelp door -f default to �� ���� [] ʵ�� []
+  FAIL ��lifthelploud �� ���� [-f, door, down, up] ʵ�� [-f, close, down, open, up]
+  OK   ��lifthelploud 200 �� ���� [to] ʵ�� [to]
+  OK   ��lifthelploud 200 to �� ���� [] ʵ�� []
+  FAIL ��lifthelploud -f �� ���� [door, down, up] ʵ�� [close, down, open, up]
+  OK   ��lifthelploud -f 200 �� ���� [to] ʵ�� [to]
+  OK   ��lifthelploud -f 200 to �� ���� [] ʵ�� []
+  OK   ��lifthelploud -f up 200 �� ���� [to] ʵ�� [to]
+  OK   ��lifthelploud -f down 200 to �� ���� [] ʵ�� []
+  OK   ��lifthelploud -f door �� ���� [] ʵ�� []
+  OK   ��pbmmusic �� ���� [-f, close, off, on, open] ʵ�� [-f, close, off, on, open]
+  OK   ��pbmmusic on �� ���� [to] ʵ�� [to]
+  OK   ��pbmmusic on to �� ���� [off] ʵ�� [off]
+  OK   ��pbmmusic off to �� ���� [on] ʵ�� [on]
+  OK   ��pbmmusic -f �� ���� [off, on] ʵ�� [off, on]
+  OK   ��pbmmusic -f on to �� ���� [off] ʵ�� [off]
+  OK   ��pbmmusic open �� ���� [-f, off, on] ʵ�� [-f, off, on]
+  OK   ��pbmmusic open on �� ���� [to] ʵ�� [to]
+  OK   ��pbmmusic open on to �� ���� [off] ʵ�� [off]
+  OK   ��pbmmusic open -f �� ���� [off, on] ʵ�� [off, on]
+  OK   ��pbmmusic open -f on to �� ���� [off] ʵ�� [off]
+  OK   ��pbmmusic close �� ���� [-f, off, on] ʵ�� [-f, off, on]
+  OK   ��pbmloud �� ���� [-f, close, open] ʵ�� [-f, close, open]
+  OK   ��pbmloud 200 �� ���� [to] ʵ�� [to]
+  OK   ��pbmloud 200 to �� ���� [] ʵ�� []
+  OK   ��pbmloud open �� ���� [] ʵ�� []
+  OK   ��pbmloud open 200 �� ���� [to] ʵ�� [to]
+  OK   ��pbmloud -f �� ���� [close, open] ʵ�� [close, open]
+  OK   ��pbmloud -f 200 �� ���� [to] ʵ�� [to]
+  OK   ��pbmloud -f open 200 �� ���� [to] ʵ�� [to]
+  OK   ��pbmround �� ���� [-f] ʵ�� [-f]
+  FAIL ��pbmround 20 �� ���� [to] ʵ�� []
+  OK   ��pbmround 20 to �� ���� [] ʵ�� []
+  FAIL ��pbmround -f 20 �� ���� [to] ʵ�� []
+  OK   ��pbmmusicround �� ���� [-f] ʵ�� [-f]
+  FAIL ��pbmmusicround 20 �� ���� [to] ʵ�� []
+  OK   ��pbmmusicround 20 to �� ���� [] ʵ�� []
+  FAIL ��pbmmusicround -f 20 �� ���� [to] ʵ�� []
+  OK   ��pbmmidiumround �� ���� [-f] ʵ�� [-f]
+  FAIL ��pbmmidiumround 20 �� ���� [to] ʵ�� []
+  OK   ��pbmmidiumround 20 to �� ���� [] ʵ�� []
+  FAIL ��pbmmidiumround -f 20 �� ���� [to] ʵ�� []
+  OK   ��pbmarriveround �� ���� [-f] ʵ�� [-f]
+  FAIL ��pbmarriveround 20 �� ���� [to] ʵ�� []
+  OK   ��pbmarriveround 20 to �� ���� [] ʵ�� []
+  FAIL ��pbmarriveround -f 20 �� ���� [to] ʵ�� []
+  OK   ��pbmclosewait �� ���� [-f] ʵ�� [-f]
+  OK   ��pbmclosewait 5 �� ���� [to] ʵ�� [to]
+  OK   ��pbmclosewait 5 to �� ���� [] ʵ�� []
+  OK   ��pbmclosewait -f 5 �� ���� [to] ʵ�� [to]
+
+==================== ÿ������ָ���ִ�� ====================
+  OK   ��futihelp�� ��ִ�� = true
+  OK   ��futihelp on�� ��ִ�� = true
+  OK   ��futihelp off�� ��ִ�� = true
+  OK   ��futihelp on to off�� ��ִ�� = true
+  OK   ��futihelp off to on�� ��ִ�� = true
+  OK   ��futihelp -f on�� ��ִ�� = true
+  OK   ��futihelp -f off�� ��ִ�� = true
+  OK   ��futihelp -f on to off�� ��ִ�� = true
+  OK   ��futihelp -f off to on�� ��ִ�� = true
+  OK   ��futispeed�� ��ִ�� = true
+  OK   ��futispeed -f 2�� ��ִ�� = true
+  OK   ��futispeed -f 2 to 3�� ��ִ�� = true
+  OK   ��jietispeed�� ��ִ�� = true
+  OK   ��futiloud�� ��ִ�� = true
+  OK   ��futiloud -f 200�� ��ִ�� = true
+  OK   ��futiloud -f 200 to 300�� ��ִ�� = true
+  OK   ��futihelploud�� ��ִ�� = true
+  OK   ��futihelploud 200�� ��ִ�� = true
+  OK   ��futihelploud 200 to 300�� ��ִ�� = true
+  OK   ��futihelploud -f 200�� ��ִ�� = true
+  OK   ��futihelploud -f 200 to 300�� ��ִ�� = true
+  OK   ��futimusic�� ��ִ�� = true
+  OK   ��futiround�� ��ִ�� = true
+  OK   ��futiround 20�� ��ִ�� = true
+  OK   ��futiround 20 to 30�� ��ִ�� = true
+  OK   ��futiround -f 20�� ��ִ�� = true
+  OK   ��futiround -f 20 to 30�� ��ִ�� = true
+  OK   ��futihelpround�� ��ִ�� = true
+  OK   ��futihelpround 4�� ��ִ�� = true
+  OK   ��futihelpround 4 to 6�� ��ִ�� = true
+  OK   ��futihelpround -f 6�� ��ִ�� = true
+  OK   ��futihelpround -f 6 to 8�� ��ִ�� = true
+  OK   ��futihelpspeed�� ��ִ�� = true
+  OK   ��futihelpspeed in 5�� ��ִ�� = true
+  OK   ��futihelpspeed in 5 to 8�� ��ִ�� = true
+  OK   ��futihelpspeed out 3�� ��ִ�� = true
+  OK   ��futihelpspeed out 3 to 4�� ��ִ�� = true
+  OK   ��futihelpspeed -f in 5�� ��ִ�� = true
+  OK   ��futihelpspeed -f in 5 to 8�� ��ִ�� = true
+  OK   ��futihelpspeed -f out 1�� ��ִ�� = true
+  OK   ��futihelpspeed -f out 1 to 2�� ��ִ�� = true
+  OK   ��futihelpmusic�� ��ִ�� = true
+  OK   ��futihelpmusic in default�� ��ִ�� = true
+  OK   ��futihelpmusic in off�� ��ִ�� = true
+  OK   ��futihelpmusic in example.ogg�� ��ִ�� = true
+  OK   ��futihelpmusic out default�� ��ִ�� = true
+  OK   ��futihelpmusic out off�� ��ִ�� = true
+  OK   ��futihelpmusic out example.ogg�� ��ִ�� = true
+  OK   ��futihelpmusic in default to off�� ��ִ�� = true
+  OK   ��futihelpmusic out example.ogg to default�� ��ִ�� = true
+  OK   ��futihelpmusic -f in default�� ��ִ�� = true
+  OK   ��futihelpmusic -f in off�� ��ִ�� = true
+  OK   ��futihelpmusic -f in default to example.ogg�� ��ִ�� = true
+  OK   ��futihelpmusic -f out default�� ��ִ�� = true
+  OK   ��futihelpmusic -f out example.ogg to off�� ��ִ�� = true
+  OK   ��lifthelp�� ��ִ�� = true
+  OK   ��lifthelp on�� ��ִ�� = true
+  OK   ��lifthelp off�� ��ִ�� = true
+  OK   ��lifthelp on to off�� ��ִ�� = true
+  OK   ��lifthelp off to on�� ��ִ�� = true
+  OK   ��lifthelp -f on�� ��ִ�� = true
+  OK   ��lifthelp -f off�� ��ִ�� = true
+  OK   ��lifthelp -f on to off�� ��ִ�� = true
+  OK   ��lifthelp -f off to on�� ��ִ�� = true
+  OK   ��lifthelp up�� ��ִ�� = true
+  OK   ��lifthelp up on�� ��ִ�� = true
+  OK   ��lifthelp up off�� ��ִ�� = true
+  OK   ��lifthelp up on to off�� ��ִ�� = true
+  OK   ��lifthelp up off to on�� ��ִ�� = true
+  OK   ��lifthelp up -f on�� ��ִ�� = true
+  OK   ��lifthelp up -f off�� ��ִ�� = true
+  OK   ��lifthelp up -f on to off�� ��ִ�� = true
+  OK   ��lifthelp up -f off to on�� ��ִ�� = true
+  OK   ��lifthelp up default�� ��ִ�� = true
+  OK   ��lifthelp up -f default�� ��ִ�� = true
+  OK   ��lifthelp up none�� ��ִ�� = true
+  OK   ��lifthelp up -f none�� ��ִ�� = true
+  OK   ��lifthelp up example.ogg�� ��ִ�� = true
+  OK   ��lifthelp up -f example.ogg�� ��ִ�� = true
+  OK   ��lifthelp up default to none�� ��ִ�� = true
+  OK   ��lifthelp up none to example.ogg�� ��ִ�� = true
+  OK   ��lifthelp up -f default to none�� ��ִ�� = true
+  OK   ��lifthelp up -f example.ogg to default�� ��ִ�� = true
+  OK   ��lifthelp down�� ��ִ�� = true
+  OK   ��lifthelp down on�� ��ִ�� = true
+  OK   ��lifthelp down off�� ��ִ�� = true
+  OK   ��lifthelp down on to off�� ��ִ�� = true
+  OK   ��lifthelp down off to on�� ��ִ�� = true
+  OK   ��lifthelp down -f on�� ��ִ�� = true
+  OK   ��lifthelp down -f off�� ��ִ�� = true
+  OK   ��lifthelp down -f on to off�� ��ִ�� = true
+  OK   ��lifthelp down -f off to on�� ��ִ�� = true
+  OK   ��lifthelp down default�� ��ִ�� = true
+  OK   ��lifthelp down -f default�� ��ִ�� = true
+  OK   ��lifthelp down none�� ��ִ�� = true
+  OK   ��lifthelp down -f none�� ��ִ�� = true
+  OK   ��lifthelp down example.ogg�� ��ִ�� = true
+  OK   ��lifthelp down -f example.ogg�� ��ִ�� = true
+  OK   ��lifthelp down default to none�� ��ִ�� = true
+  OK   ��lifthelp down none to example.ogg�� ��ִ�� = true
+  OK   ��lifthelp down -f default to none�� ��ִ�� = true
+  OK   ��lifthelp down -f example.ogg to default�� ��ִ�� = true
+  OK   ��lifthelp door�� ��ִ�� = true
+  OK   ��lifthelp door on�� ��ִ�� = true
+  OK   ��lifthelp door off�� ��ִ�� = true
+  OK   ��lifthelp door on to off�� ��ִ�� = true
+  OK   ��lifthelp door off to on�� ��ִ�� = true
+  OK   ��lifthelp door -f on�� ��ִ�� = true
+  OK   ��lifthelp door -f off�� ��ִ�� = true
+  OK   ��lifthelp door -f on to off�� ��ִ�� = true
+  OK   ��lifthelp door -f off to on�� ��ִ�� = true
+  OK   ��lifthelp door default�� ��ִ�� = true
+  OK   ��lifthelp door -f default�� ��ִ�� = true
+  OK   ��lifthelp door none�� ��ִ�� = true
+  OK   ��lifthelp door -f none�� ��ִ�� = true
+  OK   ��lifthelp door example.ogg�� ��ִ�� = true
+  OK   ��lifthelp door -f example.ogg�� ��ִ�� = true
+  OK   ��lifthelp door default to none�� ��ִ�� = true
+  OK   ��lifthelp door none to example.ogg�� ��ִ�� = true
+  OK   ��lifthelp door -f default to none�� ��ִ�� = true
+  OK   ��lifthelp door -f example.ogg to default�� ��ִ�� = true
+  OK   ��lifthelploud�� ��ִ�� = true
+  OK   ��lifthelploud 200�� ��ִ�� = true
+  OK   ��lifthelploud 200 to 300�� ��ִ�� = true
+  OK   ��lifthelploud -f 200�� ��ִ�� = true
+  OK   ��lifthelploud -f 200 to 300�� ��ִ�� = true
+  OK   ��pbmmusic�� ��ִ�� = true
+  OK   ��pbmmusic on�� ��ִ�� = true
+  OK   ��pbmmusic off�� ��ִ�� = true
+  OK   ��pbmmusic on to off�� ��ִ�� = true
+  OK   ��pbmmusic off to on�� ��ִ�� = true
+  OK   ��pbmmusic -f on�� ��ִ�� = true
+  OK   ��pbmmusic -f off�� ��ִ�� = true
+  OK   ��pbmmusic -f on to off�� ��ִ�� = true
+  OK   ��pbmmusic -f off to on�� ��ִ�� = true
+  OK   ��pbmmusic open�� ��ִ�� = true
+  OK   ��pbmmusic open on�� ��ִ�� = true
+  OK   ��pbmmusic open off�� ��ִ�� = true
+  OK   ��pbmmusic open on to off�� ��ִ�� = true
+  OK   ��pbmmusic open off to on�� ��ִ�� = true
+  OK   ��pbmmusic open -f on�� ��ִ�� = true
+  OK   ��pbmmusic open -f off�� ��ִ�� = true
+  OK   ��pbmmusic open -f on to off�� ��ִ�� = true
+  OK   ��pbmmusic close�� ��ִ�� = true
+  OK   ��pbmmusic close on�� ��ִ�� = true
+  OK   ��pbmmusic close off�� ��ִ�� = true
+  OK   ��pbmmusic close on to off�� ��ִ�� = true
+  OK   ��pbmmusic close off to on�� ��ִ�� = true
+  OK   ��pbmmusic close -f on�� ��ִ�� = true
+  OK   ��pbmmusic close -f off�� ��ִ�� = true
+  OK   ��pbmmusic close -f on to off�� ��ִ�� = true
+  OK   ��pbmloud�� ��ִ�� = true
+  OK   ��pbmloud 200�� ��ִ�� = true
+  OK   ��pbmloud 200 to 300�� ��ִ�� = true
+  OK   ��pbmloud -f 200�� ��ִ�� = true
+  OK   ��pbmloud -f 200 to 300�� ��ִ�� = true
+  OK   ��pbmloud open 200�� ��ִ�� = true
+  OK   ��pbmloud open 200 to 300�� ��ִ�� = true
+  OK   ��pbmloud -f open 200�� ��ִ�� = true
+  OK   ��pbmloud -f open 200 to 300�� ��ִ�� = true
+  OK   ��pbmloud close 200�� ��ִ�� = true
+  OK   ��pbmloud close 200 to 300�� ��ִ�� = true
+  OK   ��pbmloud -f close 200�� ��ִ�� = true
+  OK   ��pbmloud -f close 200 to 300�� ��ִ�� = true
+  OK   ��pbmround�� ��ִ�� = true
+  FAIL ��pbmround 16�� ��ִ�� = false
+  FAIL ��pbmround 16 to 24�� ��ִ�� = false �쳣=[<argument y:integer(1, 128)>]
+  FAIL ��pbmround -f 16�� ��ִ�� = false
+  FAIL ��pbmround -f 16 to 24�� ��ִ�� = false �쳣=[<argument y:integer(1, 128)>]
+  OK   ��pbmmusicround�� ��ִ�� = true
+  FAIL ��pbmmusicround 16�� ��ִ�� = false
+  FAIL ��pbmmusicround 16 to 24�� ��ִ�� = false �쳣=[<argument y:integer(1, 128)>]
+  FAIL ��pbmmusicround -f 16�� ��ִ�� = false
+  FAIL ��pbmmusicround -f 16 to 24�� ��ִ�� = false �쳣=[<argument y:integer(1, 128)>]
+  OK   ��pbmmidiumround�� ��ִ�� = true
+  FAIL ��pbmmidiumround 16�� ��ִ�� = false
+  FAIL ��pbmmidiumround 16 to 24�� ��ִ�� = false �쳣=[<argument y:integer(1, 128)>]
+  FAIL ��pbmmidiumround -f 16�� ��ִ�� = false
+  FAIL ��pbmmidiumround -f 16 to 24�� ��ִ�� = false �쳣=[<argument y:integer(1, 128)>]
+  OK   ��pbmarriveround�� ��ִ�� = true
+  FAIL ��pbmarriveround 16�� ��ִ�� = false
+  FAIL ��pbmarriveround 16 to 24�� ��ִ�� = false �쳣=[<argument y:integer(1, 128)>]
+  FAIL ��pbmarriveround -f 16�� ��ִ�� = false
+  FAIL ��pbmarriveround -f 16 to 24�� ��ִ�� = false �쳣=[<argument y:integer(1, 128)>]
+  OK   ��pbmclosewait�� ��ִ�� = true
+  OK   ��pbmclosewait 5�� ��ִ�� = true
+  OK   ��pbmclosewait 5 to 10�� ��ִ�� = true
+  OK   ��pbmclosewait -f 5�� ��ִ�� = true
+  OK   ��pbmclosewait -f 5 to 10�� ��ִ�� = true
+  OK   ��pbmloud 0�� Ӧ���޷�ִ�У����������� 1��
+  OK   ��pbmloud 1001�� Ӧ���޷�ִ�У����������� 1000��
+  OK   ��pbmloud -f open 1001�� Ӧ���޷�ִ�У�-f �����֧ͬ������ 1000��
+  OK   ��pbmloud 1�� ��ִ�� = true
+  OK   ��pbmloud 1000�� ��ִ�� = true
+  OK   ��pbmround 0�� Ӧ���޷�ִ�У���Χ������ 1��
+  OK   ��pbmround 200�� Ӧ���޷�ִ�У���Χ������ 128��
+  FAIL ��pbmround 128�� ��ִ�� = false
+  OK   ��pbmmusicround 0�� Ӧ���޷�ִ�У�pbmmusicround ��Χ������ 1��
+  OK   ��pbmmusicround 200�� Ӧ���޷�ִ�У�pbmmusicround ��Χ������ 128��
+  OK   ��pbmmusicround -f 0�� Ӧ���޷�ִ�У�pbmmusicround -f ��֧ͬ������ 1��
+  OK   ��pbmmusicround -f 200�� Ӧ���޷�ִ�У�pbmmusicround -f ��֧ͬ������ 128��
+  FAIL ��pbmmusicround 1�� ��ִ�� = false
+  FAIL ��pbmmusicround 128�� ��ִ�� = false
+  OK   ��pbmmidiumround 0�� Ӧ���޷�ִ�У�pbmmidiumround ��Χ������ 1��
+  OK   ��pbmmidiumround 200�� Ӧ���޷�ִ�У�pbmmidiumround ��Χ������ 128��
+  OK   ��pbmmidiumround -f 0�� Ӧ���޷�ִ�У�pbmmidiumround -f ��֧ͬ������ 1��
+  OK   ��pbmmidiumround -f 200�� Ӧ���޷�ִ�У�pbmmidiumround -f ��֧ͬ������ 128��
+  FAIL ��pbmmidiumround 1�� ��ִ�� = false
+  FAIL ��pbmmidiumround 128�� ��ִ�� = false
+  OK   ��pbmarriveround 0�� Ӧ���޷�ִ�У�pbmarriveround ��Χ������ 1��
+  OK   ��pbmarriveround 200�� Ӧ���޷�ִ�У�pbmarriveround ��Χ������ 128��
+  OK   ��pbmarriveround -f 0�� Ӧ���޷�ִ�У�pbmarriveround -f ��֧ͬ������ 1��
+  OK   ��pbmarriveround -f 200�� Ӧ���޷�ִ�У�pbmarriveround -f ��֧ͬ������ 128��
+  FAIL ��pbmarriveround 1�� ��ִ�� = false
+  FAIL ��pbmarriveround 128�� ��ִ�� = false
+  OK   ��pbmclosewait 0�� ��ִ�� = true
+  OK   ��pbmclosewait 60�� ��ִ�� = true
+  OK   ��pbmclosewait -f 0�� ��ִ�� = true
+  OK   ��pbmclosewait -f 60�� ��ִ�� = true
+  OK   ��pbmclosewait 1000000�� Ӧ���޷�ִ�У�ǿ�Ƶȴ������� 999999 �룩
+  OK   ��pbmclosewait -f 1000000�� Ӧ���޷�ִ�У�-f ��֧ͬ������ 999999 �룩
+  OK   ��pbmclosewait -1�� Ӧ���޷�ִ�У�ǿ�Ƶȴ������� 0 �룩
+  OK   ��pbmclosewait 5 to 1000000�� Ӧ���޷�ִ�У�to ����ֵͬ��������Լ����
+  OK   clampPsdCloseWaitSeconds(-1) = 0������ 0��
+  OK   clampPsdCloseWaitSeconds(0) = 0������ 0��
+  OK   clampPsdCloseWaitSeconds(5) = 5������ 5��
+  OK   clampPsdCloseWaitSeconds(60) = 60������ 60��
+  OK   clampPsdCloseWaitSeconds(61) = 61������ 61��
+  OK   clampPsdCloseWaitSeconds(1000) = 1000������ 1000��
+  OK   clampPsdCloseWaitSeconds(999999) = 999999������ 999999��
+  OK   clampPsdCloseWaitSeconds(1000000) = 999999������ 999999��
+  OK   DEFAULT_PSD_CLOSE_WAIT_SECONDS = 5������ 5��
+  OK   PSD_CLOSE_WAIT_MIN/MAX = 0/999999�������½� 0���Ͻ�����½磩
+  OK   ��pbmmusic on to on�� Ӧ���޷�ִ�У�on to on Ӧ�޴˷�֧��
+  OK   ��pbmmusic off to off�� Ӧ���޷�ִ�У�off to off Ӧ�޴˷�֧��
+  OK   ��pbmmusic open on to on�� Ӧ���޷�ִ�У�open on to on Ӧ�޴˷�֧��
+  OK   ��pbmmusic close -f off to off�� Ӧ���޷�ִ�У�close -f off to off Ӧ�޴˷�֧��
+
+==================== ���ô��ڵķ�֧ ====================
+  OK   ��futihelp on to on�� Ӧ���޷�ִ�У�on to on Ӧ�޴˷�֧��
+  OK   ��futihelp off to off�� Ӧ���޷�ִ�У�off to off Ӧ�޴˷�֧��
+  OK   ��futihelp -f on to on�� Ӧ���޷�ִ�У�-f on to on Ӧ�޴˷�֧��
+  OK   ��futiround 0�� Ӧ���޷�ִ�У���Χ������ 1��
+  OK   ��futiround 200�� Ӧ���޷�ִ�У���Χ������ 128��
+  OK   ��futihelpround 0�� Ӧ���޷�ִ�У���Χ������ 1��
+  OK   ��futihelpround 999�� Ӧ���޷�ִ�У���Χ������ 128��
+  OK   ��futihelpspeed in 0�� Ӧ���޷�ִ�У����������� 1 Hz��
+  OK   ��futihelpspeed out 51�� Ӧ���޷�ִ�У����������� 50 Hz��
+  OK   ��futihelpspeed -f in 0�� Ӧ���޷�ִ�У�-f ��֧ͬ������ 1 Hz��
+  OK   ��futihelpspeed -f out 51�� Ӧ���޷�ִ�У�-f ��֧ͬ������ 50 Hz��
+  OK   ��futihelpspeed out 50�� ��ִ�� = true
+  OK   ��futihelpspeed -f out 50�� ��ִ�� = true
+  OK   ��lifthelploud 0�� Ӧ���޷�ִ�У����������� 1��
+  OK   ��lifthelploud 1001�� Ӧ���޷�ִ�У����������� 1000��
+  OK   ��lifthelploud -f 0�� Ӧ���޷�ִ�У�-f ��֧ͬ������ 1��
+  OK   ��lifthelploud -f 1001�� Ӧ���޷�ִ�У�-f ��֧ͬ������ 1000��
+  OK   ��lifthelploud 1�� ��ִ�� = true
+  OK   ��lifthelploud 1000�� ��ִ�� = true
+  OK   ��lifthelploud -f 1000�� ��ִ�� = true
+  OK   ��lifthelp on to on�� Ӧ���޷�ִ�У�on to on Ӧ�޴˷�֧��
+  OK   ��lifthelp up on to on�� Ӧ���޷�ִ�У�up on to on Ӧ�޴˷�֧��
+       ���ԣ�exceptions={} readerCursor=9 totalLen=27
+  FAIL ��lifthelp door -f off to off�� Ӧ���޷�ִ�У�door -f off to off Ӧ�޴˷�֧��
+
+==================== ��1.15���������������ַ���������ע��˳����붤ס�� ====================
+  OK   ��lifthelp up�� ���ڵ�ӦΪ up ʵ�� up��δ���ѵ� 11/11���쳣=[]��
+  OK   ��lifthelp up on�� ���ڵ�ӦΪ on ʵ�� on��δ���ѵ� 14/14���쳣=[]��
+  OK   ��lifthelp up off�� ���ڵ�ӦΪ off ʵ�� off��δ���ѵ� 15/15���쳣=[]��
+  OK   ��lifthelp up -f on�� ���ڵ�ӦΪ on ʵ�� on��δ���ѵ� 17/17���쳣=[]��
+  OK   ��lifthelp up -f off�� ���ڵ�ӦΪ off ʵ�� off��δ���ѵ� 18/18���쳣=[]��
+  OK   ��lifthelp up default�� ���ڵ�ӦΪ name ʵ�� name��δ���ѵ� 19/19���쳣=[]��
+  OK   ��lifthelp up example.ogg�� ���ڵ�ӦΪ name ʵ�� name��δ���ѵ� 23/23���쳣=[]��
+  OK   ��lifthelp up default to none�� ���ڵ�ӦΪ target ʵ�� target��δ���ѵ� 27/27���쳣=[]��
+  OK   ��lifthelp up -f default�� ���ڵ�ӦΪ name ʵ�� name��δ���ѵ� 22/22���쳣=[]��
+  OK   ��lifthelp up -f default to none�� ���ڵ�ӦΪ target ʵ�� target��δ���ѵ� 30/30���쳣=[]��
+  OK   ��lifthelp down�� ���ڵ�ӦΪ down ʵ�� down��δ���ѵ� 13/13���쳣=[]��
+  OK   ��lifthelp down on�� ���ڵ�ӦΪ on ʵ�� on��δ���ѵ� 16/16���쳣=[]��
+  OK   ��lifthelp down off�� ���ڵ�ӦΪ off ʵ�� off��δ���ѵ� 17/17���쳣=[]��
+  OK   ��lifthelp down -f on�� ���ڵ�ӦΪ on ʵ�� on��δ���ѵ� 19/19���쳣=[]��
+  OK   ��lifthelp down -f off�� ���ڵ�ӦΪ off ʵ�� off��δ���ѵ� 20/20���쳣=[]��
+  OK   ��lifthelp down default�� ���ڵ�ӦΪ name ʵ�� name��δ���ѵ� 21/21���쳣=[]��
+  OK   ��lifthelp down example.ogg�� ���ڵ�ӦΪ name ʵ�� name��δ���ѵ� 25/25���쳣=[]��
+  OK   ��lifthelp down default to none�� ���ڵ�ӦΪ target ʵ�� target��δ���ѵ� 29/29���쳣=[]��
+  OK   ��lifthelp down -f default�� ���ڵ�ӦΪ name ʵ�� name��δ���ѵ� 24/24���쳣=[]��
+  OK   ��lifthelp down -f default to none�� ���ڵ�ӦΪ target ʵ�� target��δ���ѵ� 32/32���쳣=[]��
+  FAIL ��lifthelp door�� ���ڵ�ӦΪ door ʵ�� lifthelp��δ���ѵ� 9/13���쳣=[]��
+  FAIL ��lifthelp door on�� ���ڵ�ӦΪ on ʵ�� lifthelp��δ���ѵ� 9/16���쳣=[]��
+  FAIL ��lifthelp door off�� ���ڵ�ӦΪ off ʵ�� lifthelp��δ���ѵ� 9/17���쳣=[]��
+  FAIL ��lifthelp door -f on�� ���ڵ�ӦΪ on ʵ�� lifthelp��δ���ѵ� 9/19���쳣=[]��
+  FAIL ��lifthelp door -f off�� ���ڵ�ӦΪ off ʵ�� lifthelp��δ���ѵ� 9/20���쳣=[]��
+  FAIL ��lifthelp door default�� ���ڵ�ӦΪ name ʵ�� lifthelp��δ���ѵ� 9/21���쳣=[]��
+  FAIL ��lifthelp door example.ogg�� ���ڵ�ӦΪ name ʵ�� lifthelp��δ���ѵ� 9/25���쳣=[]��
+  FAIL ��lifthelp door default to none�� ���ڵ�ӦΪ target ʵ�� lifthelp��δ���ѵ� 9/29���쳣=[]��
+  FAIL ��lifthelp door -f default�� ���ڵ�ӦΪ name ʵ�� lifthelp��δ���ѵ� 9/24���쳣=[]��
+  FAIL ��lifthelp door -f default to none�� ���ڵ�ӦΪ target ʵ�� lifthelp��δ���ѵ� 9/32���쳣=[]��
+  OK   ��lifthelp on�� ���ڵ�ӦΪ on ʵ�� on��δ���ѵ� 11/11���쳣=[]��
+  OK   ��lifthelp off�� ���ڵ�ӦΪ off ʵ�� off��δ���ѵ� 12/12���쳣=[]��
+  FAIL ��lifthelp door�� ���ڵ�ӦΪ door ʵ�� lifthelp��δ���ѵ� 9/13���쳣=[]��
+
+==================== ��1.15��/pbmmusic open|close ͬ��Ҫ��ס���������� ====================
+  OK   ��pbmmusic open�� ���ڵ�ӦΪ open ʵ�� open��δ���ѵ� 13/13���쳣=[]��
+  OK   ��pbmmusic open on�� ���ڵ�ӦΪ on ʵ�� on��δ���ѵ� 16/16���쳣=[]��
+  OK   ��pbmmusic open off�� ���ڵ�ӦΪ off ʵ�� off��δ���ѵ� 17/17���쳣=[]��
+  OK   ��pbmmusic open -f on�� ���ڵ�ӦΪ on ʵ�� on��δ���ѵ� 19/19���쳣=[]��
+  OK   ��pbmmusic open -f off�� ���ڵ�ӦΪ off ʵ�� off��δ���ѵ� 20/20���쳣=[]��
+  OK   ��pbmmusic open default�� ���ڵ�ӦΪ name ʵ�� name��δ���ѵ� 21/21���쳣=[]��
+  OK   ��pbmmusic open default-c�� ���ڵ�ӦΪ name ʵ�� name��δ���ѵ� 23/23���쳣=[]��
+  OK   ��pbmmusic open default-m�� ���ڵ�ӦΪ name ʵ�� name��δ���ѵ� 23/23���쳣=[]��
+  OK   ��pbmmusic open none�� ���ڵ�ӦΪ name ʵ�� name��δ���ѵ� 18/18���쳣=[]��
+  OK   ��pbmmusic open example.ogg�� ���ڵ�ӦΪ name ʵ�� name��δ���ѵ� 25/25���쳣=[]��
+  OK   ��pbmmusic open default to none�� ���ڵ�ӦΪ target ʵ�� target��δ���ѵ� 29/29���쳣=[]��
+  OK   ��pbmmusic open -f default�� ���ڵ�ӦΪ name ʵ�� name��δ���ѵ� 24/24���쳣=[]��
+  OK   ��pbmmusic open -f default to none�� ���ڵ�ӦΪ target ʵ�� target��δ���ѵ� 32/32���쳣=[]��
+  OK   ��pbmmusic close�� ���ڵ�ӦΪ close ʵ�� close��δ���ѵ� 14/14���쳣=[]��
+  OK   ��pbmmusic close on�� ���ڵ�ӦΪ on ʵ�� on��δ���ѵ� 17/17���쳣=[]��
+  OK   ��pbmmusic close off�� ���ڵ�ӦΪ off ʵ�� off��δ���ѵ� 18/18���쳣=[]��
+  OK   ��pbmmusic close -f on�� ���ڵ�ӦΪ on ʵ�� on��δ���ѵ� 20/20���쳣=[]��
+  OK   ��pbmmusic close -f off�� ���ڵ�ӦΪ off ʵ�� off��δ���ѵ� 21/21���쳣=[]��
+  OK   ��pbmmusic close default�� ���ڵ�ӦΪ name ʵ�� name��δ���ѵ� 22/22���쳣=[]��
+  OK   ��pbmmusic close default-c�� ���ڵ�ӦΪ name ʵ�� name��δ���ѵ� 24/24���쳣=[]��
+  OK   ��pbmmusic close default-m�� ���ڵ�ӦΪ name ʵ�� name��δ���ѵ� 24/24���쳣=[]��
+  OK   ��pbmmusic close none�� ���ڵ�ӦΪ name ʵ�� name��δ���ѵ� 19/19���쳣=[]��
+  OK   ��pbmmusic close example.ogg�� ���ڵ�ӦΪ name ʵ�� name��δ���ѵ� 26/26���쳣=[]��
+  OK   ��pbmmusic close default to none�� ���ڵ�ӦΪ target ʵ�� target��δ���ѵ� 30/30���쳣=[]��
+  OK   ��pbmmusic close -f default�� ���ڵ�ӦΪ name ʵ�� name��δ���ѵ� 25/25���쳣=[]��
+  OK   ��pbmmusic close -f default to none�� ���ڵ�ӦΪ target ʵ�� target��δ���ѵ� 33/33���쳣=[]��
+
+==================== ��1.15��/pbmmusic open|close �زķ�֧�����ִ�� ====================
+  OK   ��pbmmusic open default�� ��ִ�� = true
+  OK   ��pbmmusic open default-c�� ��ִ�� = true
+  OK   ��pbmmusic open default-m�� ��ִ�� = true
+  OK   ��pbmmusic open none�� ��ִ�� = true
+  OK   ��pbmmusic open default to none�� ��ִ�� = true
+  OK   ��pbmmusic open -f default�� ��ִ�� = true
+  OK   ��pbmmusic open -f default to none�� ��ִ�� = true
+  OK   ��pbmmusic close default�� ��ִ�� = true
+  OK   ��pbmmusic close default-c�� ��ִ�� = true
+  OK   ��pbmmusic close default-m�� ��ִ�� = true
+  OK   ��pbmmusic close none�� ��ִ�� = true
+  OK   ��pbmmusic close default to none�� ��ִ�� = true
+  OK   ��pbmmusic close -f default�� ��ִ�� = true
+  OK   ��pbmmusic close -f default to none�� ��ִ�� = true
+
+==================== ��1.53��/MBM��music in|delete + help����1.57��train �ѳ�����====================
+  OK   ��MBM help�� ���ڵ�ӦΪ help ʵ�� help��δ���ѵ� 8/8���쳣=[]��
+  OK   ��mbm help�� ���ڵ�ӦΪ help ʵ�� help��δ���ѵ� 8/8���쳣=[]��
+  OK   ��MBM music in�� ���ڵ�ӦΪ in ʵ�� in��δ���ѵ� 12/12���쳣=[]��
+  OK   ��mbm music delete�� ���ڵ�ӦΪ delete ʵ�� delete��δ���ѵ� 16/16���쳣=[]��
+  OK   ��MBM�� ��ִ�� = true
+  OK   ��mbm�� ��ִ�� = true
+  OK   ��MBM help�� ��ִ�� = true
+  OK   ��mbm help�� ��ִ�� = true
+  OK   ��MBM music in�� ��ִ�� = true
+  OK   ��MBM music delete�� ��ִ�� = true
+  OK   ��mbm music in�� ��ִ�� = true
+  OK   ��mbm music delete�� ��ִ�� = true
+MBM ��ֱ���ӽڵ�                 ��MBM �� -> [help, music, picture]
+MBM music ��ֱ���ӽڵ�           ��MBM music �� -> [delete, in]
+  OK   ��MBM music�� Ӧ���޷�ִ�У�music ֻ�Ƿ���ڵ㣬��ִ������
+  OK   ��dtmusic�� Ӧ���޷�ִ�У���1.53���ɸ�ָ���Ѹ����� /MBM music��
+  OK   ��dtmusic in�� Ӧ���޷�ִ�У���1.53���ɸ�ָ���Ѹ����� /MBM music in��
+  OK   ��dtmusic delete�� Ӧ���޷�ִ�У���1.53���ɸ�ָ���Ѹ����� /MBM music delete��
+  FAIL ��MBM �� ���� [help, music] ʵ�� [help, music, picture]
+  FAIL ��mbm �� ���� [help, music] ʵ�� [help, music, picture]
+  OK   ��MBM music �� ���� [delete, in] ʵ�� [delete, in]
+  OK   ��mbm music �� ���� [delete, in] ʵ�� [delete, in]
+
+========== ��1.53����������Ԥ�� + ȫ�������� 35 ��ָ�����������ִ�� ==========
+  ---- �������Ԥ�裨11 ����----
+  OK   ��futimusic -f default�� ��ִ�� = true
+  OK   ��futihelp -f on�� ��ִ�� = true
+  OK   ��lifthelp -f on�� ��ִ�� = true
+  OK   ��lifthelp door -f on�� ��ִ�� = true
+  OK   ��lifthelp up -f on�� ��ִ�� = true
+  OK   ��lifthelp down -f on�� ��ִ�� = true
+  OK   ��pbmclosewait -f 1�� ��ִ�� = true
+  OK   ��pbmmusic open -f default�� ��ִ�� = true
+  OK   ��pbmmusic close -f default-m�� ��ִ�� = true
+  OK   ��pbmmusic open -f on�� ��ִ�� = true
+  OK   ��pbmmusic close -f on�� ��ִ�� = true
+  ---- �򵥸���Ԥ�裨11 ����----
+  OK   ��futimusic -f default�� ��ִ�� = true
+  OK   ��futihelp -f off�� ��ִ�� = true
+  OK   ��lifthelp -f on�� ��ִ�� = true
+  OK   ��lifthelp door -f off�� ��ִ�� = true
+  OK   ��lifthelp up -f on�� ��ִ�� = true
+  OK   ��lifthelp down -f on�� ��ִ�� = true
+  OK   ��pbmclosewait -f 1�� ��ִ�� = true
+  OK   ��pbmmusic open -f default�� ��ִ�� = true
+  OK   ��pbmmusic close -f default-s�� ��ִ�� = true
+  OK   ��pbmmusic open -f on�� ��ִ�� = true
+  OK   ��pbmmusic close -f on�� ��ִ�� = true
+  ---- �հ�Ԥ�裨9 ����----
+  OK   ��futimusic -f off�� ��ִ�� = true
+  OK   ��futihelp -f off�� ��ִ�� = true
+  OK   ��lifthelp -f off�� ��ִ�� = true
+  OK   ��lifthelp door -f off�� ��ִ�� = true
+  OK   ��lifthelp up -f off�� ��ִ�� = true
+  OK   ��lifthelp down -f off�� ��ִ�� = true
+  OK   ��pbmclosewait -f 1�� ��ִ�� = true
+  OK   ��pbmmusic open -f none�� ��ִ�� = true
+  OK   ��pbmmusic close -f none�� ��ִ�� = true
+  ---- ȫ������11 ����----
+  OK   ��futiloud -f 300�� ��ִ�� = true
+  OK   ��futihelploud -f 300�� ��ִ�� = true
+  OK   ��lifthelploud -f 300�� ��ִ�� = true
+  OK   ��lifthelploud -f up 300�� ��ִ�� = true
+  OK   ��lifthelploud -f down 300�� ��ִ�� = true
+  FAIL ��lifthelploud -f door 300�� ��ִ�� = false �쳣=[<argument volume:integer(1, 1000)>]
+  OK   ��pbmloud -f 300�� ��ִ�� = true
+  OK   ��pbmloud -f open 300�� ��ִ�� = true
+  OK   ��pbmloud -f close 300�� ��ִ�� = true
+  OK   ��pbmmidiumloud -f 300�� ��ִ�� = true
+  OK   ��pbmarriveloud -f 300�� ��ִ�� = true
+  OK   ��futiloud -f 1�� ��ִ�� = true
+  OK   ��futiloud -f 1000�� ��ִ�� = true
+  OK   ��futiloud -f 0�� Ӧ���޷�ִ�У������½� 1��
+  OK   ��futiloud -f 1001�� Ӧ���޷�ִ�У������Ͻ� 1000��
+  OK   ��pbmloud -f open 1001�� Ӧ���޷�ִ�У�ȫ�����ﵥ���֧ͬ���Ͻ� 1000��
+
+==================== β����������Ķ��գ����ռ���ָ��ж��ǲ��� Brigadier ������Ϊ�� ====================
+  ��futihelp on off�� ���ڵ�=on ��ִ����=true �����ѵ�=12/15 �쳣=[]
+  ��futispeed 2 3�� ���ڵ�=speed ��ִ����=true �����ѵ�=12/13 �쳣=[]
+  ��jietispeed 2 3�� ���ڵ�=speed ��ִ����=true �����ѵ�=13/14 �쳣=[]
+  ��futiloud 200 300�� ���ڵ�=volume ��ִ����=true �����ѵ�=13/16 �쳣=[]
+  ��futihelploud 200 300�� ���ڵ�=volume ��ִ����=true �����ѵ�=17/20 �쳣=[]
+  ��futihelp bogus�� ���ڵ�=futihelp ��ִ����=true �����ѵ�=9/14 �쳣=[]
+  ��futihelpspeed 5�� ���ڵ�=futihelpspeed ��ִ����=true �����ѵ�=14/15 �쳣=[]
+  ��futihelpspeed bogus�� ���ڵ�=futihelpspeed ��ִ����=true �����ѵ�=14/19 �쳣=[]
+  ��futihelpmusic bogus�� ���ڵ�=futihelpmusic ��ִ����=true �����ѵ�=14/19 �쳣=[]
+  ��futihelpmusic -f�� ���ڵ�=-f ��ִ����=false �����ѵ�=16/16 �쳣=[]
+  ��futihelpmusic in�� ���ڵ�=in ��ִ����=false �����ѵ�=16/16 �쳣=[]
+  ��futihelpmusic in default to�� ���ڵ�=to ��ִ����=false �����ѵ�=27/27 �쳣=[]
+  ��futihelpmusic default�� ���ڵ�=futihelpmusic ��ִ����=true �����ѵ�=14/21 �쳣=[]
+  ��futihelpmusic default to off�� ���ڵ�=futihelpmusic ��ִ����=true �����ѵ�=14/28 �쳣=[]
+  ��lifthelp bogus�� ���ڵ�=lifthelp ��ִ����=true �����ѵ�=9/14 �쳣=[]
+  ��lifthelploud 200 300�� ���ڵ�=volume ��ִ����=true �����ѵ�=17/20 �쳣=[]
+  ��lifthelp up bogus�� ���ڵ�=name ��ִ����=true �����ѵ�=17/17 �쳣=[]
+  ��lifthelp up on to�� ���ڵ�=to ��ִ����=false �����ѵ�=17/17 �쳣=[]
+  ��lifthelp up -f�� ���ڵ�=-f ��ִ����=false �����ѵ�=14/14 �쳣=[]
+  ��lifthelp up default to�� ���ڵ�=to ��ִ����=false �����ѵ�=22/22 �쳣=[]
+
+������� 69 ��� ?
+
+############################################################
+# PIDS 站台名掩码
+############################################################
+  ==> 通过
+
+############################################################
+# 有回归失败，见上面明细
+############################################################
+[safe-delete][diag] genie-trash failed: exit=1 bin=C:\Program Files\WorkBuddy\resources\vendor\genie-trash/win32-x64.exe path=/c/Users/user/Desktop/2/mzycBetterMTR-1.20.1/C:/Users/user/AppData/Local/Temp/tmp.N8hfStPwHt stderr=ERROR c:\Users\user\Desktop\2\mzycBetterMTR-1.20.1\C:\Users\user\AppData\Local\Temp\tmp.N8hfStPwHt: Error during a `trash` operation: CanonicalizePath { original: "c:\\Users\\user\\Desktop\\2\\mzycBetterMTR-1.20.1\\C:\\Users\\user\\AppData\\Local\\Temp" }
+[safe-delete][SAFE_DELETE_FAIL_CLOSED] {"target":"C:\\Users\\user\\AppData\\Local\\Temp/tmp.N8hfStPwHt","reason":"trash-failed","trashBin":"C:\\Program Files\\WorkBuddy\\resources\\vendor\\genie-trash/win32-x64.exe","genieTrashDir":"C:\\Program Files\\WorkBuddy\\resources\\vendor\\genie-trash"}

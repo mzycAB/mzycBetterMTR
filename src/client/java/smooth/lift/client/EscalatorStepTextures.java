@@ -1,6 +1,7 @@
 package smooth.lift.client;
 
 import com.mojang.blaze3d.platform.NativeImage;
+import com.mojang.blaze3d.systems.RenderSystem;
 import com.mojang.blaze3d.vertex.DefaultVertexFormat;
 import com.mojang.blaze3d.vertex.VertexFormat;
 import net.minecraft.client.Minecraft;
@@ -355,7 +356,24 @@ public final class EscalatorStepTextures {
         for (DynamicTexture texture : set.textures) {
             if (texture != null) {
                 // 先让贴图管理器摘掉名字，再关掉 GPU 侧对象与像素。
-                texture.close();
+                // GL 删除必须发生在渲染线程：releaseAll 由 Netty 连接线程的 onDisconnect
+                // 触发，直接 close() 会报 "Rendersystem called from wrong thread"
+                //（与 releaseBuffers 同一类问题）。延迟到渲染线程下一帧执行。
+                final DynamicTexture tex = texture;
+                try {
+                    RenderSystem.recordRenderCall(() -> {
+                        try {
+                            tex.close();
+                        } catch (Exception ignore) {
+                        }
+                    });
+                } catch (Exception e) {
+                    // 渲染循环已停止（如游戏关闭中）：交由驱动回收，不阻塞清理。
+                    try {
+                        tex.close();
+                    } catch (Exception ignore) {
+                    }
+                }
             }
         }
     }

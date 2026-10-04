@@ -303,6 +303,46 @@ for _f, _fn in (("PsdToneSetupScreen.java", "applyMainInputs"),
 check("applyDefaultVolume();" in screen and "applyToneVolume(which);" in screen,
       "★ LiftToneSetupScreen 跳页前也落地（进子页面 / 从子页面返回那两跳）")
 
+# ---- 6f) ★【09-27】单项页 = 左右两列列表（按屏蔽门 UI 的样式改版） ----
+#   用户原话：「按照屏蔽门 ui 的样式，更新直梯的 ui（双列结构之类的样式更新）」。
+#   ★ 断言「几何来自 SoundListLayout」而不是「数字 == 190」—— 版式数字只有一份（那份是唯一来源）。
+#   ★ 1.20.1 分支没有分类隔离（无 CAT_*）：左列读同一个 MBM_Audio 文件夹、删除通道不带分类。
+print("\n== 6f. ★ 直梯单项页 = 左右两列列表（按屏蔽门 UI 样式；【09-27】） ==")
+check("SoundListLayout.leftColX(" in screen and "SoundListLayout.rightColX(" in screen
+      and "SoundListLayout.rowPickX(" in screen and "SoundListLayout.rowDeleteX(" in screen
+      and "SoundListLayout.rowY(" in screen,
+      "两列 / 行内三格的 x 与行 y 全部取自 SoundListLayout（不再各算一遍）")
+check("未导入存档" in screen and "已导入存档" in screen,
+      "两列表头 = 「未导入存档」/「已导入存档」（与屏蔽门逐字相同）")
+check("private static final int RIGHT_SPECIAL_ROWS = 3;" in screen,
+      "右列特殊行 = 3（开关 / 不播 / 默认（跟维度默认））")
+check("i + RIGHT_SPECIAL_ROWS" in screen,
+      "★ 已存入第 i 条落在第 i + 3 行（前 3 行被特殊行占了）")
+for _nm in ("ROW_H", "LIST_TOP", "COL_W", "ROW_BTN_W", "ROW_BTN_GAP",
+            "ROW_NAME_W", "ROW_NAME_CHARS", "BTN_Y"):
+    check(("private static final int %s = SoundListLayout.%s;" % (_nm, _nm)) in screen,
+          "直梯界面的 %s 是指向 SoundListLayout 的别名" % _nm)
+_m = re.search(r"private void buildTonePage\(String which\)\s*\{(.*?)\n    \}", screen, re.S)
+_body = _m.group(1) if _m else ""
+check(_body != "", "抠得出 buildTonePage() 方法体")
+if _body:
+    check("开关" in _body and "不播" in _body and "默认（跟维度默认）" in _body,
+          "右列三个特殊行（开关 / 不播 / 默认（跟维度默认））都建了控件")
+    check(_body.count("SoundListLayout.rowDeleteX(") == 1,
+          "★ 「删除」只出现在已存入行（三个特殊行都没有删除键）—— rowDeleteX 恰好 1 处",
+          "实际 %d 处" % _body.count("SoundListLayout.rowDeleteX("))
+    check("SoundListLayout.leftColX(this.width)" in _body
+          and "pending" in _body and "stored" in _body,
+          "左列 = pending（未导入）、右列 = stored（已导入），两列都建了控件")
+# ★ 1.20.1 没有分类隔离：删除通道只带 id、不带分类。
+check("deleteStored(String id)" in screen and "writeUtf(categoryFor" not in screen,
+      "1.20.1 无分类隔离：deleteStored 只带 id（不带 categoryFor）")
+# 灰字（与屏蔽门【1.18】同一口径：这一类颜色一个都不许留）
+GRAY_TEXTS_LIFT = ("0x808080", "0x909090", "0xFF909090", "0xFFE0E0E0", "0xC0C0C0", "0xA0A0A0")
+_gray = [c for c in GRAY_TEXTS_LIFT if c in screen]
+check(not _gray, "★ 直梯 UI 里没有任何灰色文字色（对齐屏蔽门：灰字已清）",
+      "；".join(_gray) if _gray else "白/黄两色之外无灰")
+
 print("\n== 7. 构建产物 ==")
 if not os.path.isfile(JAR):
     print("[SKIP] 未找到 %s，跳过打包校验（先跑 gradlew build）" % os.path.basename(JAR))
@@ -310,7 +350,7 @@ else:
     with zipfile.ZipFile(JAR) as z:
         names = set(z.namelist())
         check("smooth/lift/client/LiftToneSetupScreen.class" in names,
-              "jar 内含 LiftToneSetupScreen（三列表界面编进去了）")
+              "jar 内含 LiftToneSetupScreen（两列列表界面编进去了）")
         blob = z.read("smooth/lift/client/LiftChimePlayer.class")
         check(b"liftToneCustomId" in blob, "LiftChimePlayer.class 里有 liftToneCustomId（播放端分支编进去了）")
 

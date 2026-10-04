@@ -110,6 +110,23 @@ public class Mtr3LiftMixinPlugin implements IMixinConfigPlugin {
     }
 
     /**
+     * 【10-03 五改】MTR4 的 {@code org.mtr.core.data.Vehicle} 在不在 —— 决定发车等待那条 mixin 要不要应用。
+     *
+     * <p>★ 与其它两个探测同一条铁律：**只读资源**，绝不 load 类
+     * （一旦 load 进类加载器，别的模组的 mixin 准备阶段就会崩）。
+     */
+    private static Boolean mtr4Vehicle;
+
+    private static boolean mtr4VehiclePresent() {
+        if (mtr4Vehicle == null) {
+            mtr4Vehicle = classPresent("org.mtr.core.data.Vehicle");
+            LOGGER.info("[SmoothLift/PsdDepart] 关门后等待发车（MTR4 的 org.mtr.core.data.Vehicle）：{}",
+                    mtr4Vehicle ? "目标类在，已启用" : "目标类不在（没装 MTR4），跳过");
+        }
+        return mtr4Vehicle;
+    }
+
+    /**
      * 某个类**在不在**类路径上 —— 只看资源，**完全不加载类**。
      *
      * <p>★ 这里必须用 {@code getResource} 而不是 {@code Class.forName}：
@@ -136,6 +153,11 @@ public class Mtr3LiftMixinPlugin implements IMixinConfigPlugin {
         //   Mtr4LiftTrackFloorShapeMixin 只管 MTR4（按目标类本身是否存在判定）
         if (mixinClassName.endsWith("Mtr4LiftTrackFloorShapeMixin")) {
             return mtr4TrackFloorPresent();
+        }
+        // 【10-03 五改】「关门后等待 X 秒发车」：目标 = org.mtr.core.data.Vehicle（MTR4 独有 ——
+        //   MTR3 的列车叫 mtr.data.Train，所以判据同样只按「这个目标类在不在」，绝不 load 类）。
+        if (mixinClassName.endsWith("Mtr4TrainDepartHoldMixin")) {
+            return mtr4VehiclePresent();
         }
         return mtr3Present();
     }

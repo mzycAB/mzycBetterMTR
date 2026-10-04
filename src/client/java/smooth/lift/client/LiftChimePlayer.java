@@ -138,21 +138,37 @@ public final class LiftChimePlayer {
     private static final double RANGE_DEFAULT = EscalatorSpeedData.DEFAULT_LIFT_HELP_ROUND;
 
     /**
-     * 【1.51】「玩家在轿厢里」的水平判定半径（格）。MTR 直梯轿厢默认 1×1：玩家在厢内的水平偏移
-     * 约 0.7 格（站在格子中心）到 1.0 格（贴边）；MTR4 支持更宽的轿厢（2×2 时厢内中心 ≈ 1.41 格）
-     * ⇒ 取 1.5 把这两种都盖住。**离开这个半径**就按 {@link #OUTSIDE_CABIN_FACTOR} 立刻降档。
+     * ★【10-03】**垂直（y 轴）**默认射程（格）= {@link EscalatorSpeedData#DEFAULT_LIFT_HELP_ROUND_Y} = 5。
+     * 与 {@link #RANGE_DEFAULT}（水平，默认 4）成对：双维各算线性、取较小（见 {@link #spatialFactor}）。
+     */
+    private static final double RANGE_DEFAULT_Y = EscalatorSpeedData.DEFAULT_LIFT_HELP_ROUND_Y;
+
+    /**
+     * 【1.51】「玩家在轿厢里」的**回落**判定半径（格）—— 只在【1.52】**读不到 MTR 的真实轿厢尺寸**
+     * 时才用它。
      *
-     * <p>★ 只用**水平**距离、不看竖直：MTR4 的「当前位置」= 当前楼层方块
-     * （{@code Lift.getCurrentFloor().getPosition()}，javap 实测它由 {@code railProgress} 落在
-     * 哪一段「楼层累计距离」区间决定），行进中会**整层**偏 —— 拿它做竖直判据会把「轿厢里的乘客」
-     * 误判成轿厢外，正好破坏用户要的那条「进轿厢立刻 100%」。
-     * 竖直方向的远近由 {@code /lifthelpround} 的距离淡出兜住（同一竖列但隔好几层 ⇒ 早就淡到 0）。
+     * <p>MTR 直梯轿厢默认 1×1：玩家在厢内的水平偏移约 0.7 格（站在格子中心）到 1.0 格（贴边）；
+     * MTR4 支持更宽的轿厢（2×2 时厢内中心 ≈ 1.41 格）⇒ 取 1.5 把这两种都盖住。
+     *
+     * <p>★ 为什么【1.52】要把它降级成回落：这是个**以楼层方块为心**的圆，而楼层方块只是轿厢的
+     * 一个**角**（不是中心）⇒ 轿厢只要比 3×3 大，这个圆就切在**轿厢里面**，玩家在厢内走动时
+     * 反复穿过它，音量在 100% 与 ~15% 之间硬跳 —— 正是用户报的「一会大一会小」。
+     * 读得到真实尺寸时一律走 {@link MtrLiftAccess.Cabin} 那个盒（见 {@link #spatialFactor}）。
      */
     private static final double CABIN_RADIUS_H = 1.5;
 
     /**
+     * 【1.52】真实轿厢盒外再放宽的余量（格）。
+     *
+     * <p>玩家是个**有宽度**的点（{@code player.position()} 在脚下中心，身宽 ≈ 0.6）：贴着厢壁站
+     * 时那个点可以正好压在盒边、甚至略微出界。不留余量就会「贴墙站 = 掉到 20%」。
+     * 取 0.5 够盖住贴墙站位，又远小于任何真实轿厢尺寸，不会把「厢内」扩到厢外去。
+     */
+    private static final double CABIN_MARGIN = 0.5;
+
+    /**
      * 【1.51】玩家**离开轿厢**后音量立刻降到的比例：原先的 20%
-     * （再按距离平方衰减到 {@code /lifthelpround} 处的 0）。
+     * （再按**比例线性**衰减到 {@code /lifthelpround} 处的 0；★【10-03】原为平方，已按用户点名拉直）。
      */
     private static final float OUTSIDE_CABIN_FACTOR = 0.2f;
 
@@ -183,10 +199,14 @@ public final class LiftChimePlayer {
     private static long nextPlayTick;
     /** 这一轮发声的位置。 */
     private static Vec3 seqPos;
+    /** 【1.52】这一轮发声那条直梯的轿厢盒（null = 读不到尺寸 ⇒ 回落 1.5 格圆）。 */
+    private static MtrLiftAccess.Cabin seqCabin;
     /** 这一轮的倍速（pitch）。 */
     private static float seqPitch = 1.0f;
     /** 【1.45】这一轮连播用的素材：null = 内置 {@link #LIFT_MUSIC}；否则音频库文件名。 */
     private static String seqCustomId;
+    /** 【1.60】这一轮连播是哪一项（"open" 开门 / "close" 关门）—— 音量按它取单项。 */
+    private static String seqWhich = "close";
 
     /** 【1.45】直梯提示音素材设置的镜像代数（服务端同步回来时刷新本地缓存用）。 */
     private static long cachedToneGeneration = -1L;
@@ -200,8 +220,11 @@ public final class LiftChimePlayer {
     private static float cachedSpeed = EscalatorSpeedData.DEFAULT_LIFT_HELP_SPEED;
     /** 【1.43】音量（1~1000，100 = 原始音量），与上面两个共用同一份代次缓存。 */
     private static int cachedVolume = EscalatorSpeedData.DEFAULT_LIFT_HELP_VOLUME;
-    /** 【1.47】淡入淡出范围（格），与上面共用同一份代次缓存。 */
+    /** 【1.47】淡入淡出范围（格）——**水平（xz）**维，与上面共用同一份代次缓存。 */
     private static double cachedRound = RANGE_DEFAULT;
+
+    /** ★【10-03】淡入淡出范围——**垂直（y）**维，与上面共用同一份代次缓存（默认 5）。 */
+    private static double cachedRoundY = RANGE_DEFAULT_Y;
 
     /** 上一次「因为开关关掉而静音」时打的日志只打一次。 */
     private static boolean lastEnabled = true;
@@ -296,17 +319,39 @@ public final class LiftChimePlayer {
             return;
         }
         seqPos = new Vec3(lift.x(), lift.y(), lift.z());
+        // 【1.52】这一轮的轿厢盒 —— 音量判定用它（读到 null 就回落 1.5 格圆）。
+        seqCabin = lift.cabin();
         seqPitch = cachedSpeed;
-        // 【1.45】开关门连播素材：竖井列上设了自定义 chime 就用自定义；「不播」→ 静默跳过；
-        // 默认素材 = 内置 liftmusic。
-        String customId = liftToneCustomId(mc, lift, "chime");
+        // 【1.60】开关门连播素材：竖井列上设了自定义 open/close 就用自定义；「不播」→ 静默跳过；
+        // 默认素材 = 内置 liftmusic。which 按本次跳变方向取（开门 → open、关门 → close）。
+        String which = closing ? "close" : "open";
+        seqWhich = which;
+        String customId = liftToneCustomId(mc, lift, which);
+        // 【09-29】★★ 两个「不播」的原因必须**分开报**：以前一律说「设为『不播』」，
+        //   于是「子开关被预设关死了」看起来像「素材选了不播」—— 用户据此在 UI 里
+        //   反复换素材、越换越没声音（LOG5 那次就是这么被误导的）。
+        if (SWITCH_OFF_SENTINEL.equals(customId)) {
+            LOGGER.info("[SmoothLift/LiftChime] 直梯 #{} 开始{}，但本维度「{}提示音」的**子开关是关的**"
+                            + "（不是素材问题：素材 = {}）—— 子开关关着时播放端直接跳过。"
+                            + "要出声：/lifthelp {} on，或石斧 UI 那一页右列第 0 行的「切换」",
+                    lift.id(), closing ? "关门" : "开门", closing ? "关门" : "开门",
+                    EscalatorSpeedManager.getLiftToneAudio(mc.level, which), which);
+            playsLeft = 0;
+            nextPlayTick = 0L;
+            seqPos = null;
+            seqCabin = null;
+            seqCustomId = null;
+            return;
+        }
         if (STOP_SENTINEL.equals(customId)) {
-            LOGGER.info("[SmoothLift/LiftChime] 直梯 #{} 开始{}，但开关门提示音设为「不播」，跳过",
-                    lift.id(), closing ? "关门" : "开门");
+            LOGGER.info("[SmoothLift/LiftChime] 直梯 #{} 开始{}，但{}提示音这一项的素材就是「不播」，跳过"
+                            + "（子开关是开的；想听：/lifthelp {} default 换成内置素材）",
+                    lift.id(), closing ? "关门" : "开门", closing ? "关门" : "开门", which);
             // 清掉可能残留的上一轮排期（避免旧 playsLeft 干等）
             playsLeft = 0;
             nextPlayTick = 0L;
             seqPos = null;
+            seqCabin = null;
             seqCustomId = null;
             return;
         }
@@ -355,22 +400,33 @@ public final class LiftChimePlayer {
         boolean up = now == MtrLiftAccess.Move.UP;
         // 【1.48】这项（up/down）自己的音量：单项调过用它，没调过回落共用默认。
         int toneVolume = liftToneVolume(mc, up ? "up" : "down");
-        // 【1.51】音量 = 设置音量 × 空间系数（轿厢内 1.0；轿厢外 0.2 起、按 /lifthelpround 淡出）。
+        // 【1.51 / 1.52】音量 = 设置音量 × 空间系数（轿厢内 1.0；出厢 0.2 起、按 /lifthelpround 淡出）。
         //   这里只判「当前位置还听得见吗」；系数本身由实例逐 tick 重算。
         Vec3 tonePos = new Vec3(lift.x(), lift.y(), lift.z());
-        if (volumeFactor(toneVolume) * spatialFactor(playerPos(mc), tonePos) <= 0.0f) {
+        MtrLiftAccess.Cabin cabin = lift.cabin();
+        if (volumeFactor(toneVolume) * spatialFactor(playerPos(mc), tonePos, cabin) <= 0.0f) {
             return;
         }
         // 【1.45】准备移动提示音素材：竖井列上设了自定义 up/down 就用自定义；
         // 「不播」→ STOP_SENTINEL → 直接静默跳过；默认素材 → null → 内置 up.ogg/down.ogg。
+        // 【09-29】本维度该项的**子开关**关着 → SWITCH_OFF_SENTINEL（另一个哨兵，日志要说实话）。
         String customId = liftToneCustomId(mc, lift, up ? "up" : "down");
+        // 【09-29】两个原因分开报（见 detect 里那段说明）。
+        if (SWITCH_OFF_SENTINEL.equals(customId)) {
+            LOGGER.info("[SmoothLift/LiftChime] 直梯 #{} 准备{}移动，但本维度「{}提示音」的**子开关是关的**"
+                            + "（素材 = {}）—— 要出声：/lifthelp {} on",
+                    lift.id(), up ? "向上" : "向下", up ? "上楼" : "下楼",
+                    EscalatorSpeedManager.getLiftToneAudio(mc.level, up ? "up" : "down"), up ? "up" : "down");
+            return;
+        }
         if (STOP_SENTINEL.equals(customId)) {
-            LOGGER.info("[SmoothLift/LiftChime] 直梯 #{} 准备{}移动，但该项提示音设为「不播」，跳过",
-                    lift.id(), up ? "向上" : "向下");
+            LOGGER.info("[SmoothLift/LiftChime] 直梯 #{} 准备{}移动，但该项提示音的素材就是「不播」，跳过"
+                            + "（子开关是开的；想听：/lifthelp {} default）",
+                    lift.id(), up ? "向上" : "向下", up ? "up" : "down");
             return;
         }
         play(mc, up ? LIFT_UP : LIFT_DOWN, customId, tonePos,
-                volumeFactor(toneVolume), customId == null ? cachedSpeed : 1.0f);
+                volumeFactor(toneVolume), customId == null ? cachedSpeed : 1.0f, cabin);
         LOGGER.info("[SmoothLift/LiftChime] 直梯 #{} 准备{}移动 → 播放 {}（距玩家 {} 格、倍速 {}）",
                 lift.id(), up ? "向上" : "向下", customId == null ? (up ? "up.ogg" : "down.ogg") : customId,
                 String.format("%.1f", distance), String.format("%.2f", cachedSpeed));
@@ -385,7 +441,13 @@ public final class LiftChimePlayer {
      * </ul>
      *
      * <p>【1.46】在这之前先看**维度默认子开关**（{@code /lifthelp up|down|door on|off} 或石斧 UI 开关）：
-     * 该维度这项整体关了 → 直接返回 {@code STOP}（连单条素材都不用查）。
+     * 该维度这项整体关了 → 直接返回 {@link #SWITCH_OFF_SENTINEL}（连单条素材都不用查）。
+     *
+     * <p>★★【09-29】这个「子开关」是**闸门**：它关着时，无论素材设成什么都不会出声。
+     * 所以两个「不播」必须用**不同的哨兵**返回 —— {@link #SWITCH_OFF_SENTINEL}（闸门关）与
+     * {@link #STOP_SENTINEL}（素材本身选了「不播」），调用方才能把原因如实写进日志。
+     * ★ 旧版两个原因都返回同一个哨兵、日志一律写「设为『不播』」，于是「子开关被预设关死」
+     * 看起来像「素材选错了」—— 用户会一直在 UI 里换素材（LOG5 就是这么被误导的）。
      *
      * <p><b>【1.15】两层查找</b>：先看这条直梯（竖井列）的单独设置；没有这一条、或者那一项正好是
      * {@code default}（「跟上一层」），就回落到**维度默认素材**（{@code /lifthelp up|down|door <名字>}）；
@@ -404,7 +466,7 @@ public final class LiftChimePlayer {
         }
         // 【1.46】维度默认子开关（总开关 /lifthelp 在外层 onClientTick 已查）
         if (!EscalatorSpeedManager.isLiftToneEnabled(mc.level, which)) {
-            return STOP_SENTINEL;
+            return SWITCH_OFF_SENTINEL;
         }
         // ① 这条直梯的单独设置
         long key = EscalatorSpeedManager.liftToneKeyNear(lift.x(), lift.z());
@@ -427,9 +489,18 @@ public final class LiftChimePlayer {
     private static final String STOP_SENTINEL = "\u0000STOP";
 
     /**
+     * 【09-29】「本维度这一项的**子开关**关着」的哨兵 —— 与 {@link #STOP_SENTINEL}（素材=不播）
+     * 分开，好让日志说实话。
+     *
+     * <p>它描述的是**闸门**，不是素材：闸门关着时，素材设成什么都不会出声。
+     * 「预设写 `-f off` 把闸门焊死」正是靠这一层生效的（见 {@code PRESET_*} 那段说明）。
+     */
+    private static final String SWITCH_OFF_SENTINEL = "\u0000SWITCHOFF";
+
+    /**
      * 到点就放一下，放完这一轮就停。
      *
-     * @param helpVolume 【1.43】共用默认音量（1~1000）；【1.48】实际用 chime 单项（没调过回落它）
+     * @param helpVolume 【1.43】共用默认音量（1~1000）；【1.60】实际用 open/close 单项（没调过回落它）
      */
     private static void advance(Minecraft mc, int helpVolume) {
         if (playsLeft <= 0 || seqPos == null) {
@@ -439,17 +510,18 @@ public final class LiftChimePlayer {
         if (now < nextPlayTick) {
             return;
         }
-        // 【1.48】开关门连播用 chime 单项音量（-1 → 回落共用默认）
-        int toneVolume = liftToneVolume(mc, "chime");
+        // 【1.60】开关门连播用 open/close 单项音量（-1 → 回落共用默认）
+        int toneVolume = liftToneVolume(mc, seqWhich);
         // 【1.51】先判当前位置还听得见吗；听不见也照样往下推进排期，别把连播卡死。
         float base = volumeFactor(toneVolume);
-        if (base * spatialFactor(playerPos(mc), seqPos) > 0.0f) {
-            play(mc, LIFT_MUSIC, seqCustomId, seqPos, base, seqPitch);
+        if (base * spatialFactor(playerPos(mc), seqPos, seqCabin) > 0.0f) {
+            play(mc, LIFT_MUSIC, seqCustomId, seqPos, base, seqPitch, seqCabin);
         }
         playsLeft--;
         nextPlayTick = now + intervalTicks(seqPitch);
         if (playsLeft <= 0) {
             seqPos = null;
+            seqCabin = null;
             seqCustomId = null;
         }
     }
@@ -488,41 +560,118 @@ public final class LiftChimePlayer {
     }
 
     /**
-     * 【1.51】空间音量系数（乘在 {@link #volumeFactor} 的设置音量上）：
+     * 【1.51 / 1.52】空间音量系数（乘在 {@link #volumeFactor} 的设置音量上）：
      *
      * <pre>
-     *   水平距离 ≤ {@link #CABIN_RADIUS_H}            → 1.0   （在轿厢里：100%）
-     *   之外，记 x = 到声源的直线距离 − 轿厢半径
-     *     x ≥ 淡出跨度（= /lifthelpround − 轿厢半径）  → 0.0   （超出范围：静音）
-     *     否则                                        → 0.2 · (1 − x/跨度)²
+     *   在轿厢里                                   → 1.0   （用户点名：进轿厢立刻 100%）
+     *   之外，记 x = 到**轿厢表面**的距离
+     *     x ≥ 淡出跨度（= /lifthelpround − 1.5）    → 0.0   （超出范围：静音）
+     *     否则                                     → 0.2 · (1 − x/跨度)
      * </pre>
      *
-     * <p>所以「刚迈出轿厢」那一刻正好是原先的 **20%**（用户点名要的那个数），再往远走平方衰减，
-     * 到 {@code /lifthelpround} 格归零 —— 淡出跨度从**轿厢边缘**起算，这样 20% 才落在
+     * <p>所以「刚迈出轿厢」那一刻正好是 **20%**（用户点名要的那个数），再往远走**按比例线性**衰减，
+     * 到 {@code /lifthelpround} 格归零 —— 淡出跨度从**轿厢表面**起算，这样 20% 才落在
      * 「出轿厢」这一瞬，而不是被距离再打一次折。
      *
-     * <p>★ 与旧版 {@code gain(double)} 的差别：旧版只有距离、没有轿厢概念（0 格处才是 100%），
-     * 而且音量是**起播时定死**的 ⇒ 用户在轿厢里按下按钮再走出去，会一直满音量播完。
+     * <p>★★【10-03 用户点名，两点】：
+     * <ol>
+     *   <li><b>进出轿厢那一下不淡入淡出</b> —— 轿厢内 100%、出厢**一步直接**掉到 20%
+     *       （就是上面 {@code beyond <= 0 ? 1.0 : …} 那个硬跳，别给它加过渡）。</li>
+     *   <li><b>轿厢外那段改成按比例</b> —— 原来是 {@code 0.2 · (1 − x/跨度)²}，现在去掉平方。
+     *       于是「距离 0 格」= 20%（不是 100%，因为出厢那一步已经把 100 打到 20 了），
+     *       之后每远 1 格减 {@code 20/跨度}%，线性归零。</li>
+     * </ol>
+     * 与扶梯提示音（{@link EscalatorChimePlayer}）同一条「按比例」曲线，只差这个 20% 的起点系数。
      *
-     * <p>★ {@code /lifthelpround ≤ 轿厢半径}（指令下限 1 格 vs 半径 1.5 格）时淡出跨度 ≤ 0
-     * ⇒ 轿厢外一律静音（可见范围已经全被轿厢占满），这是可预期的降级，不特判。
+     * <p>★【1.52】「轿厢」从**以楼层方块为心、半径 1.5 格的圆**换成了
+     * {@link MtrLiftAccess.Cabin 真实轿厢盒}（= MTR「直梯自定义」里那组宽度/深度/高度 + 偏移）。
+     * 旧那个圆的圆心是轿厢的**一个角**、半径又是写死的 1.5 ⇒ 轿厢一宽，圆就切在厢内，
+     * 玩家走动时音量在 100% 与 ~15% 之间硬跳 —— 正是用户报的「一会大一会小」。
+     * 读不到真实尺寸时 {@code cabin == null} ⇒ 回落旧圆（保留 1.5 这条线，行为与 1.51 一致）。
+     *
+     * <p>★ 竖直方向**必须留容差**：{@code getCurrentFloor()} 取的是 railProgress 所在那一段的
+     * **较近一端**（javap 实测 {@code lambda$getCurrentFloor$3}），行进中基准最多偏一整段 ⇒
+     * 容差取 {@link MtrLiftAccess.Cabin#spacing()}（相邻楼层最小间距）。留小了会把**正在乘坐的
+     * 乘客**判成轿厢外、让那声提示音在行进途中一路淡下去 —— 那比原来的病更难听。
+     * 拿不到楼层表（{@code spacing == 0}）时**不做**竖直判定，只按水平盒判。
+     *
+     * <p>★ {@code /lifthelpround ≤ 1.5}（指令下限 1 格）时淡出跨度 ≤ 0 ⇒ 轿厢外一律静音
+     * （可见范围已经全被轿厢占满），这是可预期的降级，不特判。
+     *
+     * @param sound 声源（楼层方块位置）；只有回落分支还用它 —— 真实盒走的是 {@code cabin} 自己的中心
      */
-    private static float spatialFactor(Vec3 player, Vec3 sound) {
+    private static float spatialFactor(Vec3 player, Vec3 sound, MtrLiftAccess.Cabin cabin) {
         if (player == null) {
             return 1.0f;
         }
-        double dx = player.x - sound.x;
-        double dz = player.z - sound.z;
-        if (Math.sqrt(dx * dx + dz * dz) <= CABIN_RADIUS_H) {
+        if (cabin == null) {
+            // 【1.51】回落圆（读不到真实轿厢尺寸时）：**旧口径逐字保住** —— 水平 1.5 格内算在厢里，
+            // 之外 = (3D 距离 − 1.5)；曲线【10-03】已从平方拉直成线性。这一支**不做双维拆分**。
+            double dx = player.x - sound.x;
+            double dz = player.z - sound.z;
+            if (Math.sqrt(dx * dx + dz * dz) <= CABIN_RADIUS_H) {
+                return 1.0f;
+            }
+            double beyond = player.distanceTo(sound) - CABIN_RADIUS_H;
+            double span = cachedRound - CABIN_RADIUS_H;
+            if (!(span > 0.0) || beyond >= span) {
+                return 0.0f;
+            }
+            return (float) (OUTSIDE_CABIN_FACTOR * (1.0 - beyond / span));
+        }
+        // ★【10-03】真实轿厢盒：**双维**（水平 xz 默认 4 / 垂直 y 默认 5），任一维越界即静音；
+        //   范围内两维各算**按比例线性**、取**较小**。出厢那一步 100%→20% 的硬跳保持不变。
+        double hxz = cabinExcessHorizontal(player, cabin);
+        double py = cabinExcessVertical(player, cabin);
+        if (hxz <= 0.0 && py <= 0.0) {
             return 1.0f;
         }
-        double span = cachedRound - CABIN_RADIUS_H;
-        double beyond = player.distanceTo(sound) - CABIN_RADIUS_H;
-        if (!(span > 0.0) || beyond >= span) {
+        double spanXz = cachedRound - CABIN_RADIUS_H;
+        double spanY = cachedRoundY - CABIN_RADIUS_H;
+        if (!(spanXz > 0.0) || !(spanY > 0.0) || !(hxz < spanXz) || !(py < spanY)) {
             return 0.0f;
         }
-        double f = 1.0 - beyond / span;
-        return (float) (OUTSIDE_CABIN_FACTOR * f * f);
+        double f = Math.min(1.0 - hxz / spanXz, 1.0 - py / spanY);
+        return (float) (OUTSIDE_CABIN_FACTOR * f);
+    }
+
+    /**
+     * 【1.52】玩家到**轿厢表面**的距离：{@code <= 0} = 在轿厢里；{@code > 0} = 已出厢多少格。
+     *
+     * <p>真实盒：把玩家坐标与盒面逐轴相减、负的夹到 0，再取欧氏长度（= 点到轴对齐盒的距离，
+     * 标准做法）。三轴**同时** ≤ 0 就是「在盒里」，直接返 0 让调用方给 100%。
+     *
+     * <p>{@code cabin == null} 时回落【1.51】的圆：水平 ≤ {@link #CABIN_RADIUS_H} 算在厢里，
+     * 否则 {@code 3D 距离 − 半径}。**这一支必须逐字保住**，它就是「宽轿厢读不到尺寸」时的兜底。
+     */
+    /**
+     * ★【10-03】真实轿厢盒：玩家在**水平（xz）**方向超出盒面多少格（在盒内 ≤ 0）。
+     *
+     * <p>把玩家坐标与盒的 x / z 两面各相减、负的夹到 0，再取水平欧氏长度（点到轴对齐盒的
+     * **水平**距离，就是旧 {@code beyondCabin} 里 px / pz 那两轴）。
+     */
+    private static double cabinExcessHorizontal(Vec3 player, MtrLiftAccess.Cabin cabin) {
+        double ex = Math.abs(player.x - cabin.centerX()) - (cabin.halfWidth() + CABIN_MARGIN);
+        double ez = Math.abs(player.z - cabin.centerZ()) - (cabin.halfDepth() + CABIN_MARGIN);
+        double px = Math.max(ex, 0.0);
+        double pz = Math.max(ez, 0.0);
+        return Math.sqrt(px * px + pz * pz);
+    }
+
+    /**
+     * ★【10-03】真实轿厢盒：玩家在**垂直（y）**方向超出盒面多少格（在盒内 ≤ 0；含
+     * {@code spacing} 容差，理由见 {@link #spatialFactor}）。
+     *
+     * <p>拿不到楼层表（{@code spacing == 0}）时**不做**竖直判定、恒返 0 —— 与旧口径一致。
+     */
+    private static double cabinExcessVertical(Vec3 player, MtrLiftAccess.Cabin cabin) {
+        if (!(cabin.spacing() > 0.0)) {
+            return 0.0;
+        }
+        double slack = cabin.spacing();
+        double below = cabin.baseY() - slack;
+        double above = cabin.baseY() + cabin.height() + slack;
+        return Math.max(0.0, Math.max(below - player.y, player.y - above));
     }
 
     /**
@@ -537,9 +686,10 @@ public final class LiftChimePlayer {
      * @param customId 【1.45】音频库文件名（null = 用内置 event）。
      * @param baseVolume 【1.51】**不含**空间系数的设置音量（= {@code volumeFactor(该提示音音量)}）；
      *                   真实音量由 {@link LiftMusicInstance} 按「轿厢内外 + 距离」逐 tick 现算。
+     * @param cabin      【1.52】这条直梯的真实轿厢盒（{@code null} = 读不到 ⇒ 实例回落 1.5 格圆）。
      */
     private static void play(Minecraft mc, ResourceLocation event, String customId, Vec3 pos,
-                            float baseVolume, float pitch) {
+                            float baseVolume, float pitch, MtrLiftAccess.Cabin cabin) {
         if (customId == null) {
             if (mc.getSoundManager().getSoundEvent(event) == null) {
                 if (warnedMissingEvents.add(event)) {
@@ -549,7 +699,7 @@ public final class LiftChimePlayer {
                 return;
             }
             LiftMusicInstance inst = new LiftMusicInstance(event);
-            inst.setPosition(pos, baseVolume);
+            inst.setPosition(pos, baseVolume, cabin);
             inst.setPitch(pitch);
             mc.getSoundManager().play(inst);
             // 【1.43】音量上限要**成对**放开，只做一半就还是「调到 100 以上完全没变化」：
@@ -571,7 +721,7 @@ public final class LiftChimePlayer {
             return; // 没同步到 / 解码失败 / 已被删除 → 静默跳过（日志已在 injectAudio 内部处理过）
         }
         LiftMusicInstance inst = new LiftMusicInstance(event, customId);
-        inst.setPosition(pos, baseVolume);
+        inst.setPosition(pos, baseVolume, cabin);
         inst.setPitch(pitch);
         mc.getSoundManager().play(inst);
         SoundEngine engine = mc.getSoundManager().soundEngine;
@@ -590,6 +740,7 @@ public final class LiftChimePlayer {
         playsLeft = 0;
         nextPlayTick = 0L;
         seqPos = null;
+        seqCabin = null;
         seqCustomId = null;
         lastDoor.clear();
         lastMove.clear();
@@ -603,6 +754,7 @@ public final class LiftChimePlayer {
         cachedSpeed = EscalatorSpeedData.DEFAULT_LIFT_HELP_SPEED;
         cachedVolume = EscalatorSpeedData.DEFAULT_LIFT_HELP_VOLUME;
         cachedRound = RANGE_DEFAULT;
+        cachedRoundY = RANGE_DEFAULT_Y;
         lastEnabled = true;
     }
 
@@ -625,7 +777,7 @@ public final class LiftChimePlayer {
     }
 
     /**
-     * 【1.48】某项（up / down / chime）**生效**的音量：该项单独调过用它，没调过（-1）回落共用默认。
+     * 【1.60】某项（up / down / open / close）**生效**的音量：该项单独调过用它，没调过（-1）回落共用默认。
      * 用同一个 {@link #cachedGeneration} 缓存（Manager 的镜像整体同步，一次刷新三项都新鲜）。
      */
     private static int liftToneVolume(Minecraft mc, String which) {
@@ -643,6 +795,7 @@ public final class LiftChimePlayer {
         cachedSpeed = EscalatorSpeedManager.getLiftHelpSpeed(mc.level);
         cachedVolume = EscalatorSpeedManager.getLiftHelpVolume(mc.level);
         cachedRound = EscalatorSpeedManager.getLiftHelpRound(mc.level);
+        cachedRoundY = EscalatorSpeedManager.getLiftHelpRoundY(mc.level);
     }
 
     /**
@@ -679,6 +832,12 @@ public final class LiftChimePlayer {
          */
         private float baseVolume = 1.0f;
 
+        /**
+         * 【1.52】起播那一刻这条直梯的轿厢盒（{@code null} = 读不到尺寸 ⇒ 回落 1.5 格圆）。
+         * 位置本身就取起播时的，轿厢盒同理**不再刷新**：一次提示音只响几秒，中途轿厢不会变形。
+         */
+        private MtrLiftAccess.Cabin cabin;
+
         LiftMusicInstance(ResourceLocation event) {
             this(event, null);
         }
@@ -713,12 +872,13 @@ public final class LiftChimePlayer {
          * 【1.51】摆好声源位置 + 记下**设置音量**（不含空间系数），并立刻按玩家当前位置算一次
          * 初始音量 —— 这样开播当刻就是正确音量（既不炸一下、也没有开头空白）。
          */
-        void setPosition(Vec3 pos, float baseVolume) {
+        void setPosition(Vec3 pos, float baseVolume, MtrLiftAccess.Cabin cabin) {
             this.x = pos.x;
             this.y = pos.y;
             this.z = pos.z;
             this.baseVolume = baseVolume;
-            this.volume = baseVolume * spatialFactor(playerPos(Minecraft.getInstance()), pos);
+            this.cabin = cabin;
+            this.volume = baseVolume * spatialFactor(playerPos(Minecraft.getInstance()), pos, cabin);
         }
 
         /**
@@ -740,7 +900,8 @@ public final class LiftChimePlayer {
         @Override
         public void tick() {
             Minecraft mc = Minecraft.getInstance();
-            this.volume = baseVolume * spatialFactor(playerPos(mc), new Vec3(this.x, this.y, this.z));
+            this.volume = baseVolume
+                    * spatialFactor(playerPos(mc), new Vec3(this.x, this.y, this.z), this.cabin);
         }
 
         /**

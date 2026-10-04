@@ -838,8 +838,8 @@ check("long thresholdMs = (long) (-thresholdSeconds) * 1000L;" in player
       "remainMs ≤ thresholdMs 就起播（X=-10 ⇒ 剩 10 秒到站时起播）")
 check("leadMs" not in player,
       "★ 旧的 leadMs（把 X 当「提前几秒开门」讲）彻底消失 —— 口径只与**到站剩余时间**有关")
-check("到站前 " in screen and "、到站前 " in main,
-      "★ UI 状态行与指令反馈都按「到站前 N 秒」措辞"
+check("this.height + STATUS_Y_LIST" not in screen and "、到站前 " in main,
+      "★【1.30】UI 状态行已删（黄字/白字反馈都不再画）⇒「到站前 N 秒」只留在**指令反馈**里"
       "（口径是**最近一班列车到站的时间** —— 这条由上面 remainMs/thresholdMs 那两条钉住；"
       "　★【1.22】去括号后不再带「（最近一班车还剩这么多秒到站时起播）」这类括注）")
 check("提前开门提示音" not in screen and "提前秒数" not in screen and "提前秒数" not in main,
@@ -996,6 +996,42 @@ check('return "close".equals(which) ? 2 : 1;' in screen,
 check('pick(which, EscalatorSpeedData.PSD_TONE_OFF, false)' in screen
       and 'button -> importPending(id)' in screen,
       "左列点=只导入（与广播页同一语义）；右列选用走 pick(which, value, false)")
+
+# ======================================================================
+print("\n== 10. 【10-03】讲述人页左侧输入框**不许吞掉框外点击**（否则下面那两排插入按钮点不动） ==")
+# ----------------------------------------------------------------------
+# 症状（用户报）：「点击选项框之后要点一下其他大按钮才能按输入框下面那 2 排小按钮」。
+# 根因：ContainerEventHandler.mouseClicked（javap 核过）按 children **加入顺序**挨个问，
+#   第一个返回 true 的就收工。editor 在 buildNarratePage 里加得**比** buildInsertButtons 早，
+#   而 WrappingEditBox 原来「只要聚焦着就把所有点击都吞掉」⇒ 点在插入按钮上时 editor 先吃掉。
+# 原版 EditBox **不覆写** mouseClicked（只覆写 onClick），走 AbstractWidget ⇒ 框外返回 false。
+WEB = os.path.join(CLIENT, "WrappingEditBox.java")
+web = strip_comments(read(WEB))
+_wmc = re.search(r"public boolean mouseClicked\(double mouseX, double mouseY, int button\)\s*\{(.*?)\n    \}",
+                 web, flags=re.S)
+check(_wmc is not None, "找到 WrappingEditBox.mouseClicked")
+if _wmc:
+    _wb = _wmc.group(1)
+    check(re.search(r"if \(!inside\)\s*\{\s*return false;", _wb) is not None,
+          "★★【10-03】框外点击一律 return false（让给别的控件）—— "
+          "**别退回**「聚焦着就把所有点击都吞掉」，那正是本 bug")
+    check("setFocused(true);" in _wb and "return true;" in _wb,
+          "框内点击仍然：setFocused(true) + 定位光标 + return true")
+    check("charIndexAt(" in _wb,
+          "★ 框内定位仍走**换行后**坐标的 charIndexAt（本类存在的理由，不是照抄原版 onClick）")
+
+# 成因那一半：加入顺序必须仍然是「输入框在前、插入按钮在后」（换序了这条链就不成立，
+# 得回头重新想 —— 所以把它钉住，别让后人以为顺序无所谓）。
+_e_pos = screen.find("addRenderableWidget(editor);")
+_i_pos = screen.find("buildInsertButtons(")
+check(_e_pos != -1 and _i_pos != -1 and _e_pos < _i_pos,
+      "★ editor 先于 buildInsertButtons 入 children（顺序就是本 bug 的成因）")
+check('String[] cnTokens = {"|", "|SC|", "|WC|", "|LC|", "|DC|"};' in screen
+      and 'String[] enTokens = {"|SE|", "|WE|", "|LE|", "|DE|"};' in screen,
+      "两排插入按钮的记号表原样在（中文 5 列 / 英文 4 列）")
+check("insertAtCursor(cnTokens[col])" in screen and "insertAtCursor(enTokens[col - 1])" in screen
+      and ".bounds(x, row1Y," in screen and ".bounds(x, row2Y," in screen,
+      "两排都在：中文排 row1Y、英文排 row2Y（点一下在光标处填记号）")
 
 if FAILS:
     print("\n== 失败 %d 项 ==" % len(FAILS))

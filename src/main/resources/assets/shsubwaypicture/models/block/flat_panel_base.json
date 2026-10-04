@@ -1,0 +1,21 @@
+{
+    "textures": {
+        "front": "shsubwaypicture:block/white",
+        "white": "shsubwaypicture:block/white",
+        "particle": "shsubwaypicture:block/white"
+    },
+    "elements": [
+        {
+            "from": [0, 0, 0],
+            "to": [16, 16, 1],
+            "faces": {
+                "south": {"uv": [0, 0, 16, 16], "texture": "#front"},
+                "north": {"uv": [0, 0, 16, 16], "texture": "#white"},
+                "east":  {"uv": [0, 0, 1, 16],  "texture": "#white"},
+                "west":  {"uv": [0, 0, 1, 16],  "texture": "#white"},
+                "up":    {"uv": [0, 0, 16, 1],  "texture": "#white"},
+                "down":  {"uv": [0, 0, 16, 1],  "texture": "#white"}
+            }
+        }
+    ]
+}

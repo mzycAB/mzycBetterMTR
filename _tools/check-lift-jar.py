@@ -36,10 +36,15 @@ _LIBS = os.path.join(ROOT, "build", "libs")
 if len(sys.argv) > 1:
     JAR = sys.argv[1]
 else:
-    cands = sorted(n for n in (os.listdir(_LIBS) if os.path.isdir(_LIBS) else [])
-                   if n.startswith("smooth-escalator-") and n.endswith(".jar")
-                   and "sources" not in n)
-    JAR = os.path.join(_LIBS, cands[-1]) if cands else None
+    # ★ 2026-10-01 订正：原来写死 `n.startswith("smooth-escalator-")` —— 那是**旧的打包名**，
+    #   本仓的 jar 早就叫 `mzycBetterMTR-*.jar`（archives_base_name 已应用）⇒ 一个都匹配不上
+    #   ⇒ JAR=None ⇒ 走下面的 [SKIP] 静默退出 0 ⇒ **这套包守卫从来没真正跑过**，
+    #   于是 `Mtr3LiftAutoClose` 住进 mixin 包这件事一路瞒到了用户实机崩溃。
+    #   现在改成「build/libs 下最新的非 sources/dev 的 jar」，与其它脚本同款。
+    cands = [n for n in (os.listdir(_LIBS) if os.path.isdir(_LIBS) else [])
+             if n.endswith(".jar") and "sources" not in n and "-dev" not in n]
+    cands.sort(key=lambda n: os.path.getmtime(os.path.join(_LIBS, n)), reverse=True)
+    JAR = os.path.join(_LIBS, cands[0]) if cands else None
 
 FAILS = []
 
@@ -52,8 +57,11 @@ def check(ok, label, detail=""):
 
 
 if not JAR or not os.path.isfile(JAR):
-    print("[SKIP] 找不到 jar（先跑 gradlew build）：%s" % JAR)
-    sys.exit(0)
+    # ★ 2026-10-01 订正：原来是 `print("[SKIP]..."); sys.exit(0)` —— **静默通过比失败更危险**
+    #   （项目铁律）。check-all.sh 的前置就是「先构建过」，找不到 jar 就是环境不对，
+    #   必须响亮失败，否则这套守卫又会变成装样子的摆设。
+    print("[FAIL] 找不到 jar（先跑 gradlew build）：%s" % JAR)
+    sys.exit(1)
 
 print("校验 %s（%d B）" % (os.path.relpath(JAR, ROOT), os.path.getsize(JAR)))
 z = zipfile.ZipFile(JAR)
@@ -89,11 +97,25 @@ in_pkg = sorted({n[len(PKG):-len(".class")].replace("/", ".") for n in names
                  and "$" not in n[len(PKG):]})
 registered = set(mj.get("mixins") or [])
 # 插件类（plugin 指向的）允许在该包里，Mixin 会单独放行它。
-allowed_unregistered = {"Mtr3LiftMixinPlugin"}
+# ★ 不许写死成 {"Mtr3LiftMixinPlugin"}：`smoothlift.psd.mixins.json` 的插件
+#   `smooth.lift.mixin.mtr.PsdDoorMixinPlugin` 也物理躺在这个包里，写死会**假红**
+#   （2026-10-01 实测：包内 4 mixin + 2 插件，写死的名单只认 1 个）。
+#   正确做法：把所有 `*.mixins.json` 的 `plugin` 字段收集起来，只要 FQN 落在这个包就放行。
+allowed_unregistered = set()
+for _n in names:
+    if not _n.endswith(".mixins.json"):
+        continue
+    try:
+        _cfg = json.loads(z.read(_n))
+    except Exception:
+        continue
+    _plugin = _cfg.get("plugin")
+    if isinstance(_plugin, str) and _plugin.startswith(PKG.replace("/", ".")):
+        allowed_unregistered.add(_plugin.rsplit(".", 1)[-1])
 extra = [c for c in in_pkg if c not in registered and c not in allowed_unregistered]
 check(not extra,
-      "mixin 包内的每个类都在 mixins.json 里注册（未注册的普通类会让 Mixin 报 IllegalClassLoadError）",
-      "包内 %s / 未注册 %s" % (in_pkg, extra))
+      "mixin 包内的每个类都在 mixins.json 里注册、或是某份配置的 plugin（未注册的普通类会让 Mixin 报 IllegalClassLoadError）",
+      "包内 %s / 未注册 %s / 放行的 plugin %s" % (in_pkg, extra, sorted(allowed_unregistered)))
 check(mj.get("package") == "smooth.lift.mixin.mtr",
       "mixins.json 的 package 正确", str(mj.get("package")))
 check(mj.get("plugin") == "smooth.lift.mixin.mtr.Mtr3LiftMixinPlugin",

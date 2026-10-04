@@ -949,7 +949,12 @@ check("globalTravelTicks > 0 ? globalTravelTicks : MtrDwellAccess.DEFAULT_TRAVEL
 check("public static long cycleTicksForDwell(long dwellMs, long travelTicks)" in access_src
       and "Math.max(dwellMs / 2L, dwellMs - CLOSE_LEAD_MS)" in access_src,
       "★★ MtrDwellAccess 里的算式是 max(D/2, D-4200)（不是只写 D-4200 —— 短停站会算成负数）")
-check("Math.abs(py - y) > MAX_DY" in access_src,
+# ★【10-01 订正】原判据锚死字面量 `Math.abs(py - y) > MAX_DY`；当天给 MtrDwellAccess 补
+#   MTR3 绑定时，中点坐标多出了 px/pz 兄弟变量 ⇒ 本地变量改名 `py` → `pyv`
+#   （源码真实形态：`double pyv = py(mid);` 紧跟 `if (Math.abs(pyv - y) > MAX_DY) return NaN;`）。
+#   语义一字未变（同一道纵向窗口、同一个 MAX_DY），只是名字变了 —— 所以断言改成**按语义**匹配
+#   `Math.abs(p<名> - y) > MAX_DY`，不再钉死某一个变量名（钉死名字 = 下次 rename 又假红）。
+check(bool(re.search(r"Math\.abs\(p[a-z]+ - y\) > MAX_DY", access_src)),
       "★ 认站台时有纵向窗口（不让楼上/楼下的站台被误认成同一个）")
 check("dwellMsAt(double x, double y, double z)" in access_src
       and "return -1L" in access_src,

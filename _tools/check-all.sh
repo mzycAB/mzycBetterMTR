@@ -9,6 +9,10 @@
 #
 # 覆盖：
 #   check-mixin-plugin-safety.py  Mixin 准备阶段不得加载类（会崩别的模组的 mixin）
+#   check-mixin-package-refs.py   mixin 包里只许放 @Mixin 类与插件类
+#                                 ★ 2026-10-01 真事故：普通工具类住进 mixin 包 ⇒
+#                                   目标类（mtr.data.LiftServer）的注入处理器一引用它就
+#                                   IllegalClassLoadError ⇒ MTR3 世界一加载就崩
 #   check-escalator-step-engine.py 【1.26】扶梯阶梯渲染引擎（/mtrxr on|off、/mtrxr occ on|off）：
 #                                 ★ 根因「/mtrxr off 后阶梯整片消失、退重进才回来」——
 #                                 apply() 只许 invalidate()/**不得** reset()（LOADED 登记表被清空
@@ -81,6 +85,10 @@
 #   check-lift-chime.py           直梯提示音：开关/倍速/音量链路 + 同步包读写顺序配对
 #   check-lift-tone.py            直梯三提示音（up/down/chime）素材：数据/指令/UI/播放端
 #   check-lift-move-sound.py      直梯「准备移动」up.ogg / down.ogg 的触发判据与素材选择
+#   check-fade-curves.py          ★ 四类声音的「距离淡入淡出」**全项目统一按比例线性** `1 - d/R`
+#                                 （扶梯底噪/扶梯提示音/直梯提示音/屏蔽门；讲述人无增益）
+#                                 用户点名【10-03】：`/futimusicround=10 ⇒ 0格100%、1格90%`；
+#                                 `=5 ⇒ 0格100%、1格80%`。含用户向量 + 平方曲线对照 + 逐份形态 + mutation
 #   check-chime-tiers.py          无障碍提示音分档素材（5 档 pitch）
 #   check-lift-track-look.py      直梯楼层轨道外观
 #   check-command-tree.sh         指令树可达性 / 补全 / 边界拒绝 / 别名同形
@@ -109,6 +117,8 @@ run() {
 }
 
 run "mixin 插件安全"        "$PY" _tools/check-mixin-plugin-safety.py
+run "mixin 包守卫(类)"      "$PY" _tools/check-mixin-package-refs.py
+run "直梯 jar 结构体检"     "$PY" _tools/check-lift-jar.py
 run "扶梯阶梯渲染引擎"      "$PY" _tools/check-escalator-step-engine.py
 run "屏蔽门锚点与跳变"      "$PY" _tools/check-psd-anchor.py
 run "屏蔽门存档字段"        "$PY" _tools/check-psd-nbt.py
@@ -116,8 +126,14 @@ run "屏蔽门提示音素材"      "$PY" _tools/check-psd-tone.py
 run "屏蔽门关门提示音对齐"  "$PY" _tools/check-psd-align.py
 run "屏蔽门提示音顺序"      "$PY" _tools/check-psd-split.py
 run "屏蔽门提前量状态机"    "$PY" _tools/check-psd-predict.py
+run "MTR停站时长单位换算"   "$PY" _tools/check-dwell-unit.py
 run "屏蔽门音量与淡入淡出"  "$PY" _tools/check-psd-volume.py
 run "屏蔽门站台广播"        "$PY" _tools/check-psd-broadcast.py
+run "屏蔽门讲述人只念一次"  "$PY" _tools/check-psd-midium-once.py
+run "讲述人默认值/预设/按存档文字" "$PY" _tools/check-narrate-preset-save.py
+run "列车报站句式守则"          "$PY" _tools/check-train-announce.py
+run "讲述人香港档与UI清全局"  "$PY" _tools/check-narrate-ui-hk.py
+run "MTR3反射不再按字符串名" "$PY" _tools/check-mtr3-reflect.py
 run "屏蔽门串身份=站台"     "$PY" _tools/check-psd-platform-group.py
 run "屏蔽门1.28身份迁移与列车倍率" "$PY" _tools/check-psd-128.py
 run "屏蔽门铃声/播报归属"   "$PY" _tools/check-psd-scope.py
@@ -129,9 +145,11 @@ run "列车音效界面与侧线" "$PY" _tools/check-1.57-train-siding.py
 run "直梯提示音链路"        "$PY" _tools/check-lift-chime.py
 run "直梯三提示音素材"      "$PY" _tools/check-lift-tone.py
 run "直梯准备移动音"        "$PY" _tools/check-lift-move-sound.py
+run "淡入淡出全按比例"      "$PY" _tools/check-fade-curves.py
 run "无障碍提示音分档"      "$PY" _tools/check-chime-tiers.py
 run "直梯楼层轨道外观"      "$PY" _tools/check-lift-track-look.py
 run "指令树"                bash _tools/check-command-tree.sh
+run "PIDS 站台名掩码"      "$PY" _tools/check-pids-name-mask.py
 
 echo
 echo "############################################################"

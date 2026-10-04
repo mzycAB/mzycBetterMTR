@@ -1,0 +1,17 @@
+{
+    "block.shsubwaypicture.example_block": "示例方块",
+    "block.shsubwaypicture.test_1": "测试1",
+    "block.shsubwaypicture.pic_tl": "地图方块左上",
+    "block.shsubwaypicture.pic_tr": "地图方块右上",
+    "block.shsubwaypicture.pic_bl": "地图方块左下",
+    "block.shsubwaypicture.pic_br": "地图方块右下",
+    "block.shsubwaypicture.flat_tl": "薄片地图左上",
+    "block.shsubwaypicture.flat_tr": "薄片地图右上",
+    "block.shsubwaypicture.flat_bl": "薄片地图左下",
+    "block.shsubwaypicture.flat_br": "薄片地图右下",
+    "block.shsubwaypicture.flat_tl_small": "薄片小地图左上",
+    "block.shsubwaypicture.flat_tr_small": "薄片小地图右上",
+    "block.shsubwaypicture.flat_bl_small": "薄片小地图左下",
+    "block.shsubwaypicture.flat_br_small": "薄片小地图右下",
+    "itemGroup.shsubwaypicture.main": "SHSubwayPicture"
+}

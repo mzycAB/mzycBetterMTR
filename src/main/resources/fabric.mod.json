@@ -23,7 +23,8 @@
     "smooth_escalator.mixins.json",
     "smoothlift.client.mixins.json",
     "smoothlift.mtr.mixins.json",
-    "smoothlift.psd.mixins.json"
+    "smoothlift.psd.mixins.json",
+    "smoothlift.sodium.mixins.json"
   ],
   "depends": {
     "fabricloader": ">=0.15.0",

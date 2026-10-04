@@ -73,17 +73,9 @@ import java.util.Collection;
  * <ol>
  *   <li><b>太远</b>：分段紧致包围盒到相机的距离超过可视距离；</li>
  *   <li><b>不在视野里</b>：视锥判定（拿不到视锥时退回「视线点积」）；</li>
- *   <li><b>被墙 / 地形挡住</b>（1.28）：借
- *       {@link net.minecraft.client.renderer.LevelRenderer#renderChunksInFrustum}
- *       —— 原版 {@code renderChunkLayer} 就是遍历它画地形的（1.20.1 字节码实测：主循环里
- *       <b>没有任何</b> {@code hasDirection} 门控，进列表的段一个不落地画），所以它的定义正好是
- *       「原版这一帧真的要画的段」。集合拿不到就**当作判据不可用**并退回纯视锥剔除。
- *       <p>★ 1.20.1 ↔ 1.20.4 的对应关系：1.20.4 那个字段叫 {@code visibleSections}、
- *       元素是 {@code SectionRenderDispatcher$RenderSection}（1.20.3 改的名）；
- *       1.20.1 叫 {@code renderChunksInFrustum}、元素是 {@code LevelRenderer$RenderChunkInfo}
- *       （外层再包一层，真正的段在 {@code info.chunk}）。两者**都是 16³ 段**
- *       （{@code RenderChunkInfo.isAxisAlignedWith} 的字节码里就是 {@code bipush 16; idiv}），
- *       且 {@code getOrigin()} 返回的都是**方块坐标** ⇒ 段键换算完全一致。</li>
+ *   <li><b>被墙 / 地形挡住</b>（1.28）：借 {@link net.minecraft.client.renderer.LevelRenderer#renderChunksInFrustum}
+ *       —— 原版 {@code renderSectionLayer} 就是遍历它画地形的，所以它的定义正好是
+ *       「原版这一帧真的要画的段」。集合拿不到就**当作判据不可用**并退回纯视锥剔除。</li>
  * </ol>
  * 现在这三条判据的收益比旧版更大：被剔掉的段不但省掉顶点计算，还省掉一次绘制调用。
  *
@@ -258,39 +250,26 @@ public final class EscalatorStepRenderer {
     /**
      * 【1.28】把「原版这帧要画的段」收成一个段键集合，供本帧的遮挡判定查询。
      *
-     * <p>判据来源 = {@code LevelRenderer.renderChunksInFrustum}（1.20.1）——
-     * 「原版画地形」的那个方法 {@code renderChunkLayer} 就是<b>遍历它</b>逐个段画出来的，
-     * 所以这个列表的定义正好就是「原版这一帧真的要画的段」。
+     * <p>判据来源是 {@link net.minecraft.client.renderer.LevelRenderer#renderChunksInFrustum} —— 原版
+     * {@code renderSectionLayer} 就是遍历它来画地形的，所以它的定义正好就是
+     * 「原版这一帧真的要画的段」。
      *
-     * <p>★ 1.20.1 ↔ 1.20.4 的对应（本行是用字节码核过的，不是照抄注释）：
-     * <table border="1">
-     *   <tr><th></th><th>1.20.1</th><th>1.20.4</th></tr>
-     *   <tr><td>字段</td><td>{@code renderChunksInFrustum}</td><td>{@code visibleSections}</td></tr>
-     *   <tr><td>元素</td><td>{@code LevelRenderer$RenderChunkInfo}
-     *       （真段在 {@code info.chunk}）</td>
-     *       <td>{@code SectionRenderDispatcher$RenderSection}</td></tr>
-     * </table>
-     * 两者都是 <b>16³ 段</b>、{@code getOrigin()} 都返回<b>方块坐标</b>：
-     * {@code RenderChunkInfo.isAxisAlignedWith} 的字节码就是 {@code bipush 16; idiv}
-     * （1.20.4 那边同一处用的是 {@code SectionPos.blockToSectionCoord}），所以段键换算完全一致。
-     *
-     * <p><b>为什么要走一次 {@code blockToSectionCoord}</b>：{@code getOrigin()} 返回的是
-     * **方块坐标**。直接把 origin 当段坐标用会整体偏 16 倍，于是**每一个**段都查不到 ——
+     * <p><b>为什么要走一次 {@code blockToSectionCoord}</b>：{@code RenderSection.getOrigin()}
+     * 返回的是**方块坐标**（{@code RenderSection.isAxisAlignedWith} 的字节码里就是拿
+     * {@code SectionPos.blockToSectionCoord(origin.getX())} 去和参数比的）。
+     * 直接把 origin 当段坐标用会整体偏 16 倍，于是**每一个**段都查不到 ——
      * 那不是「剔掉几个」，是整片扶梯消失。
      *
      * <h3>为什么这条判据是「保守」的（不会把本该画的剔掉）</h3>
-     * 只需要一个方向：<b>不在列表里 ⟹ 原版这帧一定不画它</b>。
+     * 原版那侧的语义（1.20.4 字节码实测）：
      * <ul>
-     *   <li>1.20.1 的 {@code renderChunkLayer} 主循环里<b>没有任何</b> {@code hasDirection}
-     *       之类的门控（字节码实测：{@code listIterator} 拿到的元素直接进
-     *       {@code chunkOffset.set → bind → draw}），进列表的段一个不落都会画；
-     *       所以「原版真画集」⊆「这个列表」成立。</li>
-     *   <li>{@code hasDirection} 只在 {@code updateRenderChunks}（遮挡 BFS）和
-     *       {@code renderDebug}（画段框）里用，与地形绘制那一趟无关。</li>
-     *   <li>列表由 {@code applyFrustum} 在新旧之间重填、且只在视锥需要更新时才重填，
-     *       两次重填之间只会多不会少 ⇒ 更保守，不会反过来多剔。</li>
+     *   <li>{@code applyFrustum(Frustum)} 先 {@code visibleSections.clear()} 再重填；</li>
+     *   <li>但它只在「视锥需要更新」时才被调到，其余帧 {@code runPartialUpdate} <b>只加不删</b>
+     *       ⇒ 两次重填之间这个列表是「本帧可见集」的<b>超集</b>；</li>
+     *   <li>而且它用的是 {@code offsetFrustum(...)}（把相机周围 8 格立方纳入），比我们这里的
+     *       {@code context.frustum()} 更宽松。</li>
      * </ul>
-     * 结论：查得到 ⟹ 一定该画；只会<b>少剔</b>、不会<b>多剔</b>。
+     * 两条都指向同一结论：查得到 ⟹ 一定该画；只会<b>少剔</b>、不会<b>多剔</b>。
      *
      * @return 集合是否可用。<b>为空时返回 false</b>（遮挡图还没准备好、刚进世界、模式被关掉），
      *         调用方必须退回纯视锥剔除 —— 把「查不到」当成「被挡住」会让整个世界一条扶梯都不画。
