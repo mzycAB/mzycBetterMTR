@@ -32,7 +32,7 @@ SCREEN = os.path.join(PKG, "TrainSoundScreen.java")
 SIDING = os.path.join(PKG, "MtrSidingAccess.java")
 LAYOUT = os.path.join(PKG, "SoundListLayout.java")
 PSD = os.path.join(PKG, "PsdToneSetupScreen.java")
-CLIENT = os.path.join(PKG, "SmoothLiftClientEvents.java")
+CLIENT = os.path.join(PKG, "SmoothLiftClient.java")
 
 FAILS = []
 
@@ -197,17 +197,17 @@ check("mbmTrainMusicOpen" not in sl_no, "服务端不再有 mbmTrainMusicOpen �
 check('literal("train")' not in sl_no,
       "★ 指令树里不留 train 空壳分类节点（留了会让 /MBM train 看起来「存在」）")
 check("TRAIN_MUSIC_OPEN_CHANNEL" not in client_no, "客户端不再注册那只空包接收器")
-check("SmoothLift.isMtrRail(level.getBlockState(event.getPos()))" in client_no,
-      "客户端右键回调按 mtr:rail 判方块（Forge 事件里的 level/event.getPos()）")
+check("SmoothLift.isMtrRail(world.getBlockState(pos))" in client_no,
+      "客户端右键回调按 mtr:rail 判方块（客户端侧直接用 world/pos）")
 check("MtrSidingAccess.facingSidingKey(" in client_no, "客户端靠 MtrSidingAccess 认侧线")
 check("new TrainSoundScreen(sidingKey)" in client_no, "界面带着侧线身份打开")
-i_guard = client_no.find("sidingKey != MtrSidingAccess.NO_SIDING")
+i_guard = client_no.find("sidingKey == MtrSidingAccess.NO_SIDING")
+i_pass = client_no.find("return InteractionResult.PASS", i_guard if i_guard >= 0 else 0)
 i_open = client_no.find("new TrainSoundScreen(sidingKey)")
-check(i_guard >= 0 and i_open >= 0 and i_guard < i_open,
-      "★ 认不到侧线（NO_SIDING）时**在开界面之前**就 return，不开一个身份不明的界面")
-check(open(os.path.join(ROOT, "src", "main", "java", "smooth", "lift", "network", "MbmHelpOpenPacket.java"), encoding="utf-8").read().find("MbmHelpScreen") >= 0
-      or "MbmHelpOpenPacket" in client_no,
-      "（顺带守住：帮助界面那只开界面包没被这次删除误伤）")
+check(i_guard >= 0 and i_pass >= 0 and i_open >= 0 and i_guard < i_open,
+      "★ 认不到侧线（NO_SIDING）时**在开界面之前**就 return（PASS），不开一个身份不明的界面")
+check("MBM_HELP_OPEN_CHANNEL" in sl_no and "MBM_HELP_OPEN_CHANNEL" in client_no,
+      "（顺带守住：帮助界面那只开界面频道没被这次删除误伤）")
 
 # ======================================================================
 # 2) 「黄色」这一层判据：mtr:rail 必须同时看命名空间与路径

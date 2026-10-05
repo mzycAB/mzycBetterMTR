@@ -18,12 +18,14 @@
   2. 访问控制：Fabric 靠 `smoothlift.accesswidener`（intermediary 名），
      Forge 靠 `META-INF/accesstransformer.cfg`（**srg 名**）—— 见第 14.1 节；
   3. 渲染注册：Fabric `WorldRenderEvents.AFTER_ENTITIES` + `WorldRenderContext`，
-     Forge `RenderLevelStageEvent.Stage.AFTER_ENTITIES` + `@SubscribeEvent`；
-  4. 「谁来找我」：Fabric 模型注入靠 `ModelLoadingPlugin`/`ModelModifier.BeforeBake`，
-     Forge 没有那个 API ⇒ 改成 mixin 挂 `ModelBakery.getModel` 的返回处
-     —— 这是**新增**的 Forge 专节（第 9b / 16 节）。
+     Forge `RenderLevelStageEvent.Stage.AFTER_PARTICLES` + `@SubscribeEvent`
+     （`forge/ClientBootstrap$Handlers` 把原生事件转发到 compat 垫片）；
+  4. 「谁来找我」：模型注入靠 compat 的 `ModelLoadingPlugin`/`ModelModifier.BeforeBake`
+     回调，入口是 `EscalatorModelOverride.beforeBake`；另有
+     `ModelBakeryBeforeBakeMixin` 挂 `ModelBakery.getModel` 的返回处转发给它
+     —— 这是 Forge 需要 mixin 兜住导入的那一层（第 9b / 16 节）。
 另外 Fabric 侧那三条上一代 `SpriteTicker` 链（`EscalatorAnimationDriver` /
-`EscalatorStepTicker` / `EscalatorSpriteTickerMixin`）**没有移植**，理由与反向对照见第 6 节。
+`EscalatorStepTicker` / `EscalatorSpriteTickerMixin`）**已经移植**，正面对照见第 6 节。
 
 ## 一、阶梯消失（LOG13 复现）
 
@@ -78,14 +80,16 @@ import zipfile
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 # ★ Forge：单一源集（没有 src/client/java 那一层），客户端类与通用类同在 src/main/java。
 CLIENT = os.path.join(ROOT, "src", "main", "java", "smooth", "lift", "client")
-MIXIN_DIR = os.path.join(ROOT, "src", "main", "java", "smooth", "lift", "mixin")
+# ★ Forge：客户端 mixin 与 Fabric 一样在 client/mixin 子层（smoothlift.client.mixins.json
+#   的 package 是 smooth.lift.client.mixin，类路径必须与之对应）。
+MIXIN_DIR = os.path.join(ROOT, "src", "main", "java", "smooth", "lift", "client", "mixin")
 
 INDEX = os.path.join(CLIENT, "EscalatorStepIndex.java")
 RENDERER = os.path.join(CLIENT, "EscalatorStepRenderer.java")
 MODELS = os.path.join(CLIENT, "EscalatorStepModels.java")
 MODE = os.path.join(CLIENT, "EscalatorRenderMode.java")
 MODE_CMD = os.path.join(CLIENT, "EscalatorRenderModeCommand.java")
-# ★ Forge：Fabric 的 EscalatorAnimationDriver / EscalatorStepTicker 未移植（见第 6 节）。
+# ★ Forge：EscalatorAnimationDriver / EscalatorStepTicker 已移植（见第 6 节）。
 DRIVER = os.path.join(CLIENT, "EscalatorAnimationDriver.java")
 # 【1.29】静态几何缓存架构的三根柱子
 TEXTURES = os.path.join(CLIENT, "EscalatorStepTextures.java")
@@ -96,15 +100,18 @@ CACHE = os.path.join(CLIENT, "EscalatorStepCache.java")
 AT = os.path.join(ROOT, "src", "main", "resources", "META-INF",
                   "accesstransformer.cfg")
 # 【1.30b】方块变更钩子：客户端 mixin（把「有方块被改过」告诉索引）+ 它的注册表
-#   ★ Forge：mixin 都在 src/main/java/smooth/lift/mixin（Fabric 那边在 client/mixin）。
+#   ★ Forge：客户端 mixin 在 src/main/java/smooth/lift/client/mixin（与 Fabric 同层）。
 BLOCK_CHANGE_MIXIN = os.path.join(MIXIN_DIR, "LevelBlockChangeMixin.java")
-# ★ Forge 新增：模型注入（Fabric 用 ModelLoadingPlugin，Forge 只能挂 mixin）。
-MODEL_BAKERY_MIXIN = os.path.join(MIXIN_DIR, "EscalatorModelBakeryMixin.java")
+# ★ Forge：模型注入走 mixin 挂 ModelBakery.getModel 返回处（转发给 compat 的 ModelModifier）。
+MODEL_BAKERY_MIXIN = os.path.join(MIXIN_DIR, "ModelBakeryBeforeBakeMixin.java")
 MODEL_OVERRIDE = os.path.join(CLIENT, "EscalatorModelOverride.java")
-CLIENT_SETUP = os.path.join(CLIENT, "SmoothLiftClientSetup.java")
-CLIENT_EVENTS = os.path.join(CLIENT, "SmoothLiftClientEvents.java")
+# ★ Forge 事件链入口：forge/ClientBootstrap.java（Handlers 的 8 个 @SubscribeEvent 把
+#   原生事件转发到 compat 垫片）+ client/SmoothLiftClient.java（onInitializeClient 注册 /mtrxr）。
+CLIENT_BOOTSTRAP = os.path.join(ROOT, "src", "main", "java", "smooth", "lift",
+                                "forge", "ClientBootstrap.java")
+CLIENT_INIT = os.path.join(CLIENT, "SmoothLiftClient.java")
 MIXINS_JSON = os.path.join(ROOT, "src", "main", "resources",
-                           "smooth_escalator.mixins.json")
+                           "smoothlift.client.mixins.json")
 # MTR 那 18 个阶梯模型的旧资源覆盖（【1.24】起改代码注入 ⇒ 这些文件必须已删）
 MTR_STEP_DIR = os.path.join(ROOT, "src", "main", "resources", "assets", "mtr",
                             "models", "block")
@@ -293,9 +300,10 @@ print("===== 4) 【1.26→1.29】渲染热路径：分段剔除，且一个方�
 # 剔除趟里**连 getBlockState 都不调**了：几何全在静态缓存里，每帧只比
 # 「段版本戳 revision / 组表版本 epoch」两个 long，相等就整段跳过。
 
-# ★ Forge：渲染入口是 RenderLevelStageEvent（不是 Fabric 的 WorldRenderContext）。
-#   断言仍然钉在**同一个方法**上（render），只是签名换了 —— 换平台不该换判据。
-render_body = body(renderer_c, r"private static void render\s*\(\s*RenderLevelStageEvent\s+\w+\s*\)")
+# ★ Forge：渲染入口还是 RenderLevelStageEvent 驱动的，但渲染方法签名统一走 compat 的
+#   WorldRenderContext（smooth.lift.compat.WorldRenderContext，事件桥把 Forge 事件包装成它）。
+#   断言仍然钉在**同一个方法**上（render），只是签名换成了垫片类型 —— 换平台不该换判据。
+render_body = body(renderer_c, r"private static void render\s*\(\s*WorldRenderContext\s+\w+\s*\)")
 check("distanceToBoxSqr(" in render_body and "maxDistanceSq" in render_body,
       "render 走分段级**距离**剔除（distanceToBoxSqr > maxDistanceSq 跳过）")
 check("frustum" in render_body and ".isVisible(" in render_body,
@@ -369,47 +377,38 @@ check('getBooleanProperty(state, "status", true)' in strip_java(models, keep_str
 
 # ======================================================================
 print()
-print("===== 6) ★ Forge：索引消费方的边界（哪条链移植了、哪条链没有） =====")
+print("===== 6) ★ Forge：索引消费方（sprite-ticker 动画链已移植） =====")
 # ======================================================================
 # Fabric 侧这一段断言的是 EscalatorAnimationDriver（动画驱动）也走索引、
-# 不再 O(33³) 球壳扫方块。**Forge 没有这个类** —— 它不是「忘了移植」，是刻意不移植。
+# 不再 O(33³) 球壳扫方块。**Forge 已经移植了这条链**：
 #
-# 那条链的完整形状（Fabric 1.20.1）：
-#   EscalatorSpriteTickerMixin（@Mixin SpriteContents.createTicker）
-#     → 名字里含 escalator_up / escalator_down 的精灵换成 EscalatorStepTicker
-#       → 每帧按 EscalatorAnimationDriver.resolveStepAnimationSpeed() 多推进几帧。
+#   EscalatorSpriteTickerMixin（@Mixin TextureAtlasSprite.getAnimationTicker）
+#     → 精灵名含 escalator_up / escalator_down 时换成 EscalatorStepTicker
+#       → 每 tick 按 EscalatorAnimationDriver.resolveStepAnimationSpeed() 多推进几帧。
 #
-# 为什么移植过来是**空的**（这一条是量出来的，不是推测的）：
-#   它驱动的是 **MTR 自己那两张滚动贴图** `mtr:block/escalator_up|down`。
-#   而这两张贴图在 MTR 1.20.1 里只被 18 个 `escalator_step_*` 模型的 `#step` 槽位引用
-#   （拿 MTR-forge-1.20.1-3.2.2-hotfix-2.jar 全量 grep models/block 数出来的：
-#    20 个文件命中，全部是 escalator_step_*，没有别的地方用它）。
-#   优化引擎（/mtrxr off）下这 18 个模型的 `#step` 已被我们的**全透明标记贴图**替换
-#   ⇒ 那些面根本不被画 ⇒ 把它们的动画调快调慢都看不见。
-#   MTR 原版渲染（/mtrxr on）下那个 mixin 自己就 return（它开头判 isOptimized()）。
-#   两头都是空操作 ⇒ 搬过来只是多一份要维护的死代码。
+# 1.18.2 没有 SpriteContents/SpriteTicker，动画由 TextureAtlasSprite.getAnimationTicker()
+# 返回的 Tickable 驱动（TextureAtlas.cycleAnimationFrames 加载期取一次、之后每 tick 调 tick()），
+# 所以 mixin 拦的是 getAnimationTicker() 的 RETURN（见 EscalatorSpriteTickerMixin 类注释）。
+# 【1.24】起只在 SmoothLift 优化渲染引擎模式（/mtrxr off）下生效，原版模式直接放行。
 #
 # 真正让台阶动起来的是**我们自己的渲染器**（EscalatorStepRenderer + EscalatorStepCache
 # 的「每帧一张贴图 + 静态几何」），它不依赖上面那条链 —— 本文件第 11 节验的就是它。
-#
-# 所以这一段改成「边界断言」：把「已移植 / 未移植」两侧都钉死，
-# 免得将来有人看到 Fabric 有、Forge 没有就顺手补进来（补进来反而多一条空转的 mixin）。
+# 而这条链驱动的是 MTR 原版那两张滚动贴图：/mtrxr on 时只有它还在养着台阶贴图动画。
 
 idx_nearest = body(index_c, r"public static BlockPos nearestStep\s*\(")
 check(idx_nearest != "" and ("Section" in idx_nearest or "sections()" in idx_nearest),
       "nearestStep 仍在索引里、且在段级上找（先定位候选段，再在段内比坐标）")
-check(driver == "",
-      "★ 未移植确认：本工程没有 EscalatorAnimationDriver.java")
-for rel in ("EscalatorStepTicker.java", "mixin/EscalatorSpriteTickerMixin.java"):
-    check(not os.path.exists(os.path.join(CLIENT, rel)),
-          "★ 未移植确认：本工程没有 %s（上一代 sprite-ticker 链）" % rel)
-# ★ 反向对照：上面那条链**不在** mixin 注册表里 —— 否则「文件没搬、配置搬了」会启动即崩。
+check(driver != "",
+      "★ 已移植确认：本工程有 EscalatorAnimationDriver.java（驱动扶梯选择器）")
+for rel in ("EscalatorStepTicker.java", os.path.join("mixin", "EscalatorSpriteTickerMixin.java")):
+    check(os.path.exists(os.path.join(CLIENT, rel)),
+          "★ 已移植确认：本工程有 %s（上一代 sprite-ticker 链已接上）" % rel)
+# ★ 正向对照：那条链**在** mixin 注册表里 —— 配置与源码不能分叉。
 _cfg0 = json.loads(load(MIXINS_JSON))
-check("EscalatorSpriteTickerMixin" not in _cfg0.get("client", []),
-      "★ 反向对照：mixin 注册表里没有 EscalatorSpriteTickerMixin（配置与源码没有分叉）")
-# 消费方边界：nearestStep 在本工程目前**没有调用方**（Fabric 那边的调用方就是上面这条链）。
-# 这是「照搬同一份索引源码」留下的休眠 API —— 断言它「存在但无人调用」，
-# 好让下次有人接动画时知道该往哪儿接。
+check("EscalatorSpriteTickerMixin" in _cfg0.get("client", []),
+      "★ 正面对照：mixin 注册表里有 EscalatorSpriteTickerMixin（配置与源码一致）")
+# 消费方边界：nearestStep 的调用方是动画驱动（【1.26】改成走分段索引，不再逐格扫球壳）。
+# 断言它「存在且来自 driver」—— 免得将来有人把这处退化回逐格扫立方体。
 _nearstep_callers = []
 for _dp, _dn, _fs in os.walk(os.path.join(ROOT, "src", "main", "java")):
     for _fn in _fs:
@@ -420,8 +419,8 @@ for _dp, _dn, _fs in os.walk(os.path.join(ROOT, "src", "main", "java")):
             continue
         if "nearestStep(" in strip_java(load(_p)):
             _nearstep_callers.append(_fn)
-check(_nearstep_callers == [],
-      "★ 边界：nearestStep 本工程暂无调用方（Fabric 的调用方=未移植的动画驱动）",
+check(any(_fn == "EscalatorAnimationDriver.java" for _fn in _nearstep_callers),
+      "★ 边界：nearestStep 的调用方是 EscalatorAnimationDriver（分段索引查最近扶梯）",
       "调用方 %s" % (_nearstep_callers or "无"))
 
 # ======================================================================
@@ -451,12 +450,13 @@ check("TRANSPARENT" in ov or "transparent" in ov or "marker" in ov.lower(),
       " —— 所以索引一旦为空就是整片消失，必须靠 1.24/1.26 的修法兜住")
 check("step" in ov.lower(),
       "override 作用在 #step 面上")
-# ---- ★ Forge 专有：注入点从「ModelLoadingPlugin 回调」换成「mixin 挂 getModel」----
+# ---- ★ Forge：注入入口是 beforeBake（compat 的 ModelModifier.BeforeBake 回调）----
 # 注入规则里全是字符串字面量（"step" / "_down" / "mtr" / "block/escalator_step_"），
 # 所以这一组断言必须 keep_strings=True 再剥注释。
 ov_ks = strip_java(ov_raw, keep_strings=True)
-inject_body = body(ov_ks, r"public static UnbakedModel inject\s*\(")
-check(inject_body != "", "Forge 版入口是 inject(ResourceLocation, UnbakedModel)（纯 MC 类型）")
+inject_body = body(ov_ks, r"private static UnbakedModel beforeBake\s*\(")
+check(inject_body != "",
+      "Forge 版入口是 beforeBake(UnbakedModel, ModelModifier.BeforeBake.Context)（纯 MC 类型）")
 check("EscalatorRenderMode.isOptimized()" in inject_body,
       "★ 注入前判 isOptimized()（/mtrxr on = MTR 原版渲染时必须**不注入**，"
       "否则原版那份静止台阶面也被藏了 ⇒ 两头都不画 ⇒ 阶梯消失）")
@@ -471,10 +471,11 @@ check('"mtr".equals(id.getNamespace())' in inject_body
       "命名空间 + 路径前缀两层判据（只动 MTR 的 18 个阶梯模型）")
 check('containsKey("step")' in inject_body,
       "★ 没有 #step 键的模型跳过（静态踏板 escalator_step_landing 天然被排除）")
-# ★ 反向对照：Forge 没有 fabric-model-loading-api，不许出现那两个类型
-check("ModelLoadingPlugin" not in ov and "ModelModifier" not in ov,
-      "★ 反向对照：代码区不引用 ModelLoadingPlugin / ModelModifier"
-      "（那是 Fabric 独有的 API，Forge 上根本不存在）")
+# ★ 正面对照：Forge 用 compat 垫片实现了同名的 ModelLoadingPlugin / ModelModifier，
+#   源码 import 的就是这两个类型（smooth.lift.compat 包里真正存在）。
+check("ModelLoadingPlugin" in ov and "ModelModifier" in ov,
+      "★ 正面对照：代码区引用 ModelLoadingPlugin / ModelModifier（compat 垫片，"
+      "Fabric API 同款叠名）")
 # ★ 反向对照：18 个资源覆盖 JSON 必须已删 —— 留着的话 /mtrxr on 会被静态覆盖强行藏面
 _left = sorted(glob.glob(os.path.join(MTR_STEP_DIR, "escalator_step_*.json")))
 check(_left == [],
@@ -519,11 +520,11 @@ else:
           "EscalatorStepIndex.class 里编进了 rediscoverChunks（自愈路径在）")
     # ---- ★ Forge：MC 侧成员名是 srg 名（不是 Fabric 的 intermediary）----
     # Forge 生产 jar 的命名空间：MC **类名**保持 official（mojmap），**成员名**是 srg。
-    # 下面这张对照表全部用 javap（1.20.1 srg jar）+ build/createMcpToSrg/output.tsrg
-    # 实查过，不是猜的：
+    # 下面这张对照表全部用 javap（1.18.2 srg jar）+ build/createMcpToSrg/output.tsrg
+    # 实查过，不是猜的（★ = 与 1.20.1 版不同，改版时务必重查）：
     #   Minecraft.getInstance()                     → m_91087_
-    #   Minecraft.reloadResourcePacks()             → m_91391_
-    #   LevelRenderer.getLightColor(...)            → m_109537_
+    #   Minecraft.reloadResourcePacks()             → m_168019_  ★（1.20.1 是 m_91391_）
+    #   LevelRenderer.getLightColor(...)            → m_109541_  ★（1.20.1 是 m_109537_）
     #   LevelRenderer.renderChunksInFrustum         → f_194297_（AT 放开）
     #   LevelRenderer$RenderChunkInfo.chunk         → f_109839_（AT 放开）
     #   RenderChunk.getOrigin()                     → m_112839_
@@ -532,12 +533,13 @@ else:
     #   Vec3i.getX/getY/getZ                        → m_123341_/m_123342_/m_123343_
     #   ChunkSource.getChunkNow(int,int)            → m_7131_
     #   VertexBuffer.bind()                         → m_85921_
-    #   VertexBuffer.upload(RenderedBuffer)         → m_231221_
+    #   VertexBuffer.upload(RenderedBuffer)         → m_85925_  ★（1.20.1 是 m_231221_）
     #   VertexBuffer.unbind()（static）             → m_85931_
     #   VertexBuffer.draw()                         → m_166882_
-    #   VertexBuffer.drawWithShader(...)            → m_253207_
-    #   VertexBuffer.isInvalid()                    → m_231230_
-    #   VertexBuffer$Usage.STATIC                   → STATIC（枚举常量名不被 srg 改名）
+    #   VertexBuffer.drawWithShader(...)            → m_166867_  ★（1.20.1 是 m_253207_）
+    #   TextureAtlasSprite.getAnimationTicker()     → m_174746_
+    # ★ 1.18.2 的 VertexBuffer 还没有 Usage 枚举（无参构造 new VertexBuffer()），
+    #   所以「Usage.STATIC」这条在 1.18.2 不存在，本脚本也不再断言它。
     # ★ 只认 srg 名，绝不许拿 mojmap 名当备选：mojmap 名只出现在**源码**与局部变量表里，
     #   按 cp_utf8 精确匹配常量池时它们根本不在池子里 ⇒ 拿 mojmap 名判会恒假（假红）
     #   —— 这正是 srg 命名空间与 Fabric intermediary 的本质差别。
@@ -571,18 +573,18 @@ else:
           "★ EscalatorStepIndex.class 里编进了 onBlockChanged + applyDirtyChunks（即时路在）")
     with zipfile.ZipFile(jar) as z:
         jar_names = set(z.namelist())
-        mixin_cls = (_read(z, "smooth/lift/mixin/LevelBlockChangeMixin.class")
-                     if "smooth/lift/mixin/LevelBlockChangeMixin.class" in jar_names else b"")
+        mixin_cls = (_read(z, "smooth/lift/client/mixin/LevelBlockChangeMixin.class")
+                     if "smooth/lift/client/mixin/LevelBlockChangeMixin.class" in jar_names else b"")
         refmap = (_read(z, "smooth_escalator.refmap.json")
                   if "smooth_escalator.refmap.json" in jar_names else b"")
-    check(bool(mixin_cls), "jar 里有 smooth/lift/mixin/LevelBlockChangeMixin.class")
+    check(bool(mixin_cls), "jar 里有 smooth/lift/client/mixin/LevelBlockChangeMixin.class")
     check(cp_utf8("onBlockChanged") in mixin_cls,
           "★ mixin 类里真的调了 EscalatorStepIndex.onBlockChanged（不是空壳）")
     # ★★ 注入点存在性的离线代理：refmap 必须把 onBlockStateChange 映射到
     #    Level.m_6559_（srg）。名字错了的话，mixins.json 里 defaultRequire:1 会让
     #    **游戏直接起不来**。
     check(b"m_6559_" in refmap and b"onBlockStateChange" in refmap,
-          "★ refmap 把 onBlockStateChange 映射到 Level.m_6559_（1.20.1 srg 注入点）")
+          "★ refmap 把 onBlockStateChange 映射到 Level.m_6559_（1.18.2 srg 注入点）")
     # ---- 【1.29】全量重写：三份新文件都得在字节码里 ----
     with zipfile.ZipFile(jar) as z:
         cache_cls = _read(z, "smooth/lift/client/EscalatorStepCache.class")
@@ -617,8 +619,8 @@ else:
           "★ 渲染器里编进了 ChunkOffset 字符串（原版渲染类型确实声明了这个 uniform）")
     # VertexBuffer 系在 Forge 生产 jar 里是 **srg 成员名**（m_xxxxx_），
     # 类名保持 com/mojang/blaze3d/vertex/VertexBuffer（不被 srg 改名）。
-    check(cp_utf8("m_231221_") in cache_cls,
-          "★ 缓存里有 VertexBuffer.upload（把渲染缓冲交给 GPU，m_231221_）")
+    check(cp_utf8("m_85925_") in cache_cls,
+          "★ 缓存里有 VertexBuffer.upload（把渲染缓冲交给 GPU，m_85925_）")
     check(cp_utf8("m_85921_") in cache_cls,
           "★★ 缓存里有 VertexBuffer.bind（upload 之前的那个 bind —— 少了它就是 1.29 第一版的崩溃，"
           "m_85921_）")
@@ -626,12 +628,10 @@ else:
           "★ 缓存里有 VertexBuffer.unbind（上传后把 VAO 解绑回去，m_85931_）")
     check(cp_utf8("m_166882_") in rdr_cls,
           "★ 渲染器逐段调 VertexBuffer.draw（原版提交静态缓冲用的就是它，m_166882_）")
-    check(cp_utf8("m_253207_") in rdr_cls,
-          "★ 渲染器保留 drawWithShader（没有 ChunkOffset 时的兜底路径，m_253207_）")
+    check(cp_utf8("m_166867_") in rdr_cls,
+          "★ 渲染器保留 drawWithShader（没有 ChunkOffset 时的兜底路径，m_166867_）")
     check(cp_utf8("com/mojang/blaze3d/vertex/VertexBuffer") in cache_cls,
           "★ 缓存里用 VertexBuffer（静态顶点缓冲）")
-    check(cp_utf8("STATIC") in cache_cls,
-          "★ VertexBuffer 的 Usage 是 STATIC（跨帧复用的静态缓冲；枚举常量名不被 srg 改名）")
     # ---- 【1.28】遮挡剔除：借原版「这一帧真要画的段」集合 ----
     check(cp_utf8("refreshVanillaVisibleKeys") in rdr_cls,
           "★ EscalatorStepRenderer.class 里编进了 refreshVanillaVisibleKeys（每帧收段键集合）")
@@ -642,11 +642,11 @@ else:
     # ★★ 只认**本版本那一个** srg 名，绝不许拿 mojmap 名当备选 ——
     #   render() 里有个局部变量就叫 `int visibleSections`，它以「局部变量名」进了
     #   LocalVariableTable ⇒ cp_utf8("visibleSections") **恒真**（Fabric 1.20.1 移植时
-    #   实测踩过这个坑，Forge 侧是同份源码，坑一样在）。下面这条用 1.20.1 srg 实测值。
+    #   实测踩过这个坑，Forge 侧是同份源码，坑一样在）。下面这条用 1.18.2 srg 实测值。
     check(cp_utf8("net/minecraft/client/renderer/LevelRenderer") in rdr_cls
           and cp_utf8("f_194297_") in rdr_cls,
-          "★ 渲染器引用了 1.20.1 的 LevelRenderer.renderChunksInFrustum（f_194297_，AT 放开）")
-    # 1.20.1 的元素比 1.20.4 多包了一层：段本体在 RenderChunkInfo.chunk 里
+          "★ 渲染器引用了 1.18.2 的 LevelRenderer.renderChunksInFrustum（f_194297_，AT 放开）")
+    # 1.18.2 的元素比 1.20.4 多包了一层：段本体在 RenderChunkInfo.chunk 里
     # （f_109839_）。少剥这一层就取不到 origin ⇒ 段键全算不出。
     check(cp_utf8("f_109839_") in rdr_cls and cp_utf8("m_112839_") in rdr_cls,
           "★ 渲染器剥到了 RenderChunkInfo.chunk（f_109839_）并取 getOrigin（m_112839_）"
@@ -678,22 +678,21 @@ else:
     # 所以改成 mixin 挂 `ModelBakery.getModel(ResourceLocation)` 的 RETURN。
     # 这一节验证「真在 jar 里 / 真映射到注入点 / 真被 AT 放开 / 真被指令树挂上」。
 
-    # 9b.1 mixin 类在 jar 里，且它调了 EscalatorModelOverride.inject
+    # 9b.1 mixin 类在 jar 里，且它调了 ModelModifier.applyBeforeBake
     with zipfile.ZipFile(jar) as z:
-        bakery_mixin = (_read(z, "smooth/lift/mixin/EscalatorModelBakeryMixin.class")
-                        if "smooth/lift/mixin/EscalatorModelBakeryMixin.class"
+        bakery_mixin = (_read(z, "smooth/lift/client/mixin/ModelBakeryBeforeBakeMixin.class")
+                        if "smooth/lift/client/mixin/ModelBakeryBeforeBakeMixin.class"
                         in set(z.namelist()) else b"")
     check(bool(bakery_mixin),
-          "jar 里有 smooth/lift/mixin/EscalatorModelBakeryMixin.class（Forge 版注入入口）")
-    check(cp_utf8("inject") in bakery_mixin
-          and cp_utf8("smooth/lift/client/EscalatorModelOverride") in bakery_mixin,
-          "★ mixin 体真的调了 EscalatorModelOverride.inject（不是空壳）")
-    # 注入体只读我们自己的方法名，MC 侧只有 getModel 一个引用点 —— 靠 refmap 认它
-    #   ★ "getModel" 本身不会单独进常量池（它只嵌在 @Inject 的完整方法描述符字符串里），
-    #     所以必须用**完整描述符**做精确条目判 —— 这是「裸子串会被长字符串骗过」的又一例。
-    check(cp_utf8("getModel(Lnet/minecraft/resources/ResourceLocation;)"
-                  "Lnet/minecraft/client/resources/model/UnbakedModel;") in bakery_mixin,
-          "mixin 里写了 @Inject method = getModel（注入点声明，完整描述符在池里）")
+          "jar 里有 smooth/lift/client/mixin/ModelBakeryBeforeBakeMixin.class（Forge 版注入入口）")
+    check(cp_utf8("applyBeforeBake") in bakery_mixin
+          and cp_utf8("smooth/lift/compat/ModelModifier") in bakery_mixin,
+          "★ mixin 体真的调了 smooth.lift.compat.ModelModifier.applyBeforeBake（不是空壳）")
+    # 注入点声明在注解里：@Inject(method = "getModel") 的 method 值就是裸字符串字面量
+    #   "getModel"（Mixin 运行时才拿它 + refmap 解出 m_119341_）—— 所以常量池里只有
+    #   裸 "getModel" 这一条（已实测 dump 常量池确认），**不是**完整方法描述符。
+    check(cp_utf8("getModel") in bakery_mixin,
+          "★ mixin 里写了 @Inject(method = \"getModel\")（注解字符串字面量真在常量池里）")
     # 9b.2 refmap 必须把 getModel 映射到 ModelBakery.m_119341_
     check(b"m_119341_" in refmap and b"getModel" in refmap,
           "★ refmap 把 getModel 映射到 ModelBakery.m_119341_"
@@ -710,21 +709,24 @@ else:
     check(cp_utf8("smooth/lift/client/EscalatorStepModels") in mode_cls,
           "★ EscalatorRenderMode.apply() 里编进了 EscalatorStepModels.clear()（切模式作废烘焙缓存）")
     # 9b.4 指令挂载：/mtrxr 处理器必须真在 jar 里，且渲染入口（RenderLevelStageEvent 回调）
-    #       与客户端初始化（load()）也都在 —— 全部是**我们自己类的成员名**，直接可判。
-    #   ★ 类名在常量池里是全限定形式（smooth/lift/... 与 net/minecraftforge/...），
-    #     不能拿短名判 —— 那是「裸子串误判」的反面（短名不在池里 ⇒ 恒假红）。
+    #       与客户端初始化（onInitializeClient()）也都在 —— 全部是**我们自己类的成员名**，直接可判。
+    #   Forge 1.18.2 的入口在 forge/ClientBootstrap：内部类 Handlers 挂 8 个 @SubscribeEvent
+    #   （含 onRenderLevelStage → AFTER_PARTICLES），init() 再调 SmoothLiftClient.onInitializeClient()。
+    #   本侧**没有** SmoothLiftClientEvents / SmoothLiftClientSetup —— 那是 Fabric 侧的布局。
     with zipfile.ZipFile(jar) as z:
-        ev_cls = _read(z, "smooth/lift/client/SmoothLiftClientEvents.class")
-        setup_cls = _read(z, "smooth/lift/client/SmoothLiftClientSetup.class")
+        hs_cls = _read(z, "smooth/lift/forge/ClientBootstrap$Handlers.class")
+        slc_cls = _read(z, "smooth/lift/client/SmoothLiftClient.class")
         rmode_cmd_cls = _read(z, "smooth/lift/client/EscalatorRenderModeCommand.class")
-    check(cp_utf8("onRegisterClientCommands") in ev_cls and cp_utf8("mtrxr") in ev_cls,
-          "★ SmoothLiftClientEvents 里编进了 /mtrxr 注册（RegisterClientCommandsEvent 处理器）")
-    check(cp_utf8("onRenderLevelStage") in ev_cls
-          and cp_utf8("(Lnet/minecraftforge/client/event/RenderLevelStageEvent;)V") in ev_cls,
-          "★ 渲染回调挂在 RenderLevelStageEvent 上（AFTER_ENTITIES 阶段的入口）")
-    check(cp_utf8("onClientSetup") in setup_cls
-          and cp_utf8("smooth/lift/client/EscalatorRenderMode") in setup_cls,
-          "★ 客户端初始化（FMLClientSetupEvent）里调了 EscalatorRenderMode.load()")
+    _handlers = ["onRegisterClientCommands", "onClientTick", "onChunkLoad", "onChunkUnload",
+                 "onLoggedIn", "onLoggedOut", "onRenderOverlay", "onRenderLevelStage"]
+    for _h in _handlers:
+        check(cp_utf8(_h) in hs_cls,
+              "★ ClientBootstrap$Handlers 里编进了 %s（@SubscribeEvent 处理器）" % _h)
+    # 注解类型在常量池里以 JVM 描述符存在（前导 L + 结尾分号，已实测 dump 确认），不是裸 FQN
+    check(cp_utf8("Lnet/minecraftforge/eventbus/api/SubscribeEvent;") in hs_cls,
+          "★ 处理器真的带着 @SubscribeEvent 注解（注解类型条目在常量池里，不只是注释文本）")
+    check(cp_utf8("onInitializeClient") in slc_cls and cp_utf8("mtrxr") in slc_cls,
+          "★ SmoothLiftClient 里编进了 onInitializeClient() + /mtrxr 命令树（初始化在功能代码里）")
     check(cp_utf8("setOcclusion") in rmode_cmd_cls and cp_utf8("statsLine") in rmode_cmd_cls,
           "★ 指令处理器里编进了 setOcclusion + statsLine（/mtrxr occ 与性能行都在）")
     # 9b.5 本表自检：上面的硬编码 srg 名与本次构建自己的映射表对得上（防将来版本漂移）
@@ -743,7 +745,7 @@ else:
                              ("net/minecraft/client/renderer/LevelRenderer", ["f_194297_"]),
                              ("net/minecraft/core/SectionPos", ["m_123171_", "m_123209_"]),
                              ("com/mojang/blaze3d/vertex/VertexBuffer",
-                              ["m_85921_", "m_231221_", "m_85931_", "m_166882_", "m_253207_"])):
+                              ["m_85921_", "m_85925_", "m_85931_", "m_166882_", "m_166867_"])):
             _hit = all(n in _srg_map.get(_cls, set()) for n in _names)
             check(_hit, "★ 自检：%s 的 srg 名与本次构建的映射表一致" % _cls)
     else:
@@ -813,8 +815,12 @@ split_body = body(tex_c, r"private static FrameSet split\s*\(")
 check(split_body != "", "有 split()：把竖排图切成每帧一张")
 check(re.search(r"sourceFrame\s*\*\s*width", split_body) is not None,
       "★ 每帧 = 竖排图自第 sourceFrame 行起的 width 行（裁切偏移量的公式）")
-check("copyRect(" in split_body,
-      "用 NativeImage.copyRect 只拷一帧（不是整条）")
+# 1.18.2 的 NativeImage 没有 1.20.4 那种 9 参 copyRect —— 移植成逐像素 manualCopy，
+# 但「自 sourceFrame*width 行起只拷 width×width 的一帧（不是整条 320×5120）」语义原样保留。
+check(re.search(r"manualCopy\(\s*source,\s*target,\s*0,\s*sourceFrame\s*\*\s*width,\s*width\s*\)",
+                split_body) is not None,
+      "★ 每帧只自第 sourceFrame*width 行拷 width×width 一帧（1.18.2 无 9 参 copyRect，"
+      "移植为逐像素 manualCopy；不是整条竖排图）")
 check("copyRectVerified(" in split_body and "manualCopy(" in split_body,
       "★ 裁切结果当场抽样验证，不符预期就退逐像素拷贝（不赌 copyRect 的语义）")
 # ★ 反向对照：被实测证伪的「纹理矩阵偏移」路线不得复活
@@ -826,8 +832,13 @@ check("texCoord0 = UV0" in textures,
 # ---- 11.2 up/down 像素去重（省一半显存，但**验证过才省**）----
 pe_body = body(tex_c, r"private static boolean pixelsEqual\s*\(")
 check(pe_body != "", "有 pixelsEqual()：判 up/down 两张图是不是逐像素相同")
-check("Arrays.equals(" in pe_body and "getPixelsRGBA()" in pe_body,
-      "★ 用 Arrays.equals(getPixelsRGBA()) 做**全量**逐像素比较（不是抽样）")
+# 1.18.2 没有 1.20.4 的 getPixelsRGBA()（整块数组）—— 移植成双重 for 逐像素判等，
+# 「全量、不抽样」由循环扫遍整图 + 每像素不等即 return false 保证（已核对源码）。
+check(re.search(r"for \(int y = 0; y < a\.getHeight\(\); y\+\+\)", pe_body) is not None
+      and re.search(r"for \(int x = 0; x < a\.getWidth\(\); x\+\+\)", pe_body) is not None,
+      "★ 双重 for 扫遍整张图（1.18.2 无 getPixelsRGBA()，移植成逐像素循环——全量，不是抽样）")
+check("a.getPixelRGBA(x, y) != b.getPixelRGBA(x, y)" in pe_body,
+      "★ 每一像素都判等，一次不等即 return false（全量比较，不是抽样）")
 check("family.shared = true" in tex_c,
       "像素相同时才标记共享（setDown = upSet）")
 check("family.setDown != family.setUp" in tex_c,
@@ -867,8 +878,8 @@ check(re.search(r"data\[o \+ 3\],\s*data\[o \+ 4\]", wb_body) is not None,
 # ★ 反向对照：旧的 (band + v) / bandCount 折帧号写法不得复活
 check("bandCount" not in wb_body,
       "★ 反向对照：writeBlock 里没有「折进条带」的 bandCount（旧的折帧号写法已删）")
-check("VertexBuffer.Usage.STATIC" in cache_c,
-      "★ VertexBuffer 用 Usage.STATIC（跨帧复用，不是每帧重传）")
+# 1.18.2 的 VertexBuffer **没有 Usage 枚举**（无参构造，不存在 STATIC 字面量）——
+# 所以这里不再有「Usage.STATIC」源码断言，那是 1.20.1+ 才有的事（见 9b 的 srg 表注释）。
 # ---- ★★ 上传必须是 bind() → upload() → unbind()（2026-09-26 崩溃的根因） ----
 # VertexBuffer.upload() 自己**不碰 VAO**：它做的是「往当前绑定的 VAO 里写属性指针 + 记 EBO」
 # （uploadVertexBuffer → format.setupBufferState()；uploadIndexBuffer → 共享顺序索引缓冲 bind）。
@@ -1332,7 +1343,7 @@ print("===== 15) 【1.30b】★ 放/拆扶梯要「立刻」进索引：方块�
 # 定期重扫保持不变，降级为兜底。
 
 mix = load(BLOCK_CHANGE_MIXIN) if os.path.exists(BLOCK_CHANGE_MIXIN) else ""
-check(bool(mix), "有 src/main/java/smooth/lift/mixin/LevelBlockChangeMixin.java")
+check(bool(mix), "有 src/main/java/smooth/lift/client/mixin/LevelBlockChangeMixin.java")
 # 注解里的方法名是**字符串**，所以要 keep_strings=True；注释仍然要剥掉
 # （类注释里写着 Level.setBlock / setServerVerifiedBlockState 这些解释性文字）。
 mix_c = strip_java(mix, keep_strings=True)
@@ -1354,15 +1365,15 @@ for heavy in ("applyChunk", "scanSections", "getChunkNow", "getBlockState"):
 check("isEscalatorStep" not in mix_c,
       "★ 钩子不过滤方块类型（「拆掉扶梯」时新状态是空气，过滤会漏掉那一半）")
 
-# ★ Forge：LevelBlockChangeMixin 在 smooth_escalator.mixins.json 的 **client** 数组里
-#   （Fabric 那边在 smoothlift.client.mixins.json，机制相同只是配置文件名不同）。
+# ★ Forge：LevelBlockChangeMixin 在 smoothlift.client.mixins.json 的 **client** 数组里
+#   （与 Fabric 共用 smoothlift.client.mixins.json 这份配置名，机制相同）。
 mixins_json = load(MIXINS_JSON)
 try:
     cfg = json.loads(mixins_json)
 except ValueError:
     cfg = {}
 check("LevelBlockChangeMixin" in cfg.get("client", []),
-      "★ 注册在 smooth_escalator.mixins.json 的 **client** 数组里（专用服务端不加载它）")
+      "★ 注册在 smoothlift.client.mixins.json 的 **client** 数组里（专用服务端不加载它）")
 check("LevelBlockChangeMixin" not in cfg.get("mixins", []),
       "★ 反向对照：不在「两侧都加载」的 mixins 数组里")
 

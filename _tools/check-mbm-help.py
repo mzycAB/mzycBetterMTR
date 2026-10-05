@@ -11,12 +11,13 @@
 判据（改错了不报错，症状=「预设少做了一件事」/「按 ESC 没反应」/「退出界面把音量改了」）：
 1. 三个预设的指令清单与**用户给的原文逐字相等**（含顺序）—— 直接对着硬编码的期望表比，
    少一条、多一条、写错一个字都会红。
-2. 预设走「派发指令」而不是「手抄 setter」：`performPrefixedCommand` + `withSuppressedOutput`
+2. 预设走「派发指令」而不是「手抄 setter」：`getServer().getCommands().performCommand` + `withSuppressedOutput`
    （不压制就会让每条反馈都刷屏）。
-2b. ★★【1.58】**层判据**：PSD 那两行必须落在**素材层**——「不播」写 `none`，不许写 `off`
-   （`off` 会被字面量优先匹配成**子开关**，之后配任何素材都不出声 = 用户报的「设不回来」）。
+2b. ★★【09-29 LOG6 纠正】**层判据**：PSD 那两行要「不播」就写**子开关**层的 `off`
+   （字面量优先于音频名字参数，那一层才被 UI「开关」行与 `… on` 指令够得着）；
+   **不许**写素材层的 `none`（= LOG6 那个「怎么都开不了」的 bug）。
    并且「要出声」的预设必须显式 `pbmmusic open|close -f on`。
-3. 全音量 = 11 条指令（覆盖扶梯底噪/扶梯提示音/直梯共用+三项/屏蔽门共用+两项/到站/进站）。
+3. 全音量 = 12 条指令（覆盖扶梯底噪/扶梯提示音/直梯共用+四项/屏蔽门共用+两项/到站/进站）。
 4. 输入框：1~1000、只收数字、maxLength 4、**没改动就不发**（否则「进来点个预设再 ESC」
    会静默把所有音量改成框里那个值）。
 5. 开界面走服务端 -> 客户端包（指令在服务端执行、界面在客户端）；
@@ -24,7 +25,7 @@
 6. 界面按钮文字与 `SmoothLift.presetLabel` 的显示名一一对应（改一处要红）。
 7. 【1.54】界面里**只允许两处文字**：标题（=「预设选择」）+ 音量输入框**左边**那个「音量」标签。
    > 数剥掉注释后的文字绘制次数：`drawCenteredString`（居中）== 1 且画 `this.title`；
-   > `drawString`（左对齐）== 1 且画 `Component.literal("音量")`；两者合计 == 2。
+   > `drawString`（左对齐）== 1 且画 `TextComponent("音量")`；两者合计 == 2。
    > 再断言标签的 x = 框左沿 − 4 − 字体实测宽度（★ 用户点名「左边」，挪到右边要红）。
    > 被点名删掉的那 6 行说明文案不许以字面量复活。
    > 症状对应：加了第二行文字 ⇒ 界面又变回「一堆小字」；标签挪到框右边 ⇒ 与用户要的不符。
@@ -39,7 +40,7 @@ ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 SRC = os.path.join(ROOT, "src")
 SL = os.path.join(SRC, "main", "java", "smooth", "lift", "SmoothLift.java")
 SCREEN = os.path.join(SRC, "main", "java", "smooth", "lift", "client", "MbmHelpScreen.java")
-CLIENT = os.path.join(SRC, "main", "java", "smooth", "lift", "client", "SmoothLiftClientEvents.java")
+CLIENT = os.path.join(SRC, "main", "java", "smooth", "lift", "client", "SmoothLiftClient.java")
 
 FAILS = []
 
@@ -57,57 +58,65 @@ def strip_comments(text):
 
 # ======================================================================
 # 0) 用户逐字给出的三份清单（本脚本的「真值」，不许从源码里反推）
-# 【1.58】用户给了新清单：三个预设各插入 `lifthelp -f on|off` 作为**第 3 条**。
-#   另有**两处刻意的修正**（见下面「层判据」一节）：
-#     - 港铁两个预设在末尾**各多 2 条** `pbmmusic open|close -f on`（把子开关打开）；
-#     - 空白预设的 PSD 两条写成 `none` 而不是用户字面的 `off`。
-#   所以「逐字一致」只对**前 9 条**成立；后面那两条是**超集**，单独断言。
+# 【1.58 + 09-28/09-29 补丁】三份清单与源码 PRESET_CLASSIC_MTR / PRESET_SIMPLE_MTR /
+#   PRESET_BLANK **逐字逐序**相等（13 / 13 / 11 条）：
+#   - 前 10 条 = 用户点名清单（其中 `lifthelp open|close -f on|off` 拆成两行）；
+#   - 港铁两预设末尾各有 2 条 `pbmmusic open|close -f on`（把 PSD 子开关打开）
+#     + 1 条讲述人（经典 = hongkong，简单 = off）；
+#   - 空白预设 = 全部子开关 `off`（含 PSD 两条）+ 讲述人 off。
+#   ★★【09-29 LOG6 纠正】PSD 的「不播」一律写**子开关** `off`；素材层 `none` 是 bug。
 # ======================================================================
 EXPECTED = {
     "classic": [
         "futimusic -f default",
         "futihelp -f on",
         "lifthelp -f on",
-        "lifthelp door -f on",
+        "lifthelp open -f on",
+        "lifthelp close -f on",
         "lifthelp up -f on",
         "lifthelp down -f on",
         "pbmclosewait -f 1",
         "pbmmusic open -f default",
         "pbmmusic close -f default-m",
+        # ★ 把 open/close 的**子开关**打开；没有它们，预设救不回被关掉的存档。
+        "pbmmusic open -f on",
+        "pbmmusic close -f on",
+        # ★ 进站广播（讲述人）= 香港样式。
+        "pbmnarrate hongkong -f",
     ],
     "simple": [
         "futimusic -f default",
         "futihelp -f off",
         "lifthelp -f on",
-        "lifthelp door -f off",
+        # ★ 本预设「不播」→ 关**子开关**（off 落在子开关层；素材层 none 是 LOG6 bug）。
+        "lifthelp open -f off",
+        "lifthelp close -f off",
         "lifthelp up -f on",
         "lifthelp down -f on",
         "pbmclosewait -f 1",
         "pbmmusic open -f default",
         "pbmmusic close -f default-s",
+        # ★ 把 open/close 的**子开关**打开（「要出声」的预设必须显式 on）。
+        "pbmmusic open -f on",
+        "pbmmusic close -f on",
+        # ★ 讲述人＝关闭（用户点名）。
+        "pbmnarrate off -f",
     ],
     "blank": [
+        # ★ 空白 = 全关：总开关 + 四项直梯 + 两项 PSD 子开关，一律写到**子开关**层 `off`。
         "futimusic -f off",
         "futihelp -f off",
         "lifthelp -f off",
-        "lifthelp door -f off",
+        "lifthelp open -f off",
+        "lifthelp close -f off",
         "lifthelp up -f off",
         "lifthelp down -f off",
         "pbmclosewait -f 1",
-        # ★ 用户字面写的是 `pbmmusic open -f off`；那会落到**子开关**（字面量优先），
-        #   于是「之后配任何素材都不出声」。按正名改成 `none`（素材层的不播）。
-        "pbmmusic open -f none",
-        "pbmmusic close -f none",
+        "pbmmusic open -f off",
+        "pbmmusic close -f off",
+        "pbmnarrate off -f",
     ],
 }
-
-# 【1.58】两个「要出声」的预设必须显式把 PSD 子开关打开（素材与开关是两层）
-BOOT_MUST_ENABLE = {
-    "classic": ["pbmmusic open -f on", "pbmmusic close -f on"],
-    "simple": ["pbmmusic open -f on", "pbmmusic close -f on"],
-}
-# 空白预设不许多出东西（它的语义是「全不播」，靠素材层的 none 表达）
-BLANK_NO_EXTRA = True
 
 # 界面按钮文字 ↔ presetLabel 的显示名
 LABELS = {
@@ -133,10 +142,10 @@ def find_array(name):
 
 
 # ======================================================================
-# 1) 三个预设 = 用户那 9 条指令（逐字逐序）+ 港铁两个预设末尾的子开关「打开」
+# 1) 三个预设 = 用户逐字清单（13 / 13 / 11 条，整表逐字逐序，不许反推）
 # ======================================================================
 print()
-print("===== 1) 三个预设的指令清单（前 9 条与用户原文逐字比对）=====")
+print("===== 1) 三个预设的指令清单（13 / 13 / 11 条 与用户原文整表逐字比对）=====")
 
 ARRAYS = {
     "classic": "PRESET_CLASSIC_MTR",
@@ -148,12 +157,11 @@ for pid, arr_name in ARRAYS.items():
     check(got is not None, "抠得出 %s 数组" % arr_name)
     if got is None:
         continue
-    check(got[:len(EXPECTED[pid])] == EXPECTED[pid],
-          "「%s」的前 %d 条与用户原文**逐字逐序**一致" % (LABELS[pid], len(EXPECTED[pid])),
-          "实际前 %d 条 = %s" % (len(EXPECTED[pid]), got[:len(EXPECTED[pid])]))
-    boot = BOOT_MUST_ENABLE.get(pid, [])
-    check(got == EXPECTED[pid] + boot,
-          "「%s」= 用户那 9 条 + %d 条" % (LABELS[pid], len(boot)),
+    check(len(got) == len(EXPECTED[pid]),
+          "「%s」条数 = %d（不多不少）" % (LABELS[pid], len(EXPECTED[pid])),
+          "实际 %d 条" % len(got))
+    check(got == EXPECTED[pid],
+          "「%s」与用户原文**逐字逐序**一致（%d 条）" % (LABELS[pid], len(EXPECTED[pid])),
           "实际 = %s" % got)
 
 check(find_array("PRESET_CLASSIC_MTR") != find_array("PRESET_BLANK"),
@@ -162,11 +170,12 @@ check(find_array("PRESET_SIMPLE_MTR") != find_array("PRESET_BLANK"),
       "简单与空白不是同一份清单")
 
 # ======================================================================
-# 1b) ★★【1.58】层判据：「不播」写 none（素材层），不写 off（会落到子开关）
-#     —— 这就是用户报的「点空白预设后开关门声音没了、而且设不回来」的根因。
+# 1b) ★★【09-29 LOG6 纠正】层判据：PSD「不播」一律写**子开关**层的 `off`
+#     （字面量优先于音频名字参数，那一层才被 UI「开关」行与 `… on` 指令够得着）；
+#     **不许**写素材层的 `none`（= LOG6 那个「怎么都开不了」的 bug）。
 # ======================================================================
 print()
-print("===== 1b) 层判据：PSD 那两行必须落在**素材层**，不能落到子开关层 =====")
+print("===== 1b) 层判据：PSD 的「不播」= 子开关层 `off`，素材层 `none` 是 bug =====")
 
 PSD_LINES = ("pbmmusic open", "pbmmusic close")
 
@@ -186,10 +195,10 @@ def psd_layer_violations(arr):
             problems.append("PSD 行形状不认识：" + cmd)
             continue
         val = toks[toks.index("-f") + 1]
-        if val == "off":
-            problems.append("「off」会落到**子开关**层（字面量优先）⇒ 之后配素材也不出声：" + cmd)
-        elif val in ("on", "default", "default-c", "default-m", "default-s", "none"):
-            pass  # 合法：on = 子开关层（显式），其余 = 素材层
+        if val == "none":
+            problems.append("「none」落在**素材层** ⇒ UI「开关」行与 `… on` 指令都够不到它，设不回来（LOG6 bug）：" + cmd)
+        elif val in ("on", "off", "default", "default-c", "default-m", "default-s"):
+            pass  # 合法：on/off = 子开关层（显式），其余 = 素材层
         else:
             problems.append("PSD 列不认识的名字：" + cmd)
     return problems
@@ -205,19 +214,19 @@ for pid, arr_name in ARRAYS.items():
     if arr is None:
         continue
     v = psd_layer_violations(arr)
-    check(v == [], "「%s」的 PSD 两行落在正确的层（不出现 off）" % LABELS[pid], repr(v))
+    check(v == [], "「%s」的 PSD 两行不出现素材层 `none`（子开关层 off 合法）" % LABELS[pid], repr(v))
 
-# ★ 语义的两条：要出声的预设必须显式开开关；空白必须用 none 表达不播
+# ★ 语义三条：要出声的预设显式开子开关；空白预设「不播」= 子开关层 off。
 for pid in ("classic", "simple"):
     arr = find_array(ARRAYS[pid]) or []
     check(missing_boot_enablers(arr) == [],
           "★「%s」显式把 open/close 子开关打开（否则救不回被关掉的开关）" % LABELS[pid],
           repr(missing_boot_enablers(arr)))
 blank_arr = find_array(ARRAYS["blank"]) or []
-check("pbmmusic open -f none" in blank_arr and "pbmmusic close -f none" in blank_arr,
-      "★「空白预设」用**正名 none** 表达不播（素材层），不动子开关")
-check(not any(c.endswith("-f off") and c.startswith(PSD_LINES) for c in blank_arr),
-      "★★「空白预设」里**不许**再出现 `pbmmusic … -f off` —— 那是本轮 bug 的字面形态")
+check("pbmmusic open -f off" in blank_arr and "pbmmusic close -f off" in blank_arr,
+      "★「空白预设」的 PSD「不播」= **子开关层** `off`（正解）")
+check(not any(c.startswith(PSD_LINES) and " -f none" in c for c in blank_arr),
+      "★★「空白预设」里**不许**再出现素材层 `none` —— 那是 LOG6 bug 的字面形态")
 
 # ======================================================================
 # 2) 预设 -> 派发指令（不是手抄 setter）
@@ -237,7 +246,8 @@ m = re.search(r"private static int runCommandBatch\(ServerPlayer player, String\
 check(m is not None, "抠得出 runCommandBatch() 方法体")
 if m:
     fb = strip_comments(m.group(1))
-    check("performPrefixedCommand(" in fb, "用 performPrefixedCommand 派发指令（语义 = 手敲）")
+    check("getServer().getCommands().performCommand(" in fb,
+          "用 getServer().getCommands().performCommand 派发指令（语义 = 手敲，不是手抄 setter）")
     check("withSuppressedOutput()" in fb,
           "★ 用 withSuppressedOutput 压制每条指令的反馈（否则 8~11 条会刷屏）")
     check("for (" in fb, "是**逐条**执行（for 循环，保留顺序）")
@@ -250,10 +260,10 @@ for pid in EXPECTED:
     check('"%s"' % pid in screen_no, "界面里出现过预设 id 「%s」" % pid)
 
 # ======================================================================
-# 3) 全音量清单 = 11 条
+# 3) 全音量清单 = 12 条
 # ======================================================================
 print()
-print("===== 3) 全音量 = 11 条指令 =====")
+print("===== 3) 全音量 = 12 条指令 =====")
 
 m = re.search(r"private static String\[\] allVolumeCommands\(int volume\)\s*\{(.*?)\n    \}", sl, flags=re.S)
 check(m is not None, "抠得出 allVolumeCommands() 方法体")
@@ -266,14 +276,15 @@ if m:
         "lifthelploud -f ",
         "lifthelploud -f up ",
         "lifthelploud -f down ",
-        "lifthelploud -f door ",
+        "lifthelploud -f open ",
+        "lifthelploud -f close ",
         "pbmloud -f ",
         "pbmloud -f open ",
         "pbmloud -f close ",
         "pbmmidiumloud -f ",
         "pbmarriveloud -f ",
     ]
-    check(templates == expected_templates, "11 条音量指令（含 -f 强制变体）逐条齐全",
+    check(templates == expected_templates, "12 条音量指令（含 -f 强制变体）逐条齐全",
           "实际 = %s" % templates)
     check("String.valueOf(volume)" in fb, "用 String.valueOf 拼音量（不是手写死数）")
 
@@ -290,27 +301,30 @@ if m:
 print()
 print("===== 4) /MBM help 打开界面 =====")
 
-check("MbmHelpOpenPacket" in sl_no, "服务端有开界面包（MbmHelpOpenPacket）")
+check("MBM_HELP_OPEN_CHANNEL" in sl_no, "服务端有开界面频道（MBM_HELP_OPEN_CHANNEL）")
 m = re.search(r"private static int mbmOpenHelp\(CommandContext<CommandSourceStack> context\)\s*\{(.*?)\n    \}",
               sl, flags=re.S)
 check(m is not None, "抠得出 mbmOpenHelp() 方法体")
 if m:
     fb = strip_comments(m.group(1))
-    check("source.getPlayer()" in fb, "取执行指令的玩家")
+    check("commandPlayer(source)" in fb, "取执行指令的玩家")
+    check("player == null" in fb, "非玩家执行时判空（不能对 null 发包）")
     check("sendFailure" in fb, "非玩家执行时给失败提示（不是静默）")
-    check("Packets.CHANNEL.send(PacketDistributor.PLAYER.with(() -> player), new MbmHelpOpenPacket())" in fb
-          or "new MbmHelpOpenPacket()" in fb,
-          "把开界面包发给那个玩家")
-check("setScreen(new MbmHelpScreen())" in open(os.path.join(ROOT, "src", "main", "java", "smooth", "lift", "network", "MbmHelpOpenPacket.java"), encoding="utf-8").read() or "setScreen(new MbmHelpScreen())" in client_no, "客户端打开开界面（MbmHelpScreen）")
-check("mc.execute(" in open(os.path.join(ROOT, "src", "main", "java", "smooth", "lift", "network", "MbmHelpOpenPacket.java"), encoding="utf-8").read() or "client.execute(" in client_no, "开界面切回客户端线程（网络线程里直接开界面会崩）")
+    check("SLNet.sendToPlayer(player, MBM_HELP_OPEN_CHANNEL, SLNet.emptyBuf())" in fb,
+          "把开界面包发给那个玩家（空载荷走 channel）")
+check("setScreen(new MbmHelpScreen())" in client_no, "客户端打开开界面（MbmHelpScreen）")
+check("MBM_HELP_OPEN_CHANNEL" in client_no and "client.execute(" in client_no,
+      "开界面切回客户端线程（网络线程里直接开界面会崩）")
 
-# 两只 C2S 包：读写类型必须配对
-check("readUtf(16)" in open(os.path.join(ROOT, "src", "main", "java", "smooth", "lift", "network", "MbmPresetPacket.java"), encoding="utf-8").read(),
-      "MbmPresetPacket.decode：读 presetId（readUtf(16)）")
-check("readVarInt()" in open(os.path.join(ROOT, "src", "main", "java", "smooth", "lift", "network", "MbmAllVolumePacket.java"), encoding="utf-8").read(),
-      "MbmAllVolumePacket.decode：读 volume（readVarInt）")
-check("new MbmPresetPacket(presetId)" in screen_no, "界面写 presetId 用 MbmPresetPacket(presetId)（与读侧配对）")
-check("new MbmAllVolumePacket(volume)" in screen_no, "界面写 volume 用 MbmAllVolumePacket(volume)（与读侧配对）")
+# 两只 C2S 频道：读写类型必须配对（界面写 -> 服务端读）
+check(re.search(r"registerServer\(MBM_PRESET_CHANNEL.*?readUtf\(16\)", sl_no, flags=re.S) is not None,
+      "服务端 MBM_PRESET_CHANNEL 接收：读 presetId（readUtf(16)）")
+check(re.search(r"registerServer\(MBM_ALL_VOLUME_CHANNEL.*?readVarInt\(\)", sl_no, flags=re.S) is not None,
+      "服务端 MBM_ALL_VOLUME_CHANNEL 接收：读 volume（readVarInt）")
+check("writeUtf(presetId, 16)" in screen_no and "MBM_PRESET_CHANNEL" in screen_no,
+      "界面写 presetId 用 writeUtf(presetId, 16)（与读侧配对）")
+check("writeVarInt(volume)" in screen_no and "MBM_ALL_VOLUME_CHANNEL" in screen_no,
+      "界面写 volume 用 writeVarInt(volume)（与读侧配对）")
 
 # ======================================================================
 # 5) 界面本体：三按钮 + 底部输入框 + ESC 自动应用
@@ -322,10 +336,10 @@ check(os.path.exists(SCREEN), "MbmHelpScreen.java 存在")
 check(re.search(r"class MbmHelpScreen extends Screen", screen) is not None, "继承 Screen")
 
 for pid, label in LABELS.items():
-    check('Component.literal("%s")' % label in screen,
+    check('TextComponent("%s")' % label in screen,
           "按钮文字「%s」在界面里" % label)
-    check(re.search(r'Component\.literal\("%s"\),\s*button -> sendPreset\(ID_%s\)' % (label, pid.upper()),
-                    screen) is not None,
+    check(re.search(r'(?:net\.minecraft\.network\.chat\.)?TextComponent\("%s"\),\s*button -> sendPreset\(ID_%s\)'
+                    % (label, pid.upper()), screen) is not None,
           "「%s」按钮点击 -> sendPreset(ID_%s)" % (label, pid.upper()))
 
 check(re.search(r'ID_CLASSIC = "classic"', screen_no) is not None, "ID_CLASSIC = classic")
@@ -357,7 +371,7 @@ check(m is not None, "抠得出 applyVolume() 方法体")
 if m:
     fb = strip_comments(m.group(1))
     check("volume == openVolume" in fb, "★ 没改动就 return（不静默改音量）")
-    check("MbmAllVolumePacket" in fb, "改了就发 MbmAllVolumePacket")
+    check("MBM_ALL_VOLUME_CHANNEL" in fb, "改了就发全音量（MBM_ALL_VOLUME_CHANNEL）")
     check("mc.level == null" in fb, "不在世界里时不发（防止空指针 / 无意义包）")
     # 夹取发生在 parseVolume() 里（applyVolume 只负责「改了才发」）；两处都要在，缺一不可。
     check("parseVolume(volumeInput.getValue())" in fb, "音量经 parseVolume 解析（夹取在那一层）")
@@ -374,7 +388,7 @@ check("GLFW_KEY_ENTER" in screen_no, "回车 = 应用并退出（与 EscalatorSp
 print()
 print("===== 6) 界面无小字（标题 = 预设选择；音量框左边 1 个标签） =====")
 
-check('super(Component.literal("预设选择"))' in screen,
+check(re.search(r'super\(new (?:net\.minecraft\.network\.chat\.)?TextComponent\("预设选择"\)\)', screen) is not None,
       "★ 标题字面量是「预设选择」（原来的「MBM 帮助」已改名）")
 check(re.search(r'Component\.literal\("MBM 帮助"\)', screen_no) is None,
       "★ 代码里不再出现旧标题「MBM 帮助」（注释里提到不算）")
@@ -394,10 +408,10 @@ check(len(plain) == 1,
       "★ 左对齐文字只有「音量」标签 1 处（剥注释后 drawString == 1）",
       "实际 %d 处 = %s" % (len(plain), [" ".join(c.split()) for c in plain]))
 label = plain[0] if plain else ""
-check('Component.literal("音量")' in label, "那个标签的文字就是「音量」")
-check(screen_no.count('Component.literal("音量")') == 1,
+check('TextComponent("音量")' in label, "那个标签的文字就是「音量」")
+check(screen_no.count('TextComponent("音量")') == 1,
       "「音量」这个标签只有一处（没有第二份重复标签）",
-      "实际 %d 处" % screen_no.count('Component.literal("音量")'))
+      "实际 %d 处" % screen_no.count('TextComponent("音量")'))
 
 
 def label_left_of_box(arg):
@@ -479,18 +493,18 @@ probe_typo = [s.replace("default-m", "default") for s in probe]
 check(probe_typo != EXPECTED["classic"], "写错一个素材名会红（对照）")
 
 # 7d) ★【1.58】层判据的严格性自证（与 1b 共用同一份判据函数）
-check(psd_layer_violations(EXPECTED["blank"]) == [], "基线：空白预设（none）判据不误报")
-probe_blank_off = [c.replace("-f none", "-f off") for c in EXPECTED["blank"]]
-_v = psd_layer_violations(probe_blank_off)
+check(psd_layer_violations(EXPECTED["blank"]) == [], "基线：空白预设的子开关层 `off` 判据不误报")
+probe_blank_none = [c.replace("-f off", "-f none") for c in EXPECTED["blank"]]
+_v = psd_layer_violations(probe_blank_none)
 check(len(_v) == 2,
-      "★ 把空白预设那两行改回 `-f off` ⇒ 层判据**恰好**报 2 条（这就是本轮 bug 的字面形态）",
+      "★ 把空白预设那两行改回 `-f none` ⇒ 层判据**恰好**报 2 条（这就是 LOG6 bug 的字面形态）",
       repr(_v))
 check(psd_layer_violations(["pbmmusic open -f on", "pbmmusic close -f default-m"]) == [],
       "基线：`on`（子开关层，显式）与 `default-m`（素材层）都不算违规")
 check(psd_layer_violations(["pbmmusic open -f bogus"]) != [],
       "编造一个不在名单里的层值 ⇒ 也会红（对照）")
-check(missing_boot_enablers(EXPECTED["classic"] + BOOT_MUST_ENABLE["classic"]) == [],
-      "基线：经典预设的两条「开子开关」都在")
+check(missing_boot_enablers(EXPECTED["classic"]) == [],
+      "基线：经典预设的两条「开子开关」都在清单里")
 check(missing_boot_enablers([]) == ["pbmmusic open -f on", "pbmmusic close -f on"],
       "★ 把「开子开关」那两条整段删掉 ⇒ 「必须显式开」这条当场报出缺的两条（对照）",
       repr(missing_boot_enablers([])))

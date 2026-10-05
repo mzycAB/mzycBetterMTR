@@ -1,0 +1,136 @@
+﻿  （行尾风格：TrainSoundScreen CRLF=0 / SmoothLift CRLF=0）
+
+== 1) 入口：撤指令、改石斧右键 ==
+  ==> 通过  服务端不再有 train_music_open 频道常量
+  ==> 通过  服务端不再有 smoothlift:train_music_open 字样
+  ==> 通过  服务端不再有 mbmTrainMusicOpen 方法
+  ==> 通过  ★ 指令树里不留 train 空壳分类节点（留了会让 /MBM train 看起来「存在」）
+  ==> 通过  客户端不再注册那只空包接收器
+  ==> 通过  客户端右键回调按 mtr:rail 判方块（客户端侧直接用 world/pos）
+  ==> 通过  客户端靠 MtrSidingAccess 认侧线
+  ==> 通过  界面带着侧线身份打开
+  ==> 通过  ★ 认不到侧线（NO_SIDING）时**在开界面之前**就 return（PASS），不开一个身份不明的界面
+  ==> 通过  （顺带守住：帮助界面那只开界面频道没被这次删除误伤）
+
+== 2) 方块判据：mtr:rail（同时看命名空间，别撞上原版 minecraft:rail）==
+  ==> 通过  SmoothLift 里有 isMtrRail
+  ==> 通过  ★ 判据查了命名空间 = mtr
+  ==> 通过  判据查了路径 = rail
+  ==> 通过  ★ 两个判据必须与在同一个表达式里（只比路径的话，原版 minecraft:rail 的路径也是 rail，会一起命中 ⇒ 石斧右键普通铁轨也开界面）
+
+== 3) MtrSidingAccess：面向的那条轨道 -> 哪条侧线 ==
+  ==> 通过  用 MTR 自带的 getFacingRailAndBlockPos(boolean) 取「玩家面向的那段轨道」
+  ==> 通过  从 MinecraftClientData.sidingIdMap 取侧线表
+  ==> 通过  ★ 门禁用 Rail.isSiding()（「黄色」在运行时的真身）
+  ==> 通过  ★ 认亲判据 = 两个端点都落在这条侧线里（与 MTR 自己的 checkOrCreateSavedRail 同款，不自己编阈值）
+  ==> 通过  ★ 沿继承链用 getDeclaredMethod（Rail.getPosition1/2 是 protected，getMethod 会一律 null）
+  ==> 通过  哨兵用 Long.MIN_VALUE（不是 -1L：-1L 是合法的 asLong 结果）
+  ==> 通过  每条认不到的路都返回 NO_SIDING（不开界面）
+  ==> 通过  失败路径各只打一次日志（不刷屏、也不静默）
+  ==> 失败  有 facingSidingKeyMtr4()（双路实现：MTR4 分支读准星）
+  ==> 失败  双路实现：还有 MTR3 分支（需要被点位置）
+
+== 4) 一级页：五个按钮逐字逐序 + 音量框 + 文字只有标题与「音量」==
+  ==> 通过  五个按钮的文字与用户给的五条逐字逐序相等  -- ['列车运行音效', '列车转弯音效', '列车道岔音效', '列车进站音效', '列车出站音效']
+  ==> 通过  音量标签逐字 = 「音量」
+  ==> 通过  音量初值 = 默认音量（100）
+  ==> 通过  音量框 maxLength = 4（1~1000 最多 4 位）
+  ==> 通过  音量框只收数字
+  ==> 通过  音量经 clampVolume 夹到 1~1000
+  ==> 通过  整行居中（窄屏不会把音量框挤出画面）
+  ==> 通过  标题 y 仍是 1.56 的 12
+  ==> 通过  render() 与 renderTopPage() 都抠到了
+  ==> 失败  ★ 一级页文字不变量：绘制调用点合计 == 2（标题 + 循环里的「音量」）  -- ['标签没用共享几何 labelX']
+  ==> 通过  render 里那一处画的是 this.title
+
+== 5) 二级页：两列列表 + 右列第 0 行「MTR自带音效」只有选用 ==
+  ==> 通过  左列 x 取自 SoundListLayout
+  ==> 通过  右列 x 取自 SoundListLayout
+  ==> 通过  行内「选用」「删除」的 x 也取自 SoundListLayout（三格位置只有一份）
+  ==> 通过  滚动范围口径取自 SoundListLayout
+  ==> 通过  两列表头分别画在各自列的中线上
+  ==> 通过  右列第 0 行的文字逐字 = 「MTR自带音效」（不是屏蔽门那个「不播」）  -- '"MTR自带音效"'
+  ==> 通过  有 buildListPage()
+  ==> 失败  ★ 右列第 0 行只有「选用」、没有「删除」  -- ['第 0 行没有「选用」']
+  ==> 通过  ★ 已导入存档从第 RIGHT_COL_FIRST_STORED_ROW(1) 行开始（第 0 行被那个按钮占了）
+  ==> 通过  两列都建了控件（左列未导入、右列已导入）
+
+== 6) 淡入淡出：默认 1 秒、放在二级页最下方、越界当非法 ==
+  ==> 通过  默认 1 秒
+  ==> 通过  标签逐字 = 「淡入淡出:」
+  ==> 通过  ★ 秒数框画在底部（负偏移，不是列表上方）
+  ==> 通过  上限 60 秒
+  ==> 通过  ★ 越界**不夹取**、当非法（夹取会让玩家看到「填 999 变 60」而不知道为什么）  -- '\n        try {\n            int v = Integer.parseInt(text.trim());\n            return v < FADE_MIN || v > FADE_MAX ? null : v;\n        } catch (NumberFormatException e) {\n            return null;\n        }\n    '
+  ==> 通过  秒数框的 y 用 height 推（跟着窗口走）
+  ==> 通过  秒数按页存（五个页面各自一份）
+  ==> 通过  ★ 秒数框在离开这一页之前落地（空判断齐全，一级页调它也安全）
+
+== 7) 骨架底线（用户：这些按钮的功能先不做）==
+  ==> 通过  有 openSoundPage()
+  ==> 通过  ★ 翻页只改 page 并 init()，不发任何包
+  ==> 通过  ★ 翻页前先落地输入框（重建控件会把刚填的数字吃掉）
+  ==> 通过  翻页就是改 page + 重建控件
+  ==> 通过  有 pickBuiltin()
+  ==> 通过  pickBuiltin() 不发包
+  ==> 通过  pickBuiltin() 给状态行反馈
+  ==> 通过  ★ pickBuiltin() 诚实说明还没接
+  ==> 通过  ★ pickBuiltin() 不许写「已设置/已恢复」这类假成功
+  ==> 通过  有 pickStored()
+  ==> 通过  pickStored() 不发包
+  ==> 通过  pickStored() 给状态行反馈
+  ==> 通过  ★ pickStored() 诚实说明还没接
+  ==> 通过  ★ pickStored() 不许写「已设置/已恢复」这类假成功
+  ==> 通过  服务端有 syncTrain()
+  ==> 通过  ★ syncTrain 数据层没接之前只回「还没接数据层」，绝不回「已同步」
+  ==> 通过  按 scope 分档（接数据层时一眼看出域有没有接错）
+  ==> 通过  syncTrain 分档里有 SYNC_TRAIN_RUN
+  ==> 通过  syncTrain 分档里有 SYNC_TRAIN_TURN
+  ==> 通过  syncTrain 分档里有 SYNC_TRAIN_SWITCH
+  ==> 通过  syncTrain 分档里有 SYNC_TRAIN_ARRIVE
+  ==> 通过  syncTrain 分档里有 SYNC_TRAIN_DEPART
+
+== 8) 页序与服务端 scope 常量同序同内容 ==
+  ==> 通过  ★ PAGE_SCOPES 与 SYNC_TRAIN_* 同序同内容（页号原样当 scope 发，错位不报错）  -- ['SYNC_TRAIN_RUN', 'SYNC_TRAIN_TURN', 'SYNC_TRAIN_SWITCH', 'SYNC_TRAIN_ARRIVE', 'SYNC_TRAIN_DEPART']
+  ==> 通过  服务端 SYNC_TRAIN_RUN 的文案与界面「列车运行音效」对上  -- 列车运行音效
+  ==> 通过  服务端 SYNC_TRAIN_TURN 的文案与界面「列车转弯音效」对上  -- 列车转弯音效
+  ==> 通过  服务端 SYNC_TRAIN_SWITCH 的文案与界面「列车道岔音效」对上  -- 列车道岔音效
+  ==> 通过  服务端 SYNC_TRAIN_ARRIVE 的文案与界面「列车进站音效」对上  -- 列车进站音效
+  ==> 通过  服务端 SYNC_TRAIN_DEPART 的文案与界面「列车出站音效」对上  -- 列车出站音效
+  ==> 通过  一级页 scope = SYNC_TOP_LEVEL，二级页 = 对应项（同步的射程跟着页走）
+  ==> 通过  ★ 同步的身份 = sidingKey（一条侧线一份 ⇒ 只有「同步所有」才跨侧线）
+
+== 9) 两列版式的数字只有一份 ==
+  ==> 通过  屏蔽门界面的 ROW_H 是指向 SoundListLayout 的别名
+  ==> 通过  屏蔽门界面的 LIST_TOP 是指向 SoundListLayout 的别名
+  ==> 通过  屏蔽门界面的 COL_W 是指向 SoundListLayout 的别名
+  ==> 通过  屏蔽门界面的 COL_GAP 是指向 SoundListLayout 的别名
+  ==> 通过  屏蔽门界面的 ROW_BTN_W 是指向 SoundListLayout 的别名
+  ==> 通过  屏蔽门界面的 ROW_BTN_GAP 是指向 SoundListLayout 的别名
+  ==> 通过  屏蔽门界面的 ROW_NAME_W 是指向 SoundListLayout 的别名
+  ==> 通过  屏蔽门界面的 ROW_NAME_CHARS 是指向 SoundListLayout 的别名
+  ==> 通过  屏蔽门界面的 RIGHT_COL_FIRST_STORED_ROW 是指向 SoundListLayout 的别名
+  ==> 通过  屏蔽门界面的 BTN_Y 是指向 SoundListLayout 的别名
+  ==> 通过  屏蔽门界面的 STATUS_Y_LIST 是指向 SoundListLayout 的别名
+  ==> 通过  屏蔽门界面的 BOTTOM_RESERVE_LIST 是指向 SoundListLayout 的别名
+  ==> 通过  屏蔽门界面里不再出现裸数字 = 190;
+  ==> 通过  屏蔽门界面里不再出现裸数字 = 16;
+  ==> 通过  屏蔽门界面里不再出现裸数字 = 44;
+  ==> 通过  屏蔽门界面里不再出现裸数字 = 22;
+  ==> 通过  屏蔽门界面里不再出现裸数字 = 40;
+  ==> 通过  SoundListLayout 里持有 COL_W = 190
+  ==> 通过  SoundListLayout 里持有 ROW_H = 22
+
+== 10) 反向对照 ==
+  ==> 通过  基线（好写法）判据通过
+  ==> 通过  把标签改成自己再算一遍 x ⇒ 只报「没用共享几何」这一条  -- ['标签没用共享几何 labelX']
+  ==> 通过  ★ 多塞一行文字 ⇒ 两条一起变红（合计那条才是「多一处就回退」）  -- ['renderTopPage 左对齐 != 1', '合计 != 2（实际 3）']
+  ==> 通过  ★ 在 render 里多加一行居中文字也会红  -- ['render 居中 != 1', '合计 != 2（实际 3）']
+  ==> 通过  基线（第 0 行只有选用）判据通过
+  ==> 通过  ★ 给第 0 行加上「删除」⇒ 精确报这一条  -- ['第 0 行出现了「删除」']
+  ==> 通过  ★ 自证：`target()` 的调用点在前、声明在后时，抠回来的仍是**声明那个方法体**  -- '\n        setStatus("MARKER");\n    '
+
+== 失败 4 项 ==
+  - 有 facingSidingKeyMtr4()（双路实现：MTR4 分支读准星）
+  - 双路实现：还有 MTR3 分支（需要被点位置）
+  - ★ 一级页文字不变量：绘制调用点合计 == 2（标题 + 循环里的「音量」）
+  - ★ 右列第 0 行只有「选用」、没有「删除」

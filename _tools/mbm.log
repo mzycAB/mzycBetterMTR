@@ -1,0 +1,129 @@
+﻿
+===== 1) 三个预设的指令清单（13 / 13 / 11 条 与用户原文整表逐字比对）=====
+  ==> 通过  抠得出 PRESET_CLASSIC_MTR 数组
+  ==> 通过  「经典港铁预设」条数 = 13（不多不少）  -- 实际 13 条
+  ==> 通过  「经典港铁预设」与用户原文**逐字逐序**一致（13 条）  -- 实际 = ['futimusic -f default', 'futihelp -f on', 'lifthelp -f on', 'lifthelp open -f on', 'lifthelp close -f on', 'lifthelp up -f on', 'lifthelp down -f on', 'pbmclosewait -f 1', 'pbmmusic open -f default', 'pbmmusic close -f default-m', 'pbmmusic open -f on', 'pbmmusic close -f on', 'pbmnarrate hongkong -f']
+  ==> 通过  抠得出 PRESET_SIMPLE_MTR 数组
+  ==> 通过  「简单港铁预设」条数 = 13（不多不少）  -- 实际 13 条
+  ==> 通过  「简单港铁预设」与用户原文**逐字逐序**一致（13 条）  -- 实际 = ['futimusic -f default', 'futihelp -f off', 'lifthelp -f on', 'lifthelp open -f off', 'lifthelp close -f off', 'lifthelp up -f on', 'lifthelp down -f on', 'pbmclosewait -f 1', 'pbmmusic open -f default', 'pbmmusic close -f default-s', 'pbmmusic open -f on', 'pbmmusic close -f on', 'pbmnarrate off -f']
+  ==> 通过  抠得出 PRESET_BLANK 数组
+  ==> 通过  「空白预设」条数 = 11（不多不少）  -- 实际 11 条
+  ==> 通过  「空白预设」与用户原文**逐字逐序**一致（11 条）  -- 实际 = ['futimusic -f off', 'futihelp -f off', 'lifthelp -f off', 'lifthelp open -f off', 'lifthelp close -f off', 'lifthelp up -f off', 'lifthelp down -f off', 'pbmclosewait -f 1', 'pbmmusic open -f off', 'pbmmusic close -f off', 'pbmnarrate off -f']
+  ==> 通过  经典与空白不是同一份清单（防止复制粘贴改漏）
+  ==> 通过  简单与空白不是同一份清单
+
+===== 1b) 层判据：PSD 的「不播」= 子开关层 `off`，素材层 `none` 是 bug =====
+  ==> 通过  「经典港铁预设」的 PSD 两行不出现素材层 `none`（子开关层 off 合法）  -- []
+  ==> 通过  「简单港铁预设」的 PSD 两行不出现素材层 `none`（子开关层 off 合法）  -- []
+  ==> 通过  「空白预设」的 PSD 两行不出现素材层 `none`（子开关层 off 合法）  -- []
+  ==> 通过  ★「经典港铁预设」显式把 open/close 子开关打开（否则救不回被关掉的开关）  -- []
+  ==> 通过  ★「简单港铁预设」显式把 open/close 子开关打开（否则救不回被关掉的开关）  -- []
+  ==> 通过  ★「空白预设」的 PSD「不播」= **子开关层** `off`（正解）
+  ==> 通过  ★★「空白预设」里**不许**再出现素材层 `none` —— 那是 LOG6 bug 的字面形态
+
+===== 2) 预设走「依次派发指令」 =====
+  ==> 通过  presetCommands：classic -> PRESET_CLASSIC_MTR
+  ==> 通过  presetCommands：simple -> PRESET_SIMPLE_MTR
+  ==> 通过  presetCommands：blank -> PRESET_BLANK
+  ==> 通过  抠得出 runCommandBatch() 方法体
+  ==> 通过  用 getServer().getCommands().performCommand 派发指令（语义 = 手敲，不是手抄 setter）
+  ==> 通过  ★ 用 withSuppressedOutput 压制每条指令的反馈（否则 8~11 条会刷屏）
+  ==> 通过  是**逐条**执行（for 循环，保留顺序）
+  ==> 通过  用玩家自己的指令源（与手敲同构）
+  ==> 通过  方法体里没有会让整批静默不执行的守卫
+  ==> 通过  界面里出现过预设 id 「classic」
+  ==> 通过  界面里出现过预设 id 「simple」
+  ==> 通过  界面里出现过预设 id 「blank」
+
+===== 3) 全音量 = 12 条指令 =====
+  ==> 通过  抠得出 allVolumeCommands() 方法体
+  ==> 通过  12 条音量指令（含 -f 强制变体）逐条齐全  -- 实际 = ['futiloud -f ', 'futihelploud -f ', 'lifthelploud -f ', 'lifthelploud -f up ', 'lifthelploud -f down ', 'lifthelploud -f open ', 'lifthelploud -f close ', 'pbmloud -f ', 'pbmloud -f open ', 'pbmloud -f close ', 'pbmmidiumloud -f ', 'pbmarriveloud -f ']
+  ==> 通过  用 String.valueOf 拼音量（不是手写死数）
+  ==> 通过  抠得出 applyAllVolumes() 方法体
+  ==> 通过  音量先夹到 1~1000 再派发
+  ==> 通过  全音量也走同一套派发通道
+
+===== 4) /MBM help 打开界面 =====
+  ==> 通过  服务端有开界面频道（MBM_HELP_OPEN_CHANNEL）
+  ==> 通过  抠得出 mbmOpenHelp() 方法体
+  ==> 通过  取执行指令的玩家
+  ==> 通过  非玩家执行时判空（不能对 null 发包）
+  ==> 通过  非玩家执行时给失败提示（不是静默）
+  ==> 通过  把开界面包发给那个玩家（空载荷走 channel）
+  ==> 通过  客户端打开开界面（MbmHelpScreen）
+  ==> 通过  开界面切回客户端线程（网络线程里直接开界面会崩）
+  ==> 通过  服务端 MBM_PRESET_CHANNEL 接收：读 presetId（readUtf(16)）
+  ==> 通过  服务端 MBM_ALL_VOLUME_CHANNEL 接收：读 volume（readVarInt）
+  ==> 通过  界面写 presetId 用 writeUtf(presetId, 16)（与读侧配对）
+  ==> 通过  界面写 volume 用 writeVarInt(volume)（与读侧配对）
+
+===== 5) MbmHelpScreen 本体 =====
+  ==> 通过  MbmHelpScreen.java 存在
+  ==> 通过  继承 Screen
+  ==> 通过  按钮文字「经典港铁预设」在界面里
+  ==> 通过  「经典港铁预设」按钮点击 -> sendPreset(ID_CLASSIC)
+  ==> 通过  按钮文字「简单港铁预设」在界面里
+  ==> 通过  「简单港铁预设」按钮点击 -> sendPreset(ID_SIMPLE)
+  ==> 通过  按钮文字「空白预设」在界面里
+  ==> 通过  「空白预设」按钮点击 -> sendPreset(ID_BLANK)
+  ==> 通过  ID_CLASSIC = classic
+  ==> 通过  ID_SIMPLE = simple
+  ==> 通过  ID_BLANK = blank
+  ==> 通过  抠得出 presetLabel() 方法体
+  ==> 通过  presetLabel 里 classic 的显示名含「经典港铁预设」（与按钮文字一致）
+  ==> 通过  presetLabel 里 simple 的显示名含「简单港铁预设」（与按钮文字一致）
+  ==> 通过  presetLabel 里 blank 的显示名含「空白预设」（与按钮文字一致）
+  ==> 通过  有输入框 volumeInput
+  ==> 通过  ★ 输入框在界面**最下方**（用 this.height 定位，不是固定 y）
+  ==> 通过  maxLength = 4（1000 够用）
+  ==> 通过  只收数字
+  ==> 通过  打开时回填当前值
+  ==> 通过  ★ onClose() 先 applyVolume() 再 super.onClose()（按 ESC 自动应用）
+  ==> 通过  有 applyVolume()
+  ==> 通过  抠得出 applyVolume() 方法体
+  ==> 通过  ★ 没改动就 return（不静默改音量）
+  ==> 通过  改了就发全音量（MBM_ALL_VOLUME_CHANNEL）
+  ==> 通过  不在世界里时不发（防止空指针 / 无意义包）
+  ==> 通过  音量经 parseVolume 解析（夹取在那一层）
+  ==> 通过  parseVolume 里真的夹到 1~1000
+  ==> 通过  isPauseScreen = false（与其它界面一致）
+  ==> 通过  回车 = 应用并退出（与 EscalatorSpeedScreen 一致）
+
+===== 6) 界面无小字（标题 = 预设选择；音量框左边 1 个标签） =====
+  ==> 通过  ★ 标题字面量是「预设选择」（原来的「MBM 帮助」已改名）
+  ==> 通过  ★ 代码里不再出现旧标题「MBM 帮助」（注释里提到不算）
+  ==> 通过  ★ 居中文字只有标题 1 处（剥注释后 drawCenteredString == 1）  -- 实际 1 处 = ['this.font, this.title, this.width / 2, 12, 0xFFFFFF']
+  ==> 通过  那一处画的是 this.title（=「预设选择」），不是任何说明文案
+  ==> 通过  ★ 左对齐文字只有「音量」标签 1 处（剥注释后 drawString == 1）  -- 实际 1 处 = ['this.font, new net.minecraft.network.chat.TextComponent("音量"), this.width / 2 - 100 - 4 - this.font.width("音量"), this.height - 42 + (20 - this.font.lineHeight) / 2, 0xA0A0A0, false']
+  ==> 通过  那个标签的文字就是「音量」
+  ==> 通过  「音量」这个标签只有一处（没有第二份重复标签）  -- 实际 1 处
+  ==> 通过  ★ 标签贴在输入框**左沿外侧** 4 px（x = this.width/2 − 100 − 4 − 字体实测宽度）  -- 实际 = this.font, new net.minecraft.network.chat.TextComponent("音量"), this.width / 2 - 100 - 4 - this.font.width("音量"), this.height - 42 + (20 - this.font.lineHeight) / 2, 0xA0A0A0, false
+  ==> 通过  标签纵向与 20 px 高的输入框居中对齐
+  ==> 通过  ★ 全界面文字绘制合计 == 2（标题 + 音量标签；多一处即回退）
+  ==> 通过  6 行说明小字全部删净（代码里一处不剩）  -- 残留 = []
+  ==> 通过  音量输入框还在（删的是文字，不是控件）
+  ==> 通过  三个预设按钮的点击回调还在
+  ==> 通过  ESC 自动应用音量的约定还在（没被顺手删）
+  ==> 通过  标签不用 EditBox 的 hint（hint 只在空值/聚焦前显示，回填了数字就永远看不见）
+
+===== 7) 反向对照 =====
+  ==> 通过  反向对照的探针确实插进去了（基线可用）
+  ==> 通过  塞回一行小字 -> 「文字合计 == 2」变红（对照）
+  ==> 通过  塞回旧文案 -> 「小字删净」变红（对照）
+  ==> 通过  「在框左边」的判据对当前写法成立（基线）
+  ==> 通过  「挪到右边」的探针确实改动了表达式（基线可用）
+  ==> 通过  挪到框右边 -> 「标签在框左边」这条判据当场变红（对照）
+  ==> 通过  原样清单比对通过（基线）
+  ==> 通过  多一条会红（对照）
+  ==> 通过  少一条会红（对照）
+  ==> 通过  顺序调了会红（对照）
+  ==> 通过  写错一个素材名会红（对照）
+  ==> 通过  基线：空白预设的子开关层 `off` 判据不误报
+  ==> 通过  ★ 把空白预设那两行改回 `-f none` ⇒ 层判据**恰好**报 2 条（这就是 LOG6 bug 的字面形态）  -- ['「none」落在**素材层** ⇒ UI「开关」行与 `… on` 指令都够不到它，设不回来（LOG6 bug）：pbmmusic open -f none', '「none」落在**素材层** ⇒ UI「开关」行与 `… on` 指令都够不到它，设不回来（LOG6 bug）：pbmmusic close -f none']
+  ==> 通过  基线：`on`（子开关层，显式）与 `default-m`（素材层）都不算违规
+  ==> 通过  编造一个不在名单里的层值 ⇒ 也会红（对照）
+  ==> 通过  基线：经典预设的两条「开子开关」都在清单里
+  ==> 通过  ★ 把「开子开关」那两条整段删掉 ⇒ 「必须显式开」这条当场报出缺的两条（对照）  -- ['pbmmusic open -f on', 'pbmmusic close -f on']
+  ==> 通过  只开一半（漏了 close）也会红（对照）
+
+== 全部通过 ==

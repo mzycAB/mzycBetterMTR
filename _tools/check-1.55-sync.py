@@ -317,47 +317,40 @@ def io_order(text, kind):
 
 
 m = re.search(r"private void send\(boolean force\)\s*\{(.*?)\n    \}", popup_no, flags=re.S)
-write_order = None
 check(m is not None, "抠得出 send() 方法体")
 if m:
     fb = m.group(1)
-    check("new SyncSettingsPacket(domain, scope, force, key)" in fb,
-          "★ send() 构造 SyncSettingsPacket(domain, scope, force, key)")
-    check("Packets.CHANNEL.sendToServer(new SyncSettingsPacket(" in fb,
-          "走 SyncSettingsPacket（sendToServer）")
+    write_order = io_order(fb, r"write\w+")
+    check(write_order == ["writeUtf", "writeVarInt", "writeBoolean", "writeLong"],
+          "★ send() 按序写 utf(16) · varInt · boolean · long（与读侧同序同类型）",
+          "得到 %s" % write_order)
+    check("writeUtf(domain, 16)" in fb and "writeVarInt(scope)" in fb
+          and "writeBoolean(force)" in fb and "writeLong(key)" in fb,
+          "写入的正是 domain / scope / force / key 四个同名字段")
+    check("SLNet.sendToServer(SmoothLift.SYNC_SETTINGS_CHANNEL, buf)" in fb
+          or "SLNet.sendToServer(SYNC_SETTINGS_CHANNEL, buf)" in fb,
+          "★ 走 SLNet 频道 sendToServer(SYNC_SETTINGS_CHANNEL, buf)（不再有 SyncSettingsPacket 包类）")
+    check("new SyncSettingsPacket" not in fb and "ClientPlayNetworking" not in fb,
+          "★ send() 里不再 new SyncSettingsPacket / 无 Fabric 网络 API 残留")
     check("onClose()" in fb, "发完就 onClose() 回原界面")
     check(fb.count("sendToServer(") == 1, "send() 只发一条包",
           "实际 %d 条" % fb.count("sendToServer("))
 
-_sync_pkt = open(os.path.join(ROOT, "src", "main", "java", "smooth", "lift", "network", "SyncSettingsPacket.java"), encoding="utf-8").read()
-check("buf.readUtf(16), buf.readVarInt(), buf.readBoolean(), buf.readLong()" in _sync_pkt
-      or re.search(r"readUtf\(16\).*?readVarInt.*?readBoolean.*?readLong", _sync_pkt, re.S) is not None,
-      "★ SyncSettingsPacket.decode 读序 = utf16 · varInt · boolean · long（与写序同序同类型）")
-
-
-def write_read_paired(writes, reads):
-    """写序/读序能配对：逐格「writeX ↔ readX」同名。"""
-    if writes is None or reads is None:
-        return False
-    if len(writes) != len(reads):
-        return False
-    return all(w.replace("write", "") == r.replace("read", "") for w, r in zip(writes, reads))
-
-
-_sync_pkt2 = open(os.path.join(ROOT, "src", "main", "java", "smooth", "lift", "network", "SyncSettingsPacket.java"), encoding="utf-8").read()
-_writes = io_order(_sync_pkt2, r"write\w+")
-_reads = io_order(_sync_pkt2, r"read\w+")
-check(write_read_paired(_writes, _reads),
-      "★ 写读逐格同名配对（错位即静默读出垃圾值）",
-      "写 %s / 读 %s" % (_writes, _reads))
-
-check(os.path.isfile(os.path.join(ROOT, "src", "main", "java", "smooth", "lift", "network", "SyncSettingsPacket.java")),
-      "服务端有 SyncSettingsPacket 包类（声明了同步设置）")
-check(re.search(r'class SyncSettingsPacket',
-                _sync_pkt) is not None,
-      "SyncSettingsPacket 包类存在")
-check("enqueueWork(() -> {" in _sync_pkt and "displayClientMessage" in _sync_pkt,
-      "★ SyncSettingsPacket.handle：切主线程 + 同步结果回一条聊天栏消息")
+# 服务端同频道 receiver（SmoothLift.registerServer(SYNC_SETTINGS_CHANNEL, ...)）：读序逐格配对
+_i_recv = sl_no.find("SLNet.registerServer(SYNC_SETTINGS_CHANNEL")
+check(_i_recv >= 0 or sl_no.find("registerServer(SYNC_SETTINGS_CHANNEL") >= 0,
+      "服务端注册了 SYNC_SETTINGS_CHANNEL 接收器（SmoothLift）")
+_recv_body = sl_no[_i_recv:_i_recv + 1500] if _i_recv >= 0 else ""
+if _recv_body:
+    read_order = io_order(_recv_body, r"read\w+")
+    check(read_order == ["readUtf", "readVarInt", "readBoolean", "readLong"],
+          "★ 服务端读序 = utf16 · varInt · boolean · long（与写序同序同类型）",
+          "得到 %s" % read_order)
+    check("readUtf(16)" in _recv_body and "readVarInt()" in _recv_body
+          and "readBoolean()" in _recv_body and "readLong()" in _recv_body,
+          "读的是 domain(utf16) / scope(varInt) / force(boolean) / key(long) 四个同名字段")
+    check("server.execute(" in _recv_body and "noteUiResult(player, true)" in _recv_body,
+          "★ 读完后 server.execute 切主线程 + 结果回执 noteUiResult（与其它频道同一套回执）")
 
 # ======================================================================
 # 5) ESC / 取消：回原界面，且没掐断 ESC 默认路径

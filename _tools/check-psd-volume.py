@@ -61,7 +61,7 @@ BUILD_GRADLE = os.path.join(ROOT, "build.gradle")
 CMD = os.path.join(MAIN, "SmoothLift.java")
 DATA = os.path.join(MAIN, "EscalatorSpeedData.java")
 MGR = os.path.join(MAIN, "EscalatorSpeedManager.java")
-CLI = os.path.join(CLIENT, "SmoothLiftClientEvents.java")
+CLI = os.path.join(CLIENT, "SmoothLiftClient.java")
 UI = os.path.join(CLIENT, "PsdToneSetupScreen.java")
 # 【1.57】两列版式的**唯一来源**（屏蔽门二级页的几何常量已改成指向它的别名）
 SOUND_LIST = os.path.join(CLIENT, "SoundListLayout.java")
@@ -174,16 +174,17 @@ for pkt_cls in ("SetPsdMidiumLoudPacket", "SetPsdArriveLoudPacket"):
 # 3) 数据层：15 字段 record + 哨兵 + 夹取 + NBT
 # ======================================================================
 print()
-print("===== 3) 数据层：PsdToneAudio 15 字段 + 哨兵 -1 =====")
+print("===== 3) 数据层：PsdToneAudio 20 字段 + 哨兵 -1 =====")
 
 m = re.search(r"public record PsdToneAudio\(([^)]*)\)", data, flags=re.S)
 check(m is not None, "找得到 PsdToneAudio record 声明")
 if m:
     params = [p.strip() for p in m.group(1).split(",") if p.strip()]
-    check(len(params) == 16, "★ PsdToneAudio 是 16 字段（1.20 的 13 + 到站/进站 2 + 本轮 1）",
+    check(len(params) == 20,
+          "★ PsdToneAudio 是 20 字段（13 + 到站/进站 2 + 音量 1 + 进站讲述人 2 + 站台讲述人 2）",
           "得到 %d：%s" % (len(params), ", ".join(params)))
-    check(params[-1] == "Integer arriveVolume",
-          "★ arriveVolume 在末尾（追加式改包的标准姿势：老位置一个都没动）",
+    check(params[-1] == "Integer midiumNarrateSeconds",
+          "★ midiumNarrateSeconds 在末尾（追加式改包的标准姿势：老位置一个都没动）",
           "得到 %s" % params[-1])
     check(params[10] == "String midium" and params[11] == "Integer midiumWaitSeconds"
           and params[12] == "Integer midiumVolume",
@@ -343,7 +344,7 @@ if m4 is None:
 check(m4 is not None, "找得到客户端构造 PsdToneAudio 的地方")
 if m4:
     args4 = [a.strip() for a in m4.group(1).split(",") if a.strip()]
-    check(len(args4) == 16, "★ 客户端构造实参 = 16", "得到 %d" % len(args4))
+    check(len(args4) == 20, "★ 客户端构造实参 = 20", "得到 %d" % len(args4))
     if m:
         rec_names = [p.strip().split()[-1] for p in params]
         # ★★ 这是「服务端写 → 客户端读 → 喂进 record」这条链的最后一段：
@@ -353,8 +354,8 @@ if m4:
         check(args4 == rec_names,
               "★★ 客户端构造实参逐个 == record 参数名（顺序 + 名字全对上）",
               "实参=%s\n             record=%s" % (args4, rec_names))
-        check(set(args4) == set(rec_names) and len(set(args4)) == 16,
-              "16 个实参/参数名互不重复（重名会让上面那条断言失去分辨力）")
+        check(set(args4) == set(rec_names) and len(set(args4)) == 20,
+              "20 个实参/参数名互不重复（重名会让上面那条断言失去分辨力）")
 
 # ======================================================================
 # 5) UI：音量框 + 标签 + 底部合并 + 列表 ≥5 行

@@ -198,6 +198,11 @@ public class SmoothLiftClient implements ClientModInitializer {
             if (!EscalatorUtil.isEscalator(world.getBlockState(pos))) {
                 return InteractionResult.PASS;
             }
+            // 【1.30.11182】正面日志：下一份用户日志里有了这一行，就能断定「我们的完整五项界面
+            // 确实打开过」；若用户仍看到「只剩调速」的界面，配合 EscalatorUiGuardMixin 的拦截日志
+            // 即可定位是哪个模组在抢界面（1.18.2 包里有同样做扶梯调速的 mtr4backport）。
+            LOGGER.info("[SmoothLift] 石斧右键扶梯 @ ({}, {}, {})，打开扶梯设置界面（速度/阶梯速度/声音/提示音）",
+                    pos.getX(), pos.getY(), pos.getZ());
             Minecraft.getInstance().setScreen(new EscalatorSpeedScreen(pos));
             return InteractionResult.FAIL;
         });
@@ -288,7 +293,7 @@ public class SmoothLiftClient implements ClientModInitializer {
             if (!SmoothLift.isMtrRail(world.getBlockState(pos))) {
                 return InteractionResult.PASS;
             }
-            long sidingKey = MtrSidingAccess.facingSidingKey();
+            long sidingKey = MtrSidingAccess.facingSidingKey(pos);
             if (sidingKey == MtrSidingAccess.NO_SIDING) {
                 return InteractionResult.PASS;
             }

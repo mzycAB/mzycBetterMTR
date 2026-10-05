@@ -50,7 +50,7 @@ CLIENT = os.path.join(ROOT, "src", "main", "java", "smooth", "lift", "client")
 DATA = os.path.join(MAIN, "EscalatorSpeedData.java")
 MGR = os.path.join(MAIN, "EscalatorSpeedManager.java")
 SL = os.path.join(MAIN, "SmoothLift.java")
-SLC = os.path.join(CLIENT, "SmoothLiftClientEvents.java")
+SLC = os.path.join(CLIENT, "SmoothLiftClient.java")
 SCREEN = os.path.join(CLIENT, "PsdToneSetupScreen.java")
 # 【1.57】两列版式的**唯一来源**：屏蔽门这几个二级页的几何常量已改成指向它的别名
 SOUND_LIST = os.path.join(CLIENT, "SoundListLayout.java")

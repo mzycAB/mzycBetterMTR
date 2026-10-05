@@ -10,7 +10,7 @@ import net.minecraft.client.gui.components.Button;
 import net.minecraft.client.gui.components.EditBox;
 import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.network.FriendlyByteBuf;
-import net.minecraft.network.chat.Component;
+import smooth.lift.compat.Component;
 import org.lwjgl.glfw.GLFW;
 import smooth.lift.EscalatorSpeedData;
 import smooth.lift.EscalatorSpeedManager;
@@ -408,7 +408,7 @@ public class TrainSoundScreen extends Screen {
                             button -> pickBuiltin())
                     .bounds(SoundListLayout.rightColX(w), builtinY, SoundListLayout.ROW_NAME_W, 20)
                     .build());
-            addRenderableWidget(ButtonBuilder.builder(new net.minecraft.network.chat.TextComponent("选用"),
+            addRenderableWidget(ButtonBuilder.builder(Component.literal("选用"),
                             button -> pickBuiltin())
                     .bounds(SoundListLayout.rowPickX(w), builtinY, SoundListLayout.ROW_BTN_W, 20)
                     .build());
@@ -620,7 +620,7 @@ public class TrainSoundScreen extends Screen {
         // 写死偏移会歪），纵向与 20 px 高的框居中对齐（与「预设选择」界面同款画法）。
         int labelX = labelX();
         for (int i = 0; i < LABELS.length; i++) {
-            guiGraphics.drawString(this.font, new net.minecraft.network.chat.TextComponent(VOLUME_LABEL), labelX,
+            guiGraphics.drawString(this.font, Component.literal(VOLUME_LABEL), labelX,
                     rowY(i) + (VOL_ROW_H - this.font.lineHeight) / 2, 0xA0A0A0, false);
         }
     }

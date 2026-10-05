@@ -50,9 +50,10 @@ import java.util.Collection;
  * 「这一次绘制绑哪张帧贴图」。于是顶点只剩帧内 uv，与时间无关 ⇒ 可以缓存成
  * {@code VertexBuffer}，每帧对不变的段一个方块都不碰。
  *
- * <p>绘制方式照抄原版 {@code LevelRenderer} 画区块那一趟（1.20.4 反汇编实测）：
+ * <p>绘制方式照抄原版 {@code LevelRenderer} 画区块那一趟（**1.18.2 字节码实测**，与 1.20.x 不同）：
  * {@code setupRenderState()} 一次 → {@code apply()} 一次 → 逐段
- * {@code set(ChunkOffset)+upload} → {@code bind()} → {@code draw()} → 循环外 {@code clear()}。
+ * {@code set(ChunkOffset)+upload} → {@code drawChunkLayer()} → 循环外
+ * {@code set(0)+clear()+clearBufferState()+unbind+unbindVertexArray()}。
  * 分段局部坐标 ⟶ 世界坐标的平移全部交给 {@code ChunkOffset} uniform，
  * 没有矩阵栈推拉、没有逐顶点计算。
  *
@@ -419,14 +420,34 @@ public final class EscalatorStepRenderer {
      * 帧号必然相同：只要切换一次贴图就能把它们全部画掉。这正是「同速度的算一组、
      * 一组一次搞定」在代码上的样子，也是用户说的「复制 N 份渲染引擎」里的 N。
      *
-     * <h3>★ 槽内形状：{@code setupRenderState()} → {@code apply()} → 逐段 {@code bind()+draw()}</h3>
-     * 这是原版画区块那一趟的形状（1.20.4 {@code LevelRenderer} 反汇编实测，字节码序列
+     * <h3>★ 槽内形状：{@code setupRenderState()} → {@code apply()} → 逐段 {@code drawChunkLayer()}</h3>
+     * 这是原版 1.18.2 画区块那一趟的形状（{@code LevelRenderer.renderChunkLayer} 字节码实测）：
      * {@code shader.apply()} → 循环 { {@code chunkOffset.set(origin−cam); chunkOffset.upload();
-     * buffer.bind(); buffer.draw();} } → 循环后 {@code chunkOffset.set(0,0,0); shader.clear();
-     * VertexBuffer.unbind(); type.clearRenderState();}）。
+     * buffer.drawChunkLayer();} } → 循环后 {@code chunkOffset.set(0,0,0); shader.clear();
+     * if(画过) format.clearBufferState(); VertexBuffer.unbind(); VertexBuffer.unbindVertexArray();
+     * type.clearRenderState();}。
      *
-     * <p>注意是 {@code VertexBuffer.draw()}（public，只做一次 {@code RenderSystem.drawElements}），
-     * <b>不是</b> {@code drawWithShader()}。原因：
+     * <p><b>为什么逐段必须是 {@code drawChunkLayer()} 而【1.29 重写时写的 {@code bind()+draw()}
+     * 会让整个阶梯「画了但不可见」】（1.30.11182.hotfix 修复的根因，别再改回去）：</b>
+     * 1.18.2 的 {@code VertexBuffer} 与 1.20.x 语义完全不同（上一版注释里「1.20.4 反汇编实测」
+     * 的形状在 1.18.2 上不成立）：
+     * <ul>
+     *   <li>1.18.2 的 {@code draw()}（{@code m_166882_}）是**裸的** {@code RenderSystem.drawElements} ——
+     *       既不绑 VAO、也不设属性指针；</li>
+     *   <li>1.18.2 的 {@code bind()}（{@code m_85921_}）只绑 VBO/EBO —— **不绑 VAO**（VAO 是
+     *       {@code arrayObjectId} 字段，只有私有的 {@code bindVertexArray} 会绑它）；</li>
+     *   <li>1.18.2 的 {@code upload()}（{@code m_85925_} → {@code upload_}）自己会
+     *       {@code bindVertexArray()+bind()} 上传数据，但**从不写属性指针**；</li>
+     *   <li>唯一「绑 VAO + {@code format.setupBufferState()} + drawElements」的公开方法是
+     *       {@code drawChunkLayer()}（{@code m_166887_}）—— 原版 {@code renderChunkLayer}
+     *       逐段调的就是它。</li>
+     * </ul>
+     * 于是 {@code bind()+draw()} 跑出的每一次 {@code glDrawElements} 都踩在错误的顶点数组状态上
+     * （upload 收尾已把 VAO 解绑回 0 ⇒ 核心 profile 下 {@code GL_INVALID_OPERATION}，
+     * 一次 glError 都不会留到事后检查），表现正好是：绘制调用在发、GL 状态检查全绿、
+     * 画面空无一物 —— 三份排查日志（LOGi1/LOGh10/LOGx1）的所有现象一次解释。
+     *
+     * <p>注意逐段<b>不是</b> {@code drawWithShader()}。原因：
      * <ul>
      *   <li>{@code drawWithShader()} 收尾会调 {@code ShaderInstance.clear()}，而 {@code clear()}
      *       的字节码是 {@code glUseProgram(0)} + 把每个 sampler 的纹理都解绑 ⇒ <b>它自带拆台</b>。
@@ -439,7 +460,7 @@ public final class EscalatorStepRenderer {
      *       （实测 2026-09-26 的崩溃日志里就有这一条）。把这个上传放到 {@code apply()} 之后、
      *       {@code clear()} 之前，才是合法的时机。</li>
      *   <li>收益也不小：每槽只 {@code apply()+clear()} 一次，段与段之间只剩
-     *       「一次 uniform + 一次 VAO 绑定 + 一次 glDrawElements」。
+     *       「一次 uniform + 一次 drawChunkLayer（内部绑 VAO/VBO/EBO+属性指针+一次 drawElements）」。
      *       若改成每段一次 {@code drawWithShader}，可见段 × 槽数 就是每帧成百上千次
      *       {@code glUseProgram / glUseProgram(0) / 采样器逐单元解绑} —— 在一个
      *       「目标就是省每帧开销」的重写里，这笔开销不能留。</li>
@@ -475,6 +496,18 @@ public final class EscalatorStepRenderer {
         Matrix4f projection = context.projectionMatrix();
         int drawnVertices = 0;
         int drawCalls = 0;
+
+        // 防御性对齐：1.20.1 的 AFTER_ENTITIES 直接画在主 framebuffer 上；1.18.2 没有
+        // AFTER_ENTITIES 阶段，只有 AFTER_PARTICLES 可用，而它在 Forge 补丁里有 if/else 两个
+        // 触发点，分属 fabulous 与 fancy/fast 两条分支。这里强制切回主 render target，保证
+        // 不管走哪条分支、也不管环境模组（Embeddium / DistantHorizons 的 LevelRenderer mixin）
+        // 在之前绑过什么，这一趟都画在主 fbo 上。
+        // （LOGx1 探针实测：fancy 分支下进入 draw() 时 fbo 已是主 framebuffer，本调用通常
+        // 是无操作，纯粹是给环境差异留的保险 —— 保留无害。）
+        Minecraft mc = Minecraft.getInstance();
+        if (mc.getMainRenderTarget() != null) {
+            mc.getMainRenderTarget().bindWrite(true);
+        }
 
         for (int slot = 0; slot < EscalatorStepGroups.SLOT_COUNT; slot++) {
             if (!slotPresent[slot]) {
@@ -513,6 +546,7 @@ public final class EscalatorStepRenderer {
                         + "（画面正确，只是每段多一次矩阵上传）", CHUNK_OFFSET_UNIFORM);
             }
 
+            boolean drewAny = false;
             for (int i = 0; i < count; i++) {
                 EscalatorStepCache.CachedSection cached = visible[i];
                 VertexBuffer buffer = cached.buffer(slot);
@@ -524,20 +558,24 @@ public final class EscalatorStepRenderer {
                 float dz = (float) (cached.originZ() - cameraPos.z);
                 if (chunkOffset != null) {
                     // 顶点里存的是分段局部坐标，平移量交给 uniform —— 原版画区块就是这么做的。
+                    // drawChunkLayer() = bindVertexArray + bind(VBO/EBO) + format.setupBufferState()
+                    // + drawElements，是 1.18.2 上唯一自洽的逐段绘制入口（根因见方法注释：
+                    // 1.18.2 的 draw() 是裸 drawElements、bind() 不绑 VAO、upload() 不写属性指针）。
                     chunkOffset.set(dx, dy, dz);
                     chunkOffset.upload();
-                    buffer.bind();
-                    buffer.draw();
+                    buffer.drawChunkLayer();
                 } else {
                     // 兜底：着色器里没有 ChunkOffset（资源包把它换掉了）时改用矩阵栈平移。
                     // 这条路上必须走 drawWithShader —— 它自己 apply / 自己 clear，
-                    // 不依赖「循环开始时绑好的那个程序」。
+                    // 不依赖「循环开始时绑好的那个程序」。（它在 1.18.2 上自带
+                    // bindVertexArray + setupBufferState，本来就是完整路径。）
                     poseStack.pushPose();
                     poseStack.translate(dx, dy, dz);
                     buffer.bind();
                     buffer.drawWithShader(poseStack.last().pose(), projection, shader);
                     poseStack.popPose();
                 }
+                drewAny = true;
                 drawnVertices += cached.vertexCount(slot);
                 drawCalls++;
             }
@@ -548,7 +586,15 @@ public final class EscalatorStepRenderer {
             }
             // clear() 一次就够：解绑程序 + 把各采样器纹理解绑（原版也是循环外一次）。
             shader.clear();
+            // 收尾对齐原版 renderChunkLayer 的字节码序列：
+            // if(画过) format.clearBufferState() → VertexBuffer.unbind() → unbindVertexArray()。
+            // 1.18.2 的属性指针状态是「当前 VAO + 全局 client state」级别的残留，
+            // 不清掉会泄漏给本帧后面的绘制（原版每画完一个区块层都做这三步）。
+            if (drewAny) {
+                type.format().clearBufferState();
+            }
             VertexBuffer.unbind();
+            VertexBuffer.unbindVertexArray();
             type.clearRenderState();
         }
 
