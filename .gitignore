@@ -38,3 +38,7 @@ hs_err_*.log
 replay_*.log
 *.hprof
 *.jfr
+
+# 本地校验工具 _tools 的派生产物（含本机绝对路径，别提交）
+_tools/runtime.cp
+_tools/out/
