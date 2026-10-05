@@ -111,7 +111,7 @@ import java.util.Set;
  * 向上的扶梯：**最下面第一块**放急促（上客端）、**最上面最后一块**放缓慢（落客端）。
  * <b>整条扶梯中间是不放音源的</b>（对比：{@link EscalatorAudioPlayer} 的运行底噪才是整条一起响）。
  *
- * <p><b>【1.17】射程默认 4 格（不是 16）</b>：本提示音是**装在单个扶梯方块上**的点状音源，默认半径只有 4 格。
+ * <p><b>【1.17】射程默认 4 格（不是 16）</b>：本提示音是**装在单个扶梯方块上**的点状音源。★【10-05】用户点名：无障碍提示音默认 **5 格**（原 4；曾误改 10，已按用户纠正改回）。
  * 早先照抄了扶梯底噪那套 16 格，结果**坐一整程都只听得见上客端那一路急促咔咔**，端头导向的意义全没了。
  * 请分清这两个东西（{@link EscalatorAudioPlayer} 的注释里也有同样的说明）：
  * <ul>
@@ -160,7 +160,7 @@ import java.util.Set;
  * 两端一样响、混成一团，判不出方向。这里关掉 OpenAL 的距离增益
  * （{@code Attenuation.NONE} → {@code AL_DISTANCE_MODEL=AL_NONE}，注意这只关**增益**，
  * 声源坐标依旧生效、依旧做声像），改由
- * {@link #gain(double, double)} 按「到**该端头**的距离」逐端算（默认 4 格内**按比例线性**衰减到 0，
+ * {@link #gain(double, double)} 按「到**该端头**的距离」逐端算（默认 5 格内**按比例线性**衰减到 0，
  * ★【10-03】原为平方，用户点名改为按比例），两端各自衰减。
  *
  * <p><b>静音条件</b>（两个，任一成立就不响，都在 {@link #onClientTick} 里**逐 tick 现算**）：
@@ -211,7 +211,7 @@ public final class EscalatorChimePlayer {
     private static final Logger LOGGER = LoggerFactory.getLogger("smoothlift");
 
     /**
-     * 听得到提示音的**默认最远距离**（格）= {@link EscalatorSpeedData#DEFAULT_HELP_ROUND} = **4**，
+     * 听得到提示音的**默认最远距离**（格）= {@link EscalatorSpeedData#DEFAULT_HELP_ROUND} = **5**，
      * 而且算的是**到某一个端头那对左右并列的扶梯方块**的距离。
      *
      * <p><b>【1.24】现在可调了</b>（{@code /futihelpround}，1~128 格），所以实际判定一律走
@@ -229,7 +229,7 @@ public final class EscalatorChimePlayer {
      * 早先这里错用了 16 格（照抄底噪那套），结果**坐一整程都只听得见上客端那一路急促滴答**，
      * 端头导向的意义没了。**改回 4 格**。
      *
-     * <p>★【10-03】拆双维：水平（xz）默认 4、垂直（y）默认 5（见 {@link #DEFAULT_RANGE_Y}），
+     * <p>★【10-03】拆双维：水平（xz）默认 5（★【10-05】用户点名 5 5）、垂直（y）默认 5（见 {@link #DEFAULT_RANGE_Y}），
      * 两维各算一次线性衰减、取较小；任一维越界即静音。
      *
      * <p><b>4 格就是默认的全部规则，不再额外收窄</b>：扶梯长于 8 格时两端天然不相交、中段安静；
@@ -457,7 +457,7 @@ public final class EscalatorChimePlayer {
         Vec3 player = mc.player.position();
         // 【1.18】提示音音量百分比（1~1000 → 0.01~10.0），同样逐 tick 现算（带代次缓存）。
         float volumeFactor = helpVolumeFactor(mc, target.anchor);
-        // 【1.24】可闻范围（格，★【10-03】水平默认 4 / 垂直默认 5）也逐 tick 现算：改完不用重进世界。
+        // 【1.24】可闻范围（格，★【10-03】双维；★【10-05】水平默认改为 10 / 垂直默认 5）也逐 tick 现算：改完不用重进世界。
         double rangeXz = helpRange(mc, target.anchor);
         double rangeY = helpRangeY(mc, target.anchor);
         // 【1.31】两个端头的速率（Hz）同样逐 tick 现算带代次缓存：/futihelpspeed 改完立刻换速度。
@@ -536,7 +536,7 @@ public final class EscalatorChimePlayer {
 
     /**
      * 【1.24】这条扶梯**生效的**提示音可闻范围（格）：单独设置 &gt; 维度默认
-     * （{@code /futihelpround}，初始 4）。
+     * （{@code /futihelpround}，初始 5）。
      *
      * <p>缓存策略与 {@link #helpEnabled} / {@link #helpVolumeFactor} 完全一致：只在
      * 「客户端镜像换代」或「换了一条扶梯」时才真的去查 —— {@link EscalatorSpeedManager#getHelpRound}
@@ -1213,7 +1213,7 @@ public final class EscalatorChimePlayer {
     }
 
     /**
-     * 距离增益：{@code range}（默认 4 格，可被 {@code /futihelpround} 改）内**按比例线性**衰减：
+     * 距离增益：{@code range}（默认 5 格，可被 {@code /futihelpround} 改）内**按比例线性**衰减：
      * {@code 1 - d/range} —— 站在 0 格处 = 100%，每远 1 格减 {@code 100/range}%，
      * 到 {@code range} 格正好 0（出界硬切 0）。
      *

@@ -131,15 +131,15 @@ public final class LiftChimePlayer {
             new ResourceLocation("smoothlift", "audio/down");
 
     /**
-     * 【1.47】可闻范围（格）的**默认值**。1.47 起由 {@code /lifthelpround} 控制（默认 4 格，
-     * 首次载入模组就是这个值；三项提示音共用一份），播放时用 {@link #cachedRound}（随同步包更新）。
-     * 旧版（1.46 及以前）是写死的 16.0。
+     * 【1.47】可闻范围（格）的**默认值**。1.47 起由 {@code /lifthelpround} 控制（★【10-05】默认
+     * **5** 格 —— 用户点名「直梯 / 扶梯无障碍提示音默认 5 5」，原为 4；三项提示音共用一份），
+     * 播放时用 {@link #cachedRound}（随同步包更新）。旧版（1.46 及以前）是写死的 16.0。
      */
     private static final double RANGE_DEFAULT = EscalatorSpeedData.DEFAULT_LIFT_HELP_ROUND;
 
     /**
      * ★【10-03】**垂直（y 轴）**默认射程（格）= {@link EscalatorSpeedData#DEFAULT_LIFT_HELP_ROUND_Y} = 5。
-     * 与 {@link #RANGE_DEFAULT}（水平，默认 4）成对：双维各算线性、取较小（见 {@link #spatialFactor}）。
+     * 与 {@link #RANGE_DEFAULT}（水平，★【10-05】默认 10）成对：双维各算线性、取较小（见 {@link #spatialFactor}）。
      */
     private static final double RANGE_DEFAULT_Y = EscalatorSpeedData.DEFAULT_LIFT_HELP_ROUND_Y;
 
@@ -619,7 +619,7 @@ public final class LiftChimePlayer {
             }
             return (float) (OUTSIDE_CABIN_FACTOR * (1.0 - beyond / span));
         }
-        // ★【10-03】真实轿厢盒：**双维**（水平 xz 默认 4 / 垂直 y 默认 5），任一维越界即静音；
+        // ★【10-03】真实轿厢盒：**双维**（水平 xz 默认 5 —— ★【10-05】用户点名 5 5 / 垂直 y 默认 5），任一维越界即静音；
         //   范围内两维各算**按比例线性**、取**较小**。出厢那一步 100%→20% 的硬跳保持不变。
         double hxz = cabinExcessHorizontal(player, cabin);
         double py = cabinExcessVertical(player, cabin);

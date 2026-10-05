@@ -123,6 +123,21 @@ EXPECTED = {
     ],
 }
 
+# ★★【10-05 用户点名】三个预设**都**带「范围六条」（用户原话：
+#   「mbm help 里的 3 个默认（香港、精简香港、空白）：所有范围 10 5，讲述人报站默认 chat」；
+#   ★ 第二轮纠正：「直梯 / 扶梯无障碍提示音的第一次加载默认与 mbm help 三个预设都应是 5 5」）。
+#   顺序 = 扶梯底噪 → 扶梯提示音 → 直梯提示音 → 屏蔽门提示音 → 到站播报 → 进站报站。
+#   值：底噪 / 屏蔽门 / 到站 / 进站 = **10 5**；两条**无障碍提示音**（扶梯 / 直梯）= **5 5**。
+#   位置 = 用户那 10 条**之后**、`pbmmusic … -f on` 那两条**之前**（源码与 CmdTreeCheck 同序）。
+RANGE_LINES = [
+    "futiround -f 10 5",
+    "futihelpround -f 5 5",
+    "lifthelpround -f 5 5",
+    "pbmround -f 10 5",
+    "pbmmidiumround -f 10 5",
+    "pbmarriveround -f 10 5",
+]
+
 # 【1.58 / 09-29】港铁两个「要出声」的预设，**末尾这几条是修正**（顺序 = 源码里的顺序）：
 #   把 open/close 的**子开关**显式打开 —— **只补 PSD 那两条**。
 #   ★ 直梯那四条 `lifthelp … -f on` **已在用户原文的前 10 条里**，不在这里再补（补了就重复）。
@@ -205,10 +220,14 @@ for pid, arr_name in ARRAYS.items():
           "实际前 %d 条 = %s" % (len(EXPECTED[pid]), got[:len(EXPECTED[pid])]))
     boot = BOOT_MUST_ENABLE.get(pid, [])
     tail = NARRATE_TAIL.get(pid, [])
-    check(got == EXPECTED[pid] + boot + tail,
-          "「%s」= 用户那 10 条 + %d 条开子开关 + %d 条讲述人样式"
-          % (LABELS[pid], len(boot), len(tail)),
+    check(got == EXPECTED[pid] + RANGE_LINES + boot + tail,
+          "「%s」= 用户那 10 条 + %d 条范围（底噪/门/报站 10 5，两条无障碍提示音 5 5） + %d 条开子开关 + %d 条讲述人样式"
+          % (LABELS[pid], len(RANGE_LINES), len(boot), len(tail)),
           "实际 = %s" % got)
+    # ★【10-05】那 6 条必须**真的在**（上面那条等式已隐含，这里单独报一条便于定位）
+    check(all(c in got for c in RANGE_LINES),
+          "★★【10-05】「%s」含全部 6 条范围（两条无障碍提示音 = 5 5）" % LABELS[pid],
+          "缺 = %s" % [c for c in RANGE_LINES if c not in got])
 
 check(find_array("PRESET_CLASSIC_MTR") != find_array("PRESET_BLANK"),
       "经典与空白不是同一份清单（防止复制粘贴改漏）")
@@ -268,6 +287,17 @@ if m_send:
     check("ID_CLASSIC.equals(presetId) || ID_SIMPLE.equals(presetId)" not in sb,
           "★★ sendPreset 里不许再有「classic || simple 一起开总闸」的旧写法"
           "（那会让简单港铁又去开总闸，与用户点名冲突）")
+
+    # ★★【10-05 用户点名】三个预设的讲述人**文字地点一律 chat** ——
+    #   simple / blank 从原来的 disableWordForPreset()（= off）改成 enableChatForPreset()。
+    #   ★ 它们的**总闸仍关着**（由上面那两条断言管着）—— 这里只是把**默认文字地点**定下来：
+    #     之后玩家手动 /jsr on 就直接出聊天框，不必再单独去调一次文字地点。
+    check(sb.count("TrainAnnounceSwitch.enableChatForPreset();") >= 2,
+          "★★【10-05】三个预设都把讲述人文字地点设成 chat"
+          "（enableChatForPreset 至少两处：classic 一处 + simple/blank 共用的那一处）",
+          "实际 %d 次" % sb.count("TrainAnnounceSwitch.enableChatForPreset();"))
+    check("disableWordForPreset()" not in sb,
+          "★★【10-05】预设里不再把讲述人文字关成 off（sendPreset 不再调 disableWordForPreset）")
 
 # ======================================================================
 # 1d) ★★【09-28 续 4 新补】把 CmdTreeCheck 那份**手抄清单**钉回源码

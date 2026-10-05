@@ -343,6 +343,22 @@ public class SmoothLiftClient implements ClientModInitializer {
             TrainTiltView.onDisconnect();
         });
 
+        // 【10-05】服务端问「离玩家最近的那一串屏蔽门」：算 runKey 再回包。
+        //   ★ 必须在**主线程**读：PsdDoorTracker.LIVE 的写入与玩家视线都在主线程。
+        //   ★ 算不出来（没进世界 / 附近一扇门都没有）⇒ found=false，服务端回「指令执行失败」。
+        ClientPlayNetworking.registerGlobalReceiver(SmoothLift.PSD_NEAREST_REQUEST_CHANNEL,
+                (client, handler, buf, responseSender) -> client.execute(() -> {
+                    net.minecraft.client.player.LocalPlayer player = Minecraft.getInstance().player;
+                    long runKey = player == null
+                            ? PsdDoorTracker.RUN_KEY_NONE
+                            : PsdDoorTracker.nearestRunKeyTo(player.position(), player.getLookAngle());
+                    boolean found = runKey != PsdDoorTracker.RUN_KEY_NONE;
+                    FriendlyByteBuf reply = PacketByteBufs.create();
+                    reply.writeBoolean(found);
+                    reply.writeLong(found ? runKey : 0L);
+                    ClientPlayNetworking.send(SmoothLift.PSD_NEAREST_REPLY_CHANNEL, reply);
+                }));
+
         // 接收服务端同步的全部速度+阶梯动画数据
         ClientPlayNetworking.registerGlobalReceiver(SmoothLift.SYNC_CHANNEL, (client, handler, buf, responseSender) -> {
             int dimCount = buf.readVarInt();

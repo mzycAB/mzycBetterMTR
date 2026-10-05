@@ -17,7 +17,9 @@
 
 ⇒ 现在**每一份**距离增益都按双维算：
 `gain(dxz, dy) = 0` 若任一维越界；否则 `min(1 - dxz/Rxz, 1 - dy/Ry)`。
-（`dxz = hypot(Δx, Δz)`、`dy = |Δy|`）。默认值：底噪 10/5、提示音 4/5、直梯 4/5、屏蔽门 10/5。
+（`dxz = hypot(Δx, Δz)`、`dy = |Δy|`）。★【10-05】**六域默认**（原：底噪 10/5、提示音 4/5、
+直梯 4/5、屏蔽门 10/5）⇒ 用户点名后：底噪/屏蔽门/到站/进站 = **10/5**，
+两条**无障碍提示音**（扶梯 / 直梯）= **5/5**，见第 7 节。
 
 ## 为什么值得一个**跨域**脚本
 
@@ -34,8 +36,8 @@
 ## 四份增益各自的落点（改公式时**四处一起看**）
 
   * `EscalatorAudioPlayer#distanceFactor` —— 扶梯**运行底噪**（`/futiround`，默认 水平 10 / 垂直 5）
-  * `EscalatorChimePlayer#gain`           —— 扶梯**无障碍提示音**（`/futihelpround`，默认 水平 4 / 垂直 5）
-  * `LiftChimePlayer#spatialFactor`       —— 直梯**提示音**（`/lifthelpround`，默认 水平 4 / 垂直 5）
+  * `EscalatorChimePlayer#gain`           —— 扶梯**无障碍提示音**（`/futihelpround`，★【10-05】默认 水平 10 / 垂直 5）
+  * `LiftChimePlayer#spatialFactor`       —— 直梯**提示音**（`/lifthelpround`，★【10-05】默认 水平 10 / 垂直 5）
       ★ **唯一例外**：轿厢内 = 100%，**出厢那一步硬降**到 20%（用户点名「进出车厢没有淡入淡出，
         直接 100% 变 20%」），轿厢**之外**才是 `0.2 · min(1 - dxz/跨度xz, 1 - dy/跨度y)`。
         所以那份是「双维线性 × 0.2」，起点不是 100% —— 别把这一份也改成纯 `1 - d/R`。
@@ -250,6 +252,57 @@ check("gain(" not in narr and "distanceFactor" not in narr,
       "（2026-10-03 用户点名「讲述人也不做淡入淡出」）")
 check("tickRangeGuard" in narr,
       "★ 那条「越界即停」护栏仍在（别把讲述人整体删掉）")
+
+# ======================================================================
+print("\n== 7. ★【10-05 用户点名】第一次加模组：底噪/门/报站 10 5，两条无障碍提示音 5 5 ==")
+# ----------------------------------------------------------------------
+#   用户原话①：「第一次加模组的默认：所有范围 10 5，讲述人报站默认 chat」。
+#   ★ 用户原话②（纠正）：「直梯 / 扶梯无障碍提示音的**第一次加载模组默认**和 **mbm help 的三个预设**
+#     都应是 **5 5**（原为 4；如果缺 y 轴就补上）」。
+#   ⇒ 六个域的默认值：扶梯底噪 10/5、扶梯无障碍提示音 **5/5**、直梯提示音 **5/5**、
+#     屏蔽门提示音 10/5、到站播报 10/5（引用门）、进站报站 10/5（引用门）。
+#   ★ 本条只钉**默认常量**（新档 / 旧档缺字段时的回落值）；旧存档里已写入的数值不动。
+DATA = os.path.join(ROOT, "src", "main", "java", "smooth", "lift", "EscalatorSpeedData.java")
+data = strip_comments(read(DATA))
+
+
+def const_int(name, src=None):
+    m = re.search(r"\b" + name + r"\s*=\s*(\d+)\s*;", src if src is not None else data)
+    return int(m.group(1)) if m else None
+
+
+for xz_name, y_name, xz_exp, y_exp, label in (
+        ("DEFAULT_ROUND", "DEFAULT_ROUND_Y", 10, 5, "扶梯运行底噪 /futiround"),
+        ("DEFAULT_HELP_ROUND", "DEFAULT_HELP_ROUND_Y", 5, 5, "扶梯无障碍提示音 /futihelpround"),
+        ("DEFAULT_LIFT_HELP_ROUND", "DEFAULT_LIFT_HELP_ROUND_Y", 5, 5, "直梯提示音 /lifthelpround"),
+        ("DEFAULT_PSD_HELP_ROUND_XZ", "DEFAULT_PSD_HELP_ROUND_Y", 10, 5, "屏蔽门提示音 /pbmround"),
+):
+    check(const_int(xz_name) == xz_exp and const_int(y_name) == y_exp,
+          "★★ %s 默认 = %d / %d" % (label, xz_exp, y_exp),
+          "实际 %s=%s / %s=%s" % (xz_name, const_int(xz_name), y_name, const_int(y_name)))
+
+# 到站播报 / 进站报站 = **引用**屏蔽门那一对（引用 ⇒ 自动同为 10/5；钉住这个「引用」本身，
+#   否则有人把它们改成字面量就会悄悄分叉）。
+check("DEFAULT_PSD_MIDIUM_ROUND_XZ = DEFAULT_PSD_HELP_ROUND_XZ" in data
+      and "DEFAULT_PSD_MIDIUM_ROUND_Y = DEFAULT_PSD_HELP_ROUND_Y" in data,
+      "★ 到站播报默认**引用**屏蔽门那一对（⇒ 自动同为 10/5）")
+check("DEFAULT_PSD_ARRIVE_ROUND_XZ = DEFAULT_PSD_HELP_ROUND_XZ" in data
+      and "DEFAULT_PSD_ARRIVE_ROUND_Y = DEFAULT_PSD_HELP_ROUND_Y" in data,
+      "★ 进站报站默认**引用**屏蔽门那一对（⇒ 自动同为 10/5）")
+
+# 讲述人（客户端配置）自己的范围默认也必须是 10 / 5
+narr = strip_comments(read(os.path.join(CLIENT, "TrainAnnounceSwitch.java")))
+check("DEFAULT_ROUND_XZ = EscalatorSpeedData.DEFAULT_PSD_ARRIVE_ROUND_XZ" in narr
+      and const_int("DEFAULT_ROUND_Y", narr) == 5,
+      "★ 讲述人（进站 / 站台）自己的范围默认也是 10 / 5",
+      "实际 DEFAULT_ROUND_Y=%s" % const_int("DEFAULT_ROUND_Y", narr))
+
+# ---- 反向对照：把常量改成 10，同一条判据必须变红 ----
+_mut = data.replace("DEFAULT_HELP_ROUND = 5;", "DEFAULT_HELP_ROUND = 10;", 1)
+check(_mut != data, "反向对照的探针确实改动了源码（基线可用）")
+check(const_int("DEFAULT_HELP_ROUND", _mut) != 5,
+      "★ 反向对照：把 DEFAULT_HELP_ROUND 改成 10 ⇒ 「扶梯无障碍提示音默认 5/5」当场变红",
+      "探针读到 %s" % const_int("DEFAULT_HELP_ROUND", _mut))
 
 if FAILS:
     print("\n== 失败 %d 项 ==" % len(FAILS))

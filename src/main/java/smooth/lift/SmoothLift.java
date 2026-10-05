@@ -301,6 +301,31 @@ public class SmoothLift implements ModInitializer {
             new ResourceLocation("smoothlift", "set_psd_narrate_texts");
 
     // ------------------------------------------------------------------
+    // 【10-05】pbm* 指令「不带 -f」的落点 = **离玩家最近的那一串屏蔽门**
+    //   指令跑在服务端线程，而「哪一串最近」只有客户端算得出来（要 MTR 客户端数据 +
+    //   渲染每帧上报的 LIVE 快照）⇒ 走一次「S2C 请求 → 客户端算 runKey → C2S 回包 → 服务端落地」。
+    //   ★ 玩家看到的**反馈只在回包那一侧给一条**（成功 / 失败）—— 请求侧不回，免得一次操作两条消息。
+    //   ★ 门串身份用 {@code PsdDoorTracker.runKeyOf}（与石斧 UI / 播放端同一把尺子）。
+    // ------------------------------------------------------------------
+
+    /**
+     * 【10-05】服务端 -> 客户端：请客户端算一次「离玩家最近的那一串屏蔽门」。
+     *
+     * <p>空包 —— 「具体要做哪一件事」留在服务端的待办队列（{@link #PENDING_NEAREST}）里，
+     * 这一包只负责触发客户端算 runKey。
+     */
+    public static final ResourceLocation PSD_NEAREST_REQUEST_CHANNEL =
+            new ResourceLocation("smoothlift", "psd_nearest_request");
+
+    /**
+     * 【10-05】客户端 -> 服务端：回「最近的那一串」的 runKey。
+     *
+     * <p>buf 顺序：{@code found(boolean) → runKey(long)}（{@code found == false} 时 runKey 无意义）。
+     */
+    public static final ResourceLocation PSD_NEAREST_REPLY_CHANNEL =
+            new ResourceLocation("smoothlift", "psd_nearest_reply");
+
+    // ------------------------------------------------------------------
     // 【1.53】「预设选择」界面（/MBM help）与三个「港铁预设」
     //   预设的做法是**把用户点名的那几条指令原样派发一遍**
     //   （{@code performPrefixedCommand}），不是把各条的效果手抄成 setter 调用。
@@ -1276,6 +1301,8 @@ public class SmoothLift implements ModInitializer {
         ServerPlayConnectionEvents.JOIN.register((handler, sender, server) -> {
             // 【10-01】换世界/重进时清掉上一次界面会话残留的结果
             UI_SESSION_OK.remove(handler.player.getUUID());
+            // 【10-05】顺带清掉上一次残留的「最近门串」待办
+            PENDING_NEAREST.remove(handler.player.getUUID());
             EscalatorSpeedManager.syncToAll(server);
             EscalatorSpeedManager.syncAudioToAll(server);
             EscalatorSpeedManager.syncVolumeToAll(server);
@@ -1297,6 +1324,10 @@ public class SmoothLift implements ModInitializer {
             // 【1.18.1204】地图图片库：进世界时若不推送，客户端图片库为空，重进存档就要重新导入
             EscalatorSpeedManager.syncPictureToAll(server);
         });
+
+        // 【10-05】玩家退出时清掉「最近门串」待办队列（免得 Map 越攒越大）。
+        ServerPlayConnectionEvents.DISCONNECT.register((handler, server) ->
+                PENDING_NEAREST.remove(handler.player.getUUID()));
 
         // 服务端启动时确保存档来源文件夹存在（音频 MBM_Audio；【1.18.1204】地图图片 MBM_Picture）
         ServerLifecycleEvents.SERVER_STARTED.register(server -> {
@@ -1356,6 +1387,25 @@ public class SmoothLift implements ModInitializer {
                 boolean ok = clientOk && (serverOk == null || serverOk);
                 player.displayClientMessage(Component.literal(
                         ok ? "UI执行成功" : "UI执行失败"), false);
+            });
+        });
+
+        // 【10-05】pbm* 指令不带 -f：客户端算完「最近那一串」回包 → 服务端落地 + 回一条统一回执。
+        //   buf：found(boolean) → runKey(long)
+        ServerPlayNetworking.registerGlobalReceiver(PSD_NEAREST_REPLY_CHANNEL, (server, player, handler, buf, responseSender) -> {
+            boolean found = buf.readBoolean();
+            long runKey = buf.readLong();
+            server.execute(() -> {
+                java.util.ArrayDeque<PendingNearest> queue = PENDING_NEAREST.get(player.getUUID());
+                PendingNearest pending = queue == null ? null : queue.pollFirst();
+                if (pending == null) {
+                    // 超时 / 重复回包（队列被上限挤掉）：没有待落地的操作，静默。
+                    return;
+                }
+                boolean ok = found && pending.op().apply(player.serverLevel(), runKey);
+                Component feedback = Component.literal(ok ? "指令执行成功" : "指令执行失败");
+                CommandSourceStack src = pending.source();
+                src.sendSuccess(() -> feedback, false);
             });
         });
 
@@ -2421,9 +2471,9 @@ public class SmoothLift implements ModInitializer {
     }
 
     // ------------------------------------------------------------------
-    // 【1.24】/futihelpround —— 无障碍提示音的淡入淡出范围（默认 4 格）
+    // 【1.24】/futihelpround —— 无障碍提示音的淡入淡出范围（★【10-05】默认 5/5，原 4/5）
     //
-    //   ★ 与 /futiround 是**两件事**：本指令管的是端头**单块**那块提示音（默认 4 格），
+    //   ★ 与 /futiround 是**两件事**：本指令管的是端头**单块**那块提示音（默认 5 格），
     //     /futiround 管的是整条扶梯一起响的运行底噪（默认 16 格）。数据与指令互不影响。
     // ------------------------------------------------------------------
 
@@ -3575,6 +3625,71 @@ public class SmoothLift implements ModInitializer {
         return builder.buildFuture();
     }
 
+    // ------------------------------------------------------------------
+    // 【10-05】pbm* 指令不带 -f 的落点：**离玩家最近的那一串屏蔽门**
+    //   指令跑在服务端线程，而「哪一串最近」只有客户端算得出来（要 MTR 客户端数据 +
+    //   渲染每帧上报的 LIVE 快照）⇒ 走一次
+    //   「S2C 请求（PSD_NEAREST_REQUEST_CHANNEL）→ 客户端算 runKey →
+    //     C2S 回包（PSD_NEAREST_REPLY_CHANNEL）→ 服务端落地」。
+    //   ★ 回执只在回包那一侧给一条，请求侧不回（否则一次操作两条消息）。
+    //   ★ 没有玩家（控制台 / 命令方块）⇒ 算不了「附近」，回落**维度默认**（老行为，脚本照跑）。
+    //   ★ 门串身份 = {@code PsdDoorTracker.runKeyOf}（与石斧 UI / 播放端**同一把尺子**）。
+    // ------------------------------------------------------------------
+
+    /**
+     * 一次「按最近门串落地」的延迟操作。
+     *
+     * @param runKey 最近那一串的 runKey；{@code null} = 算不出来 ⇒ 由实现回落维度默认
+     * @return true = 落地成功（回「指令执行成功」）
+     */
+    @FunctionalInterface
+    private interface PsdNearestOp {
+        boolean apply(ServerLevel level, Long runKey);
+    }
+
+    /** 待落地的操作 + 它要回执的那个指令源（每玩家一条 FIFO，同一条指令连敲也按序落地）。 */
+    private record PendingNearest(CommandSourceStack source, PsdNearestOp op) {
+    }
+
+    /** 每玩家一条待办队列。 */
+    private static final java.util.Map<java.util.UUID, java.util.ArrayDeque<PendingNearest>> PENDING_NEAREST =
+            new java.util.HashMap<>();
+
+    /** 队列上限：客户端不回包时不至于无限堆积（挤掉最老的）。 */
+    private static final int PENDING_NEAREST_MAX = 8;
+
+    /**
+     * 【10-05】把一次屏蔽门设置落到「离玩家最近的那一串」（不带 -f 的 pbm* 指令都走这里）。
+     *
+     * @return 1 = 已受理（回执稍后由回包那一侧给）；无玩家时当场落地并回执
+     */
+    private static int psdNearestRun(CommandSourceStack source, PsdNearestOp op) {
+        ServerPlayer player = source.getPlayer();
+        if (player == null) {
+            boolean ok = op.apply(source.getLevel(), null);
+            source.sendSuccess(() -> Component.literal(ok ? "指令执行成功" : "指令执行失败"), false);
+            return ok ? 1 : 0;
+        }
+        java.util.ArrayDeque<PendingNearest> queue =
+                PENDING_NEAREST.computeIfAbsent(player.getUUID(), k -> new java.util.ArrayDeque<>());
+        if (queue.size() >= PENDING_NEAREST_MAX) {
+            queue.pollFirst();
+        }
+        queue.addLast(new PendingNearest(source, op));
+        ServerPlayNetworking.send(player, PSD_NEAREST_REQUEST_CHANNEL, PacketByteBufs.empty());
+        return 1;
+    }
+
+    /** 「打开」时顺手清掉**这一串**素材层的「不播」（与 {@link #healPsdToneOffAudio} 对称）。 */
+    private static boolean healDoorPsdToneOffAudio(ServerLevel level, long runKey, String which) {
+        String cur = EscalatorSpeedManager.getDoorPsdToneAudio(level, runKey, which);
+        if (EscalatorSpeedData.PSD_TONE_OFF.equals(cur)) {
+            return EscalatorSpeedManager.setServerPsdTone(
+                    level, runKey, which, EscalatorSpeedData.PSD_TONE_DEFAULT);
+        }
+        return false;
+    }
+
     /** `/pbmmusic`（不带参数）—— 显示当前维度的总开关与两项子开关。 */
     private static int pbmMusicShow(CommandContext<CommandSourceStack> context) {
         CommandSourceStack source = context.getSource();
@@ -3583,28 +3698,39 @@ public class SmoothLift implements ModInitializer {
         return 1;
     }
 
-    /** `/pbmmusic <on|off>` —— 设置**本维度**的总开关。 */
+    /** `/pbmmusic <on|off>` —— 设置**离玩家最近的那一串**屏蔽门的总开关（不带 -f）。 */
     private static int pbmMusicGlobal(CommandContext<CommandSourceStack> context, boolean enabled) {
         CommandSourceStack source = context.getSource();
-        ServerLevel level = source.getLevel();
-        EscalatorSpeedManager.setDefaultPsdHelp(level, enabled);
-        EscalatorSpeedManager.syncPsdChimeToAll(source.getServer());
-        source.sendSuccess(() -> Component.literal("指令执行成功"), false);
-        return 1;
+        return psdNearestRun(source, (level, runKey) -> {
+            if (runKey == null) {
+                EscalatorSpeedManager.setDefaultPsdHelp(level, enabled);
+                EscalatorSpeedManager.syncPsdChimeToAll(source.getServer());
+            } else {
+                EscalatorSpeedManager.setDoorPsdHelp(level, runKey, enabled);
+                EscalatorSpeedManager.syncPsdToneToAll(source.getServer());
+            }
+            return true;
+        });
     }
 
-    /** `/pbmmusic <X> to <Y>` —— 本维度总开关正好是 X 时才改成 Y。 */
+    /** `/pbmmusic <X> to <Y>` —— 最近那一串的总开关正好是 X 时才改成 Y（不带 -f）。 */
     private static int pbmMusicFromTo(CommandContext<CommandSourceStack> context, boolean from, boolean to) {
         CommandSourceStack source = context.getSource();
-        ServerLevel level = source.getLevel();
-        if (!EscalatorSpeedManager.replaceDefaultPsdHelp(level, from, to)) {
-            boolean current = EscalatorSpeedManager.isPsdHelpEnabled(level);
-            source.sendSuccess(() -> Component.literal("指令执行失败"), false);
-            return 0;
-        }
-        EscalatorSpeedManager.syncPsdChimeToAll(source.getServer());
-        source.sendSuccess(() -> Component.literal("指令执行成功"), false);
-        return 1;
+        return psdNearestRun(source, (level, runKey) -> {
+            if (runKey == null) {
+                if (!EscalatorSpeedManager.replaceDefaultPsdHelp(level, from, to)) {
+                    return false;
+                }
+                EscalatorSpeedManager.syncPsdChimeToAll(source.getServer());
+                return true;
+            }
+            if (EscalatorSpeedManager.isDoorPsdHelpEnabled(level, runKey) != from) {
+                return false;
+            }
+            EscalatorSpeedManager.setDoorPsdHelp(level, runKey, to);
+            EscalatorSpeedManager.syncPsdToneToAll(source.getServer());
+            return true;
+        });
     }
 
     /** `/pbmmusic -f <on|off>` —— **所有维度**的总开关都设成该值。 */
@@ -3656,31 +3782,52 @@ public class SmoothLift implements ModInitializer {
                 server, which, EscalatorSpeedData.PSD_TONE_OFF, EscalatorSpeedData.PSD_TONE_DEFAULT);
     }
 
-    /** `/pbmmusic open|close <on|off>` —— 设置**本维度**这一项子开关。 */
+    /** `/pbmmusic open|close <on|off>` —— 设置**最近那一串**这一项子开关（不带 -f）。 */
     private static int pbmMusicItemGlobal(CommandContext<CommandSourceStack> context, String which, boolean enabled) {
         CommandSourceStack source = context.getSource();
-        ServerLevel level = source.getLevel();
-        EscalatorSpeedManager.setDefaultPsdToneEnabled(level, which, enabled);
-        boolean healed = enabled && healPsdToneOffAudio(level, which);
-        EscalatorSpeedManager.syncPsdChimeToAll(source.getServer());
-        source.sendSuccess(() -> Component.literal("指令执行成功"), false);
-        return 1;
+        return psdNearestRun(source, (level, runKey) -> {
+            if (runKey == null) {
+                EscalatorSpeedManager.setDefaultPsdToneEnabled(level, which, enabled);
+                if (enabled) {
+                    healPsdToneOffAudio(level, which);
+                }
+                EscalatorSpeedManager.syncPsdChimeToAll(source.getServer());
+            } else {
+                EscalatorSpeedManager.setDoorPsdToneEnabled(level, runKey, which, enabled);
+                if (enabled) {
+                    healDoorPsdToneOffAudio(level, runKey, which);
+                }
+                EscalatorSpeedManager.syncPsdToneToAll(source.getServer());
+            }
+            return true;
+        });
     }
 
-    /** `/pbmmusic open|close <X> to <Y>` —— 本维度这一项子开关正好是 X 时才改成 Y。 */
+    /** `/pbmmusic open|close <X> to <Y>` —— 最近那一串这一项正好是 X 时才改成 Y（不带 -f）。 */
     private static int pbmMusicItemFromTo(CommandContext<CommandSourceStack> context, String which,
                                           boolean from, boolean to) {
         CommandSourceStack source = context.getSource();
-        ServerLevel level = source.getLevel();
-        if (!EscalatorSpeedManager.replaceDefaultPsdToneEnabled(level, which, from, to)) {
-            boolean current = EscalatorSpeedManager.isPsdToneEnabled(level, which);
-            source.sendSuccess(() -> Component.literal("指令执行失败"), false);
-            return 0;
-        }
-        boolean healed = to && healPsdToneOffAudio(level, which);
-        EscalatorSpeedManager.syncPsdChimeToAll(source.getServer());
-        source.sendSuccess(() -> Component.literal("指令执行成功"), false);
-        return 1;
+        return psdNearestRun(source, (level, runKey) -> {
+            if (runKey == null) {
+                if (!EscalatorSpeedManager.replaceDefaultPsdToneEnabled(level, which, from, to)) {
+                    return false;
+                }
+                if (to) {
+                    healPsdToneOffAudio(level, which);
+                }
+                EscalatorSpeedManager.syncPsdChimeToAll(source.getServer());
+                return true;
+            }
+            if (EscalatorSpeedManager.isDoorPsdToneEnabled(level, runKey, which) != from) {
+                return false;
+            }
+            EscalatorSpeedManager.setDoorPsdToneEnabled(level, runKey, which, to);
+            if (to) {
+                healDoorPsdToneOffAudio(level, runKey, which);
+            }
+            EscalatorSpeedManager.syncPsdToneToAll(source.getServer());
+            return true;
+        });
     }
 
     /** `/pbmmusic -f open|close <on|off>` —— **所有维度**这一项子开关都设成该值。 */
@@ -3728,10 +3875,17 @@ public class SmoothLift implements ModInitializer {
             source.sendFailure(Component.literal("指令执行失败"));
             return 0;
         }
-        EscalatorSpeedManager.setDefaultPsdToneAudio(level, which, arg.id());
-        EscalatorSpeedManager.syncPsdChimeToAll(source.getServer());
-        source.sendSuccess(() -> Component.literal("指令执行成功"), false);
-        return 1;
+        return psdNearestRun(source, (lv, runKey) -> {
+            if (runKey == null) {
+                EscalatorSpeedManager.setDefaultPsdToneAudio(lv, which, arg.id());
+                EscalatorSpeedManager.syncPsdChimeToAll(source.getServer());
+            } else if (!EscalatorSpeedManager.setServerPsdTone(lv, runKey, which, arg.id())) {
+                return false;
+            } else {
+                EscalatorSpeedManager.syncPsdToneToAll(source.getServer());
+            }
+            return true;
+        });
     }
 
     /** {@code /pbmmusic open|close <X> to <Y>} —— 本维度默认素材正好是 X 时才改成 Y。 */
@@ -3750,15 +3904,25 @@ public class SmoothLift implements ModInitializer {
             source.sendFailure(Component.literal("指令执行失败"));
             return 0;
         }
-        if (!EscalatorSpeedManager.replaceDefaultPsdToneAudio(level, which, from.id(), to.id())) {
-            String current = EscalatorSpeedManager.getPsdToneAudio(level, which);
-            // 「不是 X 就没改」按惯例用 sendSuccess（不是错误，只是没命中），与直梯那套一致
-            source.sendSuccess(() -> Component.literal("指令执行失败"), false);
-            return 0;
-        }
-        EscalatorSpeedManager.syncPsdChimeToAll(source.getServer());
-        source.sendSuccess(() -> Component.literal("指令执行成功"), false);
-        return 1;
+        return psdNearestRun(source, (lv, runKey) -> {
+            if (runKey == null) {
+                if (!EscalatorSpeedManager.replaceDefaultPsdToneAudio(lv, which, from.id(), to.id())) {
+                    // 「不是 X 就没改」按惯例算失败，与直梯那套一致
+                    return false;
+                }
+                EscalatorSpeedManager.syncPsdChimeToAll(source.getServer());
+                return true;
+            }
+            String current = EscalatorSpeedManager.getDoorPsdToneAudio(lv, runKey, which);
+            if (!from.id().equals(current)) {
+                return false;
+            }
+            if (!EscalatorSpeedManager.setServerPsdTone(lv, runKey, which, to.id())) {
+                return false;
+            }
+            EscalatorSpeedManager.syncPsdToneToAll(source.getServer());
+            return true;
+        });
     }
 
     /**
@@ -3864,12 +4028,16 @@ public class SmoothLift implements ModInitializer {
         int volume = IntegerArgumentType.getInteger(context, "volume");
         CommandSourceStack source = context.getSource();
         ServerLevel level = source.getLevel();
-        EscalatorSpeedManager.setDefaultPsdHelpVolume(level, volume);
-        EscalatorSpeedManager.syncPsdChimeToAll(source.getServer());
-        int applied = EscalatorSpeedManager.getPsdHelpVolume(level);
-        source.sendSuccess(() -> Component.literal("指令执行成功"),
-                false);
-        return 1;
+        return psdNearestRun(source, (lv, runKey) -> {
+            if (runKey == null) {
+                EscalatorSpeedManager.setDefaultPsdHelpVolume(lv, volume);
+                EscalatorSpeedManager.syncPsdChimeToAll(source.getServer());
+            } else {
+                EscalatorSpeedManager.setDoorPsdHelpVolume(lv, runKey, volume);
+                EscalatorSpeedManager.syncPsdToneToAll(source.getServer());
+            }
+            return true;
+        });
     }
 
     /** `/pbmloud <X> to <Y>` —— 本维度共用音量正好是 X 时才改成 Y。 */
@@ -3878,16 +4046,22 @@ public class SmoothLift implements ModInitializer {
         int to = IntegerArgumentType.getInteger(context, "target");
         CommandSourceStack source = context.getSource();
         ServerLevel level = source.getLevel();
-        int current = EscalatorSpeedManager.getPsdHelpVolume(level);
-        if (current != from) {
-            source.sendSuccess(() -> Component.literal("指令执行失败"), false);
-            return 0;
-        }
-        EscalatorSpeedManager.replaceDefaultPsdHelpVolume(level, from, to);
-        EscalatorSpeedManager.syncPsdChimeToAll(source.getServer());
-        int applied = EscalatorSpeedManager.getPsdHelpVolume(level);
-        source.sendSuccess(() -> Component.literal("指令执行成功"), false);
-        return 1;
+        return psdNearestRun(source, (lv, runKey) -> {
+            if (runKey == null) {
+                if (EscalatorSpeedManager.getPsdHelpVolume(lv) != from) {
+                    return false;
+                }
+                EscalatorSpeedManager.replaceDefaultPsdHelpVolume(lv, from, to);
+                EscalatorSpeedManager.syncPsdChimeToAll(source.getServer());
+                return true;
+            }
+            if (EscalatorSpeedManager.getDoorPsdHelpVolume(lv, runKey) != from) {
+                return false;
+            }
+            EscalatorSpeedManager.setDoorPsdHelpVolume(lv, runKey, to);
+            EscalatorSpeedManager.syncPsdToneToAll(source.getServer());
+            return true;
+        });
     }
 
     /** `/pbmloud -f <音量>` —— **所有维度**的共用音量都设成该值。 */
@@ -3922,11 +4096,16 @@ public class SmoothLift implements ModInitializer {
         int volume = IntegerArgumentType.getInteger(context, "volume");
         CommandSourceStack source = context.getSource();
         ServerLevel level = source.getLevel();
-        EscalatorSpeedManager.setDefaultPsdToneVolume(level, which, volume);
-        EscalatorSpeedManager.syncPsdChimeToAll(source.getServer());
-        int applied = EscalatorSpeedManager.getPsdToneVolume(level, which);
-        source.sendSuccess(() -> Component.literal("指令执行成功"), false);
-        return 1;
+        return psdNearestRun(source, (lv, runKey) -> {
+            if (runKey == null) {
+                EscalatorSpeedManager.setDefaultPsdToneVolume(lv, which, volume);
+                EscalatorSpeedManager.syncPsdChimeToAll(source.getServer());
+            } else {
+                EscalatorSpeedManager.setDoorPsdToneVolume(lv, runKey, which, volume);
+                EscalatorSpeedManager.syncPsdToneToAll(source.getServer());
+            }
+            return true;
+        });
     }
 
     /** `/pbmloud open|close <X> to <Y>` —— 本维度这一项音量正好是 X 时才改成 Y。 */
@@ -3935,16 +4114,22 @@ public class SmoothLift implements ModInitializer {
         int to = IntegerArgumentType.getInteger(context, "target");
         CommandSourceStack source = context.getSource();
         ServerLevel level = source.getLevel();
-        int current = EscalatorSpeedManager.getPsdToneVolume(level, which);
-        if (current != from) {
-            source.sendSuccess(() -> Component.literal("指令执行失败"), false);
-            return 0;
-        }
-        EscalatorSpeedManager.replaceDefaultPsdToneVolume(level, which, from, to);
-        EscalatorSpeedManager.syncPsdChimeToAll(source.getServer());
-        int applied = EscalatorSpeedManager.getPsdToneVolume(level, which);
-        source.sendSuccess(() -> Component.literal("指令执行成功"), false);
-        return 1;
+        return psdNearestRun(source, (lv, runKey) -> {
+            if (runKey == null) {
+                if (EscalatorSpeedManager.getPsdToneVolume(lv, which) != from) {
+                    return false;
+                }
+                EscalatorSpeedManager.replaceDefaultPsdToneVolume(lv, which, from, to);
+                EscalatorSpeedManager.syncPsdChimeToAll(source.getServer());
+                return true;
+            }
+            if (EscalatorSpeedManager.getDoorPsdToneVolume(lv, runKey, which) != from) {
+                return false;
+            }
+            EscalatorSpeedManager.setDoorPsdToneVolume(lv, runKey, which, to);
+            EscalatorSpeedManager.syncPsdToneToAll(source.getServer());
+            return true;
+        });
     }
 
     /** `/pbmloud -f open|close <音量>` —— **所有维度**这一项都设成该音量。 */
@@ -4014,15 +4199,25 @@ public class SmoothLift implements ModInitializer {
         int volume = IntegerArgumentType.getInteger(context, "volume");
         CommandSourceStack source = context.getSource();
         ServerLevel level = source.getLevel();
-        if ("midium".equals(which)) {
-            EscalatorSpeedManager.setDefaultPsdMidiumVolume(level, volume);
-        } else {
-            EscalatorSpeedManager.setDefaultPsdArriveVolume(level, volume);
-        }
-        EscalatorSpeedManager.syncPsdChimeToAll(source.getServer());
-        int applied = EscalatorSpeedManager.getPsdItemVolume(level, which);
-        source.sendSuccess(() -> Component.literal("指令执行成功"), false);
-        return 1;
+        return psdNearestRun(source, (lv, runKey) -> {
+            boolean midium = "midium".equals(which);
+            if (runKey == null) {
+                if (midium) {
+                    EscalatorSpeedManager.setDefaultPsdMidiumVolume(lv, volume);
+                } else {
+                    EscalatorSpeedManager.setDefaultPsdArriveVolume(lv, volume);
+                }
+                EscalatorSpeedManager.syncPsdChimeToAll(source.getServer());
+            } else {
+                if (midium) {
+                    EscalatorSpeedManager.setDoorPsdMidiumVolume(lv, runKey, volume);
+                } else {
+                    EscalatorSpeedManager.setDoorPsdArriveVolume(lv, runKey, volume);
+                }
+                EscalatorSpeedManager.syncPsdToneToAll(source.getServer());
+            }
+            return true;
+        });
     }
 
     /** `<X> to <Y>` —— 本维度这一项音量正好是 X 时才改成 Y。 */
@@ -4031,20 +4226,34 @@ public class SmoothLift implements ModInitializer {
         int to = IntegerArgumentType.getInteger(context, "target");
         CommandSourceStack source = context.getSource();
         ServerLevel level = source.getLevel();
-        int current = EscalatorSpeedManager.getPsdItemVolume(level, which);
-        if (current != from) {
-            source.sendSuccess(() -> Component.literal("指令执行失败"), false);
-            return 0;
-        }
-        if ("midium".equals(which)) {
-            EscalatorSpeedManager.replaceDefaultPsdMidiumVolume(level, from, to);
-        } else {
-            EscalatorSpeedManager.replaceDefaultPsdArriveVolume(level, from, to);
-        }
-        EscalatorSpeedManager.syncPsdChimeToAll(source.getServer());
-        int applied = EscalatorSpeedManager.getPsdItemVolume(level, which);
-        source.sendSuccess(() -> Component.literal("指令执行成功"), false);
-        return 1;
+        return psdNearestRun(source, (lv, runKey) -> {
+            boolean midium = "midium".equals(which);
+            if (runKey == null) {
+                if (EscalatorSpeedManager.getPsdItemVolume(lv, which) != from) {
+                    return false;
+                }
+                if (midium) {
+                    EscalatorSpeedManager.replaceDefaultPsdMidiumVolume(lv, from, to);
+                } else {
+                    EscalatorSpeedManager.replaceDefaultPsdArriveVolume(lv, from, to);
+                }
+                EscalatorSpeedManager.syncPsdChimeToAll(source.getServer());
+                return true;
+            }
+            int current = midium
+                    ? EscalatorSpeedManager.getDoorPsdMidiumVolume(lv, runKey)
+                    : EscalatorSpeedManager.getDoorPsdArriveVolume(lv, runKey);
+            if (current != from) {
+                return false;
+            }
+            if (midium) {
+                EscalatorSpeedManager.setDoorPsdMidiumVolume(lv, runKey, to);
+            } else {
+                EscalatorSpeedManager.setDoorPsdArriveVolume(lv, runKey, to);
+            }
+            EscalatorSpeedManager.syncPsdToneToAll(source.getServer());
+            return true;
+        });
     }
 
     /** `-f <音量>` —— **所有维度**这一项都设成该音量。 */
@@ -4300,11 +4509,16 @@ public class SmoothLift implements ModInitializer {
         int seconds = IntegerArgumentType.getInteger(context, "seconds");
         CommandSourceStack source = context.getSource();
         ServerLevel level = source.getLevel();
-        EscalatorSpeedManager.setDefaultPsdCloseWaitSeconds(level, seconds);
-        EscalatorSpeedManager.syncPsdChimeToAll(source.getServer());
-        int applied = EscalatorSpeedManager.getPsdCloseWaitSeconds(level);
-        source.sendSuccess(() -> Component.literal("指令执行成功"), false);
-        return 1;
+        return psdNearestRun(source, (lv, runKey) -> {
+            if (runKey == null) {
+                EscalatorSpeedManager.setDefaultPsdCloseWaitSeconds(lv, seconds);
+                EscalatorSpeedManager.syncPsdChimeToAll(source.getServer());
+            } else {
+                EscalatorSpeedManager.setDoorPsdCloseWaitSeconds(lv, runKey, seconds);
+                EscalatorSpeedManager.syncPsdToneToAll(source.getServer());
+            }
+            return true;
+        });
     }
 
     /** `/pbmclosewait <X> to <Y>` —— 本维度正好是 X 时才改成 Y。 */
@@ -4313,16 +4527,22 @@ public class SmoothLift implements ModInitializer {
         int to = IntegerArgumentType.getInteger(context, "target");
         CommandSourceStack source = context.getSource();
         ServerLevel level = source.getLevel();
-        int current = EscalatorSpeedManager.getPsdCloseWaitSeconds(level);
-        if (current != from) {
-            source.sendSuccess(() -> Component.literal("指令执行失败"), false);
-            return 0;
-        }
-        EscalatorSpeedManager.replaceDefaultPsdCloseWaitSeconds(level, from, to);
-        EscalatorSpeedManager.syncPsdChimeToAll(source.getServer());
-        int applied = EscalatorSpeedManager.getPsdCloseWaitSeconds(level);
-        source.sendSuccess(() -> Component.literal("指令执行成功"), false);
-        return 1;
+        return psdNearestRun(source, (lv, runKey) -> {
+            if (runKey == null) {
+                if (EscalatorSpeedManager.getPsdCloseWaitSeconds(lv) != from) {
+                    return false;
+                }
+                EscalatorSpeedManager.replaceDefaultPsdCloseWaitSeconds(lv, from, to);
+                EscalatorSpeedManager.syncPsdChimeToAll(source.getServer());
+                return true;
+            }
+            if (EscalatorSpeedManager.getDoorPsdCloseWaitSeconds(lv, runKey) != from) {
+                return false;
+            }
+            EscalatorSpeedManager.setDoorPsdCloseWaitSeconds(lv, runKey, to);
+            EscalatorSpeedManager.syncPsdToneToAll(source.getServer());
+            return true;
+        });
     }
 
     /** `/pbmclosewait -f <秒>` —— **所有维度**都设成该值。 */
@@ -4382,22 +4602,37 @@ public class SmoothLift implements ModInitializer {
         return 1;
     }
 
-    /** `/pbmmidium <名字>` —— 只改素材，保留当前等待秒数。 */
+    /** `/pbmmidium <名字>` —— 只改素材，保留**最近那一串**当前的等待秒数（不带 -f）。 */
     private static int pbmMidiumSetNameOnly(CommandContext<CommandSourceStack> context) {
         String name = StringArgumentType.getString(context, "name");
         CommandSourceStack source = context.getSource();
-        ServerLevel level = source.getLevel();
-        int keep = EscalatorSpeedManager.getPsdMidiumWaitSeconds(level);
-        return pbmMidiumApply(source, level, name, keep, null);
+        String resolved = EscalatorSpeedManager.resolvePsdMidiumName(source.getLevel(),
+                EscalatorSpeedManager.CAT_PSD_MIDIUM, name);
+        if (resolved == null) {
+            sendUnknownMidiumName(source, name);
+            return 0;
+        }
+        return psdNearestRun(source, (lv, runKey) -> {
+            int seconds = runKey == null
+                    ? EscalatorSpeedManager.getPsdMidiumWaitSeconds(lv)
+                    : EscalatorSpeedManager.getDoorPsdMidiumWaitSeconds(lv, runKey);
+            return applyMidiumToRun(source, lv, runKey, resolved, seconds);
+        });
     }
 
-    /** `/pbmmidium <名字> <秒>` —— 设置**本维度**。 */
+    /** `/pbmmidium <名字> <秒>` —— 设置**最近那一串**（不带 -f）。 */
     private static int pbmMidiumGlobal(CommandContext<CommandSourceStack> context) {
         String name = StringArgumentType.getString(context, "name");
         int seconds = IntegerArgumentType.getInteger(context, "seconds");
         CommandSourceStack source = context.getSource();
-        ServerLevel level = source.getLevel();
-        return pbmMidiumApply(source, level, name, seconds, "；其它维度不变");
+        String resolved = EscalatorSpeedManager.resolvePsdMidiumName(source.getLevel(),
+                EscalatorSpeedManager.CAT_PSD_MIDIUM, name);
+        if (resolved == null) {
+            sendUnknownMidiumName(source, name);
+            return 0;
+        }
+        return psdNearestRun(source, (lv, runKey) ->
+                applyMidiumToRun(source, lv, runKey, resolved, seconds));
     }
 
     /** `/pbmmidium -f <名字> <秒>` —— **所有维度**。 */
@@ -4419,24 +4654,18 @@ public class SmoothLift implements ModInitializer {
     }
 
     /**
-     * `本维度` 那条路共用的落地：解析名字 → 落库 → 同步 → 反馈。
-     *
-     * @param suffix 反馈尾注（`null` = 不带尾注）
+     * 【10-05】到站播报的落地：runKey == null ⇒ 维度默认；否则只写那一串。
      */
-    private static int pbmMidiumApply(CommandSourceStack source, ServerLevel level,
-                                      String name, int seconds, String suffix) {
-        String resolved = EscalatorSpeedManager.resolvePsdMidiumName(level, EscalatorSpeedManager.CAT_PSD_MIDIUM, name);
-        if (resolved == null) {
-            sendUnknownMidiumName(source, name);
-            return 0;
+    private static boolean applyMidiumToRun(CommandSourceStack source, ServerLevel level, Long runKey,
+                                            String resolved, int seconds) {
+        if (runKey == null) {
+            EscalatorSpeedManager.setDefaultPsdMidium(level, resolved, seconds);
+            EscalatorSpeedManager.syncPsdChimeToAll(source.getServer());
+        } else {
+            EscalatorSpeedManager.setDoorPsdMidium(level, runKey, resolved, seconds);
+            EscalatorSpeedManager.syncPsdToneToAll(source.getServer());
         }
-        EscalatorSpeedManager.setDefaultPsdMidium(level, resolved, seconds);
-        EscalatorSpeedManager.syncPsdChimeToAll(source.getServer());
-        int applied = EscalatorSpeedManager.getPsdMidiumWaitSeconds(level);
-        boolean off = EscalatorSpeedData.isPsdMidiumOff(resolved);
-        String tail = suffix == null ? "" : suffix;
-        source.sendSuccess(() -> Component.literal("指令执行成功"), false);
-        return 1;
+        return true;
     }
 
     /** 「这个名字找不到」的统一提示（顺便列出该分类里已有的名字）。 */
@@ -4497,22 +4726,37 @@ public class SmoothLift implements ModInitializer {
         return 1;
     }
 
-    /** `/pbmarrive <名字>` —— 只改素材，保留当前秒数。 */
+    /** `/pbmarrive <名字>` —— 只改素材，保留**最近那一串**当前的秒数（不带 -f）。 */
     private static int pbmArriveSetNameOnly(CommandContext<CommandSourceStack> context) {
         String name = StringArgumentType.getString(context, "name");
         CommandSourceStack source = context.getSource();
-        ServerLevel level = source.getLevel();
-        int keep = EscalatorSpeedManager.getPsdArriveSeconds(level);
-        return pbmArriveApply(source, level, name, keep, null);
+        String resolved = EscalatorSpeedManager.resolvePsdArriveName(source.getLevel(),
+                EscalatorSpeedManager.CAT_PSD_ARRIVE, name);
+        if (resolved == null) {
+            sendUnknownArriveName(source, name);
+            return 0;
+        }
+        return psdNearestRun(source, (lv, runKey) -> {
+            int seconds = runKey == null
+                    ? EscalatorSpeedManager.getPsdArriveSeconds(lv)
+                    : EscalatorSpeedManager.getDoorPsdArriveSeconds(lv, runKey);
+            return applyArriveToRun(source, lv, runKey, resolved, seconds);
+        });
     }
 
-    /** `/pbmarrive <名字> <X>` —— 设置**本维度**。 */
+    /** `/pbmarrive <名字> <X>` —— 设置**最近那一串**（不带 -f）。 */
     private static int pbmArriveGlobal(CommandContext<CommandSourceStack> context) {
         String name = StringArgumentType.getString(context, "name");
         int seconds = IntegerArgumentType.getInteger(context, "seconds");
         CommandSourceStack source = context.getSource();
-        ServerLevel level = source.getLevel();
-        return pbmArriveApply(source, level, name, seconds, "；其它维度不变");
+        String resolved = EscalatorSpeedManager.resolvePsdArriveName(source.getLevel(),
+                EscalatorSpeedManager.CAT_PSD_ARRIVE, name);
+        if (resolved == null) {
+            sendUnknownArriveName(source, name);
+            return 0;
+        }
+        return psdNearestRun(source, (lv, runKey) ->
+                applyArriveToRun(source, lv, runKey, resolved, seconds));
     }
 
     /** `/pbmarrive -f <名字> <X>` —— **所有维度**。 */
@@ -4570,17 +4814,22 @@ public class SmoothLift implements ModInitializer {
         return 1;
     }
 
-    /** `/pbmnarrate <样式>` —— 设置**本维度**的讲述人样式（★ 秒数原样保留）。 */
+    /** `/pbmnarrate <样式>` —— 设置**最近那一串**的讲述人样式（不带 -f；★ 秒数原样保留）。 */
     private static int pbmNarrateGlobal(CommandContext<CommandSourceStack> context, int mode) {
         CommandSourceStack source = context.getSource();
-        ServerLevel level = source.getLevel();
-        // ★ 秒数不在本指令里 ⇒ 把本维度**当前**的维度默认秒数原样传回去（别顺手清零）。
-        EscalatorSpeedManager.setDefaultPsdNarrate(level, mode,
-                EscalatorSpeedManager.getPsdNarrateSeconds(level));
-        EscalatorSpeedManager.syncPsdChimeToAll(source.getServer());
-        int applied = EscalatorSpeedManager.getPsdNarrateMode(level);
-        source.sendSuccess(() -> Component.literal("指令执行成功"), false);
-        return 1;
+        return psdNearestRun(source, (level, runKey) -> {
+            if (runKey == null) {
+                // 秒数不在本指令里 ⇒ 把本维度**当前**的维度默认秒数原样传回去（别顺手清零）。
+                EscalatorSpeedManager.setDefaultPsdNarrate(level, mode,
+                        EscalatorSpeedManager.getPsdNarrateSeconds(level));
+                EscalatorSpeedManager.syncPsdChimeToAll(source.getServer());
+            } else {
+                // 按串那一层：秒数是它自己那一格，本指令只动样式。
+                EscalatorSpeedManager.setDoorPsdNarrate(level, runKey, mode);
+                EscalatorSpeedManager.syncPsdToneToAll(source.getServer());
+            }
+            return true;
+        });
     }
 
     /** `/pbmnarrate -f <样式>` —— **所有维度**都设成该样式，并抹掉按串覆盖。 */
@@ -4594,21 +4843,19 @@ public class SmoothLift implements ModInitializer {
         return 1;
     }
 
-    /** `本维度` 那条路共用的落地：解析名字 → 落库 → 同步 → 反馈。 */
-    private static int pbmArriveApply(CommandSourceStack source, ServerLevel level,
-                                      String name, int seconds, String suffix) {
-        String resolved = EscalatorSpeedManager.resolvePsdArriveName(level, EscalatorSpeedManager.CAT_PSD_ARRIVE, name);
-        if (resolved == null) {
-            sendUnknownArriveName(source, name);
-            return 0;
+    /**
+     * 【10-05】进站报站的落地：runKey == null ⇒ 维度默认；否则只写那一串。
+     */
+    private static boolean applyArriveToRun(CommandSourceStack source, ServerLevel level, Long runKey,
+                                            String resolved, int seconds) {
+        if (runKey == null) {
+            EscalatorSpeedManager.setDefaultPsdArrive(level, resolved, seconds);
+            EscalatorSpeedManager.syncPsdChimeToAll(source.getServer());
+        } else {
+            EscalatorSpeedManager.setDoorPsdArrive(level, runKey, resolved, seconds);
+            EscalatorSpeedManager.syncPsdToneToAll(source.getServer());
         }
-        EscalatorSpeedManager.setDefaultPsdArrive(level, resolved, seconds);
-        EscalatorSpeedManager.syncPsdChimeToAll(source.getServer());
-        int applied = EscalatorSpeedManager.getPsdArriveSeconds(level);
-        boolean off = EscalatorSpeedData.isPsdArriveOff(resolved);
-        String tail = suffix == null ? "" : suffix;
-        source.sendSuccess(() -> Component.literal("指令执行成功"), false);
-        return 1;
+        return true;
     }
 
     /** 「这个名字找不到」的统一提示（顺便列出该分类里已有的名字）。 */
@@ -4985,8 +5232,10 @@ public class SmoothLift implements ModInitializer {
     //     不是盯某个 token 的写法；而且规则一改，判据必须跟着改。
     // ==================================================================
 
-    /** 【1.58】「经典港铁预设」= 依次执行这 **13** 条指令（前 10 条 = 用户点名清单；其余见上面 ①②）。
+    /** 【1.58】「经典港铁预设」= 依次执行这 **19** 条指令（前 10 条 = 用户点名清单；其余见上面 ①②）。
      *  【1.28】直梯 door 拆成 open / close 两条。
+     *  ★【10-05 用户点名】第 11~16 条 = 范围六条（底噪 / 屏蔽门提示音 / 到站播报 / 进站报站
+     *   各 **10 5**；两条**无障碍提示音**（扶梯 / 直梯）**5 5**），与「第一次加模组的默认」同值。
      *  ★ 直梯那 4 条 {@code <which> -f on} = 把**子开关**打开（简单/空白预设会关掉它们，
      *   本预设负责「出声」的那一半）。**不写素材** —— 免得覆盖用户自己导入的 .ogg。
      *  【09-28 续 2】加第 13 条：进站广播（讲述人）= **开启(香港)** —— 用户点名
@@ -5005,6 +5254,15 @@ public class SmoothLift implements ModInitializer {
             "pbmclosewait -f 1",
             "pbmmusic open -f default",
             "pbmmusic close -f default-m",
+            // ★【10-05 用户点名】范围六条（扶梯底噪 10 5 → 扶梯提示音 5 5 → 直梯提示音 5 5 →
+            //   屏蔽门提示音 10 5 → 到站播报 10 5 → 进站报站 10 5）。`-f` 与其它条同口径：
+            //   所有维度 + 清掉按串/按方块覆盖。★ 两条**无障碍提示音**归 5 5（用户点名，同首次加载默认）。
+            "futiround -f 10 5",
+            "futihelpround -f 5 5",
+            "lifthelpround -f 5 5",
+            "pbmround -f 10 5",
+            "pbmmidiumround -f 10 5",
+            "pbmarriveround -f 10 5",
             // ★ 两条 `pbmmusic … -f on` = 把 open/close 的**子开关**打开；没有它们，预设救不回
             //   「子开关被关掉」的存档（见上面 ①②）。
             "pbmmusic open -f on",
@@ -5014,7 +5272,9 @@ public class SmoothLift implements ModInitializer {
             "pbmnarrate hongkong -f",
     };
 
-    /** 【1.58】「简单港铁预设」= 依次执行这 **13** 条指令（前 10 条 = 用户点名清单；其余同经典）。
+    /** 【1.58】「简单港铁预设」= 依次执行这 **19** 条指令（前 10 条 = 用户点名清单；其余同经典）。
+     *  ★【10-05 用户点名】第 11~16 条 = 范围六条（同经典：底噪/屏蔽门/到站/进站 10 5，
+     *  两条无障碍提示音 5 5）。
      *  【09-28 续 2】第 13 条进来过（当时是 开启(上海)）。
      *  【09-28 续 4】★★ 用户点名改为 **关闭讲述人**（原话：「简单港铁预设 和 空白预设
      *  都是要关闭讲述人的，经典港铁预设 是讲述人调成香港风格」）⇒ 第 13 条 = `pbmnarrate off -f`。
@@ -5039,6 +5299,13 @@ public class SmoothLift implements ModInitializer {
             "pbmclosewait -f 1",
             "pbmmusic open -f default",
             "pbmmusic close -f default-s",
+            // ★【10-05 用户点名】同经典：范围六条（底噪/屏蔽门/到站/进站 10 5；扶梯/直梯无障碍提示音 5 5）。
+            "futiround -f 10 5",
+            "futihelpround -f 5 5",
+            "lifthelpround -f 5 5",
+            "pbmround -f 10 5",
+            "pbmmidiumround -f 10 5",
+            "pbmarriveround -f 10 5",
             "pbmmusic open -f on",
             "pbmmusic close -f on",
             // ★【09-28 续 4】进站广播（讲述人）＝**关闭**（用户点名：简单港铁预设要关闭讲述人）。
@@ -5046,7 +5313,9 @@ public class SmoothLift implements ModInitializer {
     };
 
     /**
-     * 【1.58】「空白预设」= 依次执行这 **11** 条指令（前 10 条 = 用户点名清单，逐字照抄）。
+     * 【1.58】「空白预设」= 依次执行这 **17** 条指令（前 10 条 = 用户点名清单，逐字照抄）。
+     *  ★【10-05 用户点名】第 11~16 条 = 范围六条（空白也照设 —— 范围与开关是两件事；
+     *  两条无障碍提示音 5 5）。
      *
      * <p>★「空白」= 一切都关掉：总开关 {@code lifthelp -f off}、四项子开关
      * {@code lifthelp open|close|up|down -f off}、PSD 两项子开关 {@code pbmmusic open|close -f off}。
@@ -5071,6 +5340,13 @@ public class SmoothLift implements ModInitializer {
             "pbmclosewait -f 1",
             "pbmmusic open -f off",
             "pbmmusic close -f off",
+            // ★【10-05 用户点名】同经典：范围六条（空白预设也照设；两条无障碍提示音 5 5）。
+            "futiround -f 10 5",
+            "futihelpround -f 5 5",
+            "lifthelpround -f 5 5",
+            "pbmround -f 10 5",
+            "pbmmidiumround -f 10 5",
+            "pbmarriveround -f 10 5",
             // ★【09-28 续 4】进站广播（讲述人）＝**关闭**。
             "pbmnarrate off -f",
     };
@@ -5791,7 +6067,7 @@ public class SmoothLift implements ModInitializer {
         //   -f <水平> <垂直>     -> 强制游戏内所有扶梯都用这个范围（清掉单独设置）
         //   -f <Xz> <Y> to <新Xz> <新Y> -> 把生效范围两维都正好是的扶梯（含单独设置的）改成新值
         // 每一维都 1~128 格。★ 这与 /futihelpround 是两件事：本指令管**整条扶梯**的运行底噪
-        //   （默认 水平 10 / 垂直 5），/futihelpround 管端头**单块**的无障碍提示音（默认 水平 4 / 垂直 5）。
+        //   （默认 水平 10 / 垂直 5），/futihelpround 管端头**单块**的无障碍提示音（★【10-05】也已是 水平 10 / 垂直 5）。
         //   数据与指令互不影响。
         dispatcher.register(Commands.literal("futiround")
             .executes(SmoothLift::futiRoundShow)
@@ -5806,7 +6082,7 @@ public class SmoothLift implements ModInitializer {
         );
 
         // /futihelpround：无障碍**提示音**（端头单块）的淡入淡出范围（单位格，★【10-03】双维：
-        //   水平 xz 默认 4、垂直 y 默认 5）。
+        //   水平 xz 默认 10、垂直 y 默认 5）。
         //   （无参数）           -> 显示当前扶梯的提示音范围（「水平, 垂直」）
         //   <水平> <垂直>        -> 默认范围 = 该二维（单独设置过的扶梯不变）
         //   <Xz> <Y> to <新Xz> <新Y> -> 默认范围**两维都**正好是前两个数时才改成后两个数
@@ -5967,7 +6243,7 @@ public class SmoothLift implements ModInitializer {
         );
 
         // 【1.47】/lifthelpround：直梯提示音（上楼 / 下楼 / 开关门，**三项共用一份**）的
-        //   淡入淡出范围（格）。★【10-03】双维：水平 xz 默认 4、垂直 y 默认 5。
+        //   淡入淡出范围（格）。★【10-03】双维：水平 xz 默认 5（★【10-05】用户点名 5 5）、垂直 y 默认 5。
         //   （无参数）           -> 显示当前维度的范围（「水平, 垂直」）
         //   <水平> <垂直>        -> 本维度范围 = 该二维（1~128，复用扶梯那组范围常量）
         //   <Xz> <Y> to <新Xz> <新Y> -> 本维度范围**两维都**正好是前两个数时才改成后两个数

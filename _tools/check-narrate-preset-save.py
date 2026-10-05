@@ -195,10 +195,19 @@ def preset_fails(mbm_src, smooth_src, manager_src):
     send = carve(mb, r"private void sendPreset\s*\(")
     if not send:
         return ["抠不出 MbmHelpScreen.sendPreset()"]
-    if re.search(r"ID_CLASSIC[^)]*\)[^;]*enableWordForPreset|enableWordForPreset\s*\(\s*\);(?!.*enableChatForPreset)", send, re.S):
-        fails.append("经典港铁预设还是开的**屏幕字幕**（enableWordForPreset）—— 用户点名改聊天框")
-    if "enableChatForPreset()" not in send:
-        fails.append("经典港铁预设没有调 enableChatForPreset()（聊天框）")
+    # ★【10-05】三个预设现在**都**调 enableChatForPreset（用户点名「mbm help 里的 3 个默认
+    #   （香港、精简香港、空白）：… 讲述人报站默认 chat」）⇒ 不能再对**整个 sendPreset** 判
+    #   「有没有 enableChatForPreset」—— 那已不是「经典预设」的判据（simple/blank 也有）。
+    #   改判 **classic 分支那一块**：里面必须 enableChatForPreset、不许 enableWordForPreset。
+    m_classic = re.search(r"ID_CLASSIC\.equals\(presetId\)\)\s*\{(.*?)\}", send, re.S)
+    classic_block = m_classic.group(1) if m_classic else ""
+    if not classic_block:
+        fails.append("抠不出 sendPreset 里 classic 那个分支")
+    else:
+        if "enableWordForPreset()" in classic_block:
+            fails.append("经典港铁预设还是开的**屏幕字幕**（enableWordForPreset）—— 用户点名改聊天框")
+        if "enableChatForPreset()" not in classic_block:
+            fails.append("经典港铁预设没有调 enableChatForPreset()（聊天框）")
 
     sm = strip_comments(smooth_src)
     ap = carve(sm, r"(?:public|private) static int applyPreset\s*\(")
@@ -394,7 +403,12 @@ def main():
     print()
     print("===== 6) 脚本自带对照实验（注入旧行为必须判红）=====")
     # m1：经典预设退回屏幕字幕
-    m1, n1 = re.subn(r"enableChatForPreset\(\)", "enableWordForPreset()", mbm)
+    #   ★【10-05】只能改 **classic 分支那一处**：simple / blank 现在也调 enableChatForPreset
+    #   （用户点名「3 个默认…讲述人报站默认 chat」），无脑全局替换会连它俩一起改
+    #   （上一版期望 n1 == 1，正是因为当时只有 classic 一个调用点）。
+    m1, n1 = re.subn(
+        r"(ID_CLASSIC\.equals\(presetId\)\)\s*\{(?:(?!\}).)*?)TrainAnnounceSwitch\.enableChatForPreset\(\)",
+        r"\1TrainAnnounceSwitch.enableWordForPreset()", mbm, count=1, flags=re.S)
     check(n1 == 1, "对照 m1 注入成功（经典预设退回 word）", "替换 %d 处" % n1)
     f1 = preset_fails(m1, smooth, manager)
     check(bool(f1), "m1 后「经典预设聊天框」必须判红",

@@ -59,7 +59,7 @@ import java.util.Set;
  * defaultRound / blockRound：**扶梯运行底噪**（整条扶梯一起响那路）可闻的距离，
  *             /futiround 设置，默认 {@link #DEFAULT_ROUND} = 16 格（整条扶梯一起响的环境音）。
  * defaultHelpRound / blockHelpRound：**无障碍提示音**（端头单块那路）可闻的距离，
- *             /futihelpround 设置，默认 {@link #DEFAULT_HELP_ROUND} = 4 格（点状音源）。
+ *             /futihelpround 设置，默认 {@link #DEFAULT_HELP_ROUND} = 5 格（★【10-05】用户点名 5 / 5）。
  *             两者与 1.17 / 1.18 定的「16 : 4」语义一致，只是现在**可调**了。
  *             与音量一样只记录与默认**不同**的项，旧存档缺这一段就按默认处理。
  *             <b>这两个范围是「淡入淡出」的半径而不是硬截断</b>：底噪在半径内线性衰减到 0、
@@ -174,13 +174,16 @@ public class EscalatorSpeedData extends SavedData {
     public static final int DEFAULT_ROUND_Y = 5;
 
     /**
-     * 【1.24】**无障碍提示音**（{@code EscalatorChimePlayer}，端头单块）的默认可闻范围 = 4 格。
-     * 与 1.17 定的 {@code RANGE = 4.0} 一致。两者**故意不同**（10 : 4），别再混。
+     * 【1.24】**无障碍提示音**（{@code EscalatorChimePlayer}，端头单块）的默认可闻范围 = **5** 格。
      *
-     * <p>★ 默认值**没有**跟着 16→10 一起改（用户只点名「之前默认为 xz16」的那些）——
-     * 它是 4，保持 4；但【10-03】给它补了垂直维 {@link #DEFAULT_HELP_ROUND_Y}。
+     * <p>★ 历史：1.17 定的 {@code RANGE = 4.0}，【10-03】只把「之前默认为 xz16」的那些改成 10，
+     * 它当时**保持 4**；【10-05】一度被并入「所有范围 10 5」改成 10，随后**用户点名纠正**：
+     * 「直梯 / 扶梯无障碍提示音的**第一次加载模组默认**和 **mbm help 的三个预设**都应是 **5 5**」
+     * ⇒ 本字段 = 5（水平维）。两维同值 ⇒ **5 / 5**。
+     *
+     * <p>垂直维 {@link #DEFAULT_HELP_ROUND_Y} = 5。
      */
-    public static final int DEFAULT_HELP_ROUND = 4;
+    public static final int DEFAULT_HELP_ROUND = 5;
 
     /** ★★【10-03 用户点名】**无障碍提示音**的默认**垂直（y 轴）**可闻范围 = 5 格（同 PSD）。 */
     public static final int DEFAULT_HELP_ROUND_Y = 5;
@@ -414,8 +417,8 @@ public class EscalatorSpeedData extends SavedData {
 
     /**
      * 【1.24】**水平（x、z 轴）**维度默认**无障碍提示音**的可闻范围（/futihelpround 设置，单位格）。
-     * 默认 {@link #DEFAULT_HELP_ROUND} = 4（★【10-03】用户只点名「之前默认 16」的那些，
-     * 4 保持 4）。垂直维见 {@link #defaultHelpRoundY}。与 {@link #defaultRound}（底噪）互不影响。
+     * 默认 {@link #DEFAULT_HELP_ROUND} = 5（★【10-05】用户点名 5 / 5）。垂直维见
+     * {@link #defaultHelpRoundY}。与 {@link #defaultRound}（底噪）互不影响。
      */
     public int defaultHelpRound = DEFAULT_HELP_ROUND;
 
@@ -599,10 +602,10 @@ public class EscalatorSpeedData extends SavedData {
 
     /**
      * 【1.47】直梯提示音（上楼 / 下楼 / 开关门，三项共用一份）的**淡入淡出范围**（格）。
-     * 由 {@code /lifthelpround} 设置；首次载入模组默认 {@link #DEFAULT_LIFT_HELP_ROUND} = 4 格
-     * （与扶梯无障碍提示音的默认射程一致 —— 点状音源贴块，不是 16 格那种整条环境音）。
+     * 由 {@code /lifthelpround} 设置；首次载入模组默认 {@link #DEFAULT_LIFT_HELP_ROUND} = **5** 格
+     * （★【10-05 用户点名】直梯提示音默认 **5 5**，原为 4；曾误并入「所有范围 10 5」改成 10，已按纠正改为 5）。
      * 取值被 {@link #clampLiftHelpRound} 夹到 [{@link #LIFT_HELP_ROUND_MIN}, {@link #LIFT_HELP_ROUND_MAX}]
-     * （1~128，复用扶梯那组范围常量）。旧存档缺字段 → 4（与「第一次载入」同行为）。
+     * （1~128，复用扶梯那组范围常量）。旧存档缺字段 → 5（与「第一次载入」同行为）。
      */
     public int defaultLiftHelpRound = DEFAULT_LIFT_HELP_ROUND;
 
@@ -617,8 +620,9 @@ public class EscalatorSpeedData extends SavedData {
     public static final int LIFT_HELP_ROUND_MIN = 1;
     /** 【1.47】直梯提示音淡入淡出范围上限（与扶梯同一组上限：128）。 */
     public static final int LIFT_HELP_ROUND_MAX = 128;
-    /** 【1.47】默认 4 格（用户点名「第一次载入模组，默认4格」）。 */
-    public static final int DEFAULT_LIFT_HELP_ROUND = 4;
+    /** 【1.47】默认 **5** 格（★【10-05 用户点名】直梯提示音默认为 **5 5** —— 原为 4，
+     *  曾误并入「所有范围 10 5」改成 10，已按用户纠正改为 5；旧存档里已写入的值不动）。 */
+    public static final int DEFAULT_LIFT_HELP_ROUND = 5;
 
     /** ★★【10-03 用户点名】直梯提示音**垂直（y 轴）**默认 = 5 格（同 PSD / 扶梯底噪）。 */
     public static final int DEFAULT_LIFT_HELP_ROUND_Y = 5;
@@ -1711,7 +1715,7 @@ public class EscalatorSpeedData extends SavedData {
         if (tag.contains("defaultLiftToneAudioClose")) {
             data.defaultLiftToneAudioClose = normalizeLiftToneAudio(tag.getString("defaultLiftToneAudioClose"));
         }
-        // 【1.47】直梯提示音淡入淡出范围：旧存档缺字段 → 默认 4 格（同「第一次载入」）
+        // 【1.47】直梯提示音淡入淡出范围：旧存档缺字段 → 默认 5 格（★【10-05】用户点名 5 5）
         // ★【10-03】拆成水平 / 垂直两维；旧存档只有单值键 `defaultLiftHelpRound` ⇒ 它读进**水平**维，
         //   垂直维缺键 ⇒ 保持初始值 5。
         if (tag.contains("defaultLiftHelpRound")) {
@@ -2445,7 +2449,8 @@ public class EscalatorSpeedData extends SavedData {
     // ------------------------------------------------------------------
     // 【1.24】两个「淡入淡出范围」（单位：格）
     //
-    //   底噪（/futiround，默认 16 格）与提示音（/futihelpround，默认 4 格）是**两套**数据，
+    //   底噪（/futiround）与提示音（/futihelpround）是**两套**数据（★【10-05】底噪默认 10/5，
+    //   无障碍提示音默认 **5/5**），
     //   与上面两套音量一一对应，互不影响：
     //     音量决定「多响」，范围决定「多远还听得见」。
     //   注意 1.24 **没给它们加石斧界面控件**，所以「单独设置」这一层目前只能由
@@ -2498,7 +2503,7 @@ public class EscalatorSpeedData extends SavedData {
         }
     }
 
-    /** 【1.24】这条扶梯无障碍提示音的**水平**生效范围；没单独设置过就是维度默认（初始 4 格）。 */
+    /** 【1.24】这条扶梯无障碍提示音的**水平**生效范围；没单独设置过就是维度默认（初始 5 格）。 */
     public int getHelpRound(BlockPos pos) {
         Integer v = blockHelpRound.get(pos);
         return v != null ? v : defaultHelpRound;

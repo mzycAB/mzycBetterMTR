@@ -91,7 +91,7 @@ public final class EscalatorSpeedManager {
         public final Map<BlockPos, Integer> blockRound = new HashMap<>();
         /** ★【10-03】扶梯方块 → 运行底噪**垂直**范围（镜像；无记录 ⇒ 用 {@link #defaultRoundY}）。 */
         public final Map<BlockPos, Integer> blockRoundY = new HashMap<>();
-        /** 【1.24】默认无障碍提示音的**水平**可闻范围（/futihelpround 设置，单位格，初始 4）。 */
+        /** 【1.24】默认无障碍提示音的**水平**可闻范围（/futihelpround 设置，单位格，★【10-05】初始 5）。 */
         public int defaultHelpRound = EscalatorSpeedData.DEFAULT_HELP_ROUND;
         /** ★【10-03】默认无障碍提示音的**垂直（y 轴）**范围（初始 5）。 */
         public int defaultHelpRoundY = EscalatorSpeedData.DEFAULT_HELP_ROUND_Y;
@@ -986,8 +986,8 @@ public final class EscalatorSpeedManager {
     // ------------------------------------------------------------------
     // 【1.24】/futiround 与 /futihelpround：两个「淡入淡出范围」（单位格）
     //
-    //   底噪（/futiround）默认 16 格、提示音（/futihelpround）默认 4 格 —— 与 1.17 定的
-    //   「底噪按整条扶梯 16 格、提示音按端头单块 4 格」完全一致，只是现在可调了。
+    //   底噪（/futiround）默认 10/5；无障碍提示音（/futihelpround）默认 **5/5**（★【10-05】用户点名）——
+    //   与 1.17 定的「底噪按整条扶梯、提示音按端头单块」语义一致，只是现在可调了。
     //
     //   两层：维度默认（X） + 每条扶梯单独设置。**1.24 没有石斧界面控件**，
     //   所以单独设置这一层目前只能由 `-f <X> to <Y>` 间接产生；数据模型与其它可调项一致。
@@ -1264,7 +1264,7 @@ public final class EscalatorSpeedManager {
         return findChainRound(overrides, level, pos) != null;
     }
 
-    /** 【1.24】该维度的默认提示音范围（/futihelpround 设置；未设置过就是 4 格）——水平维。 */
+    /** 【1.24】该维度的默认提示音范围（/futihelpround 设置；未设置过就是 5 格）——水平维。 */
     public static int getDefaultHelpRound(Level level) {
         if (level.isClientSide()) {
             ClientDimensionData data = CLIENT_DATA.get(level.dimension());
@@ -7375,6 +7375,20 @@ public final class EscalatorSpeedManager {
     public static int getDoorPsdCloseWaitSeconds(Level level, long key) {
         Integer own = psdDoorRecord(level, key).closeWaitSeconds();
         return own != null ? own : getPsdCloseWaitSeconds(level);
+    }
+
+    /**
+     * 【10-05】这一串门**生效**的开关门素材（open / close；门覆盖值 &gt; 维度默认）。
+     *
+     * <p>解析口径与播放端 {@code PsdChimePlayer.psdToneCustomId} 逐条对齐：
+     * 「空 / {@code default}」= 跟维度默认。指令层 from→to 判「现在是哪一个」用它。
+     */
+    public static String getDoorPsdToneAudio(Level level, long key, String which) {
+        String own = psdToneField(psdDoorRecord(level, key), which);
+        if (own == null || own.isEmpty() || EscalatorSpeedData.PSD_TONE_DEFAULT.equals(own)) {
+            return getPsdToneAudio(level, which);
+        }
+        return own;
     }
 
     /** 这一扇门**生效**的到站播报素材（{@code off} = 不播）。 */

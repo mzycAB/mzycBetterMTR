@@ -409,6 +409,18 @@ public final class TrainAnnounceSwitch {
         };
     }
 
+    /**
+     * 文字模式枚举 → 指令词（word / chat / off）。★【10-05】查询指令只回值，用它把枚举
+     * 折成**一个短 token**（不要中文长句 —— 那是日志里的事，见 {@link #textModeLabel}）。
+     */
+    private static String textModeToken(TextMode mode) {
+        return switch (mode) {
+            case WORD -> TEXT_WORD;
+            case CHAT -> TEXT_CHAT;
+            case OFF -> VALUE_OFF;
+        };
+    }
+
     /** 文字模式词（word / chat / off）→ 枚举；认不出返回 {@link TextMode#OFF}（收得住）。 */
     private static TextMode parseTextMode(String token) {
         return TEXT_WORD.equalsIgnoreCase(token) ? TextMode.WORD
@@ -599,8 +611,26 @@ public final class TrainAnnounceSwitch {
         return builder.buildFuture();
     }
 
-    /** {@code /jsr midium}（无参数）：显示站台讲述人的全部状态。 */
+    /**
+     * {@code /jsr midium}（无参数）：**查询** —— 只回值
+     * 「总闸, 样式, 文字地点, 水平范围, 垂直范围」（各值逗号并列，开关 = 1/0）。
+     * ★【10-05】全部长句状态只进日志（{@link #showMidiumVerbose}）。
+     */
     public static int showMidium(CommandContext<FabricClientCommandSource> ctx) {
+        quiet = true;
+        try {
+            showMidiumVerbose(ctx);
+        } finally {
+            quiet = false;
+        }
+        ctx.getSource().sendFeedback(Component.literal(
+                (midiumEnabled ? "1" : "0") + ", " + midiumStyle + ", " + textModeToken(midiumTextMode)
+                        + ", " + midiumRoundXz + ", " + midiumRoundY));
+        return 1;
+    }
+
+    /** 站台讲述人的长句状态：只进日志（玩家侧只回值，见 {@link #showMidium}）。 */
+    private static void showMidiumVerbose(CommandContext<FabricClientCommandSource> ctx) {
         say(ctx, Component.literal(
                 "[SmoothLift] 站台广播（讲述人）语音：" + (midiumEnabled ? "开" : "关")
                     + "（/jsr midium on 开启，/jsr midium off 关闭，默认关）。"
@@ -621,7 +651,6 @@ public final class TrainAnnounceSwitch {
         say(ctx, Component.literal(
                 "[SmoothLift] 与进站广播的讲述人（/jsr arrive …）是两条互不相干的广播，可以同时存在；"
                         + "mbmhelp 的三个预设都会顺带把站台讲述人关掉（用户点名）"));
-        return 1;
     }
 
     /** {@code /jsr midium on|off}：开关站台讲述人语音（立即保存，跨启动保持）。 */
@@ -1085,8 +1114,26 @@ public final class TrainAnnounceSwitch {
         return builder.buildFuture();
     }
 
-    /** {@code /jsr arrive}（无参数）：显示**进站**讲述人的状态与说明。 */
+    /**
+     * {@code /jsr} / {@code /jsr arrive}（无参数）：**查询** —— 只回值
+     * 「总闸, 样式, 文字地点, 水平范围, 垂直范围」（各值逗号并列，开关 = 1/0）。
+     * ★【10-05】全部长句状态只进日志（{@link #showVerbose}）。
+     */
     public static int show(CommandContext<FabricClientCommandSource> ctx) {
+        quiet = true;
+        try {
+            showVerbose(ctx);
+        } finally {
+            quiet = false;
+        }
+        ctx.getSource().sendFeedback(Component.literal(
+                (enabled ? "1" : "0") + ", " + style + ", " + textModeToken(textMode)
+                        + ", " + roundXz + ", " + roundY));
+        return 1;
+    }
+
+    /** 进站讲述人的长句状态：只进日志（玩家侧只回值，见 {@link #show}）。 */
+    private static void showVerbose(CommandContext<FabricClientCommandSource> ctx) {
         say(ctx, Component.literal(
                 "[SmoothLift] 进站广播（讲述人）语音：" + (enabled ? "开" : "关")
                         + "（/jsr arrive on 开启，/jsr arrive off 关闭，默认开）。"
@@ -1134,7 +1181,6 @@ public final class TrainAnnounceSwitch {
                 "[SmoothLift] mbmhelp 的三个预设：经典港铁预设＝开启(香港) + 文字 word"
                         + "，简单港铁预设 / 空白预设＝**关闭**讲述人与文字"
                         + "（按预设时总闸和文字模式会一起跟着开/关）。"));
-        return 1;
     }
 
     /** 状态行里自定义词的摘要（最多列 3 条，每条截 12 字，多了加「等 N 条」）。 */

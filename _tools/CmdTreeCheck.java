@@ -968,7 +968,7 @@ public final class CmdTreeCheck {
         failures += expectExecutable(dispatcher, "mbm picture fold");
 
         System.out.println();
-        System.out.println("========== 【1.53】三个港铁预设 + 全音量：预设 37 条指令必须条条可执行 ==========");
+        System.out.println("========== 【1.53】三个港铁预设 + 全音量：预设 55 条指令必须条条可执行 ==========");
         // ★★ 这一段是「界面按钮能不能用」的**离线代理**：
         //   预设 / 全音量的做法是「把这几条指令原样派发」（见 SmoothLift.runCommandBatch），
         //   所以「按钮点了有没有效果」== 「这些指令在指令树里存不存在」。
@@ -981,7 +981,7 @@ public final class CmdTreeCheck {
         //   ⇒ 改预设时**两边都要改**，否则就会出现「指令树测的是老清单」的假绿。
         //   「同一份规则出现在两处就是等着分叉」—— 这里是已知的重复点，改预设时先看这里。
         //   ★【09-28 续 4】三档的讲述人条目：经典＝hongkong（开），简单 / 空白＝off（关）。
-        //     条数 13 + 13 + 11 = 37。
+        //     条数 19 + 19 + 17 = 55（★【10-05 用户点名】三个预设各多 6 条范围；两条无障碍提示音 5 5）。
         //   ★★★【09-29 LOG6】静音一律写**子开关层**的 `-f off`，**不许**写素材层的 `-f none` ——
         //     `none` 落到素材层后，UI「开关」行与 `… <项> on` 都够不到它，用户会觉得
         //     「选了简单港铁预设就无论怎么设置都开不了」（LOG6）。
@@ -995,6 +995,9 @@ public final class CmdTreeCheck {
                         "lifthelp up -f on", "lifthelp down -f on",
                         "pbmclosewait -f 1", "pbmmusic open -f default",
                         "pbmmusic close -f default-m",
+                        // ★【10-05 用户点名】范围六条（底噪/门/报站 10 5；两条无障碍提示音 5 5）
+                        "futiround -f 10 5", "futihelpround -f 5 5", "lifthelpround -f 5 5",
+                        "pbmround -f 10 5", "pbmmidiumround -f 10 5", "pbmarriveround -f 10 5",
                         "pbmmusic open -f on", "pbmmusic close -f on",
                         // 【09-28 续 2】进站广播（讲述人）＝开启(香港)
                         "pbmnarrate hongkong -f"},
@@ -1005,6 +1008,9 @@ public final class CmdTreeCheck {
                         "lifthelp up -f on", "lifthelp down -f on",
                         "pbmclosewait -f 1", "pbmmusic open -f default",
                         "pbmmusic close -f default-s",
+                        // ★【10-05 用户点名】范围六条（底噪/门/报站 10 5；两条无障碍提示音 5 5）
+                        "futiround -f 10 5", "futihelpround -f 5 5", "lifthelpround -f 5 5",
+                        "pbmround -f 10 5", "pbmmidiumround -f 10 5", "pbmarriveround -f 10 5",
                         "pbmmusic open -f on", "pbmmusic close -f on",
                         // 【09-28 续 4】进站广播（讲述人）＝**关闭**（用户点名：简单港铁要关讲述人）
                         "pbmnarrate off -f"},
@@ -1014,6 +1020,9 @@ public final class CmdTreeCheck {
                         "lifthelp open -f off", "lifthelp close -f off",
                         "lifthelp up -f off", "lifthelp down -f off",
                         "pbmclosewait -f 1", "pbmmusic open -f off", "pbmmusic close -f off",
+                        // ★【10-05 用户点名】范围六条（空白预设也照设；两条无障碍提示音 5 5）
+                        "futiround -f 10 5", "futihelpround -f 5 5", "lifthelpround -f 5 5",
+                        "pbmround -f 10 5", "pbmmidiumround -f 10 5", "pbmarriveround -f 10 5",
                         // 【09-28 续 4】进站广播（讲述人）＝**关闭**（用户点名：空白预设也要关）
                         "pbmnarrate off -f"},
         };

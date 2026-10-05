@@ -10,43 +10,52 @@ import org.slf4j.LoggerFactory;
  * 【1.31.1204】{@code /mtrqx} 子命令的处理器。
  *
  * <ul>
- *   <li>{@code /mtrqx}      —— 查看当前状态；</li>
- *   <li>{@code /mtrqx on}   —— 开启：列车上下坡时整个画面跟着旋转（窗外窗框/地板保持水平）；</li>
- *   <li>{@code /mtrqx off}  —— 关闭：与 MTR 原版逐位一致，画面不随列车倾斜。</li>
+ *   <li>{@code /mtrqx}      —— 查询：只回值 {@code 1}/{@code 0}；</li>
+ *   <li>{@code /mtrqx on}   —— 动作：只回「指令执行成功 / 指令执行失败」；</li>
+ *   <li>{@code /mtrqx off}  —— 同上。</li>
  * </ul>
  *
  * <p>切换逻辑全部在 {@link TrainTiltView#apply(boolean)}：改内存态 → 存 config
- * （{@code config/smoothlift-view.properties}）。这里只负责把结果反馈给玩家。
- * 与 {@link EscalatorRenderModeCommand}（{@code /mtrxr}）同一套结构：
- * {@code show} / {@code set} / 「不经过 brigadier 的核心逻辑」三段。
+ * （{@code config/smoothlift-view.properties}）。
+ *
+ * <p>★★★【10-05 反馈铁规】玩家只看**短句**：
+ * <ul>
+ *   <li><b>动作类指令</b> → 只回「指令执行成功」/「指令执行失败」；</li>
+ *   <li><b>查询类指令</b> → 只回**值**（开关 → {@code 1}/{@code 0}）；</li>
+ *   <li>所有本来写给人看的**长句状态 / 诊断串一律只进日志**（{@code LOGGER.info}），不再回聊天栏。</li>
+ * </ul>
+ * 这条是用户点名的硬约束，换模型也必须继承 —— 新功能一律照此，别再往聊天栏贴长句。
+ * （诊断串本身没丢：{@code /mtrqx} 打一次，聊天栏只给 {@code 1}/{@code 0}，完整诊断进
+ * {@code logs/latest.log}。）
  */
 public final class TrainTiltViewCommand {
 
     private static final Logger LOGGER = LoggerFactory.getLogger("smoothlift");
 
+    /** 统一回执文案（与模组其它指令逐字一致）。 */
+    private static final String CMD_OK = "指令执行成功";
+    private static final String CMD_FAIL = "指令执行失败";
+
     private TrainTiltViewCommand() {
     }
 
     /**
-     * {@code /mtrqx}（无参数）：显示当前状态 + 两个取值的含义 + <b>诊断串</b>。
+     * {@code /mtrqx}（无参数）：**查询** —— 只回值 {@code 1}（开）/ {@code 0}（关）。
      *
-     * <p>★【1.31.1204】诊断串（{@link TrainTiltView#diagnostics()}）同时进聊天栏与日志：
-     * 「装了没反应」时不必翻日志文件，直接在游戏里打一次 {@code /mtrqx} 就能看出
-     * 是「注入点没通」还是「车体没有俯仰」还是「开关关了」。这行日志也便于事后追溯。
+     * <p>长句状态与诊断串（{@link TrainTiltView#diagnostics()}）只进日志：
+     * 「装了没反应」时不必翻日志文件，在游戏里打一次 {@code /mtrqx} 即可同时拿到值，
+     * 完整诊断去 {@code logs/latest.log} 看那一行「/mtrqx 诊断」。
      */
     public static int show(CommandContext<FabricClientCommandSource> ctx) {
         String state = TrainTiltView.name();
         String diag = TrainTiltView.diagnostics();
-        ctx.getSource().sendFeedback(Component.literal(
-                "[SmoothLift] 列车倾斜视角：" + state
-                        + "（/mtrqx on = 画面随列车倾斜旋转、窗外窗框与地板保持水平，/mtrqx off = 与 MTR 原版一致）"));
-        ctx.getSource().sendFeedback(Component.literal("[SmoothLift] 诊断：" + diag));
-        LOGGER.info("[SmoothLift/TiltView] /mtrqx 状态查询：{}｜{}", state, diag);
+        ctx.getSource().sendFeedback(Component.literal(TrainTiltView.isEnabled() ? "1" : "0"));
+        LOGGER.info("[SmoothLift/TiltView] /mtrqx 诊断：{}｜{}", state, diag);
         return 1;
     }
 
     /**
-     * {@code /mtrqx on|off}：切换。
+     * {@code /mtrqx on|off}：**动作** —— 只回「指令执行成功 / 指令执行失败」。
      *
      * @param on true = 开启（视角随列车倾斜）；false = 关闭（MTR 原版行为）
      */
@@ -58,13 +67,12 @@ public final class TrainTiltViewCommand {
     /**
      * 切换的**核心逻辑**（不经过 brigadier —— 以后若要做成设置界面的开关，也直接调它）。
      *
-     * @return 要给玩家看的反馈（含「无需切换」的情形）
+     * @return 统一回执（「指令执行成功」；细节只进日志）
      */
     public static String apply(boolean on) {
-        if (!TrainTiltView.apply(on)) {
-            return "[SmoothLift] 列车倾斜视角本来就是" + (on ? "开启" : "关闭") + "的，无需切换。";
-        }
-        return "[SmoothLift] 列车倾斜视角已" + (on ? "开启" : "关闭")
-                + "（立刻生效，已记住；用 /mtrqx 看当前状态）";
+        boolean changed = TrainTiltView.apply(on);
+        LOGGER.info("[SmoothLift/TiltView] /mtrqx {}：{}", on ? "on" : "off",
+                changed ? "已切换" : "本来就是这个状态");
+        return CMD_OK;
     }
 }

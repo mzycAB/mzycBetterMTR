@@ -112,7 +112,7 @@ public final class EscalatorAudioPlayer {
      *
      * <p>现在是可调的（{@code /futiround}），所以**实际判定一律走 {@link #rangeFor}**；
      * 本常量只是把「默认 16 格」这件事在播放器这一侧留个名字，方便对照
-     * {@link EscalatorChimePlayer} 那边的默认 4 格（两者故意不同，见 1.17 / 1.24）。
+     * {@link EscalatorChimePlayer} 那边的默认（★【10-05】无障碍提示音更近：默认 5 格，本底噪 10 格）。
      *
      * <p>注意是「离开**整条扶梯**」的距离，不是到某个方块的距离。
      */

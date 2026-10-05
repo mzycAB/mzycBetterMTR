@@ -139,6 +139,12 @@ public class MbmHelpScreen extends Screen {
      *   简单港铁预设 → /jsr off + 预设末条 pbmnarrate off -f
      *   空白预设     → /jsr off + 预设末条 pbmnarrate off -f
      * </pre>
+     *
+     * <p>★★【10-05 用户点名】三个预设的**文字出现地点一律 chat**（用户原话「mbm help 里的 3 个默认
+     * （香港、精简香港、空白）：范围默认 10 5（两条无障碍提示音 5 5），讲述人报站默认 chat」）⇒ simple / blank 从原来的
+     * {@code disableWordForPreset()}（= off）改成 {@link TrainAnnounceSwitch#enableChatForPreset()}。
+     * ★ 它们的**总闸仍关着**（上面那张表不变）——「chat」只是把**默认文字地点**定下来：
+     * 之后玩家手动开讲述人（{@code /jsr on}）就直接出聊天框，不必再单独去调一次文字地点。
      * ★ 为什么「关」也要动总闸：只关样式层同样听不见（两层取「与」），但存档里总闸仍写着「开」
      * ⇒ 玩家之后去石斧 UI 随手挑一档样式，讲述人会**突然又响**。用户说的是「关闭讲述人」，
      * 所以两层一起关才叫关干净（与经典预设两层一起开**对称**）。
@@ -159,9 +165,10 @@ public class MbmHelpScreen extends Screen {
             TrainAnnounceSwitch.enableChatForPreset();
         } else if (ID_SIMPLE.equals(presetId) || ID_BLANK.equals(presetId)) {
             TrainAnnounceSwitch.disableForPreset();
-            // 【09-29】另两个预设顺带**关闭**屏幕字幕（等价 /jsr arrive on <样式> off），
-            //   关的那一下顺手撤掉正在显示的字幕。
-            TrainAnnounceSwitch.disableWordForPreset();
+            // ★【10-05 用户点名】这两个预设的**总闸仍关**（见类注释那张表），但**文字地点不再是 off
+            //   而是 chat** —— 三个预设点完文字地点都是 chat；之后手动开讲述人就直出聊天框。
+            //   （原为 disableWordForPreset()，= off；那条路子会让「之后开讲述人」还得再调一次。）
+            TrainAnnounceSwitch.enableChatForPreset();
         }
     }
 

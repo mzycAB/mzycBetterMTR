@@ -443,6 +443,72 @@ public final class PsdDoorTracker {
     }
 
     // ------------------------------------------------------------------
+    // 【10-05】pbm* 指令不带 -f 时的目标：**离玩家最近的那一串屏蔽门**
+    //   ★ 返回的 runKey 与石斧 UI（PsdToneSetupScreen）、播放端（PsdChimePlayer）**同一把尺子**
+    //     —— 三处必须同一个身份，否则「指令写的播放端读不到」会静默落回维度默认
+    //     （PsdToneSetupScreen 类注释里那句警告说的就是这个）。
+    // ------------------------------------------------------------------
+
+    /** 平票判据：两扇门到玩家的距离差 ≤ 这个值就算「一样近」（格）。 */
+    public static final double NEAREST_TIE = 0.05;
+
+    /**
+     * 【10-05】取「离玩家最近的那一串屏蔽门」的配置身份（{@code runKey}）。
+     *
+     * <p>规则（用户点名）：先取**离玩家最近的那一扇门**；若两扇门距离并列
+     * （差 ≤ {@link #NEAREST_TIE}），取**玩家正对着**的那一扇（视线方向点积最大）。
+     * 返回它所属的「串」= {@code door.runKey()}。
+     *
+     * <p>串的粒度与石斧 UI 完全一致（{@code runKeyOf}：首选 MTR 站台，认不到才回落
+     * 「门 + 幕墙 + 幕墙尾部」的连通块）。
+     *
+     * @param playerPos 玩家眼睛/脚位置（用 {@code player.position()} 即可）；null ⇒ 认不到
+     * @param look      玩家视线单位向量（{@code player.getLookAngle()}）；null ⇒ 不做「面朝」判
+     * @return 最近那一串的 runKey；快照里一扇门都没有 / 世界为空 ⇒ {@link #RUN_KEY_NONE}
+     */
+    public static long nearestRunKeyTo(Vec3 playerPos, Vec3 look) {
+        if (playerPos == null) {
+            return RUN_KEY_NONE;
+        }
+        Level level = Minecraft.getInstance().level;
+        if (level == null) {
+            return RUN_KEY_NONE;
+        }
+        long now = level.getGameTime();
+        long bestRunKey = RUN_KEY_NONE;
+        double bestSqr = Double.MAX_VALUE;
+        double bestDot = -Double.MAX_VALUE;
+        for (Entry e : LIVE.values()) {
+            if (now - e.tick > STALE_TICKS) {
+                continue;
+            }
+            double dx = e.x - playerPos.x;
+            double dy = e.y - playerPos.y;
+            double dz = e.z - playerPos.z;
+            double sqr = dx * dx + dy * dy + dz * dz;
+            double dot = look == null ? 0.0
+                    : (dx * look.x + dy * look.y + dz * look.z) / Math.max(Math.sqrt(sqr), 1.0E-6);
+            boolean better;
+            if (bestRunKey == RUN_KEY_NONE && bestSqr == Double.MAX_VALUE) {
+                better = true;
+            } else if (sqr < bestSqr - (NEAREST_TIE * NEAREST_TIE)) {
+                better = true;
+            } else if (sqr > bestSqr + (NEAREST_TIE * NEAREST_TIE)) {
+                better = false;
+            } else {
+                // 距离并列 ⇒ 玩家面朝的那一扇（点积更大）
+                better = dot > bestDot;
+            }
+            if (better) {
+                bestRunKey = e.runKey;
+                bestSqr = sqr;
+                bestDot = dot;
+            }
+        }
+        return bestRunKey;
+    }
+
+    // ------------------------------------------------------------------
     // 【10-01】「**同一个 MTR 站台**里离玩家最近的那一扇」—— 开关门提示音（铃声）的音量基准
     //        ★ 与上面 {@link #nearestInRun}（**车站**级 runKey）是**两把尺子**，别合并：
     //          播报是「站台广播」（整个车站只该响一条）⇒ 用车站级；
