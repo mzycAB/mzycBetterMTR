@@ -314,8 +314,10 @@ check("platformKey(id)" in fn and fn.find("platformKey(id)") < i_ret,
 check("PLATFORM_CACHE.get(flood)" in fn and "PLATFORM_CACHE.put(flood" in fn,
       "★ 站台身份按**连通串**缓存（一串只问一次站台，不是每扇门都问）")
 
-check(re.search(r"if \(id > 0L\) \{.*?PLATFORM_CACHE\.put\(flood, key\);", fn, re.S) is not None,
-      "★★ **认到才写缓存**（PLATFORM_CACHE.put 只在 id > 0 这一支里）")
+check(re.search(r"if \(MtrDwellAccess\.isPlatformKnown\(id\)\) \{.*?PLATFORM_CACHE\.put\(flood, key\);",
+                fn, re.S) is not None,
+      "★★ **认到才写缓存**（PLATFORM_CACHE.put 只在 isPlatformKnown(id) 这一支里；"
+      "判据不是 id > 0 —— MTR4 站台 id 可为负，Random().nextLong() 约一半是负数）")
 check(re.search(r"PLATFORM_NEXT_TRY\.put\(flood, now \+ PLATFORM_RETRY_TICKS\);", fn) is not None,
       "★★ 认不到 → 只排「%d tick 后再试」，绝不把「认不到」钉成永久结果"
       % int(re.search(r"PLATFORM_RETRY_TICKS = (\d+)", body).group(1)))
@@ -336,9 +338,10 @@ check(n_put == 2,
       "★★ 【1.31】PLATFORM_CACHE 写入口 = 2（认到站台 / 借到相邻站台身份），"
       "都在「拿到平台身份、返回 platformKey」的那两支里 —— 任何无关分支不许写缓存",
       "count=%d" % n_put)
-check(re.search(r"if \(borrowed > 0L\)\s*\{\s*long key = platformKey\(borrowed\);"
+check(re.search(r"if \(MtrDwellAccess\.isPlatformKnown\(borrowed\)\)\s*\{\s*long key = platformKey\(borrowed\);"
                 r"\s*PLATFORM_CACHE\.put\(flood, key\);", body, re.S) is not None,
-      "★ 借用那一支的写缓存紧随 `borrowed > 0`（防串台闸门在前）")
+      "★ 借用那一支的写缓存紧随 isPlatformKnown(borrowed)（防串台闸门在前；"
+      "判据不是 borrowed > 0L）")
 
 # ======================================================================
 # 5) 1.26 的机器一行没动（配置 / 去重 / 射程 / 声源四处都还按 runKey 走）
@@ -351,9 +354,14 @@ for label, pat in (
     ("读配置（进站报站）", r"getDoorPsdArriveAudio\(mc\.level, runKey\)"),
     ("去重（一串只排一条）", r"arrivalVoice\.containsKey\(runKey\)"),
     ("声源 + 射程（整串最近门）", r"PsdDoorTracker\.nearestInRun\(runKey, player\)"),
-    ("每 tick 的距离口径", r"nearestDistanceInRun\(chainRunKey"),
 ):
     check(re.search(pat, player) is not None, "%s 仍按 runKey（粒度自动升为站台）" % label)
+
+check(re.search(r"PsdDoorTracker\.DoorView nearest = MtrDwellAccess\.isPlatformKnown\(chainPlatformId\)\s*"
+                r"\? PsdDoorTracker\.nearestOnPlatform\(chainPlatformId, p\)\s*"
+                r": PsdDoorTracker\.nearestInRun\(chainRunKey, p\);", player) is not None,
+      "★ 每 tick 的距离口径（refreshVolume）：认到站台按站台最近门 nearestOnPlatform，"
+      "否则按整串最近门 nearestInRun(chainRunKey, p) —— 两种粒度都由它一个三目收起")
 
 check("nearestInRun" in tracker and "nearestDistanceInRun" in tracker,
       "1.26 的两个查询口都还在（1.27 只是喂给它们的 runKey 变粗了）")

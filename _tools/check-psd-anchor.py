@@ -361,15 +361,22 @@ if _lm:
     check(_loop.index("noteCycle(") < _loop.index("detect("),
           "noteCycle 排在 detect 之前（先学周期再判跳变，顺序反了会晚一拍）")
 
-# ★【1.26】`nearest*` 现在有了**新的合法含义**（「这一串里离玩家最近的那一扇」，
-#   见 PsdDoorTracker.nearestInRun / PsdChimePlayer.nearestPerRun）—— 所以不能再整体禁掉这个词。
-#   要禁的是**旧的闸门**：「先求出离玩家最近的那一扇门、然后只对它发声」。
-#   那个闸门必然表现为一个**局部变量**（`DoorView nearest` / `== nearest` / `nearestDist`）。
-_old_gate = re.search(r"(DoorView\s+nearest\b|==\s*nearest\b|\bnearestDist\b)", _pcode)
+# ★【1.26 / 09-30 / 10-01】`nearest` 这个词干现在有多个**合法**新用法，不能再整体禁掉：
+#   · nearestInRun / nearestPerRun / nearestOnPlatform / nearestNarrateRun —— 方法/字段名（带后缀）；
+#   · isNearestMidiumNarrateRun 里的局部 `DoorView nearest` —— 「站台讲述人选串」的尺子
+#     （哪一串开口，`nearest == null || sameBroadcastScope(nearest, plan)`），不是「只对最近门发声」；
+#   · refreshVolume 里的局部 `DoorView nearest` —— 音量按「本串最近门 / 本站台最近门」算（1.26 合法语义）。
+#   旧的「只给离玩家最近的那一扇发声」闸门**唯一的特征写法** = 在逐门循环里先求 nearest、
+#   然后按 `door == nearest` 过滤发声（或直接把 nearest 代进 detect 开响铃）——
+#   判据只咬这两种形态，别的不碰。
+_old_gate = re.search(
+    r"(if\s*\(\s*(?:door|d)\s*==\s*nearest\b|if\s*\(\s*nearest\s*==\s*(?:door|d)\b|detect\([^)]*\bnearest\b)",
+    _pcode)
 check(_old_gate is None,
       "★★ 旧的「只给离玩家最近的那一扇发声」闸门已**彻底不存在**"
       "（留着它 ⇒ 症状照旧：整条屏蔽门只有一个点在响）；"
-      "★【1.26】nearestInRun / nearestPerRun 是**新的**合法含义（本串最近的门），不受这条限制",
+      "★【1.26】nearestInRun / nearestPerRun / nearestOnPlatform / 站台讲述人选串 / 音量按串算 "
+      "都是**新的**合法语义，不受这条限制",
       "命中 %s" % (_old_gate.group(1) if _old_gate else "无"))
 
 # 「玻璃幕墙 / 幕墙尾部不发声」= 数据源头就滤掉（复用第 8 节那张注册名表）
@@ -381,8 +388,12 @@ for _n in ("psd_glass", "psd_glass_2", "psd_glass_end", "psd_glass_end_2",
 # ★ 反向对照：断言本身有效吗？把「逐门」改回「只给最近一扇」，上面那条必须能抓到。
 _neg = _pcode.replace("            detect(mc, door, prev, dist);",
                       "            if (door == nearest) { detect(mc, door, prev, dist); }")
-check("nearest" in _neg and _neg != _pcode,
-      "反向对照：改回「最近门」闸门后，判据检测得到它（说明判的是代码，不是注释）")
+_neg_gate = re.search(
+    r"(if\s*\(\s*(?:door|d)\s*==\s*nearest\b|if\s*\(\s*nearest\s*==\s*(?:door|d)\b|detect\([^)]*\bnearest\b)",
+    _neg)
+check(_neg_gate is not None and _neg != _pcode,
+      "反向对照：改回「最近门」闸门后，判据检测得到它（说明判的是代码，不是注释）",
+      "命中 %s" % (_neg_gate.group(1) if _neg_gate else "无"))
 
 print()
 if FAILS:

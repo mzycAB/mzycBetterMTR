@@ -81,7 +81,9 @@ public final class PsdDoorTracker {
      * @param fraction 开合程度：0 = 全关，1 = 全开
      * @param platformId 【1.28】这一串**认得出来的 MTR 站台 id**（{@link #accept} 从
      *                 {@link #PLATFORM_CACHE} 解出来的，与 {@code runKey} 是同一份数据）；
-     *                 {@code 0} = 还没认到。进站报站查时刻表直接用这份 id ——
+     *                 ★【09-28 续 6】**可正可负**（MTR4 id = {@code Random().nextLong()}），
+     *                 「还没认到」= {@link MtrDwellAccess#PLATFORM_ID_NONE}（**不是 0**）。
+     *                 进站报站查时刻表直接用这份 id ——
      *                 **不再自己再调一次 {@code MtrDwellAccess.platformIdAt}**：
      *                 两条并行的认亲各判一次 4 格边界，会在边界上分叉成
      *                 「身份已是站台、时刻表却认不到 ⇒ 这串永远不响进站报站」。
@@ -111,6 +113,64 @@ public final class PsdDoorTracker {
     /** 当前镜像属于哪个维度：换了维度整表作废（门 key 不含维度，串了会发出莫名其妙的声）。 */
     private static ResourceKey<Level> dimension;
 
+    /** 「还没开始渲染任何一串门」的哨兵（runKey 恒不为它：它要么是 {@code Long.MIN_VALUE+id}，
+     *  要么是某个方块坐标的 asLong）。 */
+    public static final long RUN_KEY_NONE = 0L;
+
+    /**
+     * 【10-03 五改】一扇门（**门锚点** = {@code anchorOf} 的结果）所属「门串」的锚点。
+     *
+     * <p>门串 = 用户原话「连在一起的屏蔽门，包括门，幕墙，幕墙尾部」——
+     * 也就是 {@link #floodRun} 走出来的连通块，锚点取块内 {@code asLong} 最小的那一格
+     * （与服务端 / 界面 / 播放端三处**同一个数**，天然稳定）。
+     *
+     * @return 门串锚点；缓存里还没有（这一帧没采集过）⇒ 回落门锚点本身
+     */
+    public static long runAnchorOfDoorKey(long doorKey) {
+        Long flood = RUN_CACHE.get(doorKey);
+        return flood == null || flood == Long.MIN_VALUE ? doorKey : flood;
+    }
+
+    /**
+     * 【10-03 五改】从任意一格 PSD 方块算出**门串锚点**（石斧 UI 读写「门串级设置」时用）。
+     *
+     * @return 门串锚点；不是屏蔽门 / 世界为空 ⇒ {@link #RUN_KEY_NONE}
+     */
+    public static long runAnchorOf(Level level, BlockPos raw) {
+        if (level == null || raw == null) {
+            return RUN_KEY_NONE;
+        }
+        BlockState state = level.getBlockState(raw);
+        if (!SmoothLift.isPsdDoor(state)) {
+            return RUN_KEY_NONE;
+        }
+        long doorKey = anchorOf(state, raw);
+        return runAnchorOfDoorKey(doorKey);
+    }
+
+    /**
+     * 【10-03 五改】这一串门落在哪个 **MTR 站台**（列车那侧按站台 id 查设置）。
+     *
+     * <p>先走一次 {@link #runKeyOf}：站台身份会「晚到」MTR 的同步，那一步带 2 秒节流重试，
+     * 顺手把 {@code PLATFORM_CACHE} 填上（界面构造时本来就调过它）。
+     *
+     * @return 站台 id（★ 可正可负）；认不到 ⇒ {@link MtrDwellAccess#PLATFORM_ID_NONE}
+     */
+    public static long platformIdOf(Level level, BlockPos raw) {
+        if (level == null || raw == null) {
+            return MtrDwellAccess.PLATFORM_ID_NONE;
+        }
+        if (RUN_KEY_NONE == runKeyOf(level, raw)) {
+            return MtrDwellAccess.PLATFORM_ID_NONE;
+        }
+        long runAnchor = runAnchorOf(level, raw);
+        if (runAnchor == RUN_KEY_NONE) {
+            return MtrDwellAccess.PLATFORM_ID_NONE;
+        }
+        Long recognized = PLATFORM_CACHE.get(runAnchor);
+        return recognized == null ? MtrDwellAccess.PLATFORM_ID_NONE : recognized - Long.MIN_VALUE;
+    }
+
     private PsdDoorTracker() {
     }
 
@@ -124,7 +184,8 @@ public final class PsdDoorTracker {
         final double x;
         final double y;
         final double z;
-        /** 【1.28】认得到的站台 id（0 = 还没认到）；与 runKey 同一份数据，随 runKey 一起刷新。 */
+        /** 【1.28】认得到的站台 id（★【09-28 续 6】可正可负；{@link MtrDwellAccess#PLATFORM_ID_NONE}
+         *  = 还没认到）；与 runKey 同一份数据，随 runKey 一起刷新。 */
         long platformId;
         /** 【1.29】true = 门（铃声 + 播报都参与）；false = 幕墙/幕墙尾部（只参与播报的声源/射程）。 */
         final boolean door;
@@ -213,10 +274,13 @@ public final class PsdDoorTracker {
         // ★★【1.28】把「认得到的站台 id」从认证缓存里解出来，跟 runKey 走同一条链
         //   （不自己再调一次 platformIdAt —— 见 DoorView.platformId 的注释）。
         //   flood 是这一扇门归属连通串的锚点；PLATFORM_CACHE[flood] 里存的 platformKey
-        //   编码了站台 id（= platformKey - Long.MIN_VALUE），认到才写 ⇒ 0 = 认不到。
+        //   编码了站台 id（= platformKey - Long.MIN_VALUE），认到才写。
+        //   ★【09-28 续 6】「认不到」= PLATFORM_ID_NONE，**不是 0**：MTR4 的站台 id 是
+        //   Random().nextLong()，0 和负数都是合法 id（见 MtrDwellAccess.PLATFORM_ID_NONE）。
         long flood = RUN_CACHE.getOrDefault(key, Long.MIN_VALUE);
         Long recognized = flood == Long.MIN_VALUE ? null : PLATFORM_CACHE.get(flood);
-        long platformId = recognized == null ? 0L : recognized - Long.MIN_VALUE;
+        long platformId = recognized == null
+                ? MtrDwellAccess.PLATFORM_ID_NONE : recognized - Long.MIN_VALUE;
         long now = level.getGameTime();
         Entry entry = LIVE.get(key);
         if (entry == null) {
@@ -379,6 +443,191 @@ public final class PsdDoorTracker {
     }
 
     // ------------------------------------------------------------------
+    // 【10-05】pbm* 指令不带 -f 时的目标：**离玩家最近的那一串屏蔽门**
+    //   ★ 返回的 runKey 与石斧 UI（PsdToneSetupScreen）、播放端（PsdChimePlayer）**同一把尺子**
+    //     —— 三处必须同一个身份，否则「指令写的播放端读不到」会静默落回维度默认
+    //     （PsdToneSetupScreen 类注释里那句警告说的就是这个）。
+    // ------------------------------------------------------------------
+
+    /** 平票判据：两扇门到玩家的距离差 ≤ 这个值就算「一样近」（格）。 */
+    public static final double NEAREST_TIE = 0.05;
+
+    /**
+     * 【10-05】取「离玩家最近的那一串屏蔽门」的配置身份（{@code runKey}）。
+     *
+     * <p>规则（用户点名）：先取**离玩家最近的那一扇门**；若两扇门距离并列
+     * （差 ≤ {@link #NEAREST_TIE}），取**玩家正对着**的那一扇（视线方向点积最大）。
+     * 返回它所属的「串」= {@code door.runKey()}。
+     *
+     * <p>串的粒度与石斧 UI 完全一致（{@code runKeyOf}：首选 MTR 站台，认不到才回落
+     * 「门 + 幕墙 + 幕墙尾部」的连通块）。
+     *
+     * @param playerPos 玩家眼睛/脚位置（用 {@code player.position()} 即可）；null ⇒ 认不到
+     * @param look      玩家视线单位向量（{@code player.getLookAngle()}）；null ⇒ 不做「面朝」判
+     * @return 最近那一串的 runKey；快照里一扇门都没有 / 世界为空 ⇒ {@link #RUN_KEY_NONE}
+     */
+    public static long nearestRunKeyTo(Vec3 playerPos, Vec3 look) {
+        if (playerPos == null) {
+            return RUN_KEY_NONE;
+        }
+        Level level = Minecraft.getInstance().level;
+        if (level == null) {
+            return RUN_KEY_NONE;
+        }
+        long now = level.getGameTime();
+        long bestRunKey = RUN_KEY_NONE;
+        double bestSqr = Double.MAX_VALUE;
+        double bestDot = -Double.MAX_VALUE;
+        for (Entry e : LIVE.values()) {
+            if (now - e.tick > STALE_TICKS) {
+                continue;
+            }
+            double dx = e.x - playerPos.x;
+            double dy = e.y - playerPos.y;
+            double dz = e.z - playerPos.z;
+            double sqr = dx * dx + dy * dy + dz * dz;
+            double dot = look == null ? 0.0
+                    : (dx * look.x + dy * look.y + dz * look.z) / Math.max(Math.sqrt(sqr), 1.0E-6);
+            boolean better;
+            if (bestRunKey == RUN_KEY_NONE && bestSqr == Double.MAX_VALUE) {
+                better = true;
+            } else if (sqr < bestSqr - (NEAREST_TIE * NEAREST_TIE)) {
+                better = true;
+            } else if (sqr > bestSqr + (NEAREST_TIE * NEAREST_TIE)) {
+                better = false;
+            } else {
+                // 距离并列 ⇒ 玩家面朝的那一扇（点积更大）
+                better = dot > bestDot;
+            }
+            if (better) {
+                bestRunKey = e.runKey;
+                bestSqr = sqr;
+                bestDot = dot;
+            }
+        }
+        return bestRunKey;
+    }
+
+    // ------------------------------------------------------------------
+    // 【10-01】「**同一个 MTR 站台**里离玩家最近的那一扇」—— 开关门提示音（铃声）的音量基准
+    //        ★ 与上面 {@link #nearestInRun}（**车站**级 runKey）是**两把尺子**，别合并：
+    //          播报是「站台广播」（整个车站只该响一条）⇒ 用车站级；
+    //          铃声是「沿站台一排门同时响」的位置短音 ⇒ 必须收窄到**一个站台**。
+    // ------------------------------------------------------------------
+
+    /**
+     * 【10-01】同一个 MTR 站台（{@code platformId}）里**离玩家最近的那一扇门**。
+     *
+     * <p>★★ 为什么需要它（现场 LOG013 钉死的，数字可复核）：
+     * {@link #runKeyOf runKey} 在【09-30 续 9】升到了**车站级**（同一车站的几层 / 两侧共用一个
+     * 配置身份），而【09-30 续 10】把铃声的音量基准定成「**本串**里离玩家最近那一扇」
+     * ⇒ 那个「本串」实际是**整个车站**。于是：玩家站在 A 站台的门前（1.6 格），
+     * 同一车站 B 站台（另一层 / 轨道另一侧，只隔 11 格）的门**关一下**，
+     * 它的增益也是按「玩家身边那扇 A 站台的门」算的 ⇒ **100% 音量**在耳边响
+     * ——用户听到的就是「早几秒一个 + 准点一个」的**多出来的提示音**（他说「又犯了一次」）。
+     *
+     * <p>LOG013 证据：世纪广场 一个车站在 3 层上共 6~7 个站台（#63~#68；#78 与 #68 同坐标重复注册）；
+     * 玩家的门口线是 #67（{@code @(-26,-21,41)}，门在 z=43）与 #65（{@code @(-33,-21,34)}，门在 z=32），
+     * 两条线**只隔 11 格**。14:56:38 玩家就站在 z=32 那条线旁边（1.6 格），
+     * 而日志里 z=43 那条线的关门声标着「距玩家 11.4 / 12.1 / 14.0 格」——**11 格外的门也响了**。
+     *
+     * <p>收窄到站台之后：自己的站台（含被实体缺口切开的几段）照样**整排一起响、一起淡出**
+     * （保住 09-30 续 10 点名的「沿站台一排门同时响」，也仍是「别走一半播报断了」）；
+     * 别的站台则按它**自己的**距离衰减到 11 格该有的音量（约 2.6%），不再盖过脚下这扇门。
+     *
+     * @param platformId 【1.28】这一串认得出来的 MTR 站台 id（{@link MtrDwellAccess#isPlatformKnown}）
+     * @return 最近的那扇门；{@code platformId} 认不到、或这个站台此刻不在快照里时返回 {@code null}
+     *         —— 调用方据此整串归 0，与 {@link #nearestInRun} 的约定一致
+     */
+    public static DoorView nearestOnPlatform(long platformId, Vec3 player) {
+        Entry best = nearestEntryOnPlatform(platformId, player);
+        return best == null ? null
+                : new DoorView(best.key, best.runKey, best.x, best.y, best.z, best.fraction,
+                best.platformId, best.door);
+    }
+
+    /**
+     * {@link #nearestOnPlatform} 的取数：与 {@link #nearestEntryInRun} 同构，只把筛子从
+     * {@code runKey} 换成 {@code platformId}。
+     *
+     * <p>★ 站台 id 认不到（= {@link MtrDwellAccess#PLATFORM_ID_NONE}）时**直接返回 null**：
+     * 「认不到站台」不能被当成「所有认不到站台的门都是同一个站台」—— 那会把全世界的门并成一把尺子，
+     * 正是 09-28 续 6 记下的那个坑（拿 {@code id > 0} 判「认到没认到」）。
+     */
+    private static Entry nearestEntryOnPlatform(long platformId, Vec3 player) {
+        if (!MtrDwellAccess.isPlatformKnown(platformId)) {
+            return null; // 认不到站台 ⇒ 没有「同一站台」可言（调用方回落到车站级口径）
+        }
+        Level level = Minecraft.getInstance().level;
+        if (level == null) {
+            return null;
+        }
+        long now = level.getGameTime();
+        Entry best = null;
+        double bestSqr = Double.MAX_VALUE;
+        for (Entry e : LIVE.values()) {
+            if (e.platformId != platformId || now - e.tick > STALE_TICKS) {
+                continue;
+            }
+            double d = player == null ? 0.0
+                    : player.distanceToSqr(e.x, e.y, e.z);
+            if (best == null || d < bestSqr) {
+                best = e;
+                bestSqr = d;
+            }
+        }
+        return best;
+    }
+
+    // ------------------------------------------------------------------
+    // 【10-04 修 1】「同排一起响」的门数 —— 铃声逐门实例的**响度预算**
+    // ------------------------------------------------------------------
+
+    /**
+     * 【10-04 修 1】这一排此刻**一起响**的门数（铃声的每条实例按它分摊增益）。
+     *
+     * <p>★★ 为什么必须有：提示音的实例是**逐扇门**起的（每扇一条），而 {@code PsdMusicInstance}
+     * 全都是 {@code Attenuation.NONE} 的**等音量**声源（距离增益按整串现算 ⇒ 同一站台的每条
+     * 实例拿到同一份音量）。N 扇门一起响 = N 条**同素材**声源在 OpenAL 里相干叠加，
+     * 总混音增益就是单扇的 **N 倍** —— 一个 12~56 扇门的站台随便一响就是十几倍。
+     * 超过 1.0 的总增益会顶进 OpenAL Soft 的**输出压限器**（把整个输出压回去）：
+     * 用户听到的正是「提示音一响，游戏的背景音乐（以及其它所有声音）突然变小」。
+     *
+     * <p>修法 = **响度预算**：每条实例 ÷ 这一排的门数 ⇒ 合成混音 ≈ 1×（与「音量 100 =
+     * 一条满增益声源」的设置语义一致），逐扇门的空间展开（声像）原样保留、总响度不变，
+     * 压限器不再被顶起来 —— 音乐不再被压小。
+     *
+     * <p>分母的口径与音量的「整串」口径**同一把尺子**（【09-30 续 10】）：认到站台 id 时 =
+     * **同一个站台**里的门（两侧车门一起开关的另一边不进来）；认不到时回落**车站级 runKey**
+     * （站台数据晚到时也按完整的一排算，先响起来再说）。
+     *
+     * @return ≥ 1：这一排一起响的门数；这一扇不在快照里时返回 1（= 不分摊，照旧单条满额）
+     */
+    public static int soundingDoorsTogether(PsdDoorTracker.DoorView door) {
+        if (door == null) {
+            return 1;
+        }
+        Level level = Minecraft.getInstance().level;
+        if (level == null) {
+            return 1;
+        }
+        boolean byPlatform = MtrDwellAccess.isPlatformKnown(door.platformId());
+        long now = level.getGameTime();
+        int count = 0;
+        for (Entry e : LIVE.values()) {
+            if (!e.door || now - e.tick > STALE_TICKS) {
+                continue;
+            }
+            boolean sameWave = byPlatform ? e.platformId == door.platformId()
+                    : e.runKey == door.runKey();
+            if (sameWave) {
+                count++;
+            }
+        }
+        return Math.max(1, count);
+    }
+
+    // ------------------------------------------------------------------
     // 门 → 锚点
     // ------------------------------------------------------------------
 
@@ -516,18 +765,51 @@ public final class PsdDoorTracker {
     }
 
     /**
-     * 站台 id → 「配置身份」。{@code id} 由 {@link MtrDwellAccess#platformIdAt} 给出，恒为正。
+     * 站台 id → 「配置身份」。{@code id} 由 {@link MtrDwellAccess#platformIdAt} 给出，
+     * ★【09-28 续 6】**可正可负**（MTR4 是 {@code Random().nextLong()}）—— 所以这里**只能**
+     * 对「已认到」的 id 调用（认不到是 {@link MtrDwellAccess#PLATFORM_ID_NONE}，不该传进来）。
      *
-     * <p>★ 编码成 {@code Long.MIN_VALUE + id}，与「连通串」的 {@code BlockPos.asLong} 同一命名空间
-     * 但不撞：真实方块的 asLong = {@code (x&0x3FFFFFF)<<38 | (z&0x3FFFFFF)<<12 | (y&0xFFF)}，
-     * 与这段区间相交要求 {@code (x&0x3FFFFFF) ∈ [33554432, 57572657]} ⇒
-     * {@code x ∈ [-33554432, -9572904]}（详见回归脚本里那条数值断言）—— 世界边界内存在，
-     * 但没有任何存档会把屏蔽门摆到离原点一千万格的地方。
+     * <p>★ 编码成 {@code Long.MIN_VALUE + id}（64 位回绕）。这是一个**单射**：{@code key} 可逆地
+     * 还原出原 id（{@code id == key - Long.MIN_VALUE}），且 {@code id != PLATFORM_ID_NONE}
+     * ⇔ {@code key != 0} —— 于是「连通串身份」与「站台身份」共用一个 long 命名空间而不互相
+     * 覆盖语义（连通串身份是真实方块的 {@code BlockPos.asLong}）。
      *
-     * @param platformId 站台 id（{@code > 0}）
+     * <p>⚠️【09-28 续 6 更正】旧版注释声称「{@code id > 0} ⇒ key 恒为负 ⇒ 与 asLong 结构上不撞」，
+     * 并给出 {@code x ∈ [-33554432, -9572904]} 的区间。★ 这**本来就不成立**：asLong 的
+     * {@code (x&0x3FFFFFF) >= 2^25} ⇔ {@code x <= -1} 就会让 asLong 变负，任何负 x 的门都能落进
+     * 负 key 区间；而且现在 id 本身可负，这个「区间不相交」的说法更无从谈起。
+     * ⇒ 正确表述：两种身份**同域**，只靠「两个 64 位随机值恰好相等」的概率排除（约
+     * {@code 2^-64} / 对），万一是同一座站台少一次播报 —— 与原实现同等量级，不做结构担保。
+     *
+     * @param platformId 已认到的站台 id（任意 64 位值，可正可负）
      */
     private static long platformKey(long platformId) {
         return Long.MIN_VALUE + platformId;
+    }
+
+    /** 【09-30 续 9】站台 key → 车站级 runKey 的缓存（车站 id 认不出时回落站台 key 本身）。 */
+    private static final Map<Long, Long> STATION_RUN_KEY_CACHE = new HashMap<>();
+
+    /**
+     * 【09-30 续 9】把「站台身份」升到「**车站**身份」—— 门串划分 bug 的最后一环。
+     *
+     * <p>MTR 把一个车站的**每一侧**建成独立的站台对象（LOG11 现场：同名「世纪广场」的
+     * 两个站台 @(-26,-21,41) 与 @(-33,-21,34)，各对应一侧门线）⇒ 以站台 id 当门串身份，
+     * 两侧门串就永远各自一半、各自的设定（用户点名「一个门串被划分成了 2 部分」）。
+     * 升到**车站**后：同站两侧（乃至被缺口切开的多段）门串共用一个 runKey ——
+     * 配置 / 设定 / 去重 / 射程四处自动一致。
+     *
+     * <p>★ **时刻表查询不受影响**：{@code DoorView.platformId} 仍是每侧自己的站台 id
+     * （上 / 下行到站信息不会串，见 PsdChimePlayer.tickArriveAnnounce 的取值顺序）。
+     *
+     * <p>车站 id 认不出（没装 MTR / 绑定失败）⇒ 原样回落站台 key，行为与旧版一致。
+     */
+    private static long stationRunKey(long platformKey) {
+        return STATION_RUN_KEY_CACHE.computeIfAbsent(platformKey, k -> {
+            long platformId = k - Long.MIN_VALUE;
+            long stationId = MtrDwellAccess.stationIdForPlatform(platformId);
+            return MtrDwellAccess.isPlatformKnown(stationId) ? platformKey(stationId) : k;
+        });
     }
 
     /**
@@ -591,7 +873,8 @@ public final class PsdDoorTracker {
         long flood = RUN_CACHE.computeIfAbsent(doorKey, k -> floodRun(level, raw));
         Long platform = PLATFORM_CACHE.get(flood);
         if (platform != null) {
-            return platform;
+            // 【09-30 续 9】升到车站级：同站两侧门串共用一个 runKey（见 stationRunKey）。
+            return stationRunKey(platform);
         }
         // 站台身份会「晚到」（MTR 的站台数据比方块晚同步），所以认不到时**不写缓存**，
         // 只排一个 2 秒后的重试；认到为止。见 PLATFORM_NEXT_TRY 的注释。
@@ -601,9 +884,12 @@ public final class PsdDoorTracker {
             // ★ 用**锚点**（doorKey）的坐标去问，不用 raw：同一扇门的上下半格/左右半扇会报到
             //   不同的 raw，用锚点才能保证「一扇门只认一次、每次认的都是同一个位置」，
             //   也才与播放链路（进站报站那侧拿的是 DoorView 的锚点坐标）逐位一致。
+            //   ★【09-28 续 6】判据是 isPlatformKnown，**不是 id > 0**：MTR4 的站台 id 是
+            //   Random().nextLong()，约一半的站台 id 是负数 —— 旧写法把这几座站台整个判成
+            //   「认不到」，它们的进站播报在读配置之前就被 continue 掉（LOG12 实证）。
             long id = MtrDwellAccess.platformIdAt(BlockPos.getX(doorKey) + 0.5,
                     BlockPos.getY(doorKey) + 0.5, BlockPos.getZ(doorKey) + 0.5);
-            if (id > 0L) {
+            if (MtrDwellAccess.isPlatformKnown(id)) {
                 long key = platformKey(id);
                 PLATFORM_CACHE.put(flood, key);
                 PLATFORM_NEXT_TRY.remove(flood);
@@ -613,18 +899,19 @@ public final class PsdDoorTracker {
                                     + "一个身份，到站播报 / 进站报站只响一条、站在站台任何位置都听得见",
                             BlockPos.getX(doorKey), BlockPos.getY(doorKey), BlockPos.getZ(doorKey), id);
                 }
-                return key;
+                // 【09-30 续 9】再升到车站级（同站两侧共用，见 stationRunKey）。
+                return stationRunKey(key);
             }
             // ★★【1.31】认不到站台时，向「最近已经认到站台的连通串」**借用**它的站台身份。
             //   现场（用户原话）：列车行进方向最前面的 2 扇门是独立一串、其它门是另一串 ——
             //   那 2 扇门在站台端头，离站台中轴超过 4 格，platformIdAt 认不到 ⇒ runKey 停留在
-            //   连通串身份 ⇒ 进站报报站（tickArriveAnnounce）在**读配置之前**就被 platformId<=0
-            //   挡住 continue（1.28 的诊断逻辑），于是 UI 按串设置的 pbmarrive 素材/秒数根本
-            //   走不到读取那一步 —— 用户：「UI 设置没有用，指令设置可以」（指令设的是维度默认，
-            //   主串能读到 ⇒ 有效）。借到之后两串并入同一个站台身份 ⇒ 配置 / 去重 / 射程 /
-            //   声源四处自动按整站台走。
+            //   连通串身份 ⇒ 进站报报站（tickArriveAnnounce）在**读配置之前**就被「认不到站台」
+            //   挡住 continue（1.28 的诊断逻辑，判据现在是 isPlatformKnown），于是 UI 按串设置的
+            //   pbmarrive 素材/秒数根本走不到读取那一步 —— 用户：「UI 设置没有用，指令设置可以」
+            //   （指令设的是维度默认，主串能读到 ⇒ 有效）。借到之后两串并入同一个站台身份 ⇒
+            //   配置 / 去重 / 射程 / 声源四处自动按整站台走。
             long borrowed = borrowPlatformId(doorKey);
-            if (borrowed > 0L) {
+            if (MtrDwellAccess.isPlatformKnown(borrowed)) {
                 long key = platformKey(borrowed);
                 PLATFORM_CACHE.put(flood, key);
                 PLATFORM_NEXT_TRY.remove(flood);
@@ -634,7 +921,8 @@ public final class PsdDoorTracker {
                                     + "到站播报 / 进站报站按整站台走",
                             BlockPos.getX(doorKey), BlockPos.getY(doorKey), BlockPos.getZ(doorKey), borrowed);
                 }
-                return key;
+                // 【09-30 续 9】再升到车站级（同站两侧共用，见 stationRunKey）。
+                return stationRunKey(key);
             }
             PLATFORM_NEXT_TRY.put(flood, now + PLATFORM_RETRY_TICKS);
             // 【1.28】认不到也要留脚印：最近站台差多远 / 还是根本没有站台（节流见方法内）。
@@ -660,7 +948,8 @@ public final class PsdDoorTracker {
      *       （两个候选都差不多近时说明门夹在两个站台之间，不借）。</li>
      * </ul>
      *
-     * @return 借到的站台 id；{@code <= 0} = 没有可借的（保持连通串身份）
+     * @return 借到的站台 id（可正可负）；{@link MtrDwellAccess#PLATFORM_ID_NONE} = 没有可借的
+     *         （保持连通串身份）
      */
     private static final double PLATFORM_BORROW_DIST = 12.0;
     private static final double PLATFORM_BORROW_MARGIN = 8.0;
@@ -669,6 +958,34 @@ public final class PsdDoorTracker {
         double dx = BlockPos.getX(doorKey);
         double dy = BlockPos.getY(doorKey);
         double dz = BlockPos.getZ(doorKey);
+        // ★★【09-30 续 8】先找「同一轴线」上的已认串（z 或 x 相差 ≤ 2 ⇒ 同一条门线）。
+        //   一个站台侧被缺口切开的两段**必然共线**；而**另一侧**的站台与它不共线，
+        //   不会搅浑水 —— 所以共线借用**不要求**下面那条 margin（两侧站台的已认串
+        //   与缺口段距离接近时，margin 会误判成「分不清」⇒ 借不到 ⇒ 门串维持分裂，
+        //   正是 LOG10 用户看到的「一个门串两部分、各自的范围和设定」）。
+        //   距离封 48：同一条直线上再远就可能是**别的车站**的站台（MTR 相邻车站
+        //   间距通常 > 100 格），不能跨站借。取**最近**的那一条共线串。
+        long bestCollinear = Long.MIN_VALUE;
+        double bestCollinearDist = Double.MAX_VALUE;
+        for (Map.Entry<Long, Long> e : PLATFORM_CACHE.entrySet()) {
+            long other = e.getKey();
+            if (Math.abs(BlockPos.getY(other) - dy) > 8.0) {
+                continue;
+            }
+            boolean collinear = Math.abs(BlockPos.getZ(other) - dz) <= 2.0
+                    || Math.abs(BlockPos.getX(other) - dx) <= 2.0;
+            if (!collinear) {
+                continue;
+            }
+            double dist = Math.hypot(BlockPos.getX(other) - dx, BlockPos.getZ(other) - dz);
+            if (dist <= 48.0 && dist < bestCollinearDist) {
+                bestCollinearDist = dist;
+                bestCollinear = other;
+            }
+        }
+        if (bestCollinear != Long.MIN_VALUE) {
+            return PLATFORM_CACHE.get(bestCollinear) - Long.MIN_VALUE;
+        }
         long bestFlood = Long.MIN_VALUE;
         double best = Double.MAX_VALUE;
         double second = Double.MAX_VALUE;
@@ -691,7 +1008,7 @@ public final class PsdDoorTracker {
         }
         if (bestFlood == Long.MIN_VALUE || best > PLATFORM_BORROW_DIST
                 || second - best < PLATFORM_BORROW_MARGIN) {
-            return -1L;
+            return MtrDwellAccess.PLATFORM_ID_NONE;
         }
         return PLATFORM_CACHE.get(bestFlood) - Long.MIN_VALUE;
     }
@@ -702,7 +1019,20 @@ public final class PsdDoorTracker {
      * <p>★ 起点先折到**下半格**（门与玻璃都有 {@code half=UPPER} 的同伴格）：
      * 从上半格出发会把串锚点抬高一格，同一个物理串会算出两个 key——「改一串」就断成两截。
      */
-    private static long floodRun(Level level, BlockPos start) {
+    /**
+     * ★★【09-30 续 8】沿四个方向各最多跨 {@link #FLOOD_BRIDGE} 格**空档**把同一物理串接起来 ——
+     *   这是 1.20.1 一路带过来的「门串划分」bug 的修复：MTR 摆门时会在站台中部留出整段空档
+     *   （楼梯 / 扶梯井 / 楼梯口，LOG10 现场：同一侧的门被 5~8 格空气断成两截），纯 4 邻接的
+     *   洪水填充会把**一个物理串**切成两个连通块 ⇒ 两块各自认站台 / 各自借身份，
+     *   认不到的那块就带着**独立的 runKey** —— 独立的范围、独立的设定，「改一串」断成两截。
+     *   桥接后：同一侧整条门线（含被空档隔开的段）收敛为**一个**连通块、一个 runKey。
+     *
+     * <p>走法与 {@link #floodRun} / {@link #runWalls} 共用（三个入口一份实现）：
+     * {@code wallsOut != null} 时顺带收集串里的幕墙 / 幕墙尾部（非门的 psd 家族方块）。
+     *
+     * @return 连通组的串锚点（组内 {@code asLong} 最小的一格；同一串任何起点都收敛到它）
+     */
+    private static long psdWalk(Level level, BlockPos start, java.util.List<Long> wallsOut) {
         BlockPos pos = start;
         Property<?> half = propertyNamed(level.getBlockState(pos), "half");
         if (half != null && "UPPER".equals(valueName(level.getBlockState(pos), half))) {
@@ -718,22 +1048,45 @@ public final class PsdDoorTracker {
             if (cur.asLong() < min) {
                 min = cur.asLong();
             }
-            for (int d = 0; d < 4; d++) {
-                BlockPos n = switch (d) {
-                    case 0 -> cur.offset(0, 0, 1);
-                    case 1 -> cur.offset(0, 0, -1);
-                    case 2 -> cur.offset(1, 0, 0);
-                    default -> cur.offset(-1, 0, 0);
-                };
-                if (!seen.add(n.asLong())) {
-                    continue;
+            if (wallsOut != null) {
+                BlockState cs = level.getBlockState(cur);
+                if (isPsdFamily(cs) && !SmoothLift.isPsdDoor(cs)) {
+                    wallsOut.add(cur.asLong());
                 }
-                if (isPsdFamily(level.getBlockState(n))) {
-                    queue.add(n);
+            }
+            for (int d = 0; d < 4; d++) {
+                // 【09-30 续 8】沿这个方向从紧邻格开始往外扫：psd 家族 = 直接连通；
+                //   空档（非 psd 家族）就继续往前扫，最多 FLOOD_BRIDGE 格，尽头仍是 psd 家族
+                //   ⇒ 认定是同一个串被缺口隔开，把尽头那格接进来。四个方向各扫各的，
+                //   与原 4 邻接走法在「无空档」时逐位等价。
+                int sx = d == 2 ? 1 : d == 3 ? -1 : 0;
+                int sz = d == 0 ? 1 : d == 1 ? -1 : 0;
+                BlockPos scan = cur;
+                for (int step = 0; step < FLOOD_BRIDGE; step++) {
+                    scan = new BlockPos(scan.getX() + sx, scan.getY(), scan.getZ() + sz);
+                    if (isPsdFamily(level.getBlockState(scan))) {
+                        if (seen.add(scan.asLong())) {
+                            queue.add(scan);
+                        }
+                        break;
+                    }
                 }
             }
         }
         return min;
+    }
+
+    /**
+     * 【09-30 续 8】沿串方向最多跨多少格空档把被隔开的门接回同一串。
+     *
+     * <p>LOG10 现场的缺口 = 5~8 格（楼梯口两侧的门，门距 4、中间空 5~8）。
+     * 上限取 8 还有一个安全余量考量：对面站台的门线与这一侧相距 ≥ 10 格，
+     * 桥接**不可能**把两侧的门线接在一起。
+     */
+    private static final int FLOOD_BRIDGE = 8;
+
+    private static long floodRun(Level level, BlockPos start) {
+        return psdWalk(level, start, null);
     }
 
     /**
@@ -749,37 +1102,10 @@ public final class PsdDoorTracker {
 
     private static java.util.List<Long> runWalls(Level level, BlockPos start, long flood) {
         return RUN_WALL_CACHE.computeIfAbsent(flood, k -> {
-            BlockPos pos = start;
-            Property<?> half = propertyNamed(level.getBlockState(pos), "half");
-            if (half != null && "UPPER".equals(valueName(level.getBlockState(pos), half))) {
-                pos = pos.below();
-            }
-            java.util.ArrayDeque<BlockPos> queue = new java.util.ArrayDeque<>();
-            java.util.Set<Long> seen = new java.util.HashSet<>();
+            // 【09-30 续 8】走法与 {@link #psdWalk}（含跨空档桥接）共用一份 ——
+            //   否则门串桥接合并之后，幕墙成员还只收得到**一半**（缺口那边的幕墙漏掉）。
             java.util.List<Long> walls = new java.util.ArrayList<>();
-            queue.add(pos);
-            seen.add(pos.asLong());
-            while (!queue.isEmpty()) {
-                BlockPos cur = queue.poll();
-                BlockState cs = level.getBlockState(cur);
-                if (isPsdFamily(cs) && !SmoothLift.isPsdDoor(cs)) {
-                    walls.add(cur.asLong());
-                }
-                for (int d = 0; d < 4; d++) {
-                    BlockPos n = switch (d) {
-                        case 0 -> cur.offset(0, 0, 1);
-                        case 1 -> cur.offset(0, 0, -1);
-                        case 2 -> cur.offset(1, 0, 0);
-                        default -> cur.offset(-1, 0, 0);
-                    };
-                    if (!seen.add(n.asLong())) {
-                        continue;
-                    }
-                    if (isPsdFamily(level.getBlockState(n))) {
-                        queue.add(n);
-                    }
-                }
-            }
+            psdWalk(level, start, walls);
             return walls;
         });
     }

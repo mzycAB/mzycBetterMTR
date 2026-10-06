@@ -520,7 +520,7 @@ check(re.search(r"split = \(int\) Math\.round\(1000\.0 \* runStart / rate\)", ap
 
 # ---- 4a) 提前量必须在**开门**那一瞬排 ----
 _det = re.search(r"private static void detect\(Minecraft mc, PsdDoorTracker\.DoorView door,"
-                 r" float prev, double distance\)\s*\{(.*?)\n    \}", player, re.S)
+                r"\s*float prev,\s*double distance\)\s*\{(.*?)\n    \}", player, re.S)
 dbody = _det.group(1) if _det else ""
 check(bool(dbody), "找到 detect(...) 的方法体（下面的结构断言都基于它）")
 i_open = dbody.find("if (opening)")
@@ -762,7 +762,7 @@ check("it.remove()" in tick_body and "now >= plan.endTick" in tick_body,
 # ★★ 排计划必须排在 detect 开门端、且**在 `openPlayable == null` 早退之前**：
 #   站台广播与「本维度开不开门音」是两个独立配置，关掉一个不该把另一个也取消。
 _m_det = re.search(r"private static void detect\(Minecraft mc, PsdDoorTracker\.DoorView door,"
-                   r" float prev, double distance\)\s*\{(.*?)\n    \}", player, re.S)
+                   r"\s*float prev,\s*double distance\)\s*\{(.*?)\n    \}", player, re.S)
 detect_body2 = _m_det.group(1) if _m_det else ""
 i_plan_arr = detect_body2.find("planArrivalAnnounce(mc, door,")
 i_open_null = detect_body2.find("if (openPlayable == null)")

@@ -1,0 +1,401 @@
+
+############################################################
+# mixin 插件安全
+############################################################
+  ==> 通过
+
+############################################################
+# mixin 包守卫(类)
+############################################################
+  ==> 通过
+
+############################################################
+# 扶梯阶梯渲染引擎
+############################################################
+  ==> 通过
+
+############################################################
+# 屏蔽门锚点与跳变
+############################################################
+  ==> 通过
+
+############################################################
+# 屏蔽门存档字段
+############################################################
+  ==> 通过
+
+############################################################
+# 屏蔽门提示音素材
+############################################################
+  ==> 通过
+
+############################################################
+# 屏蔽门关门提示音对齐
+############################################################
+  ==> 通过
+
+############################################################
+# 屏蔽门提示音顺序
+############################################################
+  ==> 通过
+
+############################################################
+# 屏蔽门提前量状态机
+############################################################
+  ==> 通过
+
+############################################################
+# 屏蔽门音量与淡入淡出
+############################################################
+  ==> 通过
+
+############################################################
+# 屏蔽门站台广播
+############################################################
+  ==> 通过
+
+############################################################
+# 屏蔽门讲述人只念一次
+############################################################
+  ==> 通过
+
+############################################################
+# 讲述人默认值/预设/按存档文字
+############################################################
+  ==> 失败（完整输出见下方）
+===== 0) 读源码 =====
+  EscalatorSpeedData     src/main/java/smooth/lift/EscalatorSpeedData.java
+  EscalatorSpeedManager  src/main/java/smooth/lift/EscalatorSpeedManager.java
+  SmoothLift             src/main/java/smooth/lift/SmoothLift.java
+  TrainAnnounceSwitch    src/main/java/smooth/lift/client/TrainAnnounceSwitch.java
+  TrainAnnounceNarrator  src/main/java/smooth/lift/client/TrainAnnounceNarrator.java
+  PsdChimePlayer         src/main/java/smooth/lift/client/PsdChimePlayer.java
+  MbmHelpScreen          src/main/java/smooth/lift/client/MbmHelpScreen.java
+  PsdToneSetupScreen     src/main/java/smooth/lift/client/PsdToneSetupScreen.java
+  SmoothLiftClient/PsdChimeSyncPacket src/main/java/smooth/lift/network/PsdChimeSyncPacket.java
+
+===== 1) 默认值（数据层）=====
+[PASS] 进站讲述人维度默认 = 开启(香港) / -20 秒；站台秒数仍 0  -- 全部命中
+
+===== 2) 默认值（客户端）+ config 不再存词 =====
+[PASS] textMode 默认 CHAT、站台总闸默认关、load/save 落实、词不进 config  -- 全部命中
+
+===== 3) 经典港铁预设 = -20 秒 / 香港 / 聊天框 / 站台关 =====
+[PASS] 经典预设聊天框 + 秒数 -20（服务端落库）  -- 全部命中
+
+===== 4) 按存档存（数据 / 同步 / 客户端镜像 / C2S）=====
+[PASS] 两列表进 NBT、S2C 追加、C2S 通道、客户端镜像  -- 全部命中
+
+===== 5) 两条广播文字两套分开 =====
+[PASS] arriveTextForStyle 收列表 + 进站/站台各传各的 + UI 按目标路由  -- 全部命中
+
+===== 6) 脚本自带对照实验（注入旧行为必须判红）=====
+[FAIL] 对照 m1 注入成功（经典预设退回 word）  -- 替换 2 处
+[PASS] m1 后「经典预设聊天框」必须判红  -- 命中：经典港铁预设还是开的**屏幕字幕**（enableWordForPreset）—— 用户点名改聊天框
+[PASS] 对照 m2 注入成功（arriveTextForStyle 丢列表参）  -- 替换 1 处
+[PASS] m2 后「两套分开」必须判红  -- 命中：TrainAnnounceNarrator.arriveTextForStyle 没有第 6 个参数（userTexts 列表）
+[PASS] 对照 m3 注入成功（预设去掉 -20 秒）  -- 替换 1 处
+[PASS] m3 后「经典预设 -20 秒」必须判红  -- 命中：applyPreset classic 分支没有 setDefaultPsdNarrateLeadAll（-20 秒）
+[PASS] 对照 m4 注入成功（save 退回写 config 词）  -- 替换 1 处
+[PASS] m4 后「词不进 config」必须判红  -- 命中：save() 还在写 trainArriveAnnounceUser.N —— 自定义词已改存存档
+
+== 失败 1 项 ==
+   - 对照 m1 注入成功（经典预设退回 word）
+
+############################################################
+# 屏蔽门串身份=站台
+############################################################
+  ==> 通过
+
+############################################################
+# 屏蔽门1.28身份迁移与列车倍率
+############################################################
+  ==> 通过
+
+############################################################
+# 屏蔽门铃声/播报归属
+############################################################
+  ==> 通过
+
+############################################################
+# 屏蔽门1.31借用与列车挡
+############################################################
+  ==> 通过
+
+############################################################
+# MBM批量音频指令
+############################################################
+  ==> 通过
+
+############################################################
+# 预设选择界面与预设
+############################################################
+  ==> 失败（完整输出见下方）
+
+===== 1) 三个预设的指令清单（前 10 条与用户原文逐字比对）=====
+  ==> 通过  抠得出 PRESET_CLASSIC_MTR 数组
+  ==> 通过  「经典港铁预设」的前 10 条与用户原文**逐字逐序**一致  -- 实际前 10 条 = ['futimusic -f default', 'futihelp -f on', 'lifthelp -f on', 'lifthelp open -f on', 'lifthelp close -f on', 'lifthelp up -f on', 'lifthelp down -f on', 'pbmclosewait -f 1', 'pbmmusic open -f default', 'pbmmusic close -f default-m']
+  ==> 失败  「经典港铁预设」= 用户那 10 条 + 2 条开子开关 + 6 条范围 10 5 + 1 条讲述人样式  -- 实际 = ['futimusic -f default', 'futihelp -f on', 'lifthelp -f on', 'lifthelp open -f on', 'lifthelp close -f on', 'lifthelp up -f on', 'lifthelp down -f on', 'pbmclosewait -f 1', 'pbmmusic open -f default', 'pbmmusic close -f default-m', 'pbmmusic open -f on', 'pbmmusic close -f on', 'futiround -f 10 5', 'futihelpround -f 5 5', 'lifthelpround -f 5 5', 'pbmround -f 10 5', 'pbmmidiumround -f 10 5', 'pbmarriveround -f 10 5', 'pbmnarrate hongkong -f']
+  ==> 通过  抠得出 PRESET_SIMPLE_MTR 数组
+  ==> 通过  「简单港铁预设」的前 10 条与用户原文**逐字逐序**一致  -- 实际前 10 条 = ['futimusic -f default', 'futihelp -f off', 'lifthelp -f on', 'lifthelp open -f off', 'lifthelp close -f off', 'lifthelp up -f on', 'lifthelp down -f on', 'pbmclosewait -f 1', 'pbmmusic open -f default', 'pbmmusic close -f default-s']
+  ==> 失败  「简单港铁预设」= 用户那 10 条 + 2 条开子开关 + 6 条范围 10 5 + 1 条讲述人样式  -- 实际 = ['futimusic -f default', 'futihelp -f off', 'lifthelp -f on', 'lifthelp open -f off', 'lifthelp close -f off', 'lifthelp up -f on', 'lifthelp down -f on', 'pbmclosewait -f 1', 'pbmmusic open -f default', 'pbmmusic close -f default-s', 'pbmmusic open -f on', 'pbmmusic close -f on', 'futiround -f 10 5', 'futihelpround -f 5 5', 'lifthelpround -f 5 5', 'pbmround -f 10 5', 'pbmmidiumround -f 10 5', 'pbmarriveround -f 10 5', 'pbmnarrate off -f']
+  ==> 通过  抠得出 PRESET_BLANK 数组
+  ==> 通过  「空白预设」的前 10 条与用户原文**逐字逐序**一致  -- 实际前 10 条 = ['futimusic -f off', 'futihelp -f off', 'lifthelp -f off', 'lifthelp open -f off', 'lifthelp close -f off', 'lifthelp up -f off', 'lifthelp down -f off', 'pbmclosewait -f 1', 'pbmmusic open -f off', 'pbmmusic close -f off']
+  ==> 失败  「空白预设」= 用户那 10 条 + 0 条开子开关 + 6 条范围 10 5 + 1 条讲述人样式  -- 实际 = ['futimusic -f off', 'futihelp -f off', 'lifthelp -f off', 'lifthelp open -f off', 'lifthelp close -f off', 'lifthelp up -f off', 'lifthelp down -f off', 'pbmclosewait -f 1', 'pbmmusic open -f off', 'pbmmusic close -f off', 'futiround -f 10 5', 'futihelpround -f 5 5', 'lifthelpround -f 5 5', 'pbmround -f 10 5', 'pbmmidiumround -f 10 5', 'pbmarriveround -f 10 5', 'pbmnarrate off -f']
+  ==> 通过  经典与空白不是同一份清单（防止复制粘贴改漏）
+  ==> 通过  简单与空白不是同一份清单
+
+===== 1c) 讲述人：经典港铁＝开启(香港)，简单港铁 / 空白＝关闭 =====
+  ==> 通过  「经典港铁预设」的讲述人条目 = ['pbmnarrate hongkong -f']  -- 实际 = ['pbmnarrate hongkong -f']
+  ==> 通过  「简单港铁预设」的讲述人条目 = ['pbmnarrate off -f']  -- 实际 = ['pbmnarrate off -f']
+  ==> 通过  「空白预设」的讲述人条目 = ['pbmnarrate off -f']  -- 实际 = ['pbmnarrate off -f']
+  ==> 通过  ★「经典港铁预设」的**最后一条**就是讲述人那一条（三档都不许缺）  -- 实际末条 = pbmnarrate hongkong -f
+  ==> 通过  ★「经典港铁预设」里讲述人条目**恰好一条**（别既设样式又设别的）  -- 实际 = ['pbmnarrate hongkong -f']
+  ==> 通过  ★「简单港铁预设」的**最后一条**就是讲述人那一条（三档都不许缺）  -- 实际末条 = pbmnarrate off -f
+  ==> 通过  ★「简单港铁预设」里讲述人条目**恰好一条**（别既设样式又设别的）  -- 实际 = ['pbmnarrate off -f']
+  ==> 通过  ★「空白预设」的**最后一条**就是讲述人那一条（三档都不许缺）  -- 实际末条 = pbmnarrate off -f
+  ==> 通过  ★「空白预设」里讲述人条目**恰好一条**（别既设样式又设别的）  -- 实际 = ['pbmnarrate off -f']
+  ==> 通过  ★★ 经典港铁预设的**最后一条** = /pbmnarrate hongkong -f（开启(香港)，用户点名）
+  ==> 通过  ★★ 简单港铁预设的**最后一条** = /pbmnarrate off -f（**关闭**讲述人，用户点名）
+  ==> 通过  ★★ 空白预设的**最后一条** = /pbmnarrate off -f（**关闭**讲述人，用户点名）
+  ==> 通过  ★★ 简单港铁**不许**再是开启(上海)（续 2 那版已被续 4 推翻）
+  ==> 通过  ★★ 三个预设里都不许出现 `pbmnarrate shanghai`（上海档只由玩家自己选）
+  ==> 失败  「经典港铁预设」的范围 10 5 六条齐全且与 ROUND_TEN_FIVE 同序  -- 实际 = ['futiround -f 10 5', 'futihelpround -f 5 5', 'lifthelpround -f 5 5', 'pbmround -f 10 5', 'pbmmidiumround -f 10 5', 'pbmarriveround -f 10 5']
+  ==> 失败  「简单港铁预设」的范围 10 5 六条齐全且与 ROUND_TEN_FIVE 同序  -- 实际 = ['futiround -f 10 5', 'futihelpround -f 5 5', 'lifthelpround -f 5 5', 'pbmround -f 10 5', 'pbmmidiumround -f 10 5', 'pbmarriveround -f 10 5']
+  ==> 失败  「空白预设」的范围 10 5 六条齐全且与 ROUND_TEN_FIVE 同序  -- 实际 = ['futiround -f 10 5', 'futihelpround -f 5 5', 'lifthelpround -f 5 5', 'pbmround -f 10 5', 'pbmmidiumround -f 10 5', 'pbmarriveround -f 10 5']
+  ==> 失败  ★ 三档都含 `futiround 10 5`（防止只加进其中一档）
+  ==> 通过  抠得出 MbmHelpScreen.sendPreset 方法体
+  ==> 通过  ★★ 经典港铁预设 ⇒ 客户端顺手**打开**总闸
+  ==> 通过  ★★ 简单港铁 / 空白预设 ⇒ 客户端顺手**关闭**总闸（两层一起关才叫关干净）
+  ==> 通过  ★★ sendPreset 里不许再有「classic || simple 一起开总闸」的旧写法（那会让简单港铁又去开总闸，与用户点名冲突）
+  ==> 通过  ★★★ 三个预设都预置讲述人文字 = chat（enableChatForPreset ≥2 次，且不再运行 disableWordForPreset）
+
+===== 1d) CmdTreeCheck 的手抄预设清单必须与 SmoothLift.PRESET_* **逐字逐序**一致 =====
+  ==> 通过  CmdTreeCheck 里抠得出「经典港铁预设」那份手抄清单
+  ==> 失败  ★★ 手抄清单「经典港铁预设」与 PRESET_CLASSIC_MTR **逐字逐序**一致（两处分叉过就是假绿）  -- 手抄 19 条 = ['futimusic -f default', 'futihelp -f on', 'lifthelp -f on', 'lifthelp open -f on', 'lifthelp close -f on', 'lifthelp up -f on', 'lifthelp down -f on', 'pbmclosewait -f 1', 'pbmmusic open -f default', 'pbmmusic close -f default-m', 'pbmmusic open -f on', 'pbmmusic close -f on', 'futiround 10 5', 'futihelpround 10 5', 'lifthelpround 10 5', 'pbmround 10 5', 'pbmmidiumround 10 5', 'pbmarriveround 10 5', 'pbmnarrate hongkong -f']
+        源码 19 条 = ['futimusic -f default', 'futihelp -f on', 'lifthelp -f on', 'lifthelp open -f on', 'lifthelp close -f on', 'lifthelp up -f on', 'lifthelp down -f on', 'pbmclosewait -f 1', 'pbmmusic open -f default', 'pbmmusic close -f default-m', 'pbmmusic open -f on', 'pbmmusic close -f on', 'futiround -f 10 5', 'futihelpround -f 5 5', 'lifthelpround -f 5 5', 'pbmround -f 10 5', 'pbmmidiumround -f 10 5', 'pbmarriveround -f 10 5', 'pbmnarrate hongkong -f']
+  ==> 通过  CmdTreeCheck 里抠得出「简单港铁预设」那份手抄清单
+  ==> 失败  ★★ 手抄清单「简单港铁预设」与 PRESET_SIMPLE_MTR **逐字逐序**一致（两处分叉过就是假绿）  -- 手抄 19 条 = ['futimusic -f default', 'futihelp -f off', 'lifthelp -f on', 'lifthelp open -f off', 'lifthelp close -f off', 'lifthelp up -f on', 'lifthelp down -f on', 'pbmclosewait -f 1', 'pbmmusic open -f default', 'pbmmusic close -f default-s', 'pbmmusic open -f on', 'pbmmusic close -f on', 'futiround 10 5', 'futihelpround 10 5', 'lifthelpround 10 5', 'pbmround 10 5', 'pbmmidiumround 10 5', 'pbmarriveround 10 5', 'pbmnarrate off -f']
+        源码 19 条 = ['futimusic -f default', 'futihelp -f off', 'lifthelp -f on', 'lifthelp open -f off', 'lifthelp close -f off', 'lifthelp up -f on', 'lifthelp down -f on', 'pbmclosewait -f 1', 'pbmmusic open -f default', 'pbmmusic close -f default-s', 'pbmmusic open -f on', 'pbmmusic close -f on', 'futiround -f 10 5', 'futihelpround -f 5 5', 'lifthelpround -f 5 5', 'pbmround -f 10 5', 'pbmmidiumround -f 10 5', 'pbmarriveround -f 10 5', 'pbmnarrate off -f']
+  ==> 通过  CmdTreeCheck 里抠得出「空白预设」那份手抄清单
+  ==> 失败  ★★ 手抄清单「空白预设」与 PRESET_BLANK **逐字逐序**一致（两处分叉过就是假绿）  -- 手抄 17 条 = ['futimusic -f off', 'futihelp -f off', 'lifthelp -f off', 'lifthelp open -f off', 'lifthelp close -f off', 'lifthelp up -f off', 'lifthelp down -f off', 'pbmclosewait -f 1', 'pbmmusic open -f off', 'pbmmusic close -f off', 'futiround 10 5', 'futihelpround 10 5', 'lifthelpround 10 5', 'pbmround 10 5', 'pbmmidiumround 10 5', 'pbmarriveround 10 5', 'pbmnarrate off -f']
+        源码 17 条 = ['futimusic -f off', 'futihelp -f off', 'lifthelp -f off', 'lifthelp open -f off', 'lifthelp close -f off', 'lifthelp up -f off', 'lifthelp down -f off', 'pbmclosewait -f 1', 'pbmmusic open -f off', 'pbmmusic close -f off', 'futiround -f 10 5', 'futihelpround -f 5 5', 'lifthelpround -f 5 5', 'pbmround -f 10 5', 'pbmmidiumround -f 10 5', 'pbmarriveround -f 10 5', 'pbmnarrate off -f']
+
+===== 1b) 层判据（v2）：预设的「不播」落在**子开关层**（`-f off`），不许落到素材层（`-f none`） =====
+  ==> 通过  「经典港铁预设」的这些行落在正确的层（不出现素材层 none）  -- []
+  ==> 通过  「简单港铁预设」的这些行落在正确的层（不出现素材层 none）  -- []
+  ==> 通过  「空白预设」的这些行落在正确的层（不出现素材层 none）  -- []
+  ==> 通过  ★「经典港铁预设」显式把它要「出声」的那些项的子开关打开（否则救不回被关掉的闸门）  -- []
+  ==> 通过  ★「简单港铁预设」显式把它要「出声」的那些项的子开关打开（否则救不回被关掉的闸门）  -- []
+  ==> 通过  ★★「简单港铁预设」用**子开关 off** 表达直梯开关门不播（用户按 UI「开关」/ `open on` 就能开回来）
+  ==> 通过  ★「空白预设」的 lifthelp open 用**子开关 off** 表达「不播」
+  ==> 通过  ★「空白预设」的 lifthelp close 用**子开关 off** 表达「不播」
+  ==> 通过  ★「空白预设」的 lifthelp up 用**子开关 off** 表达「不播」
+  ==> 通过  ★「空白预设」的 lifthelp down 用**子开关 off** 表达「不播」
+  ==> 通过  ★「空白预设」的 pbmmusic open 用**子开关 off** 表达「不播」
+  ==> 通过  ★「空白预设」的 pbmmusic close 用**子开关 off** 表达「不播」
+  ==> 通过  ★★ 预设里**不许**出现 `<域> <项> -f none`（素材层的「不播」= LOG6 那个 bug 的字面形态）
+
+----- 1b-2) 「预设只改一次、之后随便调」的机器判据（对三个预设都跑） -----
+  ==> 通过  ★★「经典港铁预设」跑完后 lifthelp open 终态 = 开关 on / 素材 None  -- 实际 开关=on 素材=None
+  ==> 通过  ★★「经典港铁预设」跑完后 lifthelp close 终态 = 开关 on / 素材 None  -- 实际 开关=on 素材=None
+  ==> 通过  ★★「经典港铁预设」跑完后 lifthelp up 终态 = 开关 on / 素材 None  -- 实际 开关=on 素材=None
+  ==> 通过  ★★「经典港铁预设」跑完后 lifthelp down 终态 = 开关 on / 素材 None  -- 实际 开关=on 素材=None
+  ==> 通过  ★★「经典港铁预设」跑完后 pbmmusic open 终态 = 开关 on / 素材 default  -- 实际 开关=on 素材=default
+  ==> 通过  ★★「经典港铁预设」跑完后 pbmmusic close 终态 = 开关 on / 素材 default-m  -- 实际 开关=on 素材=default-m
+  ==> 通过  ★★「简单港铁预设」跑完后 lifthelp open 终态 = 开关 off / 素材 None  -- 实际 开关=off 素材=None
+  ==> 通过  ★★「简单港铁预设」跑完后 lifthelp close 终态 = 开关 off / 素材 None  -- 实际 开关=off 素材=None
+  ==> 通过  ★★「简单港铁预设」跑完后 lifthelp up 终态 = 开关 on / 素材 None  -- 实际 开关=on 素材=None
+  ==> 通过  ★★「简单港铁预设」跑完后 lifthelp down 终态 = 开关 on / 素材 None  -- 实际 开关=on 素材=None
+  ==> 通过  ★★「简单港铁预设」跑完后 pbmmusic open 终态 = 开关 on / 素材 default  -- 实际 开关=on 素材=default
+  ==> 通过  ★★「简单港铁预设」跑完后 pbmmusic close 终态 = 开关 on / 素材 default-s  -- 实际 开关=on 素材=default-s
+  ==> 通过  ★★「空白预设」跑完后 lifthelp open 终态 = 开关 off / 素材 None  -- 实际 开关=off 素材=None
+  ==> 通过  ★★「空白预设」跑完后 lifthelp close 终态 = 开关 off / 素材 None  -- 实际 开关=off 素材=None
+  ==> 通过  ★★「空白预设」跑完后 lifthelp up 终态 = 开关 off / 素材 None  -- 实际 开关=off 素材=None
+  ==> 通过  ★★「空白预设」跑完后 lifthelp down 终态 = 开关 off / 素材 None  -- 实际 开关=off 素材=None
+  ==> 通过  ★★「空白预设」跑完后 pbmmusic open 终态 = 开关 off / 素材 None  -- 实际 开关=off 素材=None
+  ==> 通过  ★★「空白预设」跑完后 pbmmusic close 终态 = 开关 off / 素材 None  -- 实际 开关=off 素材=None
+
+===== 2) 预设走「依次派发指令」 =====
+  ==> 通过  presetCommands：classic -> PRESET_CLASSIC_MTR
+  ==> 通过  presetCommands：simple -> PRESET_SIMPLE_MTR
+  ==> 通过  presetCommands：blank -> PRESET_BLANK
+  ==> 通过  抠得出 runCommandBatch() 方法体
+  ==> 通过  用 performPrefixedCommand 派发指令（语义 = 手敲）
+  ==> 通过  ★ 用 withSuppressedOutput 压制每条指令的反馈（否则 8~11 条会刷屏）
+  ==> 通过  是**逐条**执行（for 循环，保留顺序）
+  ==> 通过  用玩家自己的指令源（与手敲同构）
+  ==> 通过  方法体里没有会让整批静默不执行的守卫
+  ==> 通过  界面里出现过预设 id 「classic」
+  ==> 通过  界面里出现过预设 id 「simple」
+  ==> 通过  界面里出现过预设 id 「blank」
+
+===== 3) 全音量 = 12 条指令 =====
+  ==> 通过  抠得出 allVolumeCommands() 方法体
+  ==> 通过  12 条音量指令（含 -f 强制变体）逐条齐全  -- 实际 = ['futiloud -f ', 'futihelploud -f ', 'lifthelploud -f ', 'lifthelploud -f up ', 'lifthelploud -f down ', 'lifthelploud -f open ', 'lifthelploud -f close ', 'pbmloud -f ', 'pbmloud -f open ', 'pbmloud -f close ', 'pbmmidiumloud -f ', 'pbmarriveloud -f ']
+  ==> 通过  用 String.valueOf 拼音量（不是手写死数）
+  ==> 失败  抠得出 applyAllVolumes() 方法体
+
+===== 4) /MBM help 打开界面 =====
+  ==> 通过  服务端声明了开界面频道
+  ==> 通过  抠得出 mbmOpenHelp() 方法体
+  ==> 通过  取执行指令的玩家
+  ==> 通过  非玩家执行时给失败提示（不是静默）
+  ==> 失败  把开界面包发给那个玩家
+  ==> 通过  客户端注册了开界面频道（Forge 侧定义在 SmoothLift，处理器在 MbmHelpOpenPacket）
+  ==> 通过  客户端收到后 setScreen(new MbmHelpScreen())
+  ==> 通过  开界面切回客户端线程（网络线程里直接开界面会崩）
+  ==> 失败  MBM_PRESET_CHANNEL：服务端读 presetId（readUtf(16)）
+  ==> 失败  MBM_ALL_VOLUME_CHANNEL：服务端读 volume（readVarInt）
+  ==> 失败  界面写 presetId 用 writeUtf(id, 16)（与读侧配对）
+  ==> 失败  界面写 volume 用 writeVarInt（与读侧配对）
+
+===== 5) MbmHelpScreen 本体 =====
+  ==> 通过  MbmHelpScreen.java 存在
+  ==> 通过  继承 Screen
+  ==> 通过  按钮文字「经典港铁预设」在界面里
+  ==> 通过  「经典港铁预设」按钮点击 -> sendPreset(ID_CLASSIC)
+  ==> 通过  按钮文字「简单港铁预设」在界面里
+  ==> 通过  「简单港铁预设」按钮点击 -> sendPreset(ID_SIMPLE)
+  ==> 通过  按钮文字「空白预设」在界面里
+  ==> 通过  「空白预设」按钮点击 -> sendPreset(ID_BLANK)
+  ==> 通过  ID_CLASSIC = classic
+  ==> 通过  ID_SIMPLE = simple
+  ==> 通过  ID_BLANK = blank
+  ==> 通过  抠得出 presetLabel() 方法体
+  ==> 通过  presetLabel 里 classic 的显示名含「经典港铁预设」（与按钮文字一致）
+  ==> 通过  presetLabel 里 simple 的显示名含「简单港铁预设」（与按钮文字一致）
+  ==> 通过  presetLabel 里 blank 的显示名含「空白预设」（与按钮文字一致）
+  ==> 通过  有输入框 volumeInput
+  ==> 通过  ★ 输入框在界面**最下方**（用 this.height 定位，不是固定 y）
+  ==> 通过  maxLength = 4（1000 够用）
+  ==> 通过  只收数字
+  ==> 通过  打开时回填当前值
+  ==> 通过  ★ onClose() 先 applyVolume() 再 super.onClose()（按 ESC 自动应用）
+  ==> 通过  有 applyVolume()
+  ==> 通过  抠得出 applyVolume() 方法体
+  ==> 通过  ★ 没改动就 return（不静默改音量）
+  ==> 失败  改了就发 MBM_ALL_VOLUME_CHANNEL
+  ==> 通过  不在世界里时不发（防止空指针 / 无意义包）
+  ==> 通过  音量经 parseVolume 解析（夹取在那一层）
+  ==> 通过  parseVolume 里真的夹到 1~1000
+  ==> 通过  isPauseScreen = false（与其它界面一致）
+  ==> 通过  回车 = 应用并退出（与 EscalatorSpeedScreen 一致）
+
+===== 6) 界面无小字（标题 = 预设选择；音量框左边 1 个标签） =====
+  ==> 通过  ★ 标题字面量是「预设选择」（原来的「MBM 帮助」已改名）
+  ==> 通过  ★ 代码里不再出现旧标题「MBM 帮助」（注释里提到不算）
+  ==> 通过  ★ 居中文字只有标题 1 处（剥注释后 drawCenteredString == 1）  -- 实际 1 处 = ['this.font, this.title, this.width / 2, 12, 0xFFFFFF']
+  ==> 通过  那一处画的是 this.title（=「预设选择」），不是任何说明文案
+  ==> 通过  ★ 左对齐文字只有「音量」标签 1 处（剥注释后 drawString == 1）  -- 实际 1 处 = ['this.font, Component.literal("音量"), this.width / 2 - 100 - 4 - this.font.width("音量"), this.height - 42 + (20 - this.font.lineHeight) / 2, 0xA0A0A0, false']
+  ==> 通过  那个标签的文字就是「音量」
+  ==> 通过  「音量」这个标签只有一处（没有第二份重复标签）  -- 实际 1 处
+  ==> 通过  ★ 标签贴在输入框**左沿外侧** 4 px（x = this.width/2 − 100 − 4 − 字体实测宽度）  -- 实际 = this.font, Component.literal("音量"), this.width / 2 - 100 - 4 - this.font.width("音量"), this.height - 42 + (20 - this.font.lineHeight) / 2, 0xA0A0A0, false
+  ==> 通过  标签纵向与 20 px 高的输入框居中对齐
+  ==> 通过  ★ 全界面文字绘制合计 == 2（标题 + 音量标签；多一处即回退）
+  ==> 通过  6 行说明小字全部删净（代码里一处不剩）  -- 残留 = []
+  ==> 通过  音量输入框还在（删的是文字，不是控件）
+  ==> 通过  三个预设按钮的点击回调还在
+  ==> 通过  ESC 自动应用音量的约定还在（没被顺手删）
+  ==> 通过  标签不用 EditBox 的 hint（hint 只在空值/聚焦前显示，回填了数字就永远看不见）
+
+===== 7) 反向对照 =====
+  ==> 通过  反向对照的探针确实插进去了（基线可用）
+  ==> 通过  塞回一行小字 -> 「文字合计 == 2」变红（对照）
+  ==> 通过  塞回旧文案 -> 「小字删净」变红（对照）
+  ==> 通过  「在框左边」的判据对当前写法成立（基线）
+  ==> 通过  「挪到右边」的探针确实改动了表达式（基线可用）
+  ==> 通过  挪到框右边 -> 「标签在框左边」这条判据当场变红（对照）
+  ==> 通过  原样清单比对通过（基线）
+  ==> 通过  多一条会红（对照）
+  ==> 通过  少一条会红（对照）
+  ==> 通过  顺序调了会红（对照）
+  ==> 通过  写错一个素材名会红（对照）
+  ==> 通过  基线：空白预设（子开关 off）判据不误报
+  ==> 通过  基线：简单预设（子开关 off）判据不误报
+  ==> 通过  ★★★ 直梯那四条写 `-f none`（素材层的不播）⇒ 层判据报 4 条 —— 这就是 LOG6 的字面形态  -- ['「none」把「不播」写到**素材层** ⇒ UI「开关」行与 `… <项> on` 都够不到它，用户会觉得「怎么设都开不了」（LOG6）；要静音请写 `-f off`：lifthelp open -f none', '「none」把「不播」写到**素材层** ⇒ UI「开关」行与 `… <项> on` 都够不到它，用户会觉得「怎么设都开不了」（LOG6）；要静音请写 `-f off`：lifthelp close -f none', '「none」把「不播」写到**素材层** ⇒ UI「开关」行与 `… <项> on` 都够不到它，用户会觉得「怎么设都开不了」（LOG6）；要静音请写 `-f off`：lifthelp up -f none', '「none」把「不播」写到**素材层** ⇒ UI「开关」行与 `… <项> on` 都够不到它，用户会觉得「怎么设都开不了」（LOG6）；要静音请写 `-f off`：lifthelp down -f none']
+  ==> 通过  ★ 屏蔽门那两条写 `-f none` 同样报 2 条（**两个域一起**判，别再只扫一个域）  -- ['「none」把「不播」写到**素材层** ⇒ UI「开关」行与 `… <项> on` 都够不到它，用户会觉得「怎么设都开不了」（LOG6）；要静音请写 `-f off`：pbmmusic open -f none', '「none」把「不播」写到**素材层** ⇒ UI「开关」行与 `… <项> on` 都够不到它，用户会觉得「怎么设都开不了」（LOG6）；要静音请写 `-f off`：pbmmusic close -f none']
+  ==> 通过  基线：直梯的 `off`（静音的正解）/ `on` / `default*` 都不违规
+  ==> 通过  基线：导入的 .ogg 名（素材层）合法
+  ==> 通过  基线：`on`（子开关层，显式）与 `default-m`（素材层）都不算违规
+  ==> 通过  编造一个不在名单里的层值 ⇒ 也会红（对照）
+  ==> 通过  基线：`-f off to on` 的终态读成 on（条件迁移取右边）
+  ==> 通过  ★ `-f off to on`（把关着的打开）**不许**被误判成「写 off」
+  ==> 通过  ★ `-f none to off` 的**终态是 `off`**（子开关，合法）⇒ 不该被判红（只读 `-f` 后那格就会误红）
+  ==> 通过  基线：`-f default to none` 的终态读成 none（条件迁移取右边）
+  ==> 通过  ★ 反过来 `-f default to none`（终态落到**素材层** none）照样判红（对照）
+  ==> 通过  ★ 同一个 `to` 解析也要被 last-write-wins 用上（终态 on）
+  ==> 通过  基线：简单预设跑完后直梯 open 的子开关 = off、素材 = None（只碰子开关这一层）
+  ==> 通过  ★ 造一条 `-f none` ⇒ last-write-wins 读到 素材=none / 开关=None（1b-2 会判红）
+  ==> 通过  基线：经典预设两个域的「开子开关」都在
+  ==> 通过  ★ 把「开子开关」那几条整段删掉 ⇒ 「必须显式开」当场报出缺的那些（对照）  -- ['pbmmusic open -f on', 'pbmmusic close -f on', 'lifthelp open -f on', 'lifthelp close -f on']
+  ==> 通过  只开一半（漏了 close / 直梯那几条）也会红（对照）
+
+===== 7e) 「打开」的出口：heal 函数 + UI ensureToneEnabled 都在 =====
+  ==> 通过  ★★ 源码里有 `healLiftToneOffAudio`（把素材层的「不播」清回 default）
+  ==> 通过  ★★ 源码里有 `healLiftToneOffAudioAll`（`-f` 分支用）
+  ==> 通过  ★★ 源码里有 `healPsdToneOffAudio`（把素材层的「不播」清回 default）
+  ==> 通过  ★★ 源码里有 `healPsdToneOffAudioAll`（`-f` 分支用）
+  ==> 通过  ★ 调了 `healLiftToneOffAudio(level, which)`
+  ==> 通过  ★ 调了 `healLiftToneOffAudioAll(source.getServer(), which)`
+  ==> 通过  ★ 调了 `healPsdToneOffAudioAll(source.getServer(), which)`
+  ==> 失败  ★ 不带 -f 的 /pbmmusic open|close on|off = 最近门串子开关（per-串，不开 heal）
+  ==> 通过  ★★ 直梯：命令 `on` 与 UI 开关包**两处**都要 heal（少一处就有一条路救不回来）  -- 实际出现 2 次
+  ==> 通过  ★★ 直梯 UI 有 `ensureToneEnabled`（选「会出声」的素材时把子开关一并打开）
+  ==> 通过  ★ `ensureToneEnabled` 真的被 `pick` / `import` 两处调用了（不是死代码）  -- 实际出现 2 次
+  ==> 通过  ★ UI 选「不播」时**不调** ensure（「不播」不该被顺手打开）
+
+== 失败 18 项 ==
+   - 「经典港铁预设」= 用户那 10 条 + 2 条开子开关 + 6 条范围 10 5 + 1 条讲述人样式
+   - 「简单港铁预设」= 用户那 10 条 + 2 条开子开关 + 6 条范围 10 5 + 1 条讲述人样式
+   - 「空白预设」= 用户那 10 条 + 0 条开子开关 + 6 条范围 10 5 + 1 条讲述人样式
+   - 「经典港铁预设」的范围 10 5 六条齐全且与 ROUND_TEN_FIVE 同序
+   - 「简单港铁预设」的范围 10 5 六条齐全且与 ROUND_TEN_FIVE 同序
+   - 「空白预设」的范围 10 5 六条齐全且与 ROUND_TEN_FIVE 同序
+   - ★ 三档都含 `futiround 10 5`（防止只加进其中一档）
+   - ★★ 手抄清单「经典港铁预设」与 PRESET_CLASSIC_MTR **逐字逐序**一致（两处分叉过就是假绿）
+   - ★★ 手抄清单「简单港铁预设」与 PRESET_SIMPLE_MTR **逐字逐序**一致（两处分叉过就是假绿）
+   - ★★ 手抄清单「空白预设」与 PRESET_BLANK **逐字逐序**一致（两处分叉过就是假绿）
+   - 抠得出 applyAllVolumes() 方法体
+   - 把开界面包发给那个玩家
+   - MBM_PRESET_CHANNEL：服务端读 presetId（readUtf(16)）
+   - MBM_ALL_VOLUME_CHANNEL：服务端读 volume（readVarInt）
+   - 界面写 presetId 用 writeUtf(id, 16)（与读侧配对）
+   - 界面写 volume 用 writeVarInt（与读侧配对）
+   - 改了就发 MBM_ALL_VOLUME_CHANNEL
+   - ★ 不带 -f 的 /pbmmusic open|close on|off = 最近门串子开关（per-串，不开 heal）
+
+############################################################
+# 同步所有按钮与弹窗
+############################################################
+  ==> 通过
+
+############################################################
+# 列车音效界面与侧线
+############################################################
+  ==> 通过
+
+############################################################
+# 直梯界面两列版式
+############################################################
+  ==> 通过
+
+############################################################
+# MTR3/MTR4 契约
+############################################################
+  ==> 通过
+
+############################################################
+# 指令树
+############################################################
+  ==> 通过
+
+############################################################
+# PIDS 站台名掩码
+############################################################
+  ==> 通过
+
+############################################################
+# 有回归失败，见上面明细
+############################################################
+EXIT=1

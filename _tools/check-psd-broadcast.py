@@ -160,11 +160,15 @@ check(re.search(r"planArrivalAnnounce\(mc, door, openPlayable\);", player) is no
       "★ detect 的调用点跟着去掉第四个实参")
 check(re.search(r"PsdDoorTracker\.nearestInRun\(runKey, player\)", player) is not None,
       "★★ 声源 = 本串里离玩家最近的那一扇（PsdDoorTracker.nearestInRun）")
-check(re.search(r"double distance = player == null \? 0\.0\s*"
-                r": player\.distanceTo\(new Vec3\(source\.x\(\), source\.y\(\), source\.z\(\)\)\);",
+check(re.search(r"double distanceXz = player == null \? 0\.0\s*"
+                r": Math\.hypot\(player\.x\(\) - source\.x\(\), player\.z\(\) - source\.z\(\)\);\s*"
+                r"double distanceY = player == null \? 0\.0\s*"
+                r": Math\.abs\(player\.y\(\) - source\.y\(\)\);",
                 player) is not None,
-      "★★ 射程判据用的距离也来自**那一扇**（source），不是这一扇（door）")
-check(re.search(r"if \(gain\(distance, ROUND_MIDIUM\) \* volume <= 0\.0f\)", player) is not None,
+      "★★ 射程判据用的距离也来自**那一扇**（source），不是这一扇（door）"
+      "（双维口径：水平 hypot / 垂直 |dy|，与 gain 的双参版配套）")
+check(re.search(r"if \(gain\(distanceXz, distanceY, ROUND_MIDIUM\) \* volume <= 0\.0f\)",
+                player) is not None,
       "★ 到站播报的射程判据仍在（类别 ROUND_MIDIUM）—— 改的只是「距离是谁的距离」")
 check("getDoorPsdMidiumAudio(mc.level, runKey)" in player
       and "getDoorPsdMidiumVolume(mc.level, runKey)" in player,
@@ -187,12 +191,15 @@ check(re.search(r"if \(cur == null \|\| closerThan\(player, d, cur\)\)", player)
 check(re.search(r"private static boolean closerThan\(Vec3 player, PsdDoorTracker\.DoorView cand,\s*"
                 r"PsdDoorTracker\.DoorView cur\)", player) is not None,
       "★ closerThan(player, cand, cur) 存在（player == null ⇒ false，保持先来的那一扇）")
-check(re.search(r"arrivePlatform\.keySet\(\)\.retainAll\(nearestPerRun\.keySet\(\)\);", player) is not None
-      and re.search(r"arriveLastPoll\.keySet\(\)\.retainAll\(nearestPerRun\.keySet\(\)\);", player)
+check(re.search(r"arriveLastPoll\.keySet\(\)\.retainAll\(nearestPerRun\.keySet\(\)\);", player) is not None
+      and re.search(r"arriveFailNextLog\.keySet\(\)\.retainAll\(nearestPerRun\.keySet\(\)\);", player)
       is not None,
-      "★ 两张缓存表跟着新的键集合收敛（键集合换了 ⇒ 收敛口径也得换，否则缓存无限长大）")
-check(re.search(r"play\(mc, tone, door, volume, 0, true, ROUND_ARRIVE, runKey\);", player) is not None,
-      "★★ 起播时把 runKey 一并传下去（站台广播：距离按本串最近的门算）")
+      "★ 两张缓存表跟着新的键集合收敛（arrivePlatform 已删，现收敛 arriveLastPoll /"
+      " arriveFailNextLog；键集合换了 ⇒ 收敛口径也得换，否则缓存无限长大）")
+check(re.search(r"play\(mc, tone, door, volume, 0, true,\s*ROUND_ARRIVE, runKey, true\);", player)
+      is not None,
+      "★★ 起播时把 runKey 一并传下去（站台广播：距离按本串最近的门算；"
+      "第 9 参 chainDoubleDim=true ⇒ 双维射程口径）")
 
 # ======================================================================
 # 4) 「本串最近门」的口径：只读不删 + 两个口
@@ -254,14 +261,16 @@ check(abs(get_x(banned)) > 29999984,
       "（只与**绝对值**有关，符号不重要）")
 check(get_x(-1 & ((1 << 64) - 1)) == -1,
       "★★ 对照：`-1L` 是**合法**坐标（= 方块 x=%d）⇒ 拿它当哨兵会真撞" % neg_one_x)
-check(re.search(r"private static final long NO_BROADCAST_RUN = Long\.MIN_VALUE;", player)
-      is not None,
-      "★★ 所以哨兵取 NO_BROADCAST_RUN = Long.MIN_VALUE（不是 -1）")
-check(re.search(r"if \(chainRunKey == NO_BROADCAST_RUN\)", player) is not None
-      and re.search(r"d = PsdDoorTracker\.nearestDistanceInRun\(chainRunKey, p\);", player)
-      is not None,
-      "★★ PsdMusicInstance.refreshVolume 按 chainRunKey 分两种口径"
-      "（位置音 = 到 pos；站台广播 = 到本串最近的门）")
+check(re.search(r"private static final long NO_BROADCAST_RUN\s*=", player) is None,
+      "★★ 哨兵 NO_BROADCAST_RUN 已经**整个删除**（只剩 javadoc / 注释里的考古文字，"
+      "不允许再出现常量定义）—— 提示音与站台广播一律按「本串最近的门」算，没有「按本扇门」那条路了")
+check(re.search(r"PsdDoorTracker\.DoorView nearest = MtrDwellAccess\.isPlatformKnown\(chainPlatformId\)\s*"
+                r"\? PsdDoorTracker\.nearestOnPlatform\(chainPlatformId, p\)\s*"
+                r": PsdDoorTracker\.nearestInRun\(chainRunKey, p\);", player) is not None
+      and re.search(r"v = gain\(dxz, dy, roundKind\) \* baseVolume;", player) is not None
+      and re.search(r"v = gain\(d, roundKind\) \* baseVolume;", player) is not None,
+      "★★ refreshVolume 的「串最近门口径」：先按 chainPlatformId 收窄到同一站台，"
+      "再按 chainDoubleDim 分双维（广播）/ 单维（提示音）—— 不再有 NO_BROADCAST_RUN 分支")
 check(re.search(r"boolean trainAttenuated, int roundKind, long chainRunKey,", player) is not None,
       "★ play(...) 与构造里 chainRunKey 是**独立的第 8 格**"
       " —— 不用 `roundKind != ROUND_TONE` 推出来：范围类别与「是不是广播」是两个判据，"

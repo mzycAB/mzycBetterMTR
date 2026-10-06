@@ -1,102 +1,68 @@
 package smooth.lift.network;
 
+import io.netty.buffer.Unpooled;
 import net.minecraft.core.BlockPos;
-import net.minecraft.core.registries.Registries;
 import net.minecraft.network.FriendlyByteBuf;
 import net.minecraft.resources.ResourceKey;
-import net.minecraft.resources.ResourceLocation;
 import net.minecraft.world.level.Level;
 import net.minecraftforge.network.NetworkDirection;
 import net.minecraftforge.network.NetworkEvent;
+import smooth.lift.EscalatorSpeedData;
 import smooth.lift.EscalatorSpeedManager;
-import smooth.lift.client.HelpAudioSetupScreen;
-import net.minecraftforge.api.distmarker.Dist;
-import net.minecraftforge.fml.DistExecutor;
 
 import java.util.HashMap;
 import java.util.Map;
 import java.util.function.Supplier;
 
 /**
- * 【1.41】服务端 -> 客户端：同步「无障碍提示音的**音乐**」（进 / 出两套：默认层 + 单独设置层）。
- *
- * <p>这是一个**小包**：只发「选了哪一段」（ID 字符串），音频字节本身仍然只走
- * {@link AudioSyncPacket} 那一份（与运行底噪共用同一个 audioLibrary），绝不重复发。
- *
- * <p>进 / 出两套总是由同一条指令一起改、一起同步，所以合成一只包 —— 与
- * {@link HelpSpeedSyncPacket} 的处理方式完全一致。
+ * 【Forge 移植 / 1.29】服务端 -> 客户端同步包(裸负载):负载由
+ * {@code EscalatorSpeedManager.buildHelpAudioPacket} 写出,与 Fabric 侧逐字节一致;
+ * 本类 handle 按 Fabric 版客户端接收器的读序解析。
  */
 public class HelpAudioSyncPacket {
-    private final String dimension;
-    private final String defaultIn;
-    private final Map<BlockPos, String> audioIn;
-    private final String defaultOut;
-    private final Map<BlockPos, String> audioOut;
+    private final byte[] body;
 
-    public HelpAudioSyncPacket(String dimension, String defaultIn, Map<BlockPos, String> audioIn,
-                               String defaultOut, Map<BlockPos, String> audioOut) {
-        this.dimension = dimension;
-        this.defaultIn = defaultIn;
-        this.audioIn = audioIn;
-        this.defaultOut = defaultOut;
-        this.audioOut = audioOut;
+    public HelpAudioSyncPacket(byte[] body) {
+        this.body = body;
     }
 
     public static void encode(HelpAudioSyncPacket pkt, FriendlyByteBuf buf) {
-        buf.writeUtf(pkt.dimension, 256);
-        buf.writeUtf(pkt.defaultIn, 128);
-        buf.writeVarInt(pkt.audioIn.size());
-        for (Map.Entry<BlockPos, String> entry : pkt.audioIn.entrySet()) {
-            buf.writeBlockPos(entry.getKey());
-            buf.writeUtf(entry.getValue(), 128);
-        }
-        buf.writeUtf(pkt.defaultOut, 128);
-        buf.writeVarInt(pkt.audioOut.size());
-        for (Map.Entry<BlockPos, String> entry : pkt.audioOut.entrySet()) {
-            buf.writeBlockPos(entry.getKey());
-            buf.writeUtf(entry.getValue(), 128);
-        }
+        buf.writeByteArray(pkt.body);
     }
 
     public static HelpAudioSyncPacket decode(FriendlyByteBuf buf) {
-        String dimension = buf.readUtf(256);
-        String defaultIn = buf.readUtf(128);
-        int countIn = buf.readVarInt();
-        Map<BlockPos, String> audioIn = new HashMap<>();
-        for (int i = 0; i < countIn; i++) {
-            audioIn.put(buf.readBlockPos(), buf.readUtf(128));
-        }
-        String defaultOut = buf.readUtf(128);
-        int countOut = buf.readVarInt();
-        Map<BlockPos, String> audioOut = new HashMap<>();
-        for (int i = 0; i < countOut; i++) {
-            audioOut.put(buf.readBlockPos(), buf.readUtf(128));
-        }
-        return new HelpAudioSyncPacket(dimension, defaultIn, audioIn, defaultOut, audioOut);
+        return new HelpAudioSyncPacket(buf.readByteArray());
     }
 
-    public static void handle(HelpAudioSyncPacket pkt, Supplier<NetworkEvent.Context> ctx) {
-        NetworkEvent.Context context = ctx.get();
+    public static void handle(HelpAudioSyncPacket pkt, Supplier<NetworkEvent.Context> ctxSupplier) {
+        NetworkEvent.Context context = ctxSupplier.get();
         if (context.getDirection() != NetworkDirection.PLAY_TO_CLIENT) {
             context.setPacketHandled(true);
             return;
         }
-        final String dimension = pkt.dimension;
-        final String defaultIn = pkt.defaultIn;
-        final Map<BlockPos, String> audioIn = pkt.audioIn;
-        final String defaultOut = pkt.defaultOut;
-        final Map<BlockPos, String> audioOut = pkt.audioOut;
-        context.enqueueWork(() -> DistExecutor.unsafeRunWhenOn(Dist.CLIENT, () -> () -> {
-            final ResourceKey<Level> dimKey;
-            try {
-                dimKey = ResourceKey.create(Registries.DIMENSION, new ResourceLocation(dimension));
-            } catch (Exception e) {
-                return;
+        context.enqueueWork(() -> {
+            FriendlyByteBuf data = new FriendlyByteBuf(Unpooled.wrappedBuffer(pkt.body));
+
+            String dimId = data.readUtf(256);
+            String defaultIn = data.readUtf(128);
+            int countIn = data.readVarInt();
+            Map<BlockPos, String> blockIn = new HashMap<>();
+            for (int i = 0; i < countIn; i++) {
+                blockIn.put(data.readBlockPos(), data.readUtf(128));
             }
-            EscalatorSpeedManager.applyClientHelpAudio(dimKey, defaultIn, audioIn, defaultOut, audioOut);
-            // 列表开着的时候实时刷新（与 Fabric 版 client.execute 里的行为一致）。
-            HelpAudioSetupScreen.notifyDataChanged();
-        }));
+            String defaultOut = data.readUtf(128);
+            int countOut = data.readVarInt();
+            Map<BlockPos, String> blockOut = new HashMap<>();
+            for (int i = 0; i < countOut; i++) {
+                blockOut.put(data.readBlockPos(), data.readUtf(128));
+            }
+            try {
+                ResourceKey<Level> dimKey = EscalatorSpeedManager.parseDimensionKey(dimId);
+                EscalatorSpeedManager.applyClientHelpAudio(dimKey, defaultIn, blockIn, defaultOut, blockOut);
+                smooth.lift.client.HelpAudioSetupScreen.notifyDataChanged();
+            } catch (Exception ignored) {
+            }
+        });
         context.setPacketHandled(true);
     }
 }

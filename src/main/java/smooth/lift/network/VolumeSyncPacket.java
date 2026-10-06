@@ -1,13 +1,13 @@
 package smooth.lift.network;
 
+import io.netty.buffer.Unpooled;
 import net.minecraft.core.BlockPos;
-import net.minecraft.core.registries.Registries;
 import net.minecraft.network.FriendlyByteBuf;
 import net.minecraft.resources.ResourceKey;
-import net.minecraft.resources.ResourceLocation;
 import net.minecraft.world.level.Level;
 import net.minecraftforge.network.NetworkDirection;
 import net.minecraftforge.network.NetworkEvent;
+import smooth.lift.EscalatorSpeedData;
 import smooth.lift.EscalatorSpeedManager;
 
 import java.util.HashMap;
@@ -15,57 +15,46 @@ import java.util.Map;
 import java.util.function.Supplier;
 
 /**
- * 【1.9】服务端 -> 客户端：同步「扶梯方块 → 声音音量」表（含【1.12】的默认音量）。
- *
- * <p>这是一个**小包**：只带音量，不含音频字节。改音量时只发它，
- * 避免为了一个数字重发整个音频库。
+ * 【Forge 移植 / 1.29】服务端 -> 客户端同步包(裸负载):负载由
+ * {@code EscalatorSpeedManager.buildVolumePacket} 写出,与 Fabric 侧逐字节一致;
+ * 本类 handle 按 Fabric 版客户端接收器的读序解析。
  */
 public class VolumeSyncPacket {
-    private final String dimension;
-    private final int defaultVolume;
-    private final Map<BlockPos, Integer> volumes;
+    private final byte[] body;
 
-    public VolumeSyncPacket(String dimension, int defaultVolume, Map<BlockPos, Integer> volumes) {
-        this.dimension = dimension;
-        this.defaultVolume = defaultVolume;
-        this.volumes = volumes;
+    public VolumeSyncPacket(byte[] body) {
+        this.body = body;
     }
 
     public static void encode(VolumeSyncPacket pkt, FriendlyByteBuf buf) {
-        buf.writeUtf(pkt.dimension, 256);
-        buf.writeVarInt(pkt.defaultVolume);
-        buf.writeVarInt(pkt.volumes.size());
-        for (Map.Entry<BlockPos, Integer> entry : pkt.volumes.entrySet()) {
-            buf.writeBlockPos(entry.getKey());
-            buf.writeVarInt(entry.getValue());
-        }
+        buf.writeByteArray(pkt.body);
     }
 
     public static VolumeSyncPacket decode(FriendlyByteBuf buf) {
-        String dimension = buf.readUtf(256);
-        int defaultVolume = buf.readVarInt();
-        int count = buf.readVarInt();
-        Map<BlockPos, Integer> volumes = new HashMap<>();
-        for (int i = 0; i < count; i++) {
-            volumes.put(buf.readBlockPos(), buf.readVarInt());
-        }
-        return new VolumeSyncPacket(dimension, defaultVolume, volumes);
+        return new VolumeSyncPacket(buf.readByteArray());
     }
 
-    public static void handle(VolumeSyncPacket pkt, Supplier<NetworkEvent.Context> ctx) {
-        NetworkEvent.Context context = ctx.get();
+    public static void handle(VolumeSyncPacket pkt, Supplier<NetworkEvent.Context> ctxSupplier) {
+        NetworkEvent.Context context = ctxSupplier.get();
         if (context.getDirection() != NetworkDirection.PLAY_TO_CLIENT) {
             context.setPacketHandled(true);
             return;
         }
         context.enqueueWork(() -> {
-            final ResourceKey<Level> dimKey;
-            try {
-                dimKey = ResourceKey.create(Registries.DIMENSION, new ResourceLocation(pkt.dimension));
-            } catch (Exception e) {
-                return;
+            FriendlyByteBuf data = new FriendlyByteBuf(Unpooled.wrappedBuffer(pkt.body));
+
+            String dimId = data.readUtf(256);
+            int defaultVolume = data.readVarInt();
+            int count = data.readVarInt();
+            Map<BlockPos, Integer> volumes = new HashMap<>();
+            for (int i = 0; i < count; i++) {
+                volumes.put(data.readBlockPos(), data.readVarInt());
             }
-            EscalatorSpeedManager.applyClientVolumes(dimKey, pkt.volumes, pkt.defaultVolume);
+            try {
+                ResourceKey<Level> dimKey = EscalatorSpeedManager.parseDimensionKey(dimId);
+                EscalatorSpeedManager.applyClientVolumes(dimKey, volumes, defaultVolume);
+            } catch (Exception ignored) {
+            }
         });
         context.setPacketHandled(true);
     }

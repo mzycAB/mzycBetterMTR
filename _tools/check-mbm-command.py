@@ -5,15 +5,15 @@
 - 把 `/dtmusic` 改成 `/MBM music in` / `/MBM music delete`（干净改名，旧名不保留）
 - 存档音频文件夹 `smoothlift_audio` 改名 `MBM_Audio`
 - 新增 `/MBM help`：打开一个界面（界面本体在 check-mbm-help.py 里校验）
-- 版本号：用户本轮**没有点名**，沿用 1.23.1204（不改号）
+- 版本号：用户本轮点名 => **1.31.11201**（写成常量断言，改号即报红 —— 这是「版本号只在点名时改」的绊线）
 
 判据（改错了不报错，症状=「指令没了」/「批量导入找不到文件」/「误删文件夹」）：
 - 根字面量 `MBM` 与 `mbm` 都有注册（MC 的指令字面量大小写敏感，只写大写时 /mbm 会报未知指令）。
 - `MBM music in` -> dtMusicImportAll；`MBM music delete` -> dtMusicDeleteAll；`MBM help` -> mbmOpenHelp。
 - 旧的根字面量 `dtmusic` **一个字都不剩**（只在注释/javadoc 里作为改名历史出现）。
 - EscalatorSpeedManager.AUDIO_FOLDER 的值是 "MBM_Audio"。
-- import 走 scanAudioFiles 全量遍历 + importAudioToStore（同一套 ogg 校验）+ sendAudioSyncTo 补发右列。
-- delete 遍历 audioLibrary.keySet() 快照逐条 deleteAudio（removeAudio 会连带清引用），
+- import 走 scanAudioFiles（按分类子文件夹全量遍历）+ importAudioToStore（同一套 ogg 校验）+ sendAudioSyncTo 补发右列。
+- delete 遍历 audioCategoryNames 全量键（快照，按分类聚合）逐条 deleteAudio（removeAudio 会连带清引用），
   并补三路同步（audio/help/psdChime）；★ delete handler 方法体内**没有任何删除文件夹文件的代码**。
 """
 
@@ -90,8 +90,10 @@ m = re.search(r"private static int dtMusicImportAll\(CommandContext<CommandSourc
 check(m is not None, "抠得出 dtMusicImportAll() 方法体")
 if m:
     fb = strip_comments(m.group(1))
-    check("scanAudioFiles(level)" in fb, "用 scanAudioFiles 全量扫 MBM_Audio 文件夹")
-    check("importAudioToStore(level, name)" in fb, "逐条走 importAudioToStore（同一套 ogg 校验）")
+    check("EscalatorSpeedManager.scanAudioFiles(level, category).keySet()" in fb,
+          "用 scanAudioFiles 全量扫 MBM_Audio 文件夹（【1.28】按分类子文件夹逐类扫）")
+    check("importAudioToStore(level, e.getValue(), e.getKey())" in fb,
+          "逐条走 importAudioToStore（同一套 ogg 校验，分类也一并带过去）")
     check("sendAudioSyncTo(source.getPlayer(), level)" in fb,
           "导入后补发音频库同步包（客户端「已导入」右列刷新）")
     check("if (true)" not in fb and "if (false)" not in fb,
@@ -108,8 +110,10 @@ m = re.search(r"private static int dtMusicDeleteAll\(CommandContext<CommandSourc
 check(m is not None, "抠得出 dtMusicDeleteAll() 方法体")
 if m:
     fb = strip_comments(m.group(1))
-    check("audioLibrary.keySet()" in fb, "遍历 audioLibrary 全量键（快照）")
-    check("deleteAudio(level, id)" in fb, "逐条走 deleteAudio（removeAudio 连带清引用）")
+    check("data.audioCategoryNames.values()" in fb and "ids.addAll(names)" in fb,
+          "遍历 audioCategoryNames 全量键（快照，【1.28】按分类聚合后再逐条删）")
+    check("deleteAudio(level, category, id)" in fb,
+          "逐条走 deleteAudio（removeAudio 连带清引用；分类也一并带过去）")
     check("syncAudioToAll(level.getServer())" in fb
           and "syncHelpAudioToAll(level.getServer())" in fb
           and "syncPsdChimeToAll(level.getServer())" in fb,
@@ -146,15 +150,15 @@ check(not src_hits, "剥注释后全工程源码里没有旧文件夹名 smoothl
 check("【1.53】" in esm, "改名有【1.53】标记（可追溯）")
 
 # ======================================================================
-# 5) 版本号（用户本轮没点名 => 沿用）
+# 5) 版本号（绊线：只有用户点名改号时才更新这里的常量）
 # ======================================================================
 print()
-print("===== 5) 版本号（用户点名 => 1.26.11201） =====")
+print("===== 5) 版本号（用户点名 => 1.31.11201） =====")
 
 gp = open(GP, encoding="utf-8").read()
 got = re.search(r"mod_version=(.*)", gp).group(1).strip()
-# ★ 1.20.1 工程版本号 = 1.26.11201（用户点名更新）。
-check(got == "1.26.11201", "gradle.properties mod_version = 1.26.11201（用户点名）", "得到 %s" % got)
+# ★ 1.20.1 工程版本号 = 1.31.11201（用户点名更新；上一号 1.29.11201 => 1.31.11201）。
+check(got == "1.31.11201", "gradle.properties mod_version = 1.31.11201（用户点名）", "得到 %s" % got)
 
 # ======================================================================
 # 6) 字节码 / jar 元数据
@@ -183,11 +187,14 @@ else:
     check(b"dtmusic" not in sl_blob, "★ 字节码里没有旧的 dtmusic 字面量")
     check(b"MBM_Audio" in esm_blob, "★ 字节码里文件夹名是 MBM_Audio")
     check(b"smoothlift_audio" not in esm_blob, "★ 字节码里没有旧的 smoothlift_audio")
+    check(b"upload_audio" not in sl_blob and b"storeAudio" not in esm_blob
+          and b"UploadAudioPacket" not in sl_blob,
+          "★ 字节码里没有 UPLOAD 死通道（【1.7】分块上传已删：会绕过分类注册表入库）")
     # mods.toml 的 version=${file.jarVersion} 是占位符，真实版本在 MANIFEST 的 Implementation-Version。
     import re as _re
     mv = _re.search(rb"Implementation-Version: (\S+)", manifest)
     manifest_ver = mv.group(1).decode() if mv else "?"
-    check(manifest_ver == "1.26.11201", "jar MANIFEST Implementation-Version = 1.26.11201（用户点名）",
+    check(manifest_ver == "1.31.11201", "jar MANIFEST Implementation-Version = 1.31.11201（用户点名）",
           "得到 %s" % manifest_ver)
     check(any(n.endswith("MbmHelpScreen.class") for n in names),
           "【1.53】MbmHelpScreen.class 已打进 jar")

@@ -215,7 +215,7 @@ EXPECT_ARGS = {
     "扶梯二级（选择扶梯音乐）": ("esc", "SmoothLift.SYNC_ESC_AUDIO", "pos.asLong()", "null"),
     "扶梯二级（选择无障碍提示音）": ("esc", "SmoothLift.SYNC_ESC_HELP_AUDIO", "pos.asLong()", "null"),
     "直梯（主界面 + 三项列表页）": ("lift", "page", "key",
-                                     "tone == null ? this::applyDefaultVolume : () -> applyToneVolume(tone)"),
+                                     "page > 0 ? null : this::applyMainVolumes"),
     "屏蔽门（主界面 + 四个二级页）": ("psd", "page", "runKey", "this::applyMainInputs"),
 }
 
@@ -225,15 +225,24 @@ for label, (fname, _domain, _scope) in SCREENS.items():
     if len(found) != 1:
         continue
     args = [squash(a) for a in split_args(found[0])]
-    check(len(args) == 5, "%s：syncButton 五个实参齐全" % label, "实际 = %s" % args)
-    if len(args) != 5:
+    # 【10-04 修 2】syncButton 多了「extraKey」一格（PSD 主页 = 门串锚点；其它域 0）：接受 5/6 参。
+    check(len(args) in (5, 6), "%s：syncButton 五/六个实参齐全" % label, "实际 = %s" % args)
+    if len(args) not in (5, 6):
         continue
     check(args[0] == "this", "%s：host = this（弹窗关掉后回到本界面）" % label, args[0])
     ed, es, ek, eb = EXPECT_ARGS[label]
     check(args[1] == '"%s"' % ed, "%s：域 = %s" % (label, ed), args[1])
     check(args[2] == es, "%s：射程 = %s" % (label, es), args[2])
     check(args[3] == ek, "%s：身份 = %s" % (label, ek), args[3])
-    check(args[4] == eb, "%s：落地回调 = %s" % (label, eb), args[4])
+    if len(args) == 6:
+        check(args[4] == "syncExtra", "%s：第 6 参（extraKey）= syncExtra 变量" % label, args[4])
+        check(args[5] == eb, "%s：落地回调 = %s" % (label, eb), args[5])
+        if label == "屏蔽门（主界面 + 四个二级页）":
+            psd_src = SRC_NO[label]
+            check(re.search(r"syncExtra\s*=\s*page\s*==\s*0\s*\?\s*runAnchor\s*:\s*0L", psd_src) is not None,
+                  "★ PSD 主页 syncExtra = page == 0 ? runAnchor : 0L（主页 = 门串锚点，其它页 0）")
+    else:
+        check(args[4] == eb, "%s：落地回调 = %s" % (label, eb), args[4])
 
 # 域字面量只能是这三个（写错域 = 同步打到别的系统上）
 doms = set()
@@ -249,17 +258,17 @@ check(doms == {"esc", "lift", "psd"}, "用到的域集合 == {esc, lift, psd}", 
 print()
 print("===== 2) 入口按钮定位在右上角 =====")
 
-m = re.search(r"public static Button syncButton\(.*?\)\s*\{(.*?)\n    \}", popup, flags=re.S)
-check(m is not None, "抠得出 syncButton() 方法体")
-if m:
-    fb = strip_comments(m.group(1))
+m_all = re.findall(r"public static Button syncButton\(.*?\)\s*\{(.*?)\n    \}", popup, flags=re.S)
+check(len(m_all) >= 1, "抠得出 syncButton() 方法体（至少一个重载）")
+if m_all:
+    fb = "".join(strip_comments(m) for m in m_all)
     mb = re.search(r"\.bounds\((.*?)\)", fb, flags=re.S)
     check(mb is not None, "syncButton 里有 .bounds(...)")
     if mb:
         b = squash(mb.group(1))
         check(b.startswith("host.width"), "★ x 从 host.width 往左推（靠右）", b)
         check("-" in b.split(",")[0], "★ x 是「宽 − 按钮宽」（贴着右沿）", b.split(",")[0])
-        check(b.split(",")[1].strip() == "6", "★ y = 6（贴顶）", b)
+        check(b.split(",")[1].strip() in ("6", "ENTRY_Y"), "★ y = 6 或常量 ENTRY_Y（贴顶）", b)
     check("ENTRY_W" in fb, "按钮宽度用具名常量 ENTRY_W（不是魔数）")
 
 # ======================================================================
@@ -271,15 +280,14 @@ print("===== 3) 弹窗本体：3 个按钮 + 文案 ↔ 回调 =====")
 check(os.path.exists(POPUP), "SyncPopupScreen.java 存在")
 check(re.search(r"class SyncPopupScreen extends Screen", popup_no) is not None, "继承 Screen")
 
-# ★ 只看 init()：类里还有一处 Button.builder 是「入口按钮」（在静态工厂 syncButton 里），
-#   它不是弹窗内的按钮。整类数是 4，容易看错。
+# ★ 弹窗按钮 = Option 列表 + init() 循环渲染 + 末尾「取消」；入口按钮在静态工厂 syncButton 里
 m = re.search(r"protected void init\(\)\s*\{(.*?)\n    \}", popup_no, flags=re.S)
 check(m is not None, "抠得出 SyncPopupScreen.init()")
 init_body = m.group(1) if m else ""
 
 btns = list(iter_calls(init_body, "Button.builder"))
-check(len(btns) == 3, "★ 弹窗 init() 里正好 3 个按钮", "实际 %d 个" % len(btns))
-if len(btns) == 3:
+check(len(btns) == 2, "★ 弹窗 init() 里 2 个按钮（循环渲染 1 处 + 取消）", "实际 %d 个" % len(btns))
+if len(btns) == 2:
     got = []
     for b in btns:
         a = split_args(b)
@@ -288,21 +296,32 @@ if len(btns) == 3:
         if cb.startswith("button ->"):
             cb = cb[len("button ->"):].strip()
         got.append((ml.group(1) if ml else squash(a[0] if a else ""), cb))
-    expected = [("同步所有", "send(false)"), ("强制同步", "send(true)"), ("取消", "onClose()")]
-    check(got == expected,
-          "★ 三个按钮的文案与回调逐个正确（同步所有→send(false)、强制同步→send(true)、取消→onClose）",
-          "实际 = %s" % got)
-    check("ClientPlayNetworking" not in init_body and "send(" not in init_body.replace("send(false)", "").replace("send(true)", ""),
-          "★ init() 里没有直接发包 —— 发不发由 send() 统一决定")
-    check(len(got) == 3 and got[2][1] == "onClose()",
-          "★「取消」的回调就是 onClose()（不发包）", got[2][1] if len(got) == 3 else "")
+    # 第一个按钮在 for (Option option : options) 循环里（文案取 option.label()）
+    check(re.search(r"for\s*\(\s*Option\s+option\s*:\s*options\s*\)", init_body) is not None
+          and "option.label()" in init_body and "option.action().run()" in init_body,
+          "★ 弹窗内按钮按 Option 列表循环渲染（option.label → action）")
+    # 最后一个按钮一定是「取消」且回调 onClose()（不发包）
+    check(len(got) == 2 and got[1] == ("取消", "onClose()"),
+          "★「取消」按钮在末尾、回调 = onClose()（不发包）", "实际 = %s" % got)
+    check("ClientPlayNetworking" not in init_body
+          and "send(" not in init_body.replace("send(false)", "").replace("send(true)", ""),
+          "★ init() 里没有直接发包 —— 发不发由 Option 闭包里的 send() 统一决定")
 
-# 弹窗里的字面量集合：只许标题 + 三个按钮文案
+# 两个选项的标签 ↔ 回调 必须与 send(false) / send(true) 一一对应
+check(re.search(r'new Option\("同步所有",\s*\(\)\s*->\s*send\(false\)', popup_no) is not None,
+      "★「同步所有」-> send(false)（Option 闭包）")
+check(re.search(r'new Option\("强制同步",\s*\(\)\s*->\s*send\(true\)', popup_no) is not None,
+      "★「强制同步」-> send(true)（Option 闭包）")
+
+# 弹窗里的 Component.literal 字面量集合：只许标题 + 入口按钮 + 取消按钮
+# （「同步所有」「强制同步」在弹窗内的按钮文案走 option.label()，不是直写字面量）
 literals = re.findall(r'Component\.literal\("([^"]*)"\)', popup_no)
-check(sorted(set(literals)) == sorted(["同步", "同步所有", "强制同步", "取消"]),
-      "★ 弹窗字面量只有 标题「同步」+ 三个按钮（没有多余说明文字）", "实际 = %s" % literals)
-check(literals.count("同步所有") == 2,
-      "「同步所有」出现 2 次（入口按钮 + 弹窗内按钮）", "实际 %d 次" % literals.count("同步所有"))
+check(sorted(set(literals)) == sorted(["同步", "同步所有", "取消"]),
+      "★ 弹窗字面量只有 标题「同步」+ 入口按钮「同步所有」+ 取消（没有多余说明文字）",
+      "实际 = %s" % sorted(set(literals)))
+check(literals.count("同步所有") == 1 and popup_no.count("同步所有") == 2,
+      "「同步所有」出现 2 次（入口按钮字面量 + 弹窗内 Option 标签）",
+      "literal %d 次 / 全文 %d 次" % (literals.count("同步所有"), popup_no.count("同步所有")))
 
 # ======================================================================
 # 4) 发包与收包：类型逐格配对
@@ -321,8 +340,8 @@ write_order = None
 check(m is not None, "抠得出 send() 方法体")
 if m:
     fb = m.group(1)
-    check("new SyncSettingsPacket(domain, scope, force, key)" in fb,
-          "★ send() 构造 SyncSettingsPacket(domain, scope, force, key)")
+    check("new SyncSettingsPacket(domain, scope, force, key, extraKey)" in fb,
+          "★ send() 构造 SyncSettingsPacket(domain, scope, force, key, extraKey)（【10-04 修 2】PSD 主页 extraKey = 门串锚点）")
     check("Packets.CHANNEL.sendToServer(new SyncSettingsPacket(" in fb,
           "走 SyncSettingsPacket（sendToServer）")
     check("onClose()" in fb, "发完就 onClose() 回原界面")
@@ -330,9 +349,9 @@ if m:
           "实际 %d 条" % fb.count("sendToServer("))
 
 _sync_pkt = open(os.path.join(ROOT, "src", "main", "java", "smooth", "lift", "network", "SyncSettingsPacket.java"), encoding="utf-8").read()
-check("buf.readUtf(16), buf.readVarInt(), buf.readBoolean(), buf.readLong()" in _sync_pkt
-      or re.search(r"readUtf\(16\).*?readVarInt.*?readBoolean.*?readLong", _sync_pkt, re.S) is not None,
-      "★ SyncSettingsPacket.decode 读序 = utf16 · varInt · boolean · long（与写序同序同类型）")
+check("buf.readUtf(16), buf.readVarInt(), buf.readBoolean(), buf.readLong(), buf.readLong()" in _sync_pkt
+      or re.search(r"readUtf\(16\).*?readVarInt.*?readBoolean.*?readLong.*?readLong", _sync_pkt, re.S) is not None,
+      "★ SyncSettingsPacket.decode 读序 = utf16 · varInt · boolean · long · long（key + extraKey；与写序同序同类型）")
 
 
 def write_read_paired(writes, reads):
@@ -356,8 +375,10 @@ check(os.path.isfile(os.path.join(ROOT, "src", "main", "java", "smooth", "lift",
 check(re.search(r'class SyncSettingsPacket',
                 _sync_pkt) is not None,
       "SyncSettingsPacket 包类存在")
-check("enqueueWork(() -> {" in _sync_pkt and "displayClientMessage" in _sync_pkt,
-      "★ SyncSettingsPacket.handle：切主线程 + 同步结果回一条聊天栏消息")
+check("enqueueWork(() -> {" in _sync_pkt and "noteUiResult(player, ok)" in _sync_pkt,
+      "★ SyncSettingsPacket.handle：切主线程 + 成败并进 UI 会话（noteUiResult，【10-04 修 3】不回长句聊天栏）")
+check("displayClientMessage" not in _sync_pkt,
+      "★ SyncSettingsPacket 不再 displayClientMessage 长句（Bug3：改为操作成功失败）")
 
 # ======================================================================
 # 5) ESC / 取消：回原界面，且没掐断 ESC 默认路径
@@ -392,6 +413,8 @@ FORCE_SETTERS = [
     "setDefaultPsdMidiumAll", "setDefaultPsdMidiumVolumeAll",
     "setDefaultPsdArriveAll", "setDefaultPsdArriveVolumeAll",
     "setDefaultPsdToneAudioAll",
+    "setDefaultPsdDepartDelayAll",
+    "setDefaultPsdNarrateAll", "setDefaultPsdMidiumNarrateAll",
 ]
 PLAIN_SETTERS = [
     "setGlobalRunSpeed", "setGlobalStepSpeed", "setDefaultVolume",
@@ -402,6 +425,7 @@ PLAIN_SETTERS = [
     "setDefaultPsdMidium", "setDefaultPsdMidiumVolume",
     "setDefaultPsdArrive", "setDefaultPsdArriveVolume",
     "setDefaultPsdToneAudio",
+    "setDefaultPsdNarrate", "setDefaultPsdMidiumNarrate",
 ]
 
 METHODS = {
@@ -602,9 +626,9 @@ check(lift_which is not None and list(reversed(lift_pages)) != lift_which,
       "把界面 PAGES 倒序 -> 一致判据变红（对照）",
       "倒序 = %s" % (list(reversed(lift_pages)) if lift_pages else None))
 probe_swap = list(lift_pages or [])
-if len(probe_swap) == 3:
-    probe_swap[0], probe_swap[2] = probe_swap[2], probe_swap[0]
-check(probe_swap != lift_which, "把 up 与 chime 对调 -> 一致判据变红（对照）", "探针 = %s" % probe_swap)
+if len(probe_swap) >= 2:
+    probe_swap[0], probe_swap[1] = probe_swap[1], probe_swap[0]
+check(probe_swap != lift_which, "把 up 与下一项对调 -> 一致判据变红（对照）", "探针 = %s" % probe_swap)
 
 # 10e) 编号常量改错必须变红
 check(const_int(sl_no, "SYNC_PSD_MIDIUM_PAGE") == 3, "到站页 = 3（基线）")

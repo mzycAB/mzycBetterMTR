@@ -46,7 +46,9 @@ public class ImportFolderPsdTonePacket {
             ServerPlayer player = context.getSender();
             if (player == null) return;
             ServerLevel level = player.serverLevel();
-            String problem = EscalatorSpeedManager.importAudioToStore(level, pkt.fileName);
+            String problem = EscalatorSpeedManager.importAudioToStore(
+                    level, "open".equals(pkt.which) ? EscalatorSpeedManager.CAT_PSD_OPEN : EscalatorSpeedManager.CAT_PSD_CLOSE,
+                    pkt.fileName);
             if (problem == null) {
                 if (EscalatorSpeedManager.setServerPsdTone(level, pkt.key, pkt.which, pkt.fileName)) {
                     player.displayClientMessage(Component.literal(

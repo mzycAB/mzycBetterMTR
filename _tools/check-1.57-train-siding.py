@@ -199,7 +199,7 @@ check('literal("train")' not in sl_no,
 check("TRAIN_MUSIC_OPEN_CHANNEL" not in client_no, "客户端不再注册那只空包接收器")
 check("SmoothLift.isMtrRail(level.getBlockState(event.getPos()))" in client_no,
       "客户端右键回调按 mtr:rail 判方块（Forge 事件里的 level/event.getPos()）")
-check("MtrSidingAccess.facingSidingKey()" in client_no, "客户端靠 MtrSidingAccess 认侧线")
+check("MtrSidingAccess.facingSidingKey(" in client_no, "客户端靠 MtrSidingAccess 认侧线")
 check("new TrainSoundScreen(sidingKey)" in client_no, "界面带着侧线身份打开")
 i_guard = client_no.find("sidingKey != MtrSidingAccess.NO_SIDING")
 i_open = client_no.find("new TrainSoundScreen(sidingKey)")
@@ -242,12 +242,13 @@ check("public static final long NO_SIDING = Long.MIN_VALUE;" in siding_no,
 check(siding_no.count("return NO_SIDING;") >= 4, "每条认不到的路都返回 NO_SIDING（不开界面）")
 check("warnedNoData" in siding_no and "warnedNoMatch" in siding_no,
       "失败路径各只打一次日志（不刷屏、也不静默）")
-fb = method_body(siding_no, "facingSidingKey")
-check(fb is not None, "有 facingSidingKey()")
+fb = method_body(siding_no, "facingSidingKeyMtr4")
+check(fb is not None, "有 facingSidingKeyMtr4()（双路实现：MTR4 分支读准星）")
 if fb:
-    check(fb.count("hexIdOf(rail)") == 1 and "LOGGER.info" in fb,
+    check(fb.count("hexIdOfMtr4(rail)") == 1 and "LOGGER.info" in fb,
           "★ 轨道 hash 只用于**日志**，没有被拿去做降级身份（否则同一条侧线会有两个身份、静默分桶）")
-    check("sidingGetId.invoke(siding)" in fb, "身份取的是 MTR 侧线的 id")
+    check("m4SidingGetId.invoke(siding)" in fb, "身份取的是 MTR 侧线的 id")
+check("facingSidingKeyMtr3" in siding_no, "双路实现：还有 MTR3 分支（需要被点位置）")
 
 # ======================================================================
 # 4) 一级页：仍是 1.56 那套（文字不许长出第三个字）

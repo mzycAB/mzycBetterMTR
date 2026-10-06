@@ -47,7 +47,7 @@ public class SetPsdArrivePacket {
             if (player == null) return;
             ServerLevel level = player.serverLevel();
             int libBefore = EscalatorSpeedManager.getServerData(level).audioLibrary.size();
-            String resolved = EscalatorSpeedManager.resolvePsdArriveName(level, pkt.name);
+            String resolved = EscalatorSpeedManager.resolvePsdArriveName(level, EscalatorSpeedManager.CAT_PSD_ARRIVE, pkt.name);
             if (resolved == null) {
                 player.displayClientMessage(Component.literal(
                         "进站报站设置失败：找不到名为「" + pkt.name + "」的音频"), true);

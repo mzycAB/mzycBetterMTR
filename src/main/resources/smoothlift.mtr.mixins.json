@@ -9,7 +9,8 @@
     "Mtr3LiftDoorMixin",
     "Mtr3LiftExternalCallMixin",
     "Mtr3LiftPanelCallMixin",
-    "Mtr4LiftTrackFloorShapeMixin"
+    "Mtr4LiftTrackFloorShapeMixin",
+    "Mtr4TrainDepartHoldMixin"
   ],
   "injectors": {
     "defaultRequire": 1

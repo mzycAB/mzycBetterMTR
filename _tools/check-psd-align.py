@@ -325,9 +325,13 @@ check(re.search(r"drop\s*==\s*0\.0f", player) is not None,
       "兜底②：门这一 tick 没动（红石锁住 / 被挡）→ 再等，超时后整段播")
 check("door == null || elapsed > ALIGN_MAX_WAIT_TICKS" in player,
       "兜底③：门不在快照里（走出渲染距离）或等到超时 → 整段播")
-check(re.search(r"play\(mc, pending\.tone\(\), pending\.door\(\), pending\.volume\(\), 0\)", player)
-      is not None,
-      "三条兜底都落到「整段播」（offset=0），不是静音")
+check(re.search(r"play\(mc, pending\.tone\(\), pending\.door\(\), pending\.volume\(\), "
+                r"fallbackStartMs\(pending\.tone\(\)\)\)", player) is not None,
+      "三条兜底都落到「兜底起点」播放（fallbackStartMs(...)，不是静音）")
+check(re.search(r"tone\.splitMs\(\) > 0 && !tone\.announce\(\)", player) is not None
+      and re.search(r"quantizeOffset\(tone\.splitMs\(\)\) : 0;", player) is not None,
+      "★ fallbackStartMs = 不要人声（default-s）→ 嘀嘀段起点起播；带人声 → 0 = 整段从头播"
+      "（对齐不上是对齐问题，不是意愿问题）")
 check("quantizeOffset" in player and "durationMs() - remainMs" in player,
       "偏移 = 量化(素材时长 − 剩余门程毫秒)")
 check(re.search(r"if \(split > 0 && rawStart < split\)\s*\{\s*rawStart = split;", player) is not None,

@@ -1,0 +1,1290 @@
+
+############################################################
+# mixin 插件安全
+############################################################
+  ==> 通过
+
+############################################################
+# mixin 包守卫(类)
+############################################################
+  ==> 通过
+
+############################################################
+# 扶梯阶梯渲染引擎
+############################################################
+  ==> 通过
+
+############################################################
+# 屏蔽门锚点与跳变
+############################################################
+  ==> 失败（完整输出见下方）
+===== 1) 锚点：左右两块 + 上下半格必须折到同一格 =====
+[PASS] facing=NORTH：左右 × 上下 共 4 个位置 → 锚点唯一  -- 锚点数 = 1
+[PASS] facing=NORTH：锚点 = 两块里 asLong 较小的那个
+[PASS] facing=SOUTH：左右 × 上下 共 4 个位置 → 锚点唯一  -- 锚点数 = 1
+[PASS] facing=SOUTH：锚点 = 两块里 asLong 较小的那个
+[PASS] facing=EAST：左右 × 上下 共 4 个位置 → 锚点唯一  -- 锚点数 = 1
+[PASS] facing=EAST：锚点 = 两块里 asLong 较小的那个
+[PASS] facing=WEST：左右 × 上下 共 4 个位置 → 锚点唯一  -- 锚点数 = 1
+[PASS] facing=WEST：锚点 = 两块里 asLong 较小的那个
+
+===== 2) 配对方向必须与 MTR getDoorValue() 一致（抄错方向会得到另一对格子）=====
+[PASS] facing=NORTH：MTR 规则下 LEFT → RIGHT（本实现同）
+[PASS] facing=NORTH：抄反方向会配到 (99, 64, 200) ≠ 正确的那一格
+[PASS] facing=SOUTH：MTR 规则下 LEFT → RIGHT（本实现同）
+[PASS] facing=SOUTH：抄反方向会配到 (101, 64, 200) ≠ 正确的那一格
+[PASS] facing=EAST：MTR 规则下 LEFT → RIGHT（本实现同）
+[PASS] facing=EAST：抄反方向会配到 (100, 64, 199) ≠ 正确的那一格
+[PASS] facing=WEST：MTR 规则下 LEFT → RIGHT（本实现同）
+[PASS] facing=WEST：抄反方向会配到 (100, 64, 201) ≠ 正确的那一格
+
+===== 3) 非门方块（玻璃/顶板）退化成自身，不吸附到门上 =====
+[PASS] 非门方块 anchorOf = 自身（不会吸附到门上）
+[PASS] 非门方块的 key 与门的 key 不同 ⇒ 不会互相顶掉
+
+===== 4) 开门 / 关门跳变：每次「起动」必须**恰好**触发一次 =====
+[PASS] 整段开门（0→1，30 tick）→ 恰好 1 次开门、0 次关门  -- 得到 (1, 0)
+[PASS] 整段关门（1→0，30 tick）→ 恰好 0 次开门、1 次关门  -- 得到 (0, 1)
+[PASS] 只开一半又收回去（0→0.5→0）→ 1 次开门（门机起动过）、0 次关门（没到过全开）  -- 得到 (1, 0)
+[PASS] 只关一半又推回去（1→0.5→1）→ 0 次开门、1 次关门（对称）  -- 得到 (0, 1)
+[PASS] 开一轮再关一轮 → 各 1 次  -- 得到 (1, 1)
+[PASS] 从半开（0.5）滑到全开 → 不触发（没离开过全关）  -- 得到 (0, 0)
+[PASS] 从半开（0.5）滑到全关 → 不触发（没离开过全开）  -- 得到 (0, 0)
+[PASS] 连开合两轮 → 各 2 次（不漏不多）  -- 得到 (2, 2)
+[PASS] 门一直全关（60 tick 不动）→ 不触发  -- 得到 (0, 0)
+[PASS] 门一直全开（60 tick 不动）→ 不触发  -- 得到 (0, 0)
+
+===== 5) MTR3 的 0.1/32 偏移：补与不补的差别（可核验的数字）=====
+        MTR3 原始返回值区间 = [-0.003125, 0.996875]
+        补 0.1/32 之后         = [0.000000, 1.000000]
+[PASS] 补偏移后「全关」正好是 0.0  -- 0.000000000
+[PASS] 补偏移后「全开」正好是 1.0  -- 1.000000000
+[PASS] 若容差取 1e-3（直梯那套）且不补偏移 → 「全开」到不了 1-1e-3，关门永远不触发  -- 0.996875 >= 0.999 为 False
+[PASS] 容差取 0.02 时，即便不补偏移关门也能触发（本实现两道保险都上了）  -- 0.996875 >= 0.980 为 True
+[PASS] 补了偏移后，即使容差取 1e-3 关门也能触发  -- 1.000000 >= 0.999 为 True
+
+===== 6) MTR4 的量纲：getDoorValue() 已经是 0..1，不该再补偏移 =====
+[PASS] MTR4 原值 [0,1] 直接满足两条边界（无需偏移）
+[PASS] 给 MTR4 补偏移会把「全关」抬离 0（所以 acceptMtr4 不补）  -- 0 + 0.1/32 = 0.003125
+
+===== 7) 组合穷举：4 个朝向 × 2 种半格 × 2 侧，锚点分组数必须恰好 = 1 =====
+[PASS] facing=NORTH：8 种（位置 × 半格）组合 → 1 组  -- 分组 = {27492085661896: [('LEFT', 'LOWER'), ('LEFT', 'UPPER'), ('RIGHT', 'LOWER'), ('RIGHT', 'UPPER')]}
+[PASS] facing=SOUTH：8 种（位置 × 半格）组合 → 1 组  -- 分组 = {27217207754952: [('LEFT', 'LOWER'), ('LEFT', 'UPPER'), ('RIGHT', 'LOWER'), ('RIGHT', 'UPPER')]}
+[PASS] facing=EAST：8 种（位置 × 半格）组合 → 1 组  -- 分组 = {27492085661896: [('LEFT', 'LOWER'), ('LEFT', 'UPPER'), ('RIGHT', 'LOWER'), ('RIGHT', 'UPPER')]}
+[PASS] facing=WEST：8 种（位置 × 半格）组合 → 1 组  -- 分组 = {27492085661895: [('LEFT', 'LOWER'), ('LEFT', 'UPPER'), ('RIGHT', 'LOWER'), ('RIGHT', 'UPPER')]}
+
+===== 8) 数据源门禁：只有真屏蔽门才采集（电梯门必须被挡掉，且先筛后采）=====
+[PASS] 注册名 psd_door           → 采集  -- MTR3/MTR4 屏蔽门主扇
+[PASS] 注册名 psd_door_2         → 采集  -- MTR 第二档屏蔽门
+[PASS] 注册名 apg_door           → 采集  -- 半高安全门 APG
+[PASS] 注册名 lift_door_1        → 丢弃  -- MTR3 电梯门（继承同一基类，曾静默多响一声）
+[PASS] 注册名 lift_door_odd_1    → 丢弃  -- MTR3 电梯门（奇数档）
+[PASS] 注册名 lift_door_even_1   → 丢弃  -- MTR4 电梯门（偶数档）
+[PASS] 注册名 psd_glass          → 丢弃  -- 屏蔽门玻璃：side/half 与门不是同一对，界面刻意不认
+[PASS] 注册名 psd_glass_end_2    → 丢弃  -- 屏蔽门端玻璃
+[PASS] 注册名 psd_top            → 丢弃  -- 屏蔽门顶板
+[PASS] 注册名 apg_glass          → 丢弃  -- APG 玻璃
+[PASS] accept() 里确实调用了 SmoothLift.isPsdDoor（门禁接在采集链路上，不是只在注释里）
+[PASS] 门禁出现在 LIVE.put 之前（先筛后采，不是采完再删）  -- gate@468 put@1540
+[PASS] anchorOf 有 BlockState 重载（门禁查过的 state 复用，同一格不每帧查两次）
+[PASS] 反向对照：拿掉门禁那一行后，判据检测不到它（说明判的是代码，不是注释）
+
+===== 9) 每一扇站台门各自发声 =====
+[PASS] 找得到 onClientTick 里的逐门循环
+[PASS] ★★ 循环体里对**每一扇**门都调 detect（各自带这一扇的距离） —— 不再是「只有最近那一扇」
+[PASS] ★ 距离是按**这一扇门自己**的坐标算的（不是把最近门的距离复用到所有门）
+[PASS] noteCycle 排在 detect 之前（先学周期再判跳变，顺序反了会晚一拍）
+[FAIL] ★★ 旧的「只给离玩家最近的那一扇发声」闸门已**彻底不存在**（留着它 ⇒ 症状照旧：整条屏蔽门只有一个点在响）；★【1.26】nearestInRun / nearestPerRun 是**新的**合法含义（本串最近的门），不受这条限制  -- 命中 DoorView nearest
+[PASS] 幕墙类 psd_glass          进不了快照 ⇒ 结构上不可能发声
+[PASS] 幕墙类 psd_glass_2        进不了快照 ⇒ 结构上不可能发声
+[PASS] 幕墙类 psd_glass_end      进不了快照 ⇒ 结构上不可能发声
+[PASS] 幕墙类 psd_glass_end_2    进不了快照 ⇒ 结构上不可能发声
+[PASS] 幕墙类 psd_top            进不了快照 ⇒ 结构上不可能发声
+[PASS] 幕墙类 apg_glass          进不了快照 ⇒ 结构上不可能发声
+[PASS] 反向对照：改回「最近门」闸门后，判据检测得到它（说明判的是代码，不是注释）
+
+== 失败 1 项 ==
+   - ★★ 旧的「只给离玩家最近的那一扇发声」闸门已**彻底不存在**（留着它 ⇒ 症状照旧：整条屏蔽门只有一个点在响）；★【1.26】nearestInRun / nearestPerRun 是**新的**合法含义（本串最近的门），不受这条限制
+
+############################################################
+# 屏蔽门存档字段
+############################################################
+  ==> 失败（完整输出见下方）
+===== 1) 读 / 写 集合完全相等（全局）=====
+        读 109 个字段、写 106 个字段
+[FAIL] 没有「读了却不写」的字段（否则值一重启就丢）  -- 多出来：['chime', 'defaultPsdNarrateOn', 'departDelaySeconds']
+[PASS] 没有「写了却不读」的字段（否则设置存了没人理）  -- 无
+
+===== 2) 屏蔽门这一批字段必须 13 项齐全（读 + 写都在）=====
+[PASS] 读侧有 defaultPsdHelp
+[PASS] 写侧有 defaultPsdHelp
+[PASS] 读侧有 defaultPsdToneOpenEnabled
+[PASS] 写侧有 defaultPsdToneOpenEnabled
+[PASS] 读侧有 defaultPsdToneCloseEnabled
+[PASS] 写侧有 defaultPsdToneCloseEnabled
+[PASS] 读侧有 defaultPsdHelpVolume
+[PASS] 写侧有 defaultPsdHelpVolume
+[PASS] 读侧有 defaultPsdToneVolumeOpen
+[PASS] 写侧有 defaultPsdToneVolumeOpen
+[PASS] 读侧有 defaultPsdToneVolumeClose
+[PASS] 写侧有 defaultPsdToneVolumeClose
+[PASS] 读侧有 defaultPsdHelpRound
+[PASS] 写侧有 defaultPsdHelpRound
+[PASS] 读侧有 psdToneAudio
+[PASS] 写侧有 psdToneAudio
+[PASS] 读侧有 defaultPsdToneAudioOpen
+[PASS] 写侧有 defaultPsdToneAudioOpen
+[PASS] 读侧有 defaultPsdToneAudioClose
+[PASS] 写侧有 defaultPsdToneAudioClose
+[PASS] 读侧有 defaultPsdCloseWaitSeconds
+[PASS] 写侧有 defaultPsdCloseWaitSeconds
+[PASS] 读侧有 defaultPsdMidiumAudio
+[PASS] 写侧有 defaultPsdMidiumAudio
+[PASS] 读侧有 defaultPsdMidiumWaitSeconds
+[PASS] 写侧有 defaultPsdMidiumWaitSeconds
+[PASS] 读侧有 defaultPsdArriveAudio
+[PASS] 写侧有 defaultPsdArriveAudio
+[PASS] 读侧有 defaultPsdArriveSeconds
+[PASS] 写侧有 defaultPsdArriveSeconds
+[PASS] 屏蔽门字段清单 = 14 个标量 + 1 个列表（共 15 项）
+
+===== 3) 屏蔽门字段在 Manager 里必须有「读侧入口」（否则是死数据）=====
+[PASS] Manager 提供 getPsdArriveAudio（覆盖字段 defaultPsdArriveAudio）
+[PASS] Manager 提供 getPsdArriveSeconds（覆盖字段 defaultPsdArriveSeconds）
+[PASS] Manager 提供 getPsdCloseWaitSeconds（覆盖字段 defaultPsdCloseWaitSeconds）
+[PASS] Manager 提供 isPsdHelpEnabled（覆盖字段 defaultPsdHelp）
+[PASS] Manager 提供 getPsdHelpRound（覆盖字段 defaultPsdHelpRound）
+[PASS] Manager 提供 getPsdHelpVolume（覆盖字段 defaultPsdHelpVolume）
+[PASS] Manager 提供 getPsdMidiumAudio（覆盖字段 defaultPsdMidiumAudio）
+[PASS] Manager 提供 getPsdMidiumWaitSeconds（覆盖字段 defaultPsdMidiumWaitSeconds）
+[PASS] Manager 提供 getPsdToneAudio（覆盖字段 defaultPsdToneAudioClose）
+[PASS] Manager 提供 getPsdToneAudio（覆盖字段 defaultPsdToneAudioOpen）
+[PASS] Manager 提供 isPsdToneEnabled（覆盖字段 defaultPsdToneCloseEnabled）
+[PASS] Manager 提供 isPsdToneEnabled（覆盖字段 defaultPsdToneOpenEnabled）
+[PASS] Manager 提供 getPsdToneVolume（覆盖字段 defaultPsdToneVolumeClose）
+[PASS] Manager 提供 getPsdToneVolume（覆盖字段 defaultPsdToneVolumeOpen）
+[PASS] Manager 提供 getClientPsdTone（覆盖字段 psdToneAudio）
+
+===== 4) 读进来的数值必须夹取（挡住被外部改坏的存档值）=====
+[PASS] 读 defaultPsdHelpVolume 时套了 clampLiftHelpVolume（避免越界值被原版悄悄压回去 ⇒ 表现成「填了没用」）  -- data.defaultPsdHelpVolume = clampLiftHelpVolume(tag.getInt("defaultPsd
+[PASS] 读 defaultPsdToneVolumeOpen 时套了 clampPsdToneVolume（避免越界值被原版悄悄压回去 ⇒ 表现成「填了没用」）  -- data.defaultPsdToneVolumeOpen = clampPsdToneVolume(tag.getInt("default
+[PASS] 读 defaultPsdToneVolumeClose 时套了 clampPsdToneVolume（避免越界值被原版悄悄压回去 ⇒ 表现成「填了没用」）  -- data.defaultPsdToneVolumeClose = clampPsdToneVolume(tag.getInt("defaul
+[PASS] 读 defaultPsdHelpRound 时套了 clampPsdHelpRound（避免越界值被原版悄悄压回去 ⇒ 表现成「填了没用」）  -- data.defaultPsdHelpRoundXz = clampPsdHelpRound(tag.getInt("defaultPsdH
+[PASS] 读 defaultPsdCloseWaitSeconds 时套了 clampPsdCloseWaitSeconds（避免越界值被原版悄悄压回去 ⇒ 表现成「填了没用」）  -- data.defaultPsdCloseWaitSeconds = clampPsdCloseWaitSeconds(tag.getInt(
+[PASS] 读 defaultPsdMidiumWaitSeconds 时套了 clampPsdMidiumWaitSeconds（避免越界值被原版悄悄压回去 ⇒ 表现成「填了没用」）  -- data.defaultPsdMidiumWaitSeconds = clampPsdMidiumWaitSeconds(tag.getIn
+[PASS] 读 defaultPsdArriveSeconds 时套了 clampPsdArriveSeconds（避免越界值被原版悄悄压回去 ⇒ 表现成「填了没用」）  -- data.defaultPsdArriveSeconds = clampPsdArriveSeconds(tag.getInt("defau
+
+===== 4b) 字符串型「素材 id」读回时也要归一化（挡住任意脏串）=====
+[PASS] 读 defaultPsdMidiumAudio 时套了 normalizePsdMidiumAudio（off/空/脏串都收敛）  -- data.defaultPsdMidiumAudio = normalizePsdMidiumAudio(tag.getString("de
+[PASS] 读 defaultPsdArriveAudio 时套了 normalizePsdArriveAudio（off/空/脏串都收敛）  -- data.defaultPsdArriveAudio = normalizePsdArriveAudio(tag.getString("de
+
+===== 5) 布尔字段必须是「只在 contains 时覆盖」，不能无条件写默认值 =====
+[PASS] 读 defaultPsdHelp 前先判 contains（不会把「没有这个键」当成 false 而覆盖）
+[PASS] 读 defaultPsdToneOpenEnabled 前先判 contains（不会把「没有这个键」当成 false 而覆盖）
+[PASS] 读 defaultPsdToneCloseEnabled 前先判 contains（不会把「没有这个键」当成 false 而覆盖）
+
+== 失败 1 项 ==
+   - 没有「读了却不写」的字段（否则值一重启就丢）
+
+############################################################
+# 屏蔽门提示音素材
+############################################################
+  ==> 失败（完整输出见下方）
+== 1. 素材（三段内置 ogg + sounds.json 注册） ==
+[PASS] 内置素材文件存在：dooropen.ogg
+[PASS] 内置素材文件存在：doorclose.ogg
+[PASS] 内置素材文件存在：mdoorclose.ogg
+[PASS] sounds.json 注册了 audio/dooropen
+[PASS] sounds.json 注册了 audio/doorclose
+[PASS] sounds.json 注册了 audio/mdoorclose
+[PASS] 旧的合成素材 psd_open / psd_close 已从 sounds.json 移除（别再加回来）
+[PASS] 旧的 psd_open.ogg / psd_close.ogg 文件已删除
+
+== 2. 数据层（四个内置名常量 + 别名映射 + 两个维度默认字段） ==
+[PASS] PSD_TONE_BUILTIN_OPEN = default（跟上一层 / 按端别落内置）
+[PASS] PSD_TONE_BUILTIN_CLOSE = default-c（显式 doorclose.ogg）
+[PASS] PSD_TONE_BUILTIN_CLOSE_M = default-m（显式 mdoorclose.ogg）
+[PASS] PSD_TONE_BUILTIN_CLOSE_S = default-s（「默认（短）」：同素材但不播语音播报段）
+[PASS] 数据层提供 isPsdBuiltinName（四个内置名判定）
+[PASS] 数据层提供 isPsdBuiltinShort（谁负责「只播嘀嘀」这条判定 —— 播放端不自己认字面量）
+[PASS] 找到 psdBuiltinKey（名字 → 内置档 key）
+[PASS] default 按端别落：开门 dooropen / **关门 mdoorclose**（用户点名的默认音效）
+[PASS] default-c → doorclose
+[PASS] default-m → mdoorclose
+[PASS] ★ default-s 与 default 共用**同一个**按端别分支（不另起一个返回值） ⇒ 它不是第四段音频，只是一条播放策略
+[PASS] isPsdBuiltinName 收录**全部四个**名字（漏一个 ⇒ UI 点那一行会被判「音频不存在」）
+[PASS] 数据层两个「维度默认素材」字段（初始 default ⇒ 与 1.50 行为一致）
+[PASS] 数据层有「空值→default」与「两项全默认」两个小工具
+[PASS] 两个新字段写/读成对（缺字段读回 default，旧存档兼容）
+[PASS] 删音频时把指向它的**按扇门**与**维度默认**引用都退回 default（不留悬空引用）
+
+== 3. Manager（读写 / 名字解析 / 补全候选 / 同步） ==
+[PASS] Manager：读维度默认 / 取单项字段 / 写单项默认三个入口
+[PASS] 四个设定接口（本维度 / 本维度 X to Y / -f 全部 / -f X to Y）
+[PASS] -f 会清掉「按扇门单独设置」（那些门从此跟维度默认）
+[PASS] Manager：名字解析 + Tab 补全候选
+[FAIL] 找到 resolvePsdToneName
+[FAIL] 补全候选：四段内置名排最前，然后才是 none 与库文件名
+[FAIL] 补全候选里有 default-s（Tab 能补出来）
+[PASS] ★ setServerPsdTone 用 isPsdBuiltinName(id) 放行（**不是**把四个名字各抄一遍） ⇒ 以后再加内置名不会漏掉这一处
+[FAIL] 放行集合 = 内置名 ∪ 不播 ∪ 音频库（三支都在）
+
+== 4. 指令（/pbmmusic open|close 素材分支 + 补全；/pbmloud 音量） ==
+[PASS] /pbmmusic 注册 open / close 两条子树
+[PASS] 指令处理器存在：pbmMusicItemAudioSet
+[PASS] 指令处理器存在：pbmMusicItemAudioFromTo
+[PASS] 指令处理器存在：pbmMusicItemAudioForceSet
+[PASS] 指令处理器存在：pbmMusicItemAudioForceFromTo
+[FAIL] 素材名参数挂了补全提供器（Tab 能补出四个内置名 / none / 导入过的 ogg）
+[PASS] 补全提供器容忍 null source（_tools/CmdTreeCheck 用 null source 解析真指令树）
+[PASS] 指令反馈给 default-s 留了显示名（玩家能看懂「默认（短）」是什么意思）
+[PASS] 找到 pbmMusicItemCommand 构造器
+[PASS] 字面量 -f 排在字符串参数 name 前面（顺序即优先级）
+[PASS] 字面量 on 排在字符串参数 name 前面
+[PASS] 指令调用 setDefaultPsdToneAudio
+[PASS] 指令调用 replaceDefaultPsdToneAudio
+[PASS] 指令调用 setDefaultPsdToneAudioAll
+[PASS] 指令调用 replaceDefaultPsdToneAudioAll
+[PASS] 素材改动既同步 chime 包（维度默认）又同步 tone 包（按扇门表）
+[PASS] 指令反馈里有素材 id 的显示名函数
+[PASS] /pbmloud（音量 1~1000）与 /pbmround（范围）都还在（【1.23】后者改由 roundCommand 产出 —— 四条范围指令共用一条产出器）
+[PASS] /pbmloud 有 open / close 两项单独音量
+
+== 5. 同步包（服务端写 / 客户端读，顺序成对） ==
+[PASS] 找到 PsdChimeSyncPacket.encode
+[FAIL] 包尾追加 open / close 两个默认素材字符串
+Traceback (most recent call last):
+  File "C:\Users\user\Desktop\2\mzycBetterMTR-Forge-1.20.1\_tools\check-psd-tone.py", line 260, in <module>
+    check(pk.index("pkt.toneAudioOpen") < pk.index("pkt.toneAudioClose"),
+          ~~~~~~~~^^^^^^^^^^^^^^^^^^^^^
+ValueError: substring not found
+
+############################################################
+# 屏蔽门关门提示音对齐
+############################################################
+  ==> 失败（完整输出见下方）
+===== 1) 门程：把 MTR4 / MTR3 的字节码公式搬过来算（可核验的 tick 数）=====
+        MTR4：80 tick = 4000ms（每 tick 走 1/80 门程）
+        MTR3：34 tick = 1700ms（每 tick 走 0.95/32 门程）
+[PASS] MTR4 门程 = 80 tick = 4000ms（字节码直算）
+[PASS] MTR3 门程落在 30~40 tick（≈1.7 秒），与 MTR4 差一倍以上  -- 得到 34 tick
+[PASS] 两个版本门程差到 2 倍以上 ⇒ 门程只能是**实测值**，写死一个数必歪一边  -- MTR4 4000ms vs MTR3 1700ms
+
+===== 2) 三段素材的真实时长（soundfile 实测，与 Java 侧算式交叉验证）=====
+[PASS] dooropen.ogg 时长：Java 侧算式 = 2283ms，实测 = 2283ms
+        dooropen.ogg  44100Hz 2 声道  100666 帧  = 2.283s
+[PASS] doorclose.ogg 时长：Java 侧算式 = 10536ms，实测 = 10536ms
+        doorclose.ogg  44100Hz 2 声道  464657 帧  = 10.536s
+[PASS] mdoorclose.ogg 时长：Java 侧算式 = 10806ms，实测 = 10806ms
+        mdoorclose.ogg  44100Hz 2 声道  476551 帧  = 10.806s
+
+===== 3) 对齐算式（**路 A 剪头**）：start = 量化(素材时长 − 门还在走的毫秒数) =====
+        路 A 覆盖：default-s（默认（短））/ 素材没有两段结构 / 路 B 没排上的兜底；带人声且排上了提前量的那一档整段提前播，不走这里
+        mdoorclose.ogg：素材 10806ms，门程 4000ms → 从 6850ms 起播，余 3956ms；门在 3950ms 后关上 ⇒ 差 +6ms
+[PASS] mdoorclose.ogg 在 MTR4 上确实剪了头（素材 10.8 秒 > 门程 4 秒）
+[PASS] mdoorclose.ogg 结尾与门关上时刻的误差 ≤ 半格量化（13.5ms）  -- 差 +6ms
+[PASS] mdoorclose.ogg 剪头不改变「整段 = 起点 + 余量」
+        doorclose.ogg：素材 10536ms，门程 4000ms → 从 6575ms 起播，余 3961ms；门在 3950ms 后关上 ⇒ 差 +11ms
+[PASS] doorclose.ogg 在 MTR4 上确实剪了头（素材 10.8 秒 > 门程 4 秒）
+[PASS] doorclose.ogg 结尾与门关上时刻的误差 ≤ 半格量化（13.5ms）  -- 差 +11ms
+[PASS] doorclose.ogg 剪头不改变「整段 = 起点 + 余量」
+        f1 扫 (0.90, 0.999]：结尾误差最大 12ms（出现在 f1=0.992）
+[PASS] ★ 无论在哪一帧检测到关门，结尾误差都 ≤ 半格量化（对齐与检测点无关，只与门速有关）  -- 最差 12ms
+        dooropen.ogg：素材 2283ms，门程 4000ms → 算式得 -1667（≤ 0 即不剪）
+[PASS] 开门素材（2.28 秒）**比门程短** ⇒ 偏移 ≤ 0 ⇒ 退回整段播（开门端行为一字未改）
+[PASS] 对同一素材若改用「推迟 1717ms 再播」，门都开完一半了 —— 这正是**不能**对称处理的原因
+        mdoorclose.ogg（MTR3）：从 9150ms 起播，余 1656ms（门程 1700ms）
+[PASS] MTR3 上也剪（素材 10.8 秒 >> 门程 1.7 秒）
+[PASS] MTR3 上剪完只剩约一个门程的长度（不会剪过头）  -- 余 1656ms vs 门程 1700ms
+[PASS] 素材时长恰好等于门程 ⇒ 偏移 0 ⇒ 整段播（本来就对齐）  -- 得到 0
+        mdoorclose.ogg：剪掉 0~6850ms（RMS 0.1007），保留 6850~10800ms（RMS 0.1242）
+[PASS] ★ 保留的那一段是有声的（不是把提示音剪到静音里）  -- 保留段 RMS 0.1242 vs 全曲 0.1098
+[PASS] 剪点落在「语音播报 → 静音/嘀嘀」交界附近（≈6.85s；分界点实测 6.707s）  -- 剪点 6.850s
+
+===== 4) 挂起一 tick 不会让声音晚出来（推导 + 数值验证）=====
+[PASS] 门程 4000ms：晚一 tick 播 + 少剪一 tick ⇒ 任意时刻听到的内容完全相同
+[PASS] 门程 1700ms：晚一 tick 播 + 少剪一 tick ⇒ 任意时刻听到的内容完全相同
+
+===== 5) 源码结构（对齐只做关门端 + 兜底齐备）=====
+[PASS] PsdChimePlayer 有「挂起 → 下一 tick 播」这条链（pendingClose / resumeClose）
+[PASS] 有等待上限常量（门不动时不能无限等）
+[PASS] ★ 只有 **closing** 才挂起对齐（开门端不走这条路 ⇒ 行为与 1.50 一致）
+[PASS] 兜底①：门反向（关到一半又开回去）→ 整段播一次，那一声不能丢
+[PASS] 兜底②：门这一 tick 没动（红石锁住 / 被挡）→ 再等，超时后整段播
+[PASS] 兜底③：门不在快照里（走出渲染距离）或等到超时 → 整段播
+[FAIL] 三条兜底都落到「整段播」（offset=0），不是静音
+[PASS] 偏移 = 量化(素材时长 − 剩余门程毫秒)
+[PASS] ★ 剪头被夹在「语音播报 / 嘀嘀」分界点之后（不许剪进语音播报里）；本脚本的 align() 模型在**内置素材上**不受这条影响（raw 已在分界点之后）
+[PASS] 剩余门程用 50ms/tick 换算（20 TPS）
+[PASS] resumeClose 每 tick 被调用（门列表为空时也先冲一次，避免挂起的那一声凭空消失）
+[PASS] ★ 路 A（挂起剪头）排在「已经提前播过」那道判断**之后** ⇒ 两条路互斥，本脚本的 align() 模型只对应没走成路 B 的情形  -- fired@57698 pending@58008
+[PASS] ★ 路 B 的入口在 planClose 里，判据 = !announce || split<=0 ⇒ **不猜**、直接交给路 A（与 align() 模型互补：一个保人声、一个保结尾）
+[PASS] ★ 旧「开门时提前播人声」整段删除 ⇒ 源码里只剩这两条路，align() 模型与它一一对应
+
+===== 6) 剪头播放的水管（时长 / 字节来源 / 切片 / 退回）=====
+[PASS] EscalatorAudioPlayer 有量化步长与量化函数
+[PASS] 内置素材的字节从模组 jar 读（内置档在同步表里没有字节）
+[PASS] 类路径前缀指向 assets/smoothlift/sounds/audio/（sounds.json 同一目录）
+[PASS] sliceHead 用「视图」（duplicate/slice）剪头，不复制内存
+[PASS] 剪头按**帧**对齐（否则 16bit 立体声会声道错位）
+[PASS] 偏移编码进播放 ID（注入的缓存 key 与 resolve 的 Sound.getPath() 同源）
+[PASS] 有「按播放 ID 注入」的入口
+[PASS] 解码失败按**素材**记（换个偏移不会反复重解）
+[PASS] ★ 剪头那档连**内置档**也拿字节走注入（原版事件没法从中间开始播）
+[PASS] 剪头那档播不出来 → playbackId 置空、退回整段（宁可不对齐，也不要不出声）
+[PASS] 播放实例二选一：剪头档用播放 ID，否则用素材 ID / null（原版事件）
+
+===== 7) 版本号与产物 =====
+[PASS] gradle.properties 的 mod_version = 1.30.11201（用户点名的号）  -- 得到 1.30.11201
+[PASS] gradle.properties 的 archives_base_name = mzycBetterMTR（jar 名前缀 = 模组显示名）
+[PASS] ★ build.gradle 真的**应用**了 archives_base_name（只声明不应用 ⇒ jar 仍是旧名）
+        检查 jar：mzycBetterMTR-1.30.11201.jar
+[PASS] 打包出来的是 1.30.11201（不是别的号）
+[PASS] jar 文件名以 mzycBetterMTR- 开头（不是 smooth-escalator-）
+[PASS] jar 内含素材 dooropen.ogg
+[PASS] jar 内含素材 doorclose.ogg
+[PASS] jar 内含素材 mdoorclose.ogg
+[PASS] PsdChimePlayer.class 里编进了挂起/恢复链
+[PASS] EscalatorAudioPlayer.class 里编进了剪头播放链路
+
+== 失败 1 项 ==
+   - 三条兜底都落到「整段播」（offset=0），不是静音
+
+############################################################
+# 屏蔽门提示音顺序
+############################################################
+  ==> 失败（完整输出见下方）
+===== 0) 常量：从 Java 源码里读出来（不另抄一份）=====
+[PASS] EscalatorAudioPlayer.SPLIT_MIN_SILENCE_MS = 400（实测真分界 514ms，留 114ms 余量）  -- 得到 400
+[PASS] SPLIT_MIN_TAIL_MS = 1500（分界点之后要还剩一整串嘀嘀）  -- 得到 1500
+[PASS] SPLIT_SILENCE_LEVEL = 1e-3（-60dBFS）  -- 得到 0.001
+[PASS] PsdChimePlayer.PLAN_GRACE_TICKS = 40（过期 2 秒 = 这一轮早过去了，不补播）  -- 得到 40
+
+===== 1) 素材结构：分界点是**量出来的**（Java 算法逐帧照搬）=====
+        mdoorclose.ogg  10806ms  分界点 = 6707ms   合格安静起点：6707ms
+        doorclose.ogg   10536ms  分界点 = 6424ms   合格安静起点：6424ms
+        dooropen.ogg     2283ms  分界点 = -1（无两段结构）   合格安静起点：（无）
+[PASS] mdoorclose.ogg 分界点 ≈ 6707ms（6.707s 处 514ms 静音的起点，允许 ±30ms 漂移）  -- 得到 6707ms
+[PASS] doorclose.ogg 分界点 ≈ 6424ms（允许 ±30ms 漂移）  -- 得到 6424ms
+[PASS] dooropen.ogg 分界点 = -1（没有「播报+嘀嘀」结构）⇒ 开门端走老的整段播，一刀未改  -- 得到 -1
+
+===== 1b) 为什么「阈值大小」不是关键（关键在「取最后一段」）=====
+        mdoorclose.ogg：分界点之后 17 个间隔，极差 10ms（严格等间隔）
+[PASS] mdoorclose.ogg 分界点之后是**20 个左右的等间隔脉冲**（极差 ≤30ms）⇒ 后面确实是「一整串嘀嘀」  -- n=17 极差=10ms
+        语音段里 > 400ms 的停顿：480ms, 890ms, 1150ms, 420ms, 460ms, 580ms, 1050ms
+[PASS] ★ 语音播报段里确实有**超过阈值**的句间停顿（1150ms）—— 它照样被选中、只是被最后的真分界点覆盖 ⇒ 机制是「取最后一段」而不是「阈值大小」  -- 最长 1150ms
+        doorclose.ogg：分界点之后 17 个间隔，极差 10ms（严格等间隔）
+[PASS] doorclose.ogg 分界点之后是**20 个左右的等间隔脉冲**（极差 ≤30ms）⇒ 后面确实是「一整串嘀嘀」  -- n=17 极差=10ms
+        语音段里 > 400ms 的停顿：490ms, 1440ms, 1050ms, 440ms, 1290ms
+[PASS] ★ 语音播报段里确实有**超过阈值**的句间停顿（1440ms）—— 它照样被选中、只是被最后的真分界点覆盖 ⇒ 机制是「取最后一段」而不是「阈值大小」  -- 最长 1440ms
+
+===== 2) 提前量算术（照搬 planClose：fireTick = now + cycle − ceil(时长/50)）=====
+        素材：10806ms（人声 0~6707ms / 嘀嘀 7235~10806ms，18 声）；门程 4000ms；T = 门开始关
+        停站  7000ms：周期 220 tick；起播    +150ms（T-6850ms）；人声结束 T-143ms；第一声嘀 T+385ms；结尾 -44ms vs 门全关
+[PASS] ★ 停 7000ms：起播 -6850ms **早于**门开始关（T=0）⇒ 「不是开始关门才播放提示音」
+[PASS] ★ 停 7000ms：人声在门开始关**之前** 143ms 就播完 ⇒ 用户要的「等待 → 关门人声 → 关门」
+[PASS] ★ 停 7000ms：第一声嘀在门开始关**之后** 385ms 才响 ⇒ 「关门 → 关门嘀嘀嘀」
+[PASS] ★ 停 7000ms：提示音结尾与「门正好关上」相差 -44ms ≤ 1 tick ⇒ 用户第三次的要求成立  -- err=-44ms
+        停站  9000ms：周期 260 tick；起播   +2150ms（T-6850ms）；人声结束 T-143ms；第一声嘀 T+385ms；结尾 -44ms vs 门全关
+[PASS] ★ 停 9000ms：起播 -6850ms **早于**门开始关（T=0）⇒ 「不是开始关门才播放提示音」
+[PASS] ★ 停 9000ms：人声在门开始关**之前** 143ms 就播完 ⇒ 用户要的「等待 → 关门人声 → 关门」
+[PASS] ★ 停 9000ms：第一声嘀在门开始关**之后** 385ms 才响 ⇒ 「关门 → 关门嘀嘀嘀」
+[PASS] ★ 停 9000ms：提示音结尾与「门正好关上」相差 -44ms ≤ 1 tick ⇒ 用户第三次的要求成立  -- err=-44ms
+        停站 15000ms：周期 380 tick；起播   +8150ms（T-6850ms）；人声结束 T-143ms；第一声嘀 T+385ms；结尾 -44ms vs 门全关
+[PASS] ★ 停 15000ms：起播 -6850ms **早于**门开始关（T=0）⇒ 「不是开始关门才播放提示音」
+[PASS] ★ 停 15000ms：人声在门开始关**之前** 143ms 就播完 ⇒ 用户要的「等待 → 关门人声 → 关门」
+[PASS] ★ 停 15000ms：第一声嘀在门开始关**之后** 385ms 才响 ⇒ 「关门 → 关门嘀嘀嘀」
+[PASS] ★ 停 15000ms：提示音结尾与「门正好关上」相差 -44ms ≤ 1 tick ⇒ 用户第三次的要求成立  -- err=-44ms
+        停站 30000ms：周期 680 tick；起播  +23150ms（T-6850ms）；人声结束 T-143ms；第一声嘀 T+385ms；结尾 -44ms vs 门全关
+[PASS] ★ 停 30000ms：起播 -6850ms **早于**门开始关（T=0）⇒ 「不是开始关门才播放提示音」
+[PASS] ★ 停 30000ms：人声在门开始关**之前** 143ms 就播完 ⇒ 用户要的「等待 → 关门人声 → 关门」
+[PASS] ★ 停 30000ms：第一声嘀在门开始关**之后** 385ms 才响 ⇒ 「关门 → 关门嘀嘀嘀」
+[PASS] ★ 停 30000ms：提示音结尾与「门正好关上」相差 -44ms ≤ 1 tick ⇒ 用户第三次的要求成立  -- err=-44ms
+        停站 0ms（极端）：planClose 返回 None（不排）
+[PASS] ★ 周期 ≤ 素材时长（4000ms ≤ 10806ms）时**不排提前量** ⇒ 退回剪头，宁可这一轮没有人声也不让门先关
+[PASS] ★ 周期刚超过素材时长一点点（停 7000ms，提前量 -6850ms）时仍然排得下 ⇒ 判据不是「停站要很长」
+        过期判据：提前量到点后晚 40 tick（2000ms）内还来得及；再晚就算这一轮过去了
+[PASS] ★ 宽限 2000ms 远小于一个正常停站 ⇒ 不会把上一轮的提示音拖到这一轮来补
+
+===== 2c) 预测误差：停站时长抖动的敏感度 =====
+        上一轮 9000ms 不变、这一轮实为  8980ms（差 -20ms）：结尾偏 -24ms
+        上一轮 9000ms 不变、这一轮实为  8998ms（差  -2ms）：结尾偏 -42ms
+        上一轮 9000ms 不变、这一轮实为  9002ms（差  +2ms）：结尾偏 -46ms
+        上一轮 9000ms 不变、这一轮实为  9020ms（差 +20ms）：结尾偏 -64ms
+[PASS] ★ 误差与停站抖动**同阶**（抖动 1 个 tick 量级 ⇒ 偏差 1 tick 量级）—— 这正是「事前预测 + 事后兜底」能成立的前提
+
+===== 2d) 事后兜底：提前播完得太早时补一声（detect 里那段）=====
+        上一轮 9000ms ⇒ 提前播在 +2150ms..+12956ms；这一轮实为 15956ms ⇒ 门全关在 19956ms
+        关门那一刻（T'=15956ms）发现提示音在 -3000ms 就播完了 ⇒ 已是「过去」
+[PASS] ★ 兜底条件可满足：提示音结尾 -3000ms 早于这一轮的关门时刻 T'=15956ms ⇒ detect 会走「退回剪头补一声」而不是静默
+[PASS] ★ 正常情形（停站与上一轮一致）提示音还在响 ⇒ detect 走「不重复播」那一支（两支持有的判据互为补集）
+
+===== 2e) 夹取：嘀嘀段比门程短时不许把播报再放一遍 =====
+        反例：素材 10000ms / 分界点 8000ms / 门程 4000ms
+              不夹取 → 从 6050ms 起播（落在语音播报里！）；夹取后 → 8000ms
+[PASS] ★ 反例确实会算到分界点之前（raw=6050ms < split=8000ms）—— 这一支不是空想
+[PASS] ★ 夹取把它推回分界点 8000ms ⇒ 宁可嘀嘀早播完，也不重放已经放过的语音播报  -- 得到 8000
+[PASS] ★ 内置素材**不触发**夹取（raw=6856ms 已在分界点 6707ms 之后）⇒ 退回剪头这一档的「结尾落在门上」不受影响  -- 得到 6856
+        退回剪头时的剪点 6856ms 与分界点 6707ms 的关系：剪点晚于人声
+[PASS] ★ 兜底剪掉的正是整段人声（剪点 6856ms ≥ 分界点 6707ms）⇒ 兜底那一轮听到的是**结尾仍然落在门上**的一串嘀嘀，不会漏出半句人声
+
+===== 3) default-s（默认（短））：素材一字不改，只是**关门时不放人声** =====
+[PASS] 数据层有 PSD_TONE_BUILTIN_CLOSE_S = "default-s"
+[PASS] ★ default-s 与 default **共用同一个按端别分支** ⇒ 它不是第四段音频，「在开门端写 default-s」也不会把开门声换成关门素材
+[PASS] isPsdBuiltinShort 只认 default-s（判定只有一处真相）
+[PASS] ★ resolveTone 真的去问数据层「这是默认（短）吗」（不自己认字面量）
+[PASS] ★ 命中 default-s 时**仍然量分界点**，只是把 announce 置 false —— 分界点必须留着，关门端那道「不许剪进播报里」的夹取还要用它
+[PASS] Tone 把「分界点」和「要不要播播报」分成**两个**字段（合并成一个 -1 会有副作用，见下）
+[PASS] ★ **没有**把分界点压成 -1 来实现 default-s（那种写法会连带关掉关门端的夹取，对「嘀嘀段比门程短」的导入素材会在关门时漏出一截语音）
+        default  ：靠提前量整段播（含 6707ms 人声，结尾落在门上）
+        default-s：关门那一瞬从 6850ms 起播（人声结束点 6707ms 之后）⇒ 只剩 3956ms 嘀嘀
+[PASS] ★ default-s 的剪点 6850ms 落在人声结束点 6707ms 之后 ⇒ 只听到嘀嘀，且结尾仍对齐门关上
+[PASS] ★ default 那一档走的是提前量（整段），**不剪头** ⇒ 人声保住了（这正是用户报过的 pothole）
+        反例（素材 10000ms / 分界点 8000ms）：不夹取 → 6050ms（落进播报里！）；夹取 → 8000ms
+[PASS] ★ 反例：夹取把起点推回分界点 8000ms ⇒ 即便选了「短」，也不会在关门时漏出一截语音
+
+===== 4) 源码结构（提前量方案的骨架）=====
+[PASS] Tone 记录带上 splitMs（分界点随素材一起走）；announce 见第 3 节
+[PASS] 两个素材来源（内置 / 自定义）都把 splitMs 填进 Tone
+[PASS] EscalatorAudioPlayer 有「探测分界点」与两个取用入口
+[PASS] 分界点缓存与时长缓存同生共死（断线 / 重载两处都清）  -- clear 次数 = 2
+[PASS] 分界点探测只认 16bit PCM（其它位深返回 -1，不猜格式）
+[PASS] ★ 「取最后一段」这条语义在源码里成立（split 被后一段不断改写）
+[FAIL] 找到 detect(...) 的方法体（下面的结构断言都基于它）
+        detect 里的次序：opening@-1 planClose@-1 开门播放@-1 plannedCloseFired@-1 pendingClose@-1
+[FAIL] ★ 「排提前量」挂在 **opening** 分支里（关门没有预警信号，只能趁开门先排）
+[FAIL] ★★★ 排提前量之前**先用 `"close"` 解析出关门那一项**（closePlayable）—— 提前量服务的是关门那一段声音，时长/分界点都必须是关门素材的  -- close 解析@-1，planClose@-1
+[FAIL] ★【1.16】开门那一项也用 `"open"` **单独**解析（openPlayable），且**排在 planClose 之前**：它的时长正是「强制等待」的起点（用户要的是「开门音效**播放完**后再等 X 秒」）；两个方向是两个独立配置项，「开门音关着」不该把「关门音的提前量」也一起取消掉  -- open 解析@-1，planClose@-1
+[FAIL] ★ detect 里恰好解析三次（开门端：close 排提前量 + open 播开门音；关门端：close 播关门音）—— 每一次都**只为它自己那一项的声音**解析，没有复用  -- 出现 0 次
+[PASS] ★★ 反面样本：detect 里**不许**再出现「按跳变方向选一个 which 然后复用给两个用途」那种写法（正是它把开门素材的 splitMs = -1 带进了关门提前量的闸门）
+[FAIL] ★ 先排提前量、再播开门音（顺序反了也不影响，但排在这里最省事：tone/音量都已解好）
+[FAIL] ★ 关门端**先看有没有提前播过**，再考虑挂起剪头 ⇒ 两档互斥，同一条素材不会响两遍（顺序反了会「提前播过」也照样再剪一声）
+[FAIL] ★ 两支分处 opening / closing 两处，不共用落点
+[PASS] ★ 提前播成功后记下**实际起播 tick**（关门那一刻要靠它算「本该何时播完」，从而区分「还在响」与「早播完了」）
+[PASS] ★ 到点时门已不是全开 ⇒ 丢掉这次请求、交给关门那一刻的剪头（不硬播）
+[PASS] ★ 晚过宽限 ⇒ 丢掉（这一轮早过去了，不补播）
+[PASS] ★ 提前播走 resolvePlayable 的同一道闸，而且**不碰** pendingClose（两档互斥）
+[PASS] ★ 剪头仍被夹在分界点之后（不许剪进人声里）—— 兜底时听到的是一串嘀嘀
+[PASS] ★ 「没得剪」时退回整段播（开门端的 2.28 秒素材走这一支）
+[PASS] ★ resolvePlayable 收拢了「这一扇门的总开关 / 子开关 / 设为不播 / 音量」四道闸（只有一处实现）。【1.20】四道闸全部按 **door.key()** 取（per-door），不再取维度默认
+[FAIL] ★ detect 里**不再**自己写那三道闸（写三份必然有一份会和另外两份走偏）  -- detect 里 isPsdToneEnabled 出现 0 次
+[PASS] ★ noteCycle 对**所有**门都记（最近的门会换，每扇门要各自学各自那一份）
+[PASS] ★ noteCycle 的调用点已统一成传 DoorView（日志才能打出坐标，不是一长串 anchor）
+[PASS] ★ 一轮**全关**时把这一轮的提前量计划摘掉 ⇒ 计划只对排它的那一轮有效（否则门中途离开快照又回来时，它会在下一轮停站中途到点、门正好全开 ⇒ 凭空响一声）
+[PASS] ★ reset() 清掉**还没到点**的提前量（那条计划挂在某一轮停站上，这里恰恰意味着看不到门了）
+[PASS] ★ reset() **不清**学到的周期（玩家走远 / 区块卸载不该让每扇门重学一轮）
+[PASS] ★ reset() **不清**「已提前播过」的抑制标记（这里并不停正在响的那条素材，清掉反而会让关门时叠一声）
+[PASS] ★ reset() 不停正在播的**常规**提示音（整段提前播那条 / 剪头那条）（否则一走远就把用户想听的那段话掐断）
+[PASS] ★【1.16】reset() 对**兜底人声**恰恰相反：既清计划、也把正在响的那条停掉 —— 它是我们主动插进去的一段语音，reset() 的三个来路都意味着它已失去归属
+[PASS] ★ onDisconnect 把三张学习 / 预测表一起清掉（换世界后位置与时刻表都不再可比）
+[PASS] ★ 旧 startAnnouncement 已整段删除（留着会让同一条素材在开门 / 关门各响一遍）
+[PASS] ★ 「到点停播报」那套登记表也一并删除
+[PASS] ★ **已删除**「整段从关门那一瞬起播」那一支 —— 它正是用户第三次否掉的行为（门在第 4 秒就关上，声音还剩 6.8 秒）
+[PASS] ★ planClose 收 Playable（不再自己重查一遍设置 —— 那会让日志重复、判据分叉）；【1.16】再多收一个 openPlayable —— 「强制等待」的起点要「开门音**播完**」，所以排计划这一步需要知道开门素材多长
+[PASS] ★【1.16】新增 forcedVoice 计划表 + ForcedVoice 内部类（兜底人声的句柄）
+[PASS] ★【1.16】cachedCloseWaitSeconds 初值 = 内置默认（第一次加入 mod 即 5 秒）
+[PASS] ★★★【1.16】cachedCloseWaitSeconds **只**在「周期塞不下素材」（best <= leadTicks）那一支里被读 —— 停站够长时走上面的「整段提前播」，那条路根本不看这个值（= 用户要的「够长就忽略」）  -- gate@3007，wait@3530
+[PASS] ★★ 反面样本：best <= leadTicks **之前**不许出现 cachedCloseWaitSeconds（否则「够长就忽略」会被悄悄破坏）
+[PASS] ★【1.16】塞不下那一支把计划塞进 forcedVoice（**不再静默 return**）
+[PASS] ★【1.16】等待时长按秒 → tick（×20），并夹到 ≥ 0（负数不倒退）
+[PASS] ★【1.16】人声在 **splitMs** 处收掉 —— 不让它自己的嘀嘀响出来（嘀嘀交给关门端剪头路）
+[PASS] ★【1.16】tickForcedVoice 排在 firePlannedClose / resumeClose **之前** —— 它一旦掐断人声，紧接着那声关门嘀嘀（剪头路放的）才不会被压住  -- tickForcedVoice@2490 firePlannedClose@2546 resumeClose@2603
+[FAIL] ★★【1.16】门一动就掐断兜底人声（detect 关门端），且**排在关门那次 resolvePlayable 之前** —— 关门音被关掉时这段人声照样要断（它与「关门这一项此刻播不播」无关）  -- cutForcedVoice@-1，其后 close 解析@-1
+[PASS] ★★【1.16】tickForcedVoice 两个停止条件：到 splitMs 收尾、或门一动立刻掐断（用户原话「一旦到关门时间嘀嘀嘀开始播放，就立即切断正在播放的人声提示，不管播到哪里」）
+[PASS] ★【1.16】起播在 startTick、且只起播一次（fired 标记），到点前不动
+[PASS] ★【1.15】剪头路（路 A）一字未改：兜底人声收掉后，关门嘀嘀仍由 resumeClose 对齐门关上那一刻
+
+===== 4h) 到站播报（/pbmmidium）：自己的表 + 自己的 tick 路，结构上谁都不许停它 =====
+[PASS] ★【1.17】新增 arrivalVoice 计划表 + Arrival 内部类（与 forcedVoice 并列的第二张表，而不是复用 forcedVoice —— 那张表每条都有停止条件）
+[PASS] ★★★【1.17】Arrival 类里**没有** PsdMusicInstance 字段 —— 不持句柄，就没有「谁能停它」这个问题  -- 类体 681 字符（没抓到类体说明正则失效，需立刻修）
+[PASS] ★★★【1.17】reset() **不碰** arrivalVoice —— reset 的第三个来路就是「门全看不见 / 车开走」，在这里顺手清掉它，功能当场就废  -- reset 体 380 字符，含 arrivalVoice=False
+[PASS] ★【1.17】对照：reset() 里 forcedVoice **照旧**清掉（两张表存活期不同，别顺手一并处理）
+[PASS] ★【1.17】onDisconnect() 里**才**清 arrivalVoice（换世界后旧坐标不再可比）
+[PASS] ★★★【1.17】tickArrivalAnnounce 排在**取门快照 / doors.isEmpty() 早退之前** —— 列车开走后 snapshot() 变空会直接 return，排在后面就永远走不到  -- tickArrivalAnnounce@897 snapshot@979 isEmpty@1166
+[PASS] ★★★【1.17】tickArrivalAnnounce 里**没有任何 stop** —— 起播后实例已交给原版 SoundEngine（一次性、不循环），没人停它就响到自然结束  -- tick 体 1156 字符
+[PASS] ★【1.17】播完只**回收表项**（endTick 到点 remove）—— 与声音无关，只是别让表无限长大（等待秒数允许正无穷）
+[FAIL] ★★【1.17】planArrivalAnnounce 排在 `if (openPlayable == null) return;` **之前** —— 本维度把开门音设成「不播」时，站台广播照样要排  -- planArrivalAnnounce@-1 openPlayable判空@-1
+[PASS] ★【1.17】到站播报设成「不播」时 planArrivalAnnounce **立刻返回**（不排计划）
+[PASS] ★★【1.17】起播刻 = 开门那一刻 + 开门素材时长 + 等待秒数（= 用户要的「开门嘀嘀嘀之后开始播放」）
+[PASS] ★【1.17】等待时长按秒 → tick（×20），并夹到 ≥ 0（负值不倒退）
+[PASS] ★【1.17】回收刻 = 起播刻 + 素材时长（素材时长量不到时退化成 startTick）
+[PASS] ★★【1.17】resolveMidiumTone **没有内置档分支** —— 到站播报没有内置素材（站台广播不可能随模组分发），库里没有就是 null  -- 函数体 572 字符
+[PASS] ★【1.17】素材缺失只**记一次**警告（warnedMissingMidium 去重，不每 tick 刷屏）
+[PASS] play() 返回实例（判空即知成没成；实例在手边，将来要停它 / 改它不必回引擎查）
+
+===== 5) 版本号与产物 =====
+[PASS] gradle.properties 的 mod_version = 1.30.11201（用户点名的号，未升位）  -- 得到 1.30.11201
+[PASS] gradle.properties 的 archives_base_name = mzycBetterMTR
+[PASS] ★ build.gradle 用 base.archivesName 应用了它（不是把名字硬编码进去）
+        检查 jar：mzycBetterMTR-1.30.11201.jar（1836879 字节）
+[PASS] 打包出来的是 1.30.11201
+[PASS] jar 文件名以 mzycBetterMTR- 开头
+[PASS] PsdChimePlayer.class 里编进了 planClose
+[PASS] PsdChimePlayer.class 里编进了 firePlannedClose
+[PASS] PsdChimePlayer.class 里编进了 noteCycle
+[PASS] PsdChimePlayer.class 里编进了 learnedCycleTicks
+[PASS] PsdChimePlayer.class 里编进了 plannedCloseFired
+[PASS] PsdChimePlayer.class 里编进了 plannedCloseStart
+[PASS] PsdChimePlayer.class 里编进了 resolvePlayable
+[PASS] PsdChimePlayer.class 里编进了 resumeClose
+[PASS] PsdChimePlayer.class 里编进了 pendingClose
+[PASS] PsdChimePlayer.class 里编进了 splitMs
+[PASS] PsdChimePlayer.class 里编进了 announce
+[PASS] ★ PsdChimePlayer.class 里**没有** startAnnouncement（旧机制真被删了，不是只留了注释）
+[PASS] EscalatorAudioPlayer.class 里编进了 detectAnnounceSplitMs
+[PASS] EscalatorAudioPlayer.class 里编进了 bundledAnnounceSplitMs
+[PASS] EscalatorAudioPlayer.class 里编进了 customAnnounceSplitMs
+
+== 失败 11 项 ==
+   - 找到 detect(...) 的方法体（下面的结构断言都基于它）
+   - ★ 「排提前量」挂在 **opening** 分支里（关门没有预警信号，只能趁开门先排）
+   - ★★★ 排提前量之前**先用 `"close"` 解析出关门那一项**（closePlayable）—— 提前量服务的是关门那一段声音，时长/分界点都必须是关门素材的
+   - ★【1.16】开门那一项也用 `"open"` **单独**解析（openPlayable），且**排在 planClose 之前**：它的时长正是「强制等待」的起点（用户要的是「开门音效**播放完**后再等 X 秒」）；两个方向是两个独立配置项，「开门音关着」不该把「关门音的提前量」也一起取消掉
+   - ★ detect 里恰好解析三次（开门端：close 排提前量 + open 播开门音；关门端：close 播关门音）—— 每一次都**只为它自己那一项的声音**解析，没有复用
+   - ★ 先排提前量、再播开门音（顺序反了也不影响，但排在这里最省事：tone/音量都已解好）
+   - ★ 关门端**先看有没有提前播过**，再考虑挂起剪头 ⇒ 两档互斥，同一条素材不会响两遍（顺序反了会「提前播过」也照样再剪一声）
+   - ★ 两支分处 opening / closing 两处，不共用落点
+   - ★ detect 里**不再**自己写那三道闸（写三份必然有一份会和另外两份走偏）
+   - ★★【1.16】门一动就掐断兜底人声（detect 关门端），且**排在关门那次 resolvePlayable 之前** —— 关门音被关掉时这段人声照样要断（它与「关门这一项此刻播不播」无关）
+   - ★★【1.17】planArrivalAnnounce 排在 `if (openPlayable == null) return;` **之前** —— 本维度把开门音设成「不播」时，站台广播照样要排
+
+############################################################
+# 屏蔽门提前量状态机
+############################################################
+  ==> 通过
+
+############################################################
+# 屏蔽门音量与淡入淡出
+############################################################
+  ==> 失败（完整输出见下方）
+
+===== 1) 三个新指令 + 音量范围 1~1000 =====
+[PASS] 注册了 /pbmmusicloud
+[PASS] 注册了 /pbmmidiumloud
+[PASS] 注册了 /pbmarriveloud
+[PASS] ★ /pbmmusicloud 与 /pbmloud **同一份数据**（都走 pbmLoudShow / pbmLoudGlobal）
+[PASS] 两项新指令都带 -f（强制所有维度）分支
+[PASS] 两项新指令的 X / X to Y 形状都在
+[PASS] AUDIO_VOLUME_MIN = 1
+[PASS] AUDIO_VOLUME_MAX = 1000
+[PASS] volumeArg() = integer(1, 1000)（指令树校验拿的就是这两个常量）
+[PASS] HELP_VOLUME_MIN/MAX 直接引用 AUDIO_VOLUME_MIN/MAX（不会两套数各走各的）
+[PASS] DEFAULT_PSD_HELP_VOLUME 复用共用默认（不是又一个新数）
+
+===== 2) 两条新通道（到站音量 / 进站音量） =====
+[PASS] SetPsdMidiumLoudPacket 包类存在
+[PASS] SetPsdMidiumLoudPacket.handle 落到 setDoorPsdMidiumVolume(...)
+[PASS] SetPsdArriveLoudPacket 包类存在
+[PASS] SetPsdArriveLoudPacket.handle 落到 setDoorPsdArriveVolume(...)
+[PASS] SetPsdMidiumLoudPacket 载荷形状是 key(long) → volume(VarInt)
+[PASS] SetPsdMidiumLoudPacket.handle 补发了「按门设置」那条包
+[PASS] SetPsdArriveLoudPacket 载荷形状是 key(long) → volume(VarInt)
+[PASS] SetPsdArriveLoudPacket.handle 补发了「按门设置」那条包
+
+===== 3) 数据层：PsdToneAudio 15 字段 + 哨兵 -1 =====
+[PASS] 找得到 PsdToneAudio record 声明
+[FAIL] ★ PsdToneAudio 是 16 字段（1.20 的 13 + 到站/进站 2 + 本轮 1）  -- 得到 20：String open, String close, Boolean help, Boolean openEnabled, Boolean closeEnabled, Integer volume, Integer openVolume, Integer closeVolume, Integer openWaitSeconds, Integer closeWaitSeconds, String midium, Integer midiumWaitSeconds, Integer midiumVolume, String arrive, Integer arriveSeconds, Integer arriveVolume, Integer narrate, Integer narrateSeconds, Integer midiumNarrate, Integer midiumNarrateSeconds
+[FAIL] ★ arriveVolume 在末尾（追加式改包的标准姿势：老位置一个都没动）  -- 得到 Integer midiumNarrateSeconds
+[PASS] ★ midiumVolume 紧跟 midiumWaitSeconds（同一件事的三个字段聚在一起，别散开）  -- 得到 ['String midium', 'Integer midiumWaitSeconds', 'Integer midiumVolume']
+[PASS] 7 个「可空盒装」音量/秒数字段都在（null = 跟维度默认）
+[PASS] PSD_TONE_VOLUME_UNSET 复用 LIFT_TONE_VOLUME_UNSET（同一套哨兵语义）
+[PASS] 哨兵值 = -1
+[PASS] 两个新维度默认字段初值 = 哨兵（没调过 ⇒ 跟共用默认）
+[PASS] 找得到 clampPsdToneVolume
+[PASS] ★ 哨兵 -1 **原样放行**（不夹进 [1,1000] —— 夹了用户看到的是「跟随」变成 1）
+[PASS] 其余值走 max(MIN, min(MAX, x))
+[PASS] 夹取复算：-5→1 / 0→1 / 1→1 / 100→100 / 1000→1000 / 1001→1000 / 99999→1000  -- 得到 [(-5, 1), (0, 1), (1, 1), (100, 100), (1000, 1000), (1001, 1000), (99999, 1000)]
+[PASS] ★ 夹取复算：-1 → -1（哨兵穿过）
+
+----- NBT 往返（存档里的键名） -----
+[PASS] 维度默认音量 defaultPsdMidiumVolume 读写成对
+[PASS] 维度默认音量 defaultPsdArriveVolume 读写成对
+[PASS] 按门覆盖 midiumVolume 读写成对（可选：不吃旧存档）
+[PASS] 按门覆盖 arriveVolume 读写成对（可选：不吃旧存档）
+[PASS] ★ 读存档时也夹一次（坏存档 / 手改 NBT 绕过指令树那层 arg 校验）
+
+===== 4) ★★ 包读写序逐格一致（错位不报错，只会把值串到别的字段） =====
+[PASS] 抓得到 PsdToneSyncPacket.encode 的包体
+[PASS] 抓得到 PsdToneSyncPacket.decode 的读取段
+        写序：
+        读序：
+[PASS] ★ 读写格数相同（0 vs 0）—— 差一格就是静默错位
+[PASS] ★★ 读写**类型序列**逐格一致（Bool/Int/String 对位）  -- 写在 [] / 读在 []
+[PASS] ★★ 读写**字段名序列**逐格一致（连名字都对上，不只是类型）  -- 写在 [] / 读在 []
+[FAIL] 1.22 的两个新音量在**两条序列的末尾**（追加式改包的标准姿势）
+[PASS] ★【1.23】范围**不在**按门 packet 里（维度级配置，与 /pbmround 同一层）  -- 得到 []
+[PASS] 抓得到维度包的写段 / 读段
+        写序：
+        读序：
+[PASS] ★★ 维度包读写类型序列逐格一致  -- 写在 [] / 读在 []
+[FAIL] ★ 维度包 19 格（1.20 的 13 + 1.16/1.17/1.21 已有的 4 + 1.22 的 2 + 【1.23】的 2）  -- 得到 0
+[FAIL] 维度包末尾四格都是 VarInt（两个音量 + 两个范围）  -- []
+[FAIL] ★ 维度包写入的**最后一格**就是 arriveRound（【1.23】追加在最后）  -- 最后一格：buf.writeByteArray(pkt.body);
+Traceback (most recent call last):
+  File "C:\Users\user\Desktop\2\mzycBetterMTR-Forge-1.20.1\_tools\check-psd-volume.py", line 319, in <module>
+    check(writes and ("defaultPsdMidiumRound" in writes[-2] or "pkt.midiumRound" in writes[-2]),
+                                                 ~~~~~~^^^^
+IndexError: list index out of range
+
+############################################################
+# 屏蔽门站台广播
+############################################################
+  ==> 失败（完整输出见下方）
+
+===== 1) 症状数值化：一串门的跨度 vs 射程 =====
+[PASS] 复算：12 扇、间距 5 的一串门跨度 = **55 格**（远远大于默认射程 16 格）
+[PASS] ★ 复算：站**中间**那扇最多只有 **7/12** 扇在 16 格内；站**一端**只剩 **4/12** 扇  -- 中间 [-48.0, -43.0, -38.0, -33.0, -28.0, -23.0, -18.0] / 一端 [-58.0, -53.0, -48.0, -43.0]
+[PASS] ★★ 结论：**站在站台任何一扇门旁边，都至少有 5 扇永远在射程外**（这就是「有的门不响」）
+[PASS] ★★ 复算：LOG4 里那扇**距玩家 17 格**的门（x=-28，边界外一格）增益 = **0** —— 整扇门一声不响，正是因为射程判据把它整个丢掉了（不是它没被采集）
+[PASS] ★ 复算：射程是**硬边界**（15.999 格还有 0.00006，16 格整 = 0） —— 线性曲线只解决「太轻」，解决不了「硬截成 0」
+[PASS] ★★ 对照：同一个玩家位置，若距离按「**本串离玩家最近的那一扇**」算 ⇒ 增益 **1.0**（玩家就在某一扇门旁边）⇒ 整串的播报都成立 —— 这就是【1.26】的改法
+
+===== 2) 到站播报：一串一条 + 声源取本串最近门 =====
+[PASS] 到站播报的计划表还在（【1.26】只改键的**含义**，表的生命周期一行不动）
+[PASS] ★★【1.26】planArrivalAnnounce 开头就是「这一串已经有一条还没播完的播报 ⇒ 直接返回」 —— 一串只排一条（旧写法每扇门各排一份 = 同一份按串的配置排 N 遍）
+[PASS] ★★ 写进去的键是 **runKey**（串锚点）—— 键写回 door.key() 不会报错，只会让 12 帧内的开门事件各排一条同内容的 13.8 秒广播
+[PASS] ★ Arrival 多持一份 runKey（日志要按串读「等待几秒」，距离增益也要按串算）
+[PASS] ★★ 起播日志按 **plan.runKey** 读「等待几秒」 —— 拿 door.key() 去读 per-串配置会**静默落回维度默认**（读得到，但读的不是这一串那份）
+[PASS] ★★ planArrivalAnnounce 不再收 `double distance` 形参（那个距离是**本扇门**的 —— 收下它就等于又把广播按门算）
+[PASS] ★ detect 的调用点跟着去掉第四个实参
+[PASS] ★★ 声源 = 本串里离玩家最近的那一扇（PsdDoorTracker.nearestInRun）
+[FAIL] ★★ 射程判据用的距离也来自**那一扇**（source），不是这一扇（door）
+[FAIL] ★ 到站播报的射程判据仍在（类别 ROUND_MIDIUM）—— 改的只是「距离是谁的距离」
+[PASS] ★ 顺带把两个「这一扇门的口径」改成直接用 runKey（原本传的就是 door.runKey()）
+
+===== 3) 进站报站：声源取本串最近门 =====
+[PASS] ★★ 旧的 `seenRun`（「快照里第一个碰到的那个 runKey 就算代表门」）**整个删掉** —— 它是 `HashMap` 迭代序驱动的，现场 LOG4 里同一个串先记 -33、后播 -28
+[PASS] ★ 改成先归并出「每一串里离玩家最近的那一扇」（LinkedHashMap：迭代序跟着门快照，日志好读）
+[PASS] ★ 归并判据走 closerThan（抽成一个方法：两条路都别自己写一份比较）
+[PASS] ★ closerThan(player, cand, cur) 存在（player == null ⇒ false，保持先来的那一扇）
+[FAIL] ★ 两张缓存表跟着新的键集合收敛（键集合换了 ⇒ 收敛口径也得换，否则缓存无限长大）
+[FAIL] ★★ 起播时把 runKey 一并传下去（站台广播：距离按本串最近的门算）
+
+===== 4) PsdDoorTracker：串内最近门 =====
+[PASS] ★ nearestInRun(runKey, player) → DoorView（声源位置用它）
+[PASS] ★ nearestDistanceInRun(runKey, player) → double（每 tick 的距离增益用它）
+[PASS] ★ 两个口共用一份取数逻辑（别写两遍 —— 两遍就会漂移）
+[PASS] ★★ 这一串不在快照里 ⇒ 返回 Double.MAX_VALUE ⇒ 增益自然归 0（走远了就该淡出，而不是「看不见就当贴脸」）
+[PASS] ★ player == null（还没进世界 / 界面）当贴脸 = 0，与 refreshVolume 老口径一致
+[PASS] 找得到 nearestEntryInRun 的实体
+[PASS] ★★ 它**只读不删** —— 它跑在「声音实例每 tick」的路径上，边迭代边改 LIVE 是另一个 bug；清理过期项是 snapshot() 的职责
+[PASS] ★ 判活口径与 snapshot() 同一套（STALE_TICKS），不另立一个常数
+[PASS] ★ 比距离用 distanceToSqr 就够（开方只在最后算一次）—— 每 tick 每实例都会走这里
+[PASS] ★★ 复算：Long.MIN_VALUE 按 asLong 解出来是 (x,y,z) = (**-33554432**, 0, 0)  -- BlockPos.getX(MIN_VALUE) = (int)(MIN_VALUE >> 38)（算术右移 ⇒ 带符号，负号是对的）
+[PASS] ★★ 而原版世界边界是 ±29,999,984 ⇒ **任何真实方块都到不了那一格** ⇒ 哨兵不会撞（只与**绝对值**有关，符号不重要）
+[PASS] ★★ 对照：`-1L` 是**合法**坐标（= 方块 x=-1）⇒ 拿它当哨兵会真撞
+[FAIL] ★★ 所以哨兵取 NO_BROADCAST_RUN = Long.MIN_VALUE（不是 -1）
+[FAIL] ★★ PsdMusicInstance.refreshVolume 按 chainRunKey 分两种口径（位置音 = 到 pos；站台广播 = 到本串最近的门）
+[PASS] ★ play(...) 与构造里 chainRunKey 是**独立的第 8 格** —— 不用 `roundKind != ROUND_TONE` 推出来：范围类别与「是不是广播」是两个判据，合并 ⇔ 以后新加一类范围会**悄悄**变成广播（本项目栽过「一个哨兵表达两件事」）
+
+===== 5) 最近门选择：纯逻辑复算 =====
+[PASS] 复算：玩家 x=-45.0 ⇒ 本串最近门 x=-43.0  -- 得到 -43.0
+[PASS] 复算：玩家 x=-16.0 ⇒ 本串最近门 x=-18.0  -- 得到 -18.0
+[PASS] 复算：玩家 x=-58.0 ⇒ 本串最近门 x=-58.0  -- 得到 -58.0
+[PASS] 复算：玩家 x=-3.0 ⇒ 本串最近门 x=-3.0  -- 得到 -3.0
+[PASS] ★★ 复算：两扇门**正中间**平手时取 **x 更小**的那一扇（closerThan 用严格 < ⇒ 保持先来的） —— 平手必须有确定的规则，否则「代表门」会每 tick 在两扇之间跳  -- 得到 -30.5 ⇒ -33.0，-45.5 ⇒ -48.0
+[PASS] ★★ 复算：站台上**任何**位置到最近门最远只有 2.5 格（= 间距的一半） ⇒ 射程 16 格时，整串 12 扇门覆盖的每一个点都在射程内
+[PASS] ★★ 复算：沿站台走到任何一扇门前 1.25 格，增益都 ≥ 0.8（旧口径下站台两端是 0）
+
+===== 6) 产物字节码 =====
+[PASS] ★ 播放实例是内嵌类 smooth/lift/client/PsdChimePlayer$PsdMusicInstance.class
+[PASS] PsdDoorTracker.class 里编进了 nearestInRun
+[PASS] PsdDoorTracker.class 里编进了 nearestDistanceInRun
+[PASS] PsdDoorTracker.class 里编进了 nearestEntryInRun
+[PASS] PsdChimePlayer.class 里编进了 closerThan
+[PASS] PsdChimePlayer.class 里编进了 chainRunKey
+[PASS] PsdChimePlayer.class 里编进了 nearestPerRun
+[PASS] ★★ PsdMusicInstance 内嵌类里编进了 chainRunKey —— 距离口径真的传到了每 tick 那条路
+
+== 失败 6 项 ==
+   - ★★ 射程判据用的距离也来自**那一扇**（source），不是这一扇（door）
+   - ★ 到站播报的射程判据仍在（类别 ROUND_MIDIUM）—— 改的只是「距离是谁的距离」
+   - ★ 两张缓存表跟着新的键集合收敛（键集合换了 ⇒ 收敛口径也得换，否则缓存无限长大）
+   - ★★ 起播时把 runKey 一并传下去（站台广播：距离按本串最近的门算）
+   - ★★ 所以哨兵取 NO_BROADCAST_RUN = Long.MIN_VALUE（不是 -1）
+   - ★★ PsdMusicInstance.refreshVolume 按 chainRunKey 分两种口径（位置音 = 到 pos；站台广播 = 到本串最近的门）
+
+############################################################
+# 屏蔽门讲述人只念一次
+############################################################
+  ==> 通过
+
+############################################################
+# 讲述人默认值/预设/按存档文字
+############################################################
+  ==> 通过
+
+############################################################
+# 屏蔽门串身份=站台
+############################################################
+  ==> 失败（完整输出见下方）
+
+===== 1) LOG5 取证：站台是被缺口切开的几段，不是一串 =====
+[PASS] 判据 A（同一刻）：站台 6553035176743660435 在 00:29:41 同一秒里既有「认站台 @[-42, -20, 32]」又有「起播 @[-4, -20, 32]」  -- 两者相隔 **38 格** —— 同一个串同一刻只有一扇最近门 ⇒ 至少两个串
+[PASS]   而且这个间隔（38）**大于默认射程 16** ⇒ 远的那一段必然整段静默（正是用户症状）
+[PASS] 判据 B（1 秒内反复重认）：三对交替日志（00:28:53 -42→00:28:54 -50, 00:29:11 -42→00:29:12 -50, 00:29:29 -42→00:29:32 -50）里，每对相隔 1 秒、最近门差 **8 格**  -- 玩家就站在站台上（几十格内）时，一个串不可能 1 秒内整段过期再回来 ⇒ 两个不同的串
+[PASS] 判据 C（对照）：z=72 那 12 扇（间距 5、最大间距 5＝无缺口）整场只打**一行**认站台 ⇒ 真·单串，而它正是 1.26 修好的那一个（用户「z 轴的修好了」）
+[PASS] z=72 线：12 扇、门距 5、最大间距 5 ⇒ 洪水填充 **1 段**（对照：真的是单串）  -- runs=1
+[PASS] x=-37 (站台 ..307) 线：门距 4、间距 [4, 9] ⇒ 洪水填充 **3 段**（每段各自广播 = 现在的 bug）  -- runs=[[17, 21, 25, 29], [38, 42, 46, 50], [59, 63]]
+[PASS] x=-26 (站台 ..094) 线：门距 4、间距 [4, 9] ⇒ 洪水填充 **2 段**（每段各自广播 = 现在的 bug）  -- runs=[[26, 30, 34, 38], [47, 51, 55, 59]]
+[PASS] z=43 (y=-20) 线：门距 4、间距 [4, 9] ⇒ 洪水填充 **3 段**（每段各自广播 = 现在的 bug）  -- runs=[[-63, -59, -55, -51], [-42, -38, -34, -30], [-21, -17, -13, -9]]
+[PASS] z=43 线的三段落在**不同的 4 格栅格**上（[1, 2, 3]）⇒ 是三批独立摆放，不是同一条被跳过几格
+
+===== 2) 症状数值化：站在中段时，前后两段的增益 ≈ 0 =====
+[PASS] 站在中段 z=44：**前段 / 后段的增益都只有 0.0625**（15 格）⇒ 听觉上等于没声音  -- dist={'前段': 15.0, '中段': 2.0, '后段': 15.0} gain={'前段': 0.0625, '中段': 0.875, '后段': 0.0625}
+[PASS] 同一刻中段的增益 0.8750 ⇒ 「只有中间那段响」—— 与用户原话逐字对上
+[PASS] gain(21,16) == 0：射程外是**硬截断**（不是变轻，是一点都不播）
+[PASS] gain(15,16) > 0：射程内还是线性衰减（1.25 的定论没被破坏）
+[PASS] 站台粒度：站在 z=17（站台任意位置）⇒ 整站台最近门 0 格、增益 1.00 ⇒ 听得见
+[PASS] 站台粒度：站在 z=30（站台任意位置）⇒ 整站台最近门 1 格、增益 0.94 ⇒ 听得见
+[PASS] 站台粒度：站在 z=44（站台任意位置）⇒ 整站台最近门 2 格、增益 0.88 ⇒ 听得见
+[PASS] 站台粒度：站在 z=59（站台任意位置）⇒ 整站台最近门 0 格、增益 1.00 ⇒ 听得见
+[PASS] 站台粒度：站在 z=63（站台任意位置）⇒ 整站台最近门 0 格、增益 1.00 ⇒ 听得见
+[PASS] **[现状]** 以「段」为单位：这一段站台会排出 **3 条**播报，其中只有 1 条听得见（['中段']）  -- per_run=[('前段', 0.0625), ('中段', 0.875), ('后段', 0.0625)]
+[PASS] **[1.27]** 以「站台」为单位：**1 条**播报（声源 = 整站台最近门 2 格、增益 0.88）
+
+===== 3) 站台身份与连通串身份在同一命名空间里不撞 =====
+[PASS] 站台身份 id 全为正 ⇒ 编码出的 key 全为负  -- keys=[-595097511064198433, -2900795002022101501, -2670336860111115373, -6132500287448570714]
+[PASS] 撞键需要 (x&0x3FFFFFF) ∈ [44798958, 64943911] ⇒ x ∈ [-22309906, -2164953]
+[PASS] ⇒ 撞键要求 |x| ≥ **2164953** 格（离原点两百万格外）—— 真实存档把屏蔽门摆在那里是不可能的
+[PASS] 反向核对：本仓用过的门坐标（|x| ≤ 63）的 asLong 落在该区间之外  -- |asLong|=17317308067713
+
+===== 4) 源码结构：认站台优先、认到才缓存、随世界作废 =====
+[PASS] ★ 编码函数 platformKey(platformId) = Long.MIN_VALUE + platformId
+[PASS] ★ identity 真的去问了 MTR 站台（MtrDwellAccess.platformIdAt）
+[PASS] ★ 用**锚点**坐标去问（同一扇门的上下/左右半格只认一次，且与播放链路逐位一致）
+[PASS] 找得到 runKeyOf(Level, BlockState, BlockPos, long) 的实体
+[PASS] ★★ runKeyOf 里「return flood;」**只允许一处**（= 认不到站台时的那一个出口；多出来就说明有短路分支让它变成死代码）  -- count=1
+[PASS] ★ 顺序：先算连通串（回落 + 缓存键）→ 再查站台缓存 → 认到就写缓存并 return → 认不到才 return flood  -- idx=367/454/1102/2693
+[PASS] ★ 认到站台时 return 的是 platformKey(id)，而不是 flood
+[PASS] ★ 站台身份按**连通串**缓存（一串只问一次站台，不是每扇门都问）
+[FAIL] ★★ **认到才写缓存**（PLATFORM_CACHE.put 只在 id > 0 这一支里）
+[PASS] ★★ 认不到 → 只排「40 tick 后再试」，绝不把「认不到」钉成永久结果
+[PASS] 认到之后把重试排期摘掉
+[PASS] 一个站台只打一行日志（12 扇门不刷 12 行）
+[PASS] ★ clear() 里作废 PLATFORM_CACHE（断开连接 / 换世界）
+[PASS] ★ 换维度那条路（accept 里的 dimension 判断）也作废 PLATFORM_CACHE  -- count=2
+[PASS] ★ clear() 里作废 PLATFORM_NEXT_TRY（断开连接 / 换世界）
+[PASS] ★ 换维度那条路（accept 里的 dimension 判断）也作废 PLATFORM_NEXT_TRY  -- count=2
+[PASS] ★ clear() 里作废 PLATFORM_LOGGED（断开连接 / 换世界）
+[PASS] ★ 换维度那条路（accept 里的 dimension 判断）也作废 PLATFORM_LOGGED  -- count=2
+[PASS] ★★ 【1.31】PLATFORM_CACHE 写入口 = 2（认到站台 / 借到相邻站台身份），都在「拿到平台身份、返回 platformKey」的那两支里 —— 任何无关分支不许写缓存  -- count=2
+[FAIL] ★ 借用那一支的写缓存紧随 `borrowed > 0`（防串台闸门在前）
+
+===== 5) 1.26 的机器保持原样：四处都按 runKey，于是自动变成「按站台」 =====
+[PASS] 读配置（到站播报） 仍按 runKey（粒度自动升为站台）
+[PASS] 读配置（进站报站） 仍按 runKey（粒度自动升为站台）
+[PASS] 去重（一串只排一条） 仍按 runKey（粒度自动升为站台）
+[PASS] 声源 + 射程（整串最近门） 仍按 runKey（粒度自动升为站台）
+[FAIL] 每 tick 的距离口径 仍按 runKey（粒度自动升为站台）
+[PASS] 1.26 的两个查询口都还在（1.27 只是喂给它们的 runKey 变粗了）
+
+===== 6) 字节码 =====
+[PASS] PsdDoorTracker.class 里编进了 platformKey
+[PASS] PsdDoorTracker.class 里编进了 PLATFORM_CACHE
+[PASS] PsdDoorTracker.class 里编进了 PLATFORM_NEXT_TRY
+[PASS] PsdDoorTracker.class 里编进了 PLATFORM_RETRY_TICKS
+[PASS] ★ 诊断日志的字面量进了常量池（下一份 log 里能直接看到「哪个门归到哪个站台」）
+
+== 失败 3 项 ==
+   - ★★ **认到才写缓存**（PLATFORM_CACHE.put 只在 id > 0 这一支里）
+   - ★ 借用那一支的写缓存紧随 `borrowed > 0`（防串台闸门在前）
+   - 每 tick 的距离口径 仍按 runKey（粒度自动升为站台）
+
+############################################################
+# 屏蔽门1.28身份迁移与列车倍率
+############################################################
+  ==> 通过
+
+############################################################
+# 屏蔽门铃声/播报归属
+############################################################
+  ==> 通过
+
+############################################################
+# 屏蔽门1.31借用与列车挡
+############################################################
+  ==> 通过
+
+############################################################
+# MBM批量音频指令
+############################################################
+  ==> 失败（完整输出见下方）
+
+===== 1) /MBM help | music in | music delete 注册 =====
+  ==> 通过  根字面量 MBM 已注册（走 mbmTree）
+  ==> 通过  小写别名 mbm 也已注册（MC 指令字面量大小写敏感）
+  ==> 通过  裸 /MBM = 与 /MBM help 同义（自带执行器 -> mbmOpenHelp）
+  ==> 通过  MBM help -> mbmOpenHelp
+  ==> 通过  MBM music 子节点存在
+  ==> 通过  MBM music in -> dtMusicImportAll
+  ==> 通过  MBM music delete -> dtMusicDeleteAll
+  ==> 通过  ★ 旧的根字面量 dtmusic 已从指令树里移除（干净改名，不保留别名）
+  ==> 通过  ★ 剥掉注释后的源码里一个 dtmusic 都没有（残留只允许在注释/javadoc 里）  -- 行号 无
+
+===== 2) dtMusicImportAll：全量遍历文件夹导入 =====
+  ==> 通过  抠得出 dtMusicImportAll() 方法体
+  ==> 失败  用 scanAudioFiles 全量扫 MBM_Audio 文件夹
+  ==> 失败  逐条走 importAudioToStore（同一套 ogg 校验）
+  ==> 通过  导入后补发音频库同步包（客户端「已导入」右列刷新）
+  ==> 通过  方法体内没有短路守卫（批量真的会执行）
+
+===== 3) dtMusicDeleteAll：清空音频库、不动 MBM_Audio 文件夹 =====
+  ==> 通过  抠得出 dtMusicDeleteAll() 方法体
+  ==> 失败  遍历 audioLibrary 全量键（快照）
+  ==> 失败  逐条走 deleteAudio（removeAudio 连带清引用）
+  ==> 通过  删除后补三路同步（音频库 / 无障碍 / 屏蔽门）
+  ==> 通过  ★ delete 方法体内**没有任何删除文件夹文件的代码**（MBM_Audio 只读，绝不动）
+  ==> 通过  方法体内没有短路守卫（批量真的会执行）
+
+===== 4) 存档音频文件夹 = MBM_Audio =====
+  ==> 通过  AUDIO_FOLDER 的值是 "MBM_Audio"
+  ==> 通过  EscalatorSpeedManager 里没有旧文件夹名的字符串字面量
+  ==> 通过  文件夹路径仍然统一由 audioFolder(level) 产出
+  ==> 通过  剥注释后全工程源码里没有旧文件夹名 smoothlift_audio  -- 命中 []
+  ==> 通过  改名有【1.53】标记（可追溯）
+
+===== 5) 版本号（用户点名 => 1.30.11201） =====
+  ==> 通过  gradle.properties mod_version = 1.30.11201（用户点名）  -- 得到 1.30.11201
+
+===== 6) 字节码 / jar =====
+  ==> 通过  两个批量 handler 都编进了字节码
+  ==> 通过  根字面量 MBM / mbm 编进了字节码
+  ==> 通过  【1.53】MbmHelpOpenPacket 包类编进了 jar
+  ==> 通过  【1.53】MbmPresetPacket 包类编进了 jar
+  ==> 通过  【1.53】MbmAllVolumePacket 包类编进了 jar
+  ==> 通过  ★ 字节码里没有旧的 dtmusic 字面量
+  ==> 通过  ★ 字节码里文件夹名是 MBM_Audio
+  ==> 通过  ★ 字节码里没有旧的 smoothlift_audio
+  ==> 通过  ★ 字节码里没有 UPLOAD 死通道（【1.7】分块上传已删：会绕过分类注册表入库）
+  ==> 通过  jar MANIFEST Implementation-Version = 1.30.11201（用户点名）  -- 得到 1.30.11201
+  ==> 通过  【1.53】MbmHelpScreen.class 已打进 jar
+
+== 失败 4 项 ==
+   - 用 scanAudioFiles 全量扫 MBM_Audio 文件夹
+   - 逐条走 importAudioToStore（同一套 ogg 校验）
+   - 遍历 audioLibrary 全量键（快照）
+   - 逐条走 deleteAudio（removeAudio 连带清引用）
+
+############################################################
+# 预设选择界面与预设
+############################################################
+  ==> 失败（完整输出见下方）
+
+===== 1) 三个预设的指令清单（前 9 条与用户原文逐字比对）=====
+  ==> 通过  抠得出 PRESET_CLASSIC_MTR 数组
+  ==> 失败  「经典港铁预设」的前 9 条与用户原文**逐字逐序**一致  -- 实际前 9 条 = ['futimusic -f default', 'futihelp -f on', 'lifthelp -f on', 'lifthelp open -f on', 'lifthelp close -f on', 'lifthelp up -f on', 'lifthelp down -f on', 'pbmclosewait -f 1', 'pbmmusic open -f default']
+  ==> 失败  「经典港铁预设」= 用户那 9 条 + 2 条  -- 实际 = ['futimusic -f default', 'futihelp -f on', 'lifthelp -f on', 'lifthelp open -f on', 'lifthelp close -f on', 'lifthelp up -f on', 'lifthelp down -f on', 'pbmclosewait -f 1', 'pbmmusic open -f default', 'pbmmusic close -f default-m', 'pbmmusic open -f on', 'pbmmusic close -f on', 'pbmnarrate hongkong -f']
+  ==> 通过  抠得出 PRESET_SIMPLE_MTR 数组
+  ==> 失败  「简单港铁预设」的前 9 条与用户原文**逐字逐序**一致  -- 实际前 9 条 = ['futimusic -f default', 'futihelp -f off', 'lifthelp -f on', 'lifthelp open -f off', 'lifthelp close -f off', 'lifthelp up -f on', 'lifthelp down -f on', 'pbmclosewait -f 1', 'pbmmusic open -f default']
+  ==> 失败  「简单港铁预设」= 用户那 9 条 + 2 条  -- 实际 = ['futimusic -f default', 'futihelp -f off', 'lifthelp -f on', 'lifthelp open -f off', 'lifthelp close -f off', 'lifthelp up -f on', 'lifthelp down -f on', 'pbmclosewait -f 1', 'pbmmusic open -f default', 'pbmmusic close -f default-s', 'pbmmusic open -f on', 'pbmmusic close -f on', 'pbmnarrate off -f']
+  ==> 通过  抠得出 PRESET_BLANK 数组
+  ==> 失败  「空白预设」的前 9 条与用户原文**逐字逐序**一致  -- 实际前 9 条 = ['futimusic -f off', 'futihelp -f off', 'lifthelp -f off', 'lifthelp open -f off', 'lifthelp close -f off', 'lifthelp up -f off', 'lifthelp down -f off', 'pbmclosewait -f 1', 'pbmmusic open -f off']
+  ==> 失败  「空白预设」= 用户那 9 条 + 0 条  -- 实际 = ['futimusic -f off', 'futihelp -f off', 'lifthelp -f off', 'lifthelp open -f off', 'lifthelp close -f off', 'lifthelp up -f off', 'lifthelp down -f off', 'pbmclosewait -f 1', 'pbmmusic open -f off', 'pbmmusic close -f off', 'pbmnarrate off -f']
+  ==> 通过  经典与空白不是同一份清单（防止复制粘贴改漏）
+  ==> 通过  简单与空白不是同一份清单
+
+===== 1b) 层判据：PSD 那两行必须落在**素材层**，不能落到子开关层 =====
+  ==> 通过  「经典港铁预设」的 PSD 两行落在正确的层（不出现 off）  -- []
+  ==> 通过  「简单港铁预设」的 PSD 两行落在正确的层（不出现 off）  -- []
+  ==> 失败  「空白预设」的 PSD 两行落在正确的层（不出现 off）  -- ['「off」会落到**子开关**层（字面量优先）⇒ 之后配素材也不出声：pbmmusic open -f off', '「off」会落到**子开关**层（字面量优先）⇒ 之后配素材也不出声：pbmmusic close -f off']
+  ==> 通过  ★「经典港铁预设」显式把 open/close 子开关打开（否则救不回被关掉的开关）  -- []
+  ==> 通过  ★「简单港铁预设」显式把 open/close 子开关打开（否则救不回被关掉的开关）  -- []
+  ==> 失败  ★「空白预设」用**正名 none** 表达不播（素材层），不动子开关
+  ==> 失败  ★★「空白预设」里**不许**再出现 `pbmmusic … -f off` —— 那是本轮 bug 的字面形态
+
+===== 2) 预设走「依次派发指令」 =====
+  ==> 通过  presetCommands：classic -> PRESET_CLASSIC_MTR
+  ==> 通过  presetCommands：simple -> PRESET_SIMPLE_MTR
+  ==> 通过  presetCommands：blank -> PRESET_BLANK
+  ==> 通过  抠得出 runCommandBatch() 方法体
+  ==> 通过  用 performPrefixedCommand 派发指令（语义 = 手敲）
+  ==> 通过  ★ 用 withSuppressedOutput 压制每条指令的反馈（否则 8~11 条会刷屏）
+  ==> 通过  是**逐条**执行（for 循环，保留顺序）
+  ==> 通过  用玩家自己的指令源（与手敲同构）
+  ==> 通过  方法体里没有会让整批静默不执行的守卫
+  ==> 通过  界面里出现过预设 id 「classic」
+  ==> 通过  界面里出现过预设 id 「simple」
+  ==> 通过  界面里出现过预设 id 「blank」
+
+===== 3) 全音量 = 11 条指令 =====
+  ==> 通过  抠得出 allVolumeCommands() 方法体
+  ==> 失败  11 条音量指令（含 -f 强制变体）逐条齐全  -- 实际 = ['futiloud -f ', 'futihelploud -f ', 'lifthelploud -f ', 'lifthelploud -f up ', 'lifthelploud -f down ', 'lifthelploud -f open ', 'lifthelploud -f close ', 'pbmloud -f ', 'pbmloud -f open ', 'pbmloud -f close ', 'pbmmidiumloud -f ', 'pbmarriveloud -f ']
+  ==> 通过  用 String.valueOf 拼音量（不是手写死数）
+  ==> 通过  抠得出 applyAllVolumes() 方法体
+  ==> 通过  音量先夹到 1~1000 再派发
+  ==> 通过  全音量也走同一套派发通道
+
+===== 4) /MBM help 打开界面 =====
+  ==> 通过  服务端有开界面包（MbmHelpOpenPacket）
+  ==> 通过  抠得出 mbmOpenHelp() 方法体
+  ==> 通过  取执行指令的玩家
+  ==> 通过  非玩家执行时给失败提示（不是静默）
+  ==> 通过  把开界面包发给那个玩家
+  ==> 通过  客户端打开开界面（MbmHelpScreen）
+  ==> 通过  开界面切回客户端线程（网络线程里直接开界面会崩）
+  ==> 通过  MbmPresetPacket.decode：读 presetId（readUtf(16)）
+  ==> 通过  MbmAllVolumePacket.decode：读 volume（readVarInt）
+  ==> 通过  界面写 presetId 用 MbmPresetPacket(presetId)（与读侧配对）
+  ==> 通过  界面写 volume 用 MbmAllVolumePacket(volume)（与读侧配对）
+
+===== 5) MbmHelpScreen 本体 =====
+  ==> 通过  MbmHelpScreen.java 存在
+  ==> 通过  继承 Screen
+  ==> 通过  按钮文字「经典港铁预设」在界面里
+  ==> 通过  「经典港铁预设」按钮点击 -> sendPreset(ID_CLASSIC)
+  ==> 通过  按钮文字「简单港铁预设」在界面里
+  ==> 通过  「简单港铁预设」按钮点击 -> sendPreset(ID_SIMPLE)
+  ==> 通过  按钮文字「空白预设」在界面里
+  ==> 通过  「空白预设」按钮点击 -> sendPreset(ID_BLANK)
+  ==> 通过  ID_CLASSIC = classic
+  ==> 通过  ID_SIMPLE = simple
+  ==> 通过  ID_BLANK = blank
+  ==> 通过  抠得出 presetLabel() 方法体
+  ==> 通过  presetLabel 里 classic 的显示名含「经典港铁预设」（与按钮文字一致）
+  ==> 通过  presetLabel 里 simple 的显示名含「简单港铁预设」（与按钮文字一致）
+  ==> 通过  presetLabel 里 blank 的显示名含「空白预设」（与按钮文字一致）
+  ==> 通过  有输入框 volumeInput
+  ==> 通过  ★ 输入框在界面**最下方**（用 this.height 定位，不是固定 y）
+  ==> 通过  maxLength = 4（1000 够用）
+  ==> 通过  只收数字
+  ==> 通过  打开时回填当前值
+  ==> 通过  ★ onClose() 先 applyVolume() 再 super.onClose()（按 ESC 自动应用）
+  ==> 通过  有 applyVolume()
+  ==> 通过  抠得出 applyVolume() 方法体
+  ==> 通过  ★ 没改动就 return（不静默改音量）
+  ==> 通过  改了就发 MbmAllVolumePacket
+  ==> 通过  不在世界里时不发（防止空指针 / 无意义包）
+  ==> 通过  音量经 parseVolume 解析（夹取在那一层）
+  ==> 通过  parseVolume 里真的夹到 1~1000
+  ==> 通过  isPauseScreen = false（与其它界面一致）
+  ==> 通过  回车 = 应用并退出（与 EscalatorSpeedScreen 一致）
+
+===== 6) 界面无小字（标题 = 预设选择；音量框左边 1 个标签） =====
+  ==> 通过  ★ 标题字面量是「预设选择」（原来的「MBM 帮助」已改名）
+  ==> 通过  ★ 代码里不再出现旧标题「MBM 帮助」（注释里提到不算）
+  ==> 通过  ★ 居中文字只有标题 1 处（剥注释后 drawCenteredString == 1）  -- 实际 1 处 = ['this.font, this.title, this.width / 2, 12, 0xFFFFFF']
+  ==> 通过  那一处画的是 this.title（=「预设选择」），不是任何说明文案
+  ==> 通过  ★ 左对齐文字只有「音量」标签 1 处（剥注释后 drawString == 1）  -- 实际 1 处 = ['this.font, Component.literal("音量"), this.width / 2 - 100 - 4 - this.font.width("音量"), this.height - 42 + (20 - this.font.lineHeight) / 2, 0xA0A0A0, false']
+  ==> 通过  那个标签的文字就是「音量」
+  ==> 通过  「音量」这个标签只有一处（没有第二份重复标签）  -- 实际 1 处
+  ==> 通过  ★ 标签贴在输入框**左沿外侧** 4 px（x = this.width/2 − 100 − 4 − 字体实测宽度）  -- 实际 = this.font, Component.literal("音量"), this.width / 2 - 100 - 4 - this.font.width("音量"), this.height - 42 + (20 - this.font.lineHeight) / 2, 0xA0A0A0, false
+  ==> 通过  标签纵向与 20 px 高的输入框居中对齐
+  ==> 通过  ★ 全界面文字绘制合计 == 2（标题 + 音量标签；多一处即回退）
+  ==> 通过  6 行说明小字全部删净（代码里一处不剩）  -- 残留 = []
+  ==> 通过  音量输入框还在（删的是文字，不是控件）
+  ==> 通过  三个预设按钮的点击回调还在
+  ==> 通过  ESC 自动应用音量的约定还在（没被顺手删）
+  ==> 通过  标签不用 EditBox 的 hint（hint 只在空值/聚焦前显示，回填了数字就永远看不见）
+
+===== 7) 反向对照 =====
+  ==> 通过  反向对照的探针确实插进去了（基线可用）
+  ==> 通过  塞回一行小字 -> 「文字合计 == 2」变红（对照）
+  ==> 通过  塞回旧文案 -> 「小字删净」变红（对照）
+  ==> 通过  「在框左边」的判据对当前写法成立（基线）
+  ==> 通过  「挪到右边」的探针确实改动了表达式（基线可用）
+  ==> 通过  挪到框右边 -> 「标签在框左边」这条判据当场变红（对照）
+  ==> 通过  原样清单比对通过（基线）
+  ==> 通过  多一条会红（对照）
+  ==> 通过  少一条会红（对照）
+  ==> 通过  顺序调了会红（对照）
+  ==> 通过  写错一个素材名会红（对照）
+  ==> 通过  基线：空白预设（none）判据不误报
+  ==> 通过  ★ 把空白预设那两行改回 `-f off` ⇒ 层判据**恰好**报 2 条（这就是本轮 bug 的字面形态）  -- ['「off」会落到**子开关**层（字面量优先）⇒ 之后配素材也不出声：pbmmusic open -f off', '「off」会落到**子开关**层（字面量优先）⇒ 之后配素材也不出声：pbmmusic close -f off']
+  ==> 通过  基线：`on`（子开关层，显式）与 `default-m`（素材层）都不算违规
+  ==> 通过  编造一个不在名单里的层值 ⇒ 也会红（对照）
+  ==> 通过  基线：经典预设的两条「开子开关」都在
+  ==> 通过  ★ 把「开子开关」那两条整段删掉 ⇒ 「必须显式开」这条当场报出缺的两条（对照）  -- ['pbmmusic open -f on', 'pbmmusic close -f on']
+  ==> 通过  只开一半（漏了 close）也会红（对照）
+
+== 失败 10 项 ==
+   - 「经典港铁预设」的前 9 条与用户原文**逐字逐序**一致
+   - 「经典港铁预设」= 用户那 9 条 + 2 条
+   - 「简单港铁预设」的前 9 条与用户原文**逐字逐序**一致
+   - 「简单港铁预设」= 用户那 9 条 + 2 条
+   - 「空白预设」的前 9 条与用户原文**逐字逐序**一致
+   - 「空白预设」= 用户那 9 条 + 0 条
+   - 「空白预设」的 PSD 两行落在正确的层（不出现 off）
+   - ★「空白预设」用**正名 none** 表达不播（素材层），不动子开关
+   - ★★「空白预设」里**不许**再出现 `pbmmusic … -f off` —— 那是本轮 bug 的字面形态
+   - 11 条音量指令（含 -f 强制变体）逐条齐全
+
+############################################################
+# 同步所有按钮与弹窗
+############################################################
+  ==> 失败（完整输出见下方）
+
+===== 1) 五个界面右上角各一处「同步所有」入口 =====
+  ==> 通过  扶梯一级（扶梯设置）：恰好一处 syncButton 调用  -- 实际 1 处
+  ==> 通过  扶梯一级（扶梯设置）：syncButton 五/六个实参齐全  -- 实际 = ['this', '"esc"', 'SmoothLift.SYNC_TOP_LEVEL', 'pos.asLong()', 'this::applyChanges']
+  ==> 通过  扶梯一级（扶梯设置）：host = this（弹窗关掉后回到本界面）  -- this
+  ==> 通过  扶梯一级（扶梯设置）：域 = esc  -- "esc"
+  ==> 通过  扶梯一级（扶梯设置）：射程 = SmoothLift.SYNC_TOP_LEVEL  -- SmoothLift.SYNC_TOP_LEVEL
+  ==> 通过  扶梯一级（扶梯设置）：身份 = pos.asLong()  -- pos.asLong()
+  ==> 通过  扶梯一级（扶梯设置）：落地回调 = this::applyChanges  -- this::applyChanges
+  ==> 通过  扶梯二级（选择扶梯音乐）：恰好一处 syncButton 调用  -- 实际 1 处
+  ==> 通过  扶梯二级（选择扶梯音乐）：syncButton 五/六个实参齐全  -- 实际 = ['this', '"esc"', 'SmoothLift.SYNC_ESC_AUDIO', 'pos.asLong()', 'null']
+  ==> 通过  扶梯二级（选择扶梯音乐）：host = this（弹窗关掉后回到本界面）  -- this
+  ==> 通过  扶梯二级（选择扶梯音乐）：域 = esc  -- "esc"
+  ==> 通过  扶梯二级（选择扶梯音乐）：射程 = SmoothLift.SYNC_ESC_AUDIO  -- SmoothLift.SYNC_ESC_AUDIO
+  ==> 通过  扶梯二级（选择扶梯音乐）：身份 = pos.asLong()  -- pos.asLong()
+  ==> 通过  扶梯二级（选择扶梯音乐）：落地回调 = null  -- null
+  ==> 通过  扶梯二级（选择无障碍提示音）：恰好一处 syncButton 调用  -- 实际 1 处
+  ==> 通过  扶梯二级（选择无障碍提示音）：syncButton 五/六个实参齐全  -- 实际 = ['this', '"esc"', 'SmoothLift.SYNC_ESC_HELP_AUDIO', 'pos.asLong()', 'null']
+  ==> 通过  扶梯二级（选择无障碍提示音）：host = this（弹窗关掉后回到本界面）  -- this
+  ==> 通过  扶梯二级（选择无障碍提示音）：域 = esc  -- "esc"
+  ==> 通过  扶梯二级（选择无障碍提示音）：射程 = SmoothLift.SYNC_ESC_HELP_AUDIO  -- SmoothLift.SYNC_ESC_HELP_AUDIO
+  ==> 通过  扶梯二级（选择无障碍提示音）：身份 = pos.asLong()  -- pos.asLong()
+  ==> 通过  扶梯二级（选择无障碍提示音）：落地回调 = null  -- null
+  ==> 通过  直梯（主界面 + 三项列表页）：恰好一处 syncButton 调用  -- 实际 1 处
+  ==> 通过  直梯（主界面 + 三项列表页）：syncButton 五/六个实参齐全  -- 实际 = ['this', '"lift"', 'page', 'key', 'page > 0 ? null : this::applyMainVolumes']
+  ==> 通过  直梯（主界面 + 三项列表页）：host = this（弹窗关掉后回到本界面）  -- this
+  ==> 通过  直梯（主界面 + 三项列表页）：域 = lift  -- "lift"
+  ==> 通过  直梯（主界面 + 三项列表页）：射程 = page  -- page
+  ==> 通过  直梯（主界面 + 三项列表页）：身份 = key  -- key
+  ==> 失败  直梯（主界面 + 三项列表页）：落地回调 = tone == null ? this::applyDefaultVolume : () -> applyToneVolume(tone)  -- page > 0 ? null : this::applyMainVolumes
+  ==> 通过  屏蔽门（主界面 + 四个二级页）：恰好一处 syncButton 调用  -- 实际 1 处
+  ==> 通过  屏蔽门（主界面 + 四个二级页）：syncButton 五/六个实参齐全  -- 实际 = ['this', '"psd"', 'page', 'runKey', 'syncExtra', 'this::applyMainInputs']
+  ==> 通过  屏蔽门（主界面 + 四个二级页）：host = this（弹窗关掉后回到本界面）  -- this
+  ==> 通过  屏蔽门（主界面 + 四个二级页）：域 = psd  -- "psd"
+  ==> 通过  屏蔽门（主界面 + 四个二级页）：射程 = page  -- page
+  ==> 通过  屏蔽门（主界面 + 四个二级页）：身份 = runKey  -- runKey
+  ==> 通过  屏蔽门（主界面 + 四个二级页）：第 6 参（extraKey）= syncExtra 变量  -- syncExtra
+  ==> 通过  屏蔽门（主界面 + 四个二级页）：落地回调 = this::applyMainInputs  -- this::applyMainInputs
+  ==> 通过  ★ PSD 主页 syncExtra = page == 0 ? runAnchor : 0L（主页 = 门串锚点，其它页 0）
+  ==> 通过  用到的域集合 == {esc, lift, psd}  -- 实际 = ['esc', 'lift', 'psd']
+
+===== 2) 入口按钮定位在右上角 =====
+  ==> 通过  抠得出 syncButton() 方法体（至少一个重载）
+  ==> 通过  syncButton 里有 .bounds(...)
+  ==> 通过  ★ x 从 host.width 往左推（靠右）  -- host.width - ENTRY_MARGIN - ENTRY_W, ENTRY_Y, ENTRY_W, ENTRY_H
+  ==> 通过  ★ x 是「宽 − 按钮宽」（贴着右沿）  -- host.width - ENTRY_MARGIN - ENTRY_W
+  ==> 通过  ★ y = 6 或常量 ENTRY_Y（贴顶）  -- host.width - ENTRY_MARGIN - ENTRY_W, ENTRY_Y, ENTRY_W, ENTRY_H
+  ==> 通过  按钮宽度用具名常量 ENTRY_W（不是魔数）
+
+===== 3) 弹窗本体：3 个按钮 + 文案 ↔ 回调 =====
+  ==> 通过  SyncPopupScreen.java 存在
+  ==> 通过  继承 Screen
+  ==> 通过  抠得出 SyncPopupScreen.init()
+  ==> 失败  ★ 弹窗 init() 里正好 3 个按钮  -- 实际 2 个
+  ==> 失败  ★ 弹窗字面量只有 标题「同步」+ 三个按钮（没有多余说明文字）  -- 实际 = ['同步', '同步所有', '取消']
+  ==> 失败  「同步所有」出现 2 次（入口按钮 + 弹窗内按钮）  -- 实际 1 次
+
+===== 4) 写序 / 读序逐格配对 =====
+  ==> 通过  抠得出 send() 方法体
+  ==> 通过  ★ send() 构造 SyncSettingsPacket(domain, scope, force, key, extraKey)（【10-04 修 2】PSD 主页 extraKey = 门串锚点）
+  ==> 通过  走 SyncSettingsPacket（sendToServer）
+  ==> 通过  发完就 onClose() 回原界面
+  ==> 通过  send() 只发一条包  -- 实际 1 条
+  ==> 通过  ★ SyncSettingsPacket.decode 读序 = utf16 · varInt · boolean · long · long（key + extraKey；与写序同序同类型）
+  ==> 通过  ★ 写读逐格同名配对（错位即静默读出垃圾值）  -- 写 ['writeUtf', 'writeVarInt', 'writeBoolean', 'writeLong', 'writeLong'] / 读 ['readUtf', 'readVarInt', 'readBoolean', 'readLong', 'readLong']
+  ==> 通过  服务端有 SyncSettingsPacket 包类（声明了同步设置）
+  ==> 通过  SyncSettingsPacket 包类存在
+  ==> 通过  ★ SyncSettingsPacket.handle：切主线程 + 成败并进 UI 会话（noteUiResult，【10-04 修 3】不回长句聊天栏）
+  ==> 通过  ★ SyncSettingsPacket 不再 displayClientMessage 长句（Bug3：改为操作成功失败）
+
+===== 5) 关闭弹窗回原界面 =====
+  ==> 通过  抠得出 SyncPopupScreen.onClose()
+  ==> 通过  ★ onClose() 把界面设回 returnTo（= 打开弹窗前那个界面）  -- Minecraft mc = Minecraft.getInstance(); mc.setScreen(returnTo == null ? null : returnTo);
+  ==> 通过  ★ 不覆盖 keyPressed（ESC 走 Screen 默认 -> onClose() 这条路）
+  ==> 通过  ★ 不覆盖 shouldCloseOnEsc（覆盖成 false 就把 ESC 关了）
+  ==> 通过  isPauseScreen = false（与模组其它界面一致）
+
+===== 6) 「同步所有」(force=false) 不动单独设置过的项 =====
+  ==> 通过  抠得出 syncEscalator() 方法体
+  ==> 通过  抠得出 syncLift() 方法体
+  ==> 通过  抠得出 syncPsd() 方法体
+  ==> 通过  syncEscalator 里有 if (force) {..} else {..} 分支对  -- 实际 3 对
+  ==> 通过  syncLift 里有 if (force) {..} else {..} 分支对  -- 实际 1 对
+  ==> 通过  syncPsd 里有 if (force) {..} else {..} 分支对  -- 实际 6 对
+  ==> 通过  至少有一处 else 支可供判定
+  ==> 通过  syncEscalator 第 1 个 force 支确实调了强制 setter  -- 实际 = ['forceGlobalRunSpeed', 'forceGlobalStepSpeed', 'forceDefaultVolume', 'forceDefaultHelpVolume', 'forceDefaultHelp']
+  ==> 通过  syncEscalator 第 2 个 force 支确实调了强制 setter  -- 实际 = ['forceDefaultAudio']
+  ==> 通过  syncEscalator 第 3 个 force 支确实调了强制 setter  -- 实际 = ['forceDefaultHelpAudio']
+  ==> 通过  syncLift 第 1 个 force 支确实调了强制 setter  -- 实际 = ['setDefaultLiftToneAudioAll']
+  ==> 通过  syncPsd 第 1 个 force 支确实调了强制 setter  -- 实际 = ['setDefaultPsdCloseWaitSecondsAll', 'setDefaultPsdToneVolumeAll', 'setDefaultPsdMidiumAll', 'setDefaultPsdMidiumVolumeAll', 'setDefaultPsdArriveAll', 'setDefaultPsdArriveVolumeAll', 'setDefaultPsdDepartDelayAll']
+  ==> 通过  syncPsd 第 2 个 force 支确实调了强制 setter  -- 实际 = ['setDefaultPsdToneAudioAll']
+  ==> 通过  syncPsd 第 3 个 force 支确实调了强制 setter  -- 实际 = ['setDefaultPsdMidiumAll']
+  ==> 通过  syncPsd 第 4 个 force 支确实调了强制 setter  -- 实际 = ['setDefaultPsdArriveAll']
+  ==> 失败  syncPsd 第 5 个 force 支确实调了强制 setter  -- 实际 = []
+  ==> 失败  syncPsd 第 6 个 force 支确实调了强制 setter  -- 实际 = []
+  ==> 通过  ★★ 「同步所有」那一支（else）一处 force / *All setter 都没有 —— 所以改过的项保持不动  -- 泄漏 = {}
+  ==> 通过  「同步所有」那一支确实在写**默认层**（普通 setter）  -- 实际 = {'syncEscalator#1': ['setGlobalRunSpeed', 'setGlobalStepSpeed', 'setDefaultVolume', 'setDefaultHelpVolume', 'setDefaultHelp'], 'syncEscalator#2': ['setDefaultAudio'], 'syncEscalator#3': ['setDefaultHelpAudio'], 'syncLift#1': ['setDefaultLiftToneAudio'], 'syncPsd#1': ['setDefaultPsdCloseWaitSeconds', 'setDefaultPsdToneVolume', 'setDefaultPsdMidium', 'setDefaultPsdMidiumVolume', 'setDefaultPsdArrive', 'setDefaultPsdArriveVolume'], 'syncPsd#2': ['setDefaultPsdToneAudio'], 'syncPsd#3': ['setDefaultPsdMidium'], 'syncPsd#4': ['setDefaultPsdArrive']}
+
+===== 7) 射程编号：服务端常量 ↔ 界面页号 =====
+  ==> 通过  SYNC_TOP_LEVEL = 0  -- 0
+  ==> 通过  SYNC_ESC_AUDIO = 1  -- 1
+  ==> 通过  SYNC_ESC_HELP_AUDIO = 2  -- 2
+  ==> 通过  SYNC_PSD_MIDIUM_PAGE = 3  -- 3
+  ==> 通过  SYNC_PSD_ARRIVE_PAGE = 4  -- 4
+  ==> 通过  抠得出服务端 SYNC_LIFT_WHICH
+  ==> 通过  ★ 直梯：服务端 SYNC_LIFT_WHICH 与界面 PAGES 同序同内容  -- 服务端 ['up', 'down', 'open', 'close'] / 界面 ['up', 'down', 'open', 'close']
+  ==> 通过  抠得出服务端 SYNC_PSD_WHICH
+  ==> 通过  ★ 屏蔽门：服务端 SYNC_PSD_WHICH 与界面 PAGES 同序同内容  -- 服务端 ['open', 'close'] / 界面 ['open', 'close']
+  ==> 通过  屏蔽门界面：page == 3 -> 到站播报页
+  ==> 通过  屏蔽门界面：page == 4 -> 进站报站页
+  ==> 通过  直梯界面：单项页用 PAGES[page - 1]（与服务端 whichs[scope - 1] 同下标）
+  ==> 通过  服务端：SYNC_LIFT_WHICH[scope - 1]
+  ==> 通过  服务端：SYNC_PSD_WHICH[scope - 1]
+  ==> 通过  syncSettings 分发 "esc"
+  ==> 通过  syncSettings 分发 "lift"
+  ==> 通过  syncSettings 分发 "psd"
+
+===== 8) 弹窗里没有说明小字 =====
+  ==> 通过  ★ 居中文字只有标题 1 处  -- 实际 1 处
+  ==> 通过  那一处画的是 this.title
+  ==> 通过  ★ 一处左对齐小字都没有  -- 实际 0 处 = []
+
+===== 9) 同步回执不带括号 =====
+  ==> 通过  抠得出同步回执文案（>= 8 条）  -- 实际 25 条
+  ==> 通过  ★ 回执文案里没有括号（用户点名的规范）  -- 带括号的 = []
+  ==> 通过  占位符没混进回执（防御性）
+  ==> 通过  ★ 同步方法体里所有字符串都没有括号  -- 带括号的 = []
+
+===== 10) 反向对照 =====
+  ==> 通过  把写序里 varInt 与 boolean 对调 -> 配对判据当场变红（对照）
+  ==> 通过  把读序里 boolean 与 long 对调 -> 配对判据当场变红（对照）
+  ==> 通过  基线：当前 else 支一个 force setter 都没有（对照基线）  -- 实际 = []
+  ==> 通过  ★ 往 else 支塞一个 forceDefaultVolume -> 「不泄漏」这条判据当场变红（对照）  -- 探针命中 = ['forceDefaultVolume']
+  ==> 通过  calls() 不把 setDefaultPsdToneAudioAll 误判成 setDefaultPsdToneAudio（前缀陷阱）
+  ==> 通过  calls() 认得出 setDefaultPsdToneAudioAll 本身
+  ==> 通过  直梯界面域字面量已是 lift（基线）  -- lift
+  ==> 通过  域改成 lifts -> 域集合判据变红（对照）  -- 探针集合 = ['esc', 'lifts', 'psd']
+  ==> 通过  直梯 which 一致（基线）
+  ==> 通过  把界面 PAGES 倒序 -> 一致判据变红（对照）  -- 倒序 = ['close', 'open', 'down', 'up']
+  ==> 失败  把 up 与 chime 对调 -> 一致判据变红（对照）  -- 探针 = ['up', 'down', 'open', 'close']
+  ==> 通过  到站页 = 3（基线）
+  ==> 通过  到站页改成 5 -> 编号判据变红（对照）
+
+== 失败 7 项 ==
+   - 直梯（主界面 + 三项列表页）：落地回调 = tone == null ? this::applyDefaultVolume : () -> applyToneVolume(tone)
+   - ★ 弹窗 init() 里正好 3 个按钮
+   - ★ 弹窗字面量只有 标题「同步」+ 三个按钮（没有多余说明文字）
+   - 「同步所有」出现 2 次（入口按钮 + 弹窗内按钮）
+   - syncPsd 第 5 个 force 支确实调了强制 setter
+   - syncPsd 第 6 个 force 支确实调了强制 setter
+   - 把 up 与 chime 对调 -> 一致判据变红（对照）
+
+############################################################
+# 列车音效界面与侧线
+############################################################
+  ==> 通过
+
+############################################################
+# 直梯界面两列版式
+############################################################
+  ==> 失败（完整输出见下方）
+== ★ 直梯单项页 = 左右两列列表（按屏蔽门 UI 样式；【09-27】） ==
+[PASS] 两列 / 行内三格的 x 与行 y 全部取自 SoundListLayout（不再各算一遍）
+[PASS] 两列表头 = 「未导入存档」/「已导入存档」（与屏蔽门逐字相同）
+[FAIL] 右列特殊行 = 3（开关 / 不播 / 默认（跟维度默认））
+[PASS] ★ 已存入第 i 条落在第 i + 3 行（前 3 行被特殊行占了）
+[PASS] 直梯界面的 ROW_H 是指向 SoundListLayout 的别名
+[PASS] 直梯界面的 LIST_TOP 是指向 SoundListLayout 的别名
+[PASS] 直梯界面的 COL_W 是指向 SoundListLayout 的别名
+[PASS] 直梯界面的 ROW_BTN_W 是指向 SoundListLayout 的别名
+[PASS] 直梯界面的 ROW_BTN_GAP 是指向 SoundListLayout 的别名
+[PASS] 直梯界面的 ROW_NAME_W 是指向 SoundListLayout 的别名
+[PASS] 直梯界面的 ROW_NAME_CHARS 是指向 SoundListLayout 的别名
+[PASS] 直梯界面的 BTN_Y 是指向 SoundListLayout 的别名
+[PASS] 抠得出 buildTonePage() 方法体
+[PASS] 右列三个特殊行（开关 / 不播 / 默认（跟维度默认））都建了控件
+[PASS] ★ 「删除」只出现在已存入行（三个特殊行都没有删除键）—— rowDeleteX 恰好 1 处  -- 实际 1 处
+[PASS] 左列 = pending（未导入）、右列 = stored（已导入），两列都建了控件
+[FAIL] Forge-1.20.1 无分类隔离：deleteStored 只带 id（全类无 categoryFor）
+[PASS] 发包走 Forge 通道：RequestSyncPacket
+[FAIL] 发包走 Forge 通道：SetLiftChimeVolumePacket
+[PASS] 发包走 Forge 通道：SetLiftToneVolumePacket
+[PASS] 发包走 Forge 通道：ImportFolderLiftTonePacket
+[PASS] 发包走 Forge 通道：SetLiftTonePacket
+[PASS] 发包走 Forge 通道：SetLiftToneSwitchPacket
+[PASS] 发包走 Forge 通道：DeleteAudioPacket
+[PASS] ★ 直梯 UI 里没有任何灰色文字色（对齐屏蔽门：灰字已清）  -- 白/黄两色之外无灰
+
+== 失败 3 项 ==
+   - 右列特殊行 = 3（开关 / 不播 / 默认（跟维度默认））
+   - Forge-1.20.1 无分类隔离：deleteStored 只带 id（全类无 categoryFor）
+   - 发包走 Forge 通道：SetLiftChimeVolumePacket
+
+############################################################
+# MTR3/MTR4 契约
+############################################################
+  ==> 失败（完整输出见下方）
+通过 0 项，失败 2 项
+  ✗ [环境] 找到 MTR3 的 jar — None
+  ✗ [环境] 找到 MTR4 的 jar（对照用） — None
+
+############################################################
+# 指令树
+############################################################
+  ==> 通过
+
+############################################################
+# PIDS 站台名掩码
+############################################################
+  ==> 失败（完整输出见下方）
+== [1] mask 逻辑断言 ==
+[PASS] mask('5%A%AB') == '5AB'
+[PASS] mask('AB%C%DE') == 'ABDE'
+[PASS] mask('5A') == '5A'
+[PASS] mask('') == ''
+[PASS] mask('%A%') == ''
+[PASS] mask('a%b%c%d%e') == 'ace'
+[PASS] mask('5%AB') == '5'
+[PASS] mask('5AB') == '5AB'
+[PASS] mask('') == ''
+==> 通过
+
+== [2] 源码结构断言 ==
+[PASS] PlatformNameMask.java 存在  -- src\main\java\smooth\lift\client\PlatformNameMask.java
+[PASS] PlatformNameMask 暴露 public static String mask(String)
+[FAIL] 无 % 时返回同一个实例（零分配捷径）
+[FAIL] 算法是成对开关（toggle）：hidden = !hidden
+[FAIL] 遇到 % 翻转后跳过该字符本身
+[PASS] Mtr4PidsNameMixin.java 存在  -- src\main\java\smooth\lift\client\mixin\Mtr4PidsNameMixin.java
+[PASS] Mtr3PidsNameMixin.java 存在  -- src\main\java\smooth\lift\client\mixin\Mtr3PidsNameMixin.java
+[PASS] Mtr4PidsNameMixin 目标 = org.mtr.core.operation.ArrivalResponse
+[PASS] Mtr4PidsNameMixin 带 @Pseudo
+[PASS] Mtr4PidsNameMixin 注入 getPlatformName()Ljava/lang/String;
+[PASS] Mtr4PidsNameMixin 调 PlatformNameMask.mask
+[PASS] Mtr3PidsNameMixin 目标 = mtr.render.RenderPIDS
+[PASS] Mtr3PidsNameMixin 带 @Pseudo
+[PASS] Mtr3PidsNameMixin 重定向 lambda$getSchedules$0
+[PASS] Mtr3PidsNameMixin 重定向 Map.put
+[PASS] Mtr3PidsNameMixin 用 require = 0（lambda 名缺失也不崩）
+[PASS] Mtr3PidsNameMixin 调 PlatformNameMask.mask
+[PASS] smoothlift.psd.mixins.json 存在  -- src\main\resources\smoothlift.psd.mixins.json
+[PASS] Mtr4PidsNameMixin 在 client 数组  -- ['Mtr3PsdDoorMixin', 'Mtr4PsdDoorMixin', 'Mtr3PidsNameMixin', 'Mtr4PidsNameMixin', 'Mtr4NameMaskMixin', 'Mtr4SavedRailRawMixin', 'Mtr4EditNameRawMixin', 'Mtr4DashboardRawMixin', 'Mtr4RouteArrowAliasMixin', 'Mtr4RouteMapNameMixin']
+[PASS] Mtr3PidsNameMixin 在 client 数组  -- ['Mtr3PsdDoorMixin', 'Mtr4PsdDoorMixin', 'Mtr3PidsNameMixin', 'Mtr4PidsNameMixin', 'Mtr4NameMaskMixin', 'Mtr4SavedRailRawMixin', 'Mtr4EditNameRawMixin', 'Mtr4DashboardRawMixin', 'Mtr4RouteArrowAliasMixin', 'Mtr4RouteMapNameMixin']
+[PASS] PsdDoorMixinPlugin.java 存在  -- src\main\java\smooth\lift\mixin\mtr\PsdDoorMixinPlugin.java
+[PASS] PsdDoorMixinPlugin 有 Mtr4PidsNameMixin 放行分支
+[PASS] PsdDoorMixinPlugin 有 Mtr3PidsNameMixin 放行分支
+[PASS] PsdDoorMixinPlugin 仍遵守铁律：正文中无 Class.forName / loadClass
+[PASS] MtrDwellAccess.java 存在  -- src\main\java\smooth\lift\client\MtrDwellAccess.java
+[FAIL] MtrDwellAccess 里 PlatformNameMask.mask( 正好 2 处（讲述人两个出口）  -- 实际 4 处
+[PASS] MTR3 出口已掩码（Platform.name 是 public 字段、不经 getter，必须在这里掩）
+[PASS] MTR4 出口已掩码（与 MTR3 走同一出口；mask 幂等 ⇒ 第二处是保险不是重复）
+==> 失败
+
+== [3] 反向对照（mutation 后必须变红 + md5 证还原） ==
+[PASS] Mtr4PidsNameMixin 原文件含正确 target（实验前提）
+[PASS] 已构造 mutation（target 改错）
+[PASS] mutation 后『target == ArrivalResponse』断言当场变红
+[PASS] 还原成功（md5 一致）：4f9aff516f3f5b0a844d49946ecd1305
+[PASS] 还原后结构断言恢复为绿
+[PASS] MtrDwellAccess 原文件含 MTR3 出口掩码（实验前提）
+[PASS] 已构造 mutation（MTR3 出口掩码改坏）
+[FAIL] mutation 后『正好 2 处』当场变红  -- 实际 3 处
+[PASS] 还原成功（md5 一致）：30f1e2e67188c2bea159c2af6fb0e56c
+==> 失败
+
+== 失败 5 项 ==
+   - 无 % 时返回同一个实例（零分配捷径）
+   - 算法是成对开关（toggle）：hidden = !hidden
+   - 遇到 % 翻转后跳过该字符本身
+   - MtrDwellAccess 里 PlatformNameMask.mask( 正好 2 处（讲述人两个出口）
+   - mutation 后『正好 2 处』当场变红
+
+############################################################
+# 有回归失败，见上面明细
+############################################################

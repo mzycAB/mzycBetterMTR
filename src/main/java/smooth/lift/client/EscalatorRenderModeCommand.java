@@ -50,15 +50,7 @@ public final class EscalatorRenderModeCommand {
      * @param on true = 开启（被挡住的段整段不画）；false = 关闭（只按距离 + 视锥剔除）
      */
     public static int setOcclusion(CommandContext<CommandSourceStack> ctx, boolean on) {
-        if (!EscalatorRenderMode.applyOcclusion(on)) {
-            ctx.getSource().sendSuccess(() -> Component.literal(
-                    "[SmoothLift] 遮挡剔除本来就是" + (on ? "开启" : "关闭")
-                            + "的，无需切换。"), false);
-            return 1;
-        }
-        ctx.getSource().sendSuccess(() -> Component.literal(
-                "[SmoothLift] 扶梯阶梯遮挡剔除已" + (on ? "开启" : "关闭")
-                        + "（立刻生效，已记住；用 /mtrxr 看当前状态）"), false);
+        ctx.getSource().sendSuccess(() -> Component.literal(applyOcclusionMode(on)), false);
         return 1;
     }
 
@@ -68,15 +60,36 @@ public final class EscalatorRenderModeCommand {
      * @param optimize true = 优化引擎（/mtrxr off）；false = MTR 原版（/mtrxr on）
      */
     public static int set(CommandContext<CommandSourceStack> ctx, boolean optimize) {
+        ctx.getSource().sendSuccess(() -> Component.literal(applyMode(optimize)), false);
+        return 1;
+    }
+
+    /**
+     * 【09-30 续 2】切换渲染引擎的**核心逻辑**（不经过 brigadier —— mbmhelp 的
+     * 「兼容模式」弹窗直接调它，反馈与 {@code /mtrxr on|off} 逐字一致）。
+     *
+     * @return 要给玩家看的反馈（含「无需切换」的情形）
+     */
+    public static String applyMode(boolean optimize) {
         if (!EscalatorRenderMode.apply(optimize)) {
             // 模式没变（apply 返回 false）：不需要重载资源，直接告知现状。
-            ctx.getSource().sendSuccess(() -> Component.literal(
-                    "[SmoothLift] 当前已经是 " + EscalatorRenderMode.name() + "，无需切换。"), false);
-            return 1;
+            return "[SmoothLift] 当前已经是 " + EscalatorRenderMode.name() + "，无需切换。";
         }
-        ctx.getSource().sendSuccess(() -> Component.literal(
-                "[SmoothLift] 扶梯阶梯渲染引擎已切换为：" + EscalatorRenderMode.name()
-                        + "（资源包正在重载，稍等一两秒即可生效）"), false);
-        return 1;
+        return "[SmoothLift] 扶梯阶梯渲染引擎已切换为：" + EscalatorRenderMode.name()
+                + "（资源包正在重载，稍等一两秒即可生效）";
+    }
+
+    /**
+     * 【09-30 续 2】开关遮挡剔除的核心逻辑（不经过 brigadier —— mbmhelp 的「兼容模式」
+     * 弹窗直接调它，反馈与 {@code /mtrxr occ on|off} 逐字一致）。
+     *
+     * @return 要给玩家看的反馈（含「无需切换」的情形）
+     */
+    public static String applyOcclusionMode(boolean on) {
+        if (!EscalatorRenderMode.applyOcclusion(on)) {
+            return "[SmoothLift] 遮挡剔除本来就是" + (on ? "开启" : "关闭") + "的，无需切换。";
+        }
+        return "[SmoothLift] 扶梯阶梯遮挡剔除已" + (on ? "开启" : "关闭")
+                + "（立刻生效，已记住；用 /mtrxr 看当前状态）";
     }
 }

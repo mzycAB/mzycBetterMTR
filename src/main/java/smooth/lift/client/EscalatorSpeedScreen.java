@@ -1,79 +1,113 @@
 package smooth.lift.client;
 
+import net.minecraft.network.FriendlyByteBuf;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.client.gui.components.Button;
 import net.minecraft.client.gui.components.EditBox;
 import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.core.BlockPos;
-import net.minecraft.network.FriendlyByteBuf;
 import net.minecraft.network.chat.Component;
 import org.lwjgl.glfw.GLFW;
 import smooth.lift.EscalatorSpeedData;
 import smooth.lift.EscalatorSpeedManager;
 import smooth.lift.SmoothLift;
-import smooth.lift.network.Packets;
-import smooth.lift.network.SetVolumePacket;
-import smooth.lift.network.SetHelpPacket;
-import smooth.lift.network.SetHelpVolumePacket;
 import smooth.lift.network.ApplyChainPacket;
+import smooth.lift.network.Packets;
+import smooth.lift.network.SetHelpVolumePacket;
+import smooth.lift.network.SetVolumePacket;
 
 /**
  * 拿着石斧右键扶梯后弹出的设置界面。
  *
- * <p>速度部分：
+ * <p>★★【09-27 六改】整页**五行**，版式与直梯一级菜单（{@code LiftToneSetupScreen} page 0）
+ * **逐格同款**：左边一个 200 宽的按钮、中间一个画出来的标签、右边一个 70 宽的输入框。
+ * <pre>
+ *   [扶梯速度]      速度[ 0.5 ]    ← 左边按钮**点不动**（只当行名），右边框里编辑的是**速度**
+ *   [阶梯速度]      速度[ 0.5 ]    ← 同上
+ *   [声音设置…]     音量[ 100 ]    ← 按钮可点，进「自定义声音」子界面；框里编辑的是**底噪音量**
+ *   [提示音(进入)]  音量[ 100 ]    ← 按钮可点，进「选择提示音」子界面（**进入扶梯**那一头）
+ *   [提示音(离开)]  音量[ 100 ]    ← 按钮可点，进「选择提示音」子界面（**离开扶梯**那一头）
+ * </pre>
+ *
+ * <p>用户原话（【09-27 六改】）：
  * <ul>
- *   <li>「扶梯速度」——这条扶梯的运行速度；</li>
- *   <li>「阶梯速度」——这条扶梯的阶梯动画速度；</li>
- *   <li>「阶梯速度对齐扶梯速度」——把阶梯速度框填成扶梯速度框的值；</li>
- *   <li>「声音设置…」——进入自定义声音子界面（给这条扶梯的运行底噪绑定/解绑 OGG 音频）；</li>
- *   <li>【1.39】「提示音设置…」——进入无障碍提示音子界面（选这条扶梯两端放什么提示音：
- *       模组原声 / 不播 / 导入的 OGG，与底噪**共用同一个导入文件夹**）；</li>
- *   <li>「无障碍：开/关」——这条扶梯的无障碍提示音总开关。</li>
+ *   <li>「扶梯ui的一级菜单的按钮大小调整为直梯ui一级菜单的按钮大小」——
+ *       几何本来就是同一个 {@link #BTN_W}（200×20，反汇编两边的 {@code bounds} 都是
+ *       {@code sipush 200 + bipush 20}）；真正不一样的是**速度行那两只是禁用态**，
+ *       原版会画贴图里**灰的那一格**。现在它们改用 {@link RowNameButton}：
+ *       借「启用态」那一格贴图 + 压掉 hover ⇒ 与直梯的按钮**逐像素同款**，
+ *       但 {@code active} 仍是 {@code false}（点不动、不发声）；</li>
+ *   <li>「"提示音设置"分裂为"提示音(进入)"和"提示音(离开)"2个按钮，所以2级菜单里的
+ *       "设置端头"按钮删掉」—— 见上面第 4/5 两行；端头由**从哪一行进来**决定
+ *       （{@link HelpAudioSetupScreen} 的构造参数），子界面里不再有「设置端头」。</li>
  * </ul>
  *
- * <p>【1.9】声音部分：
- * <ul>
- *   <li>「声音音量」——这条扶梯**运行底噪**的音量，输入 <b>1~1000</b>（100 = 原始音量，1000 = 10× 放大），
- *       实际音量 = 距离衰减 × 这个百分比；</li>
- *   <li>界面里会提示「离开**整条扶梯** 16 格才静音」——底噪的距离是按整条扶梯算的，不是按某个方块算。</li>
- * </ul>
+ * <p>★ 语义一格没混：上面两行的**速度框**编辑的是速度，下面三行的**音量框**编辑的是音量。
  *
- * <p>【1.16】无障碍部分：
- * <ul>
- *   <li>「无障碍：开/关」——这条扶梯是否播放香港式「视障人士提升音」（进扶梯一端急促咔咔、
- *       出扶梯一端缓慢咔咔）。点一下切换，**按 ESC 时**才发出去；</li>
- *   <li>【1.18】「提示音音量」——上面那路提示音的音量（1~1000，100 = 原始音量），
- *       与「声音音量」（底噪）是**两个独立的输入框**、两套独立数据；
- *       提示音的射程只有 **4 格**（装在一端那一块扶梯方块上），所以是「进出口处才听得到」；</li>
- *   <li>开关与音量的根都是维度默认值（{@code /futihelp on|off}、{@code /futihelploud <音量>}），
- *       这里改的是**这一条扶梯**的单独设置。</li>
- * </ul>
+ * <p>★ 提示音音量**只有一个值**（{@code /futihelploud} 那一路），所以第 4/5 行的两个框
+ * 是**同一个值的两个入口**，靠 {@link #helpVolumeInInput} ⇄ {@link #helpVolumeOutInput}
+ * 互相同步（改哪个都一样），落地时也只发一次包。
+ *
+ * <p>【1.9】声音部分：「声音设置…」行右边的框 —— 这条扶梯**运行底噪**的音量，输入 <b>1~1000</b>
+ * （100 = 原始音量，1000 = 10× 放大），实际音量 = 距离衰减 × 这个百分比。
+ *
+ * <p>【1.16 / 1.18】无障碍部分：提示音的**总开关**已按用户点名删除 ——
+ * 「选音乐 = 开、选不播 = 关」，不需要单独的开关（数据层 {@code helpEnabled} /
+ * 指令 {@code /futihelp} 保留不动，只是界面上不再暴露）。
  *
  * <p>没有「确定」按钮：**按 ESC 退出界面时统一应用**（若都没改动则什么都不发）。
- * 点「声音设置…」进入子界面**之前**也会先把改动发出去，避免「刚填好音量就点了音乐选择」导致丢失。
+ * 点「声音设置…」/「提示音(进入)」/「提示音(离开)」进入子界面**之前**也会先把改动发出去，
+ * 避免「刚填好音量就点了进子界面」导致丢失。
  */
 public class EscalatorSpeedScreen extends Screen {
+
+    // ------------------------------------------------------------------
+    // 【09-27 六改】本页每一行 = 直梯一级菜单**逐格同款**：[按钮] 标签 [输入框]
+    //
+    //   ★ 行几何与 LiftToneSetupScreen 的 BTN_W / MAIN_GAP / MAIN_LABEL_GAP / MAIN_INPUT_W
+    //     **逐项同值同名**（用户点名「按钮大小调整为直梯ui一级菜单的按钮大小」）：
+    //     按钮一律 200 宽、框一律 70 宽、中间是 10 + 标签 + 6。
+    //   ★ 行宽只算**一次**（标签列宽取「速度」「音量」里更宽的那个）⇒ 五行严格左对齐，
+    //     不会因为两个标签的字符宽度不同而错位（用户上一轮抱怨过「不一样」）。
+    // ------------------------------------------------------------------
+    /** 每行左边那个按钮的宽度（= 直梯一级菜单的 BTN_W）。 */
+    private static final int BTN_W = 200;
+    /** 按钮 → 中间标签的空隙（= 直梯 MAIN_GAP）。 */
+    private static final int MAIN_GAP = 10;
+    /** 中间标签 → 输入框的空隙（= 直梯 MAIN_LABEL_GAP）。 */
+    private static final int MAIN_LABEL_GAP = 6;
+    /** 每行输入框的宽度（= 直梯 MAIN_INPUT_W）。 */
+    private static final int MAIN_INPUT_W = 70;
+    /** 速度行中间那个标签的文字（画出来的，不是按钮）。 */
+    private static final String SPEED_LABEL = "速度";
+    /** 音量行中间那个标签的文字（= 直梯 VOLUME_LABEL，同一份字）。 */
+    private static final String VOLUME_LABEL = "音量";
+    /** 五行的 y（行距 = 直梯二级列表的 ROW_H = 22）。 */
+    private static final int ROW1_Y = 40;
+    private static final int ROW2_Y = 62;
+    private static final int ROW3_Y = 84;
+    private static final int ROW4_Y = 106;
+    private static final int ROW5_Y = 128;
+
     private final BlockPos pos;
 
     private EditBox runInput;
     private EditBox stepInput;
     private EditBox volumeInput;
-    /** 【1.18】无障碍**提示音**音量输入框（与 {@link #volumeInput}（底噪音量）并排，互不影响）。 */
-    private EditBox helpVolumeInput;
-    /** 【1.16】无障碍提示音开关按钮（标签随开关状态变化）。 */
-    private Button helpButton;
+    /** 【六改】提示音音量（**进入扶梯**那一行的框）—— 与 {@link #helpVolumeOutInput} 是同一个值。 */
+    private EditBox helpVolumeInInput;
+    /** 【六改】提示音音量（**离开扶梯**那一行的框）—— 与 {@link #helpVolumeInInput} 是同一个值。 */
+    private EditBox helpVolumeOutInput;
+    /** 两个提示音量框互相同步时置位，避免来回触发。 */
+    private boolean suppressHelpVolumeMirror;
 
-    /** 打开界面时四个框/开关里显示的基准值，用来判断玩家到底改了哪一项。 */
+    /** 打开界面时各框里显示的基准值，用来判断玩家到底改了哪一项。 */
     private double openRun;
     private double openStep;
     private int openVolume;
     /** 【1.18】打开界面时提示音音量框里的基准值，用来判断玩家有没有改。 */
     private int openHelpVolume;
-    private boolean openHelp;
-
-    /** 【1.16】无障碍提示音的当前（待应用）值；按 ESC 时与 {@link #openHelp} 不同才发包。 */
-    private boolean helpEnabled;
 
     /** 玩家是否手动改过阶梯速度框；没改过时，改扶梯速度会把阶梯速度一起带着变。 */
     private boolean stepEdited;
@@ -92,82 +126,156 @@ public class EscalatorSpeedScreen extends Screen {
         openStep = currentStepSpeed(mc);
         openVolume = currentVolume(mc);
         openHelpVolume = currentHelpVolume(mc);
-        openHelp = currentHelp(mc);
-        helpEnabled = openHelp;
 
-        runInput = new EditBox(this.font, this.width / 2 - 100, 36, 200, 20, Component.literal("扶梯速度"));
+        // 行 1 / 2：[扶梯速度] 速度[框]  —— 左边按钮点不动（只当行名），右边框里编辑的是速度。
+        addRenderableWidget(new RowNameButton(rowStartX(), ROW1_Y, Component.literal("扶梯速度")));
+        runInput = new EditBox(this.font, rowInputX(), ROW1_Y, MAIN_INPUT_W, 20,
+                Component.literal("扶梯速度"));
         runInput.setMaxLength(32);
         runInput.setValue(EscalatorSpeedData.format(openRun));
         runInput.setResponder(this::onRunEdited);
         addRenderableWidget(runInput);
 
-        stepInput = new EditBox(this.font, this.width / 2 - 100, 70, 200, 20, Component.literal("阶梯速度"));
+        addRenderableWidget(new RowNameButton(rowStartX(), ROW2_Y, Component.literal("阶梯速度")));
+        stepInput = new EditBox(this.font, rowInputX(), ROW2_Y, MAIN_INPUT_W, 20,
+                Component.literal("阶梯速度"));
         stepInput.setMaxLength(32);
         stepInput.setValue(EscalatorSpeedData.format(openStep));
         stepInput.setResponder(this::onStepEdited);
         addRenderableWidget(stepInput);
 
-        addRenderableWidget(Button.builder(Component.literal("阶梯速度对齐扶梯速度"), button -> alignStepToRun())
-                .bounds(this.width / 2 - 100, 92, 200, 20)
+        // 行 3：[声音设置…] 音量[框] —— 【1.9】底噪音量，1~1000（100 = 原始音量），只允许数字。
+        addRenderableWidget(Button.builder(Component.literal("声音设置…"), button -> openAudioSetup())
+                .bounds(rowStartX(), ROW3_Y, BTN_W, 20)
                 .build());
-
-        // 【1.9】声音音量：1~1000（【1.12】100 = 原始音量，可放大到 1000），只允许输入数字。
-        // 【1.18】右侧再并排放一个「提示音音量」（无障碍提示音，独立数据），
-        //         两个框共用一行、各自 96 宽，省下的纵向空间给底部三行提示。
-        volumeInput = new EditBox(this.font, this.width / 2 - 100, 126, 96, 20, Component.literal("声音音量"));
+        volumeInput = new EditBox(this.font, rowInputX(), ROW3_Y, MAIN_INPUT_W, 20,
+                Component.literal("声音音量"));
         volumeInput.setMaxLength(4);
         volumeInput.setValue(String.valueOf(openVolume));
         volumeInput.setFilter(text -> text.isEmpty() || text.chars().allMatch(Character::isDigit));
         addRenderableWidget(volumeInput);
 
-        helpVolumeInput = new EditBox(this.font, this.width / 2 + 4, 126, 96, 20, Component.literal("提示音音量"));
-        helpVolumeInput.setMaxLength(4);
-        helpVolumeInput.setValue(String.valueOf(openHelpVolume));
-        helpVolumeInput.setFilter(text -> text.isEmpty() || text.chars().allMatch(Character::isDigit));
-        addRenderableWidget(helpVolumeInput);
-
-        // 【1.7】自定义声音：运行底噪的音乐选择子界面入口
-        // 【1.39】同一行再并排一个「提示音设置…」—— 无障碍提示音现在也能导入自定义 OGG。
-        //   两者共用同一个导入文件夹与同一份音频库（导入一次两边都能选），只是
-        //   「哪段声音用在哪儿」是两套独立数据。三个按钮各 64 宽（共 200，与上面的输入框同宽）、间距 4。
-        addRenderableWidget(Button.builder(Component.literal("声音设置…"), button -> openAudioSetup())
-                .bounds(this.width / 2 - 100, 150, 64, 20)
+        // 行 4 / 5：【六改】原来那一只「提示音设置…」按用户点名分裂成
+        //   「提示音(进入)」与「提示音(离开)」——各自打开同一张子界面，但**预先锁定哪一头**
+        //   （子界面里因此不再需要「设置端头」那一行）。
+        //   右边的音量框 = 提示音音量（1~1000，只允许数字）；两行是**同一个值**，互相同步。
+        addRenderableWidget(Button.builder(Component.literal("提示音(进入)"),
+                        button -> openHelpAudioSetup(true))
+                .bounds(rowStartX(), ROW4_Y, BTN_W, 20)
                 .build());
-        addRenderableWidget(Button.builder(Component.literal("提示音设置…"), button -> openHelpAudioSetup())
-                .bounds(this.width / 2 - 32, 150, 64, 20)
-                .build());
+        helpVolumeInInput = new EditBox(this.font, rowInputX(), ROW4_Y, MAIN_INPUT_W, 20,
+                Component.literal("提示音音量"));
+        helpVolumeInInput.setMaxLength(4);
+        helpVolumeInInput.setValue(String.valueOf(openHelpVolume));
+        helpVolumeInInput.setFilter(text -> text.isEmpty() || text.chars().allMatch(Character::isDigit));
+        helpVolumeInInput.setResponder(text -> mirrorHelpVolume(helpVolumeInInput, helpVolumeOutInput, text));
+        addRenderableWidget(helpVolumeInInput);
 
-        // 【1.16】无障碍提示音开关：点一下切换，按 ESC 退出时与其他改动一起发出去
-        helpButton = Button.builder(helpLabel(), button -> toggleHelp())
-                .bounds(this.width / 2 + 36, 150, 64, 20)
-                .build();
-        addRenderableWidget(helpButton);
+        addRenderableWidget(Button.builder(Component.literal("提示音(离开)"),
+                        button -> openHelpAudioSetup(false))
+                .bounds(rowStartX(), ROW5_Y, BTN_W, 20)
+                .build());
+        helpVolumeOutInput = new EditBox(this.font, rowInputX(), ROW5_Y, MAIN_INPUT_W, 20,
+                Component.literal("提示音音量"));
+        helpVolumeOutInput.setMaxLength(4);
+        helpVolumeOutInput.setValue(String.valueOf(openHelpVolume));
+        helpVolumeOutInput.setFilter(text -> text.isEmpty() || text.chars().allMatch(Character::isDigit));
+        helpVolumeOutInput.setResponder(text -> mirrorHelpVolume(helpVolumeOutInput, helpVolumeInInput, text));
+        addRenderableWidget(helpVolumeOutInput);
 
         setInitialFocus(runInput);
 
-        // 【1.55】右上角「同步所有」：这一页是一级菜单，射程 = 这个界面上的五项
-        //   （速度 / 阶梯速度 / 声音音量 / 提示音音量 / 无障碍开关）。
+        // 【1.55】右上角「同步所有」：这一页是一级菜单，射程 = SYNC_TOP_LEVEL（服务端定义，**没变**）=
+        //   速度 / 阶梯速度 / 声音音量 / 提示音音量 / 无障碍开关的**默认层**五项。
+        //   ★【六改】无障碍开关那只按钮已按点名删除（选音乐=开、选不播=关），但**射程的定义没动** ——
+        //   这一页的「同步所有」照旧会把开关的默认层一起同步。
         //   ★ beforeOpen 必须把输入框落地：弹窗会把本界面重建一次，而且服务端读
         //   「这条扶梯此刻的值」时读的是存档，没落地的新值读不到。
         addRenderableWidget(SyncPopupScreen.syncButton(this, "esc", SmoothLift.SYNC_TOP_LEVEL,
                 pos.asLong(), this::applyChanges));
+        // 【09-29】右上角「打开文件夹」（在「同步所有」左边）：这一页是一级菜单 ⇒ 开扶梯那一
+        //   **组**目录 futi/，下面 music/（运行底噪）与 help/（提示音）两个分类文件夹一眼可见；
+        //   两个二级页各自把按钮指到对应的分类子文件夹上（见 AudioSetupScreen / HelpAudioSetupScreen）。
+        addRenderableWidget(FolderOpenButton.of(this,
+                FolderOpenButton.audioPath(EscalatorSpeedManager.GROUP_FUTI)));
     }
 
-    /** 【1.16】开关按钮的标签：直接显示当前状态，点一下就切到另一边。 */
-    private Component helpLabel() {
-        return Component.literal("无障碍：" + (helpEnabled ? "开" : "关"));
+    /**
+     * 【六改】「行名按钮」：**外观与直梯一级菜单的按钮逐像素同款，但永远点不动**。
+     *
+     * <p>为什么需要它：{@code active = false} 的原版按钮画的是贴图里**禁用那一格**（灰的），
+     * 与直梯那四个可点按钮（白/亮那一格）摆在一起就「看起来不是一个东西」。
+     * 用户点名「按钮大小调整为直梯ui一级菜单的按钮大小」—— 本类索性把这两格统一：
+     * 画的时候借**启用态**那一格贴图 + 白色字，同时把 hover 压掉（不许点亮），
+     * 而 {@code active} 仍是 {@code false} ⇒ **点不动、不出声、拿不到焦点**。
+     */
+    private static final class RowNameButton extends Button {
+        RowNameButton(int x, int y, Component label) {
+            super(x, y, BTN_W, 20, label, button -> { }, DEFAULT_NARRATION);
+            this.active = false;
+        }
+
+        /** 永远当作「鼠标没指着」⇒ 贴图落在「启用但不 hover」那一格（与直梯按钮同一格）。 */
+        @Override
+        public boolean isHovered() {
+            return false;
+        }
+
+        @Override
+        protected void renderWidget(GuiGraphics guiGraphics, int mouseX, int mouseY, float partialTick) {
+            boolean wasActive = this.active;
+            this.active = true; // 借启用态那一格贴图与白色字
+            try {
+                super.renderWidget(guiGraphics, mouseX, mouseY, partialTick);
+            } finally {
+                this.active = wasActive;
+            }
+        }
     }
 
-    /** 【1.16】切换无障碍提示音开关（只改本地待应用值，按 ESC 时统一发包）。 */
-    private void toggleHelp() {
-        helpEnabled = !helpEnabled;
-        if (helpButton != null) {
-            helpButton.setMessage(helpLabel());
+    /** 一行的总宽（按钮 + 空隙 + 标签列 + 空隙 + 输入框）—— 五行共用同一个值。 */
+    private int rowWidth() {
+        return BTN_W + MAIN_GAP + labelColumnWidth() + MAIN_LABEL_GAP + MAIN_INPUT_W;
+    }
+
+    /** 标签列宽：取两个标签里**更宽**的那个 ⇒ 两种标签的行也严格左对齐。 */
+    private int labelColumnWidth() {
+        return Math.max(this.font.width(SPEED_LABEL), this.font.width(VOLUME_LABEL));
+    }
+
+    /** 一行的起点 x（整行居中）。 */
+    private int rowStartX() {
+        return this.width / 2 - rowWidth() / 2;
+    }
+
+    /** 行内中间标签的 x（按钮右边）。 */
+    private int rowLabelX() {
+        return rowStartX() + BTN_W + MAIN_GAP;
+    }
+
+    /** 行内输入框的 x（标签列右边）。 */
+    private int rowInputX() {
+        return rowLabelX() + labelColumnWidth() + MAIN_LABEL_GAP;
+    }
+
+    /** 【六改】两个提示音量框互相同步（它们表示的是**同一个值**：`/futihelploud` 那一份）。 */
+    private void mirrorHelpVolume(EditBox from, EditBox to, String text) {
+        if (suppressHelpVolumeMirror || from == null || to == null) {
+            return;
+        }
+        if (text.equals(to.getValue())) {
+            return;
+        }
+        suppressHelpVolumeMirror = true;
+        try {
+            to.setValue(text);
+        } finally {
+            suppressHelpVolumeMirror = false;
         }
     }
 
     /**
-     * 打开自定义声音子界面（本界面被替换掉，返回时由声音界面重建）。
+     * 打开「自定义声音」子界面（本界面被替换掉，返回时由声音界面重建）。
      * 先把改动发出去：否则「填好音量 → 点声音设置 → 返回」会看到音量被重置回旧值。
      */
     private void openAudioSetup() {
@@ -176,12 +284,17 @@ public class EscalatorSpeedScreen extends Screen {
     }
 
     /**
-     * 【1.39】打开「选择无障碍提示音」子界面（本界面被替换掉，返回时由提示音界面重建）。
-     * 同样先把改动发出去，理由与 {@link #openAudioSetup()} 一样。
+     * 【六改】打开「选择提示音」子界面（本界面被替换掉，返回时由提示音界面重建）。
+     *
+     * <p>★ {@code editIn} = 从哪一行进来的：{@code true} = 「提示音(进入)」那一行、
+     * {@code false} = 「提示音(离开)」那一行。子界面拿它当「正在设置哪一头」，
+     * 所以里面**不再有**「设置端头」那一行（用户点名删掉）。
+     *
+     * <p>同样先把改动发出去，理由与 {@link #openAudioSetup()} 一样。
      */
-    private void openHelpAudioSetup() {
+    private void openHelpAudioSetup(boolean editIn) {
         applyChanges();
-        Minecraft.getInstance().setScreen(new HelpAudioSetupScreen(pos));
+        Minecraft.getInstance().setScreen(new HelpAudioSetupScreen(pos, editIn));
     }
 
     /** 这条扶梯当前的运行速度（未单独设置就是维度默认）。 */
@@ -210,18 +323,6 @@ public class EscalatorSpeedScreen extends Screen {
             return EscalatorSpeedData.DEFAULT_AUDIO_VOLUME;
         }
         return EscalatorSpeedManager.getVolumeForScreen(mc.level, pos);
-    }
-
-    /**
-     * 【1.16】这条扶梯当前的无障碍提示音开关。
-     * 用 {@code isHelpEnabled}：会顺着扶梯链找同一条扶梯上已设过的开关，
-     * 所以在这条扶梯的任意一个方块上打开界面，看到的都是同一个状态。
-     */
-    private boolean currentHelp(Minecraft mc) {
-        if (mc.level == null) {
-            return true;
-        }
-        return EscalatorSpeedManager.isHelpEnabled(mc.level, pos);
     }
 
     /**
@@ -258,32 +359,19 @@ public class EscalatorSpeedScreen extends Screen {
         stepEdited = true;
     }
 
-    /** 「阶梯速度对齐扶梯速度」：把阶梯速度框填成扶梯速度框当前的值。 */
-    private void alignStepToRun() {
-        if (runInput == null || stepInput == null) {
-            return;
-        }
-        Double typed = parse(runInput.getValue());
-        double value = typed != null ? typed : currentRunningSpeed(Minecraft.getInstance());
-        suppressStepResponder = true;
-        try {
-            stepInput.setValue(EscalatorSpeedData.format(EscalatorSpeedData.clamp(value)));
-        } finally {
-            suppressStepResponder = false;
-        }
-        // 对齐之后重新回到「跟着扶梯速度变」的状态。
-        stepEdited = false;
-    }
-
     /** 按 ESC（或回车）退出时统一应用改动。 */
     @Override
     public void onClose() {
         applyChanges();
+        // 【10-01】真正「退出界面」：让服务端把本次界面会话的结果回一条（成功 / 失败）。
+        //   界面内部的逐条操作不再单独往聊天框打长句。
+        //   【Forge 移植注】Fabric 里是 SmoothLiftClient.sendUiClose(ok) ⇒ Forge 用 SmoothLiftClientEvents.sendUiClose(ok)。
+        SmoothLiftClientEvents.sendUiClose(true);
         // Screen.onClose() 内部就是 minecraft.setScreen(null)。
         super.onClose();
     }
 
-    /** 把改动过的值发出去（速度 / 音量 / 无障碍开关各自独立，没改的不发）。 */
+    /** 把改动过的值发出去（速度 / 底噪音量 / 提示音量各自独立，没改的不发）。 */
     private void applyChanges() {
         Minecraft mc = Minecraft.getInstance();
         if (mc.level != null && runInput != null && stepInput != null) {
@@ -311,19 +399,19 @@ public class EscalatorSpeedScreen extends Screen {
         if (mc.level != null && volumeInput != null) {
             Integer volume = parseVolume(volumeInput.getValue());
             if (volume != null && volume != openVolume) {
+                // 【Forge 移植注】Fabric 发 SET_VOLUME_CHANNEL（pos → volume(varInt)）
+                //   ⇒ Forge 用 SetVolumePacket，encode 顺序相同。
                 Packets.CHANNEL.sendToServer(new SetVolumePacket(pos, volume));
                 openVolume = volume;
             }
         }
-        // 【1.16】无障碍提示音开关：和打开界面时的状态不同才发
-        if (helpEnabled != openHelp) {
-            Packets.CHANNEL.sendToServer(new SetHelpPacket(pos, helpEnabled));
-            openHelp = helpEnabled;
-        }
-        // 【1.18】无障碍提示音音量（独立于上面的底噪音量）
-        if (mc.level != null && helpVolumeInput != null) {
-            Integer volume = parseVolume(helpVolumeInput.getValue());
+        // 【1.18 / 六改】无障碍提示音音量（独立于上面的底噪音量）。
+        //   两个框是同一个值 ⇒ 只读「进入」那一行、只发一次包（框里内容由镜像保证一致）。
+        if (mc.level != null && helpVolumeInInput != null) {
+            Integer volume = parseVolume(helpVolumeInInput.getValue());
             if (volume != null && volume != openHelpVolume) {
+                // 【Forge 移植注】Fabric 发 SET_HELP_VOLUME_CHANNEL（pos → volume(varInt)）
+                //   ⇒ Forge 用 SetHelpVolumePacket，encode 顺序相同。
                 Packets.CHANNEL.sendToServer(new SetHelpVolumePacket(pos, volume));
                 openHelpVolume = volume;
             }
@@ -331,6 +419,9 @@ public class EscalatorSpeedScreen extends Screen {
     }
 
     private void sendApply(boolean setRun, double run, boolean setStep, double step) {
+        // 【Forge 移植注】Fabric 发 APPLY_CHAIN_CHANNEL
+        //   （pos → setRun → run(double) → setStep → step(double)）
+        //   ⇒ Forge 用 ApplyChainPacket，encode 顺序相同。
         Packets.CHANNEL.sendToServer(new ApplyChainPacket(pos, setRun, run, setStep, step));
     }
 
@@ -350,31 +441,21 @@ public class EscalatorSpeedScreen extends Screen {
         super.render(guiGraphics, mouseX, mouseY, partialTick);
 
         guiGraphics.drawCenteredString(this.font, this.title, this.width / 2, 12, 0xFFFFFF);
-        guiGraphics.drawCenteredString(this.font, Component.literal("扶梯速度（格/秒）"),
-                this.width / 2, 24, 0xA0A0A0);
-        guiGraphics.drawCenteredString(this.font, Component.literal("阶梯速度（格/秒）"),
-                this.width / 2, 58, 0xA0A0A0);
-        // 【1.18】两个音量框并排：左边底噪音量、右边提示音音量（各 96 宽，标签各自居中在半边）
-        guiGraphics.drawCenteredString(this.font, Component.literal("声音音量（100=原始）"),
-                this.width / 2 - 52, 114, 0xA0A0A0);
-        guiGraphics.drawCenteredString(this.font, Component.literal("提示音音量（100=原始）"),
-                this.width / 2 + 52, 114, 0xA0A0A0);
 
-        guiGraphics.drawCenteredString(this.font,
-                Component.literal("改扶梯速度会同步阶梯速度；改阶梯速度不影响扶梯速度"),
-                this.width / 2, 176, 0x808080);
+        // 【六改】五行：左按钮 + 中间标签 + 右边输入框（标签是画出来的，不是按钮）。
+        drawRowLabel(guiGraphics, SPEED_LABEL, ROW1_Y);
+        drawRowLabel(guiGraphics, SPEED_LABEL, ROW2_Y);
+        drawRowLabel(guiGraphics, VOLUME_LABEL, ROW3_Y);
+        drawRowLabel(guiGraphics, VOLUME_LABEL, ROW4_Y);
+        drawRowLabel(guiGraphics, VOLUME_LABEL, ROW5_Y);
 
-        guiGraphics.drawCenteredString(this.font,
-                Component.literal("声音=整条扶梯底噪，16 格内听得见；提示音=只在首尾两块，4 格内才听得见"),
-                this.width / 2, 188, 0x808080);
+        // 【七改】按用户点名：这一页下方原来那**四行灰色小字**（改速度/阶梯速度说明、声音与提示音的
+        //   射程说明、进/出两头说明、ESC 与坐标）**整段删掉** —— 一级菜单只留「标题 + 五行控件」。
+    }
 
-        guiGraphics.drawCenteredString(this.font,
-                Component.literal("无障碍提示音：进扶梯一端急促咔咔，出扶梯一端缓慢咔咔（视障人士用）"),
-                this.width / 2, 200, 0x808080);
-
-        guiGraphics.drawCenteredString(this.font,
-                Component.literal("按 ESC 保存并退出　·　扶梯位置 " + pos.toShortString()),
-                this.width / 2, this.height - 22, 0x707070);
+    /** 在某一行的标签列上画那个小标签（与直梯一级菜单一样，是画出来的、不是按钮）。 */
+    private void drawRowLabel(GuiGraphics guiGraphics, String label, int rowY) {
+        guiGraphics.drawString(this.font, Component.literal(label), rowLabelX(), rowY + 6, 0xFFFFFF, false);
     }
 
     @Override

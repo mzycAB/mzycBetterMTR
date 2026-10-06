@@ -63,6 +63,16 @@ READ_CALLS = (r"\.(?:contains|getInt|getBoolean|getString|getDouble|getLong|getF
 nested_reads = set(re.findall(READ_CALLS, body))
 read_keys |= nested_reads
 
+# ★ 豁免：三处「旧档迁移读」—— 只从旧档里读**旧键**搬进新结构，自然没有对应写。
+#   - "chime"               【1.45】直梯楼层轨道提示音：旧版元素 {key,up,down,chime}
+#                           迁移成 {key,up,down,open,close}（chime 喂给 open/close 两头）。
+#   - "defaultPsdNarrateOn" 1.28.1204 那一版存的是布尔开关，新版读回来迁移成
+#                           narrateMode 三档（PSD_NARRATE_HONGKONG / PSD_NARRATE_OFF）。
+#   - "departDelaySeconds"  【10-03 五改 修订】第一版写在车站级 psdToneAudio 记录里，
+#                           第二版搬到门串级 psdRunSettings：旧档读到这里时把值搬过去。
+MIGRATION_READS = {"chime", "defaultPsdNarrateOn", "departDelaySeconds"}
+read_keys -= MIGRATION_READS
+
 print("===== 1) 读 / 写 集合完全相等（全局）=====")
 print("        读 %d 个字段、写 %d 个字段" % (len(read_keys), len(write_keys)))
 only_read = sorted(read_keys - write_keys)

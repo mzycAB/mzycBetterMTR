@@ -184,7 +184,8 @@ check("clearPsdToneOverrides" in mgr,
       "-f 会清掉「按扇门单独设置」（那些门从此跟维度默认）")
 check("resolvePsdToneName" in mgr and "psdNameCandidates" in mgr,
       "Manager：名字解析 + Tab 补全候选")
-m = re.search(r"public static AudioArg resolvePsdToneName\(ServerLevel level, String name\)(.*?)\n    \}", mgr, re.S)
+# 【Forge 移植】resolvePsdToneName 带 **category** 分类参数（按分类解析；CmdTreeCheck 已同步改用三参调用）
+m = re.search(r"public static AudioArg resolvePsdToneName\(ServerLevel level, String category, String name\)(.*?)\n    \}", mgr, re.S)
 rz = m.group(1) if m else ""
 check(bool(rz), "找到 resolvePsdToneName")
 if rz:
@@ -194,8 +195,9 @@ if rz:
           "「存档里没有叫…的音频」）")
     check('"none".equals(lower)' in rz and '"mute".equals(lower)' in rz,
           "「这一项不播」写作 none（off 被字面量占了，但仍兼容）")
-    check("audioLibrary.containsKey" in rz, "其它名字去音频库找（找不到再试 名字+.ogg）")
-m = re.search(r"public static List<String> psdNameCandidates\(ServerLevel level\)(.*?)\n    \}", mgr, re.S)
+    check("catNames.contains(name)" in rz,
+          "其它名字去**该分类**的音频库找（找不到再试 名字+.ogg）")
+m = re.search(r"public static List<String> psdNameCandidates\(ServerLevel level, String category\)(.*?)\n    \}", mgr, re.S)
 cd = m.group(1) if m else ""
 check(bool(cd) and cd.find("PSD_TONE_BUILTIN_OPEN") < cd.find('"none"'),
       "补全候选：四段内置名排最前，然后才是 none 与库文件名")
@@ -207,8 +209,9 @@ st = m.group(1) if m else ""
 check(bool(st) and "isPsdBuiltinName(id)" in st,
       "★ setServerPsdTone 用 isPsdBuiltinName(id) 放行（**不是**把四个名字各抄一遍）"
       " ⇒ 以后再加内置名不会漏掉这一处")
-check(bool(st) and "PSD_TONE_OFF.equals(id)" in st and "audioLibrary.containsKey(id)" in st,
-      "放行集合 = 内置名 ∪ 不播 ∪ 音频库（三支都在）")
+check(bool(st) and "PSD_TONE_OFF.equals(id)" in st
+      and 'categoryAudioNames(data, "open".equals(which) ? CAT_PSD_OPEN : CAT_PSD_CLOSE).contains(id)' in st,
+      "放行集合 = 内置名 ∪ 不播 ∪ 该分类音频库（三支都在）")
 
 print("\n== 4. 指令（/pbmmusic open|close 素材分支 + 补全；/pbmloud 音量） ==")
 check('pbmMusicItemCommand("open", "open")' in main and 'pbmMusicItemCommand("close", "close")' in main,
@@ -216,7 +219,10 @@ check('pbmMusicItemCommand("open", "open")' in main and 'pbmMusicItemCommand("cl
 for fn in ("pbmMusicItemAudioSet", "pbmMusicItemAudioFromTo",
            "pbmMusicItemAudioForceSet", "pbmMusicItemAudioForceFromTo"):
     check(fn in main, "指令处理器存在：%s" % fn)
-check("psdToneNameSuggestions" in main and "suggests(SmoothLift::psdToneNameSuggestions)" in main,
+# 【Forge 移植】补全提供器以 **lambda** 形式挂载（带 category 分类参数，不是方法引用）
+check("psdToneNameSuggestions" in main
+      and re.search(r"suggests\(\(ctx, b\) -> psdToneNameSuggestions\(ctx, b, category\)\)",
+                    main) is not None,
       "素材名参数挂了补全提供器（Tab 能补出四个内置名 / none / 导入过的 ogg）")
 check("source == null" in main and "return builder.buildFuture()" in main,
       "补全提供器容忍 null source（_tools/CmdTreeCheck 用 null source 解析真指令树）")
@@ -250,20 +256,25 @@ check('pbmLoudItemCommand("open", "open")' in main and 'pbmLoudItemCommand("clos
 
 print("\n== 5. 同步包（服务端写 / 客户端读，顺序成对） ==")
 _pkt_chime = open(os.path.join(ROOT, "src", "main", "java", "smooth", "lift", "network", "PsdChimeSyncPacket.java"), encoding="utf-8").read()
-m = re.search(r"public static void encode\(PsdChimeSyncPacket pkt, FriendlyByteBuf buf\)\s*\{(.*?)\n    \}", _pkt_chime, re.S)
-pk = m.group(1) if m else ""
-check(bool(pk), "找到 PsdChimeSyncPacket.encode")
-if pk:
-    check("writeUtf(pkt.toneAudioOpen, 128)" in pk
-          and "writeUtf(pkt.toneAudioClose, 128)" in pk,
-          "包尾追加 open / close 两个默认素材字符串")
-    check(pk.index("pkt.toneAudioOpen") < pk.index("pkt.toneAudioClose"),
-          "写出顺序 open → close")
-    check(pk.rindex("pkt.toneAudioOpen") > pk.index("pkt.toneVolumeClose"),
-          "两个新字段排在最后（不打断旧字段布局）")
-check(re.search(r"toneAudioOpen.*?toneAudioClose", _pkt_chime, re.S) is not None,
-      "客户端接收器按同一顺序读两个新字段")
-check("String toneAudioOpen, String toneAudioClose" in mgr,
+# 【Forge 移植】PsdChimeSyncPacket 是**裸 byte[] 负载**：encode 只搬 body，逐字段写序在
+#   buildPsdChimePacket（服务端）、读序在 handle（客户端），两处必须同序。
+check("buf.writeByteArray(pkt.body)" in _pkt_chime and "buf.readByteArray()" in _pkt_chime,
+      "PsdChimeSyncPacket = 裸负载（encode 写 body / decode 读 body）")
+check(re.search(r"buf\.writeUtf\(EscalatorSpeedData\.normalizePsdToneAudio\(data\.defaultPsdToneAudioOpen\), 128\);",
+                mgr) is not None
+      and re.search(r"buf\.writeUtf\(EscalatorSpeedData\.normalizePsdToneAudio\(data\.defaultPsdToneAudioClose\), 128\);",
+                    mgr) is not None,
+      "★ buildPsdChimePacket 把 open / close 两个默认素材字符串写出去（.ogg 归一化）")
+_w = re.search(r"private static FriendlyByteBuf buildPsdChimePacket\(ServerLevel level\)\s*\{(.*?)\n    \}", mgr, re.S)
+wbody = _w.group(1) if _w else ""
+check(bool(wbody) and wbody.index("defaultPsdToneAudioOpen") < wbody.index("defaultPsdToneAudioClose"),
+      "写出顺序 open → close")
+check(bool(wbody) and wbody.index("defaultPsdToneAudioOpen") > wbody.index("defaultPsdToneVolumeClose"),
+      "两个新字段排在音量之后（不打断旧字段布局）")
+check(re.search(r"String toneAudioOpen = data\.readUtf\(128\);\s*[\s\S]{0,10}?String toneAudioClose = data\.readUtf\(128\);",
+                _pkt_chime) is not None,
+      "★ 客户端读取器按同一顺序读 open → close")
+check(re.search(r"String toneAudioOpen,\s*String toneAudioClose", mgr) is not None,
       "applyClientPsdChime 签名接收两个新字段")
 check("data.psdToneAudioOpen = EscalatorSpeedData.normalizePsdToneAudio(toneAudioOpen)" in mgr
       and "data.psdToneAudioClose = EscalatorSpeedData.normalizePsdToneAudio(toneAudioClose)" in mgr,
@@ -304,9 +315,12 @@ check("new PsdMusicInstance(tone.event()," in player,
 #   【1.22】play() 有了多参重载，5 参那个成了只转发的壳
 #   ⇒ 正则必须**钉在多参那个**上，否则会匹配到空壳、这段断言就失去意义。
 #   【1.23】多一格 roundKind；【1.25】删掉 factorOnly ⇒ 那时是 7 参；
-#   【1.26】再多一格 chainRunKey（站台广播按哪一串算距离）⇒ 现在 8 参，尾锚跟着往后挪一格。
+#   【1.26】再多一格 chainRunKey（站台广播按哪一串算距离）⇒ 那时是 8 参；
+#   【1.30】短参重载都只是**转发壳**，播放实现在 10 参那个上：
+#   尾部续成 chainDoubleDim（双维范围）+ chainPlatformId（铃声收窄到同一站台）⇒ 尾锚钉这里。
 m = re.search(r"private static \w+ play\(Minecraft mc, Tone tone[^)]*"
-              r"boolean trainAttenuated,\s*int roundKind,\s*long chainRunKey\)(.*?)\n    \}",
+              r"boolean trainAttenuated,\s*int roundKind,\s*long chainRunKey,"
+              r"\s*boolean chainDoubleDim,\s*long chainPlatformId\)(.*?)\n    \}",
               player, re.S)
 pl = m.group(1) if m else ""
 check(bool(pl) and "if (tone.customId() == null)" in pl,
@@ -403,30 +417,32 @@ check(bool(SetPsdMidiumPacket) and "SetPsdMidiumPacket" in screen,
 #   （顺序错位不会报错，表现是「秒数串到别的字段上」这类诡异症状）。
 check("PsdChimeSyncPacket" in mgr or os.path.isfile(os.path.join(ROOT, "src", "main", "java", "smooth", "lift", "network", "PsdChimeSyncPacket.java")),
       "维度同步仍走 PsdChimeSyncPacket（服务端推 / 客户端收）")
-_w = re.search(r"public static void encode\(PsdChimeSyncPacket pkt, FriendlyByteBuf buf\)\s*\{(.*?)\n    \}", _pkt_chime, re.S)
+# 【Forge 移植】写序在 buildPsdChimePacket、读序在 handle（encode 只搬裸 body）
+_w = re.search(r"private static FriendlyByteBuf buildPsdChimePacket\(ServerLevel level\)\s*\{(.*?)\n    \}", mgr, re.S)
 wbody = _w.group(1) if _w else ""
-i_w_mid = wbody.find("pkt.midiumAudio")
-i_w_wait = wbody.find("pkt.midiumWaitSeconds")
+i_w_mid = wbody.find("defaultPsdMidiumAudio")
+i_w_wait = wbody.find("defaultPsdMidiumWaitSeconds")
 check(i_w_mid > 0 and i_w_wait > i_w_mid,
-      "★ PsdChimeSyncPacket.encode 在**尾部**依次写 midiumAudio → midiumWaitSeconds",
+      "★ buildPsdChimePacket 在**尾部**依次写 midiumAudio → midiumWaitSeconds",
       "写 midiumAudio@%d / wait@%d（体长 %d）" % (i_w_mid, i_w_wait, len(wbody)))
-# 客户端读取点（decode 内两行必须按同一顺序出现）
-_dr = re.search(r"public static PsdChimeSyncPacket decode\(FriendlyByteBuf buf\)\s*\{(.*?)\n    \}", _pkt_chime, re.S)
-dec_region = _dr.group(1) if _dr else ""
-# decode 单行 return：校验 параметр 顺序（midiumAudio 在 arriveAudio 之前）
-_ao = _pkt_chime.find("arriveAudio")
-_ma = _pkt_chime.find("midiumAudio")
+# 客户端读取点（handle 内两行必须按同一顺序出现）
+_hd = re.search(r"public static void handle\(PsdChimeSyncPacket pkt, Supplier<NetworkEvent.Context> ctxSupplier\)"
+                r"\s*\{(.*?)\n    \}", _pkt_chime, re.S)
+hbody = _hd.group(1) if _hd else ""
+_ao = hbody.find("arriveAudio")
+_ma = hbody.find("midiumAudio")
 check(0 < _ma < _ao,
-      "★ PsdChimeSyncPacket.decode 按**同一顺序**读回（midiumAudio → midiumWaitSeconds）",
+      "★ PsdChimeSyncPacket.handle 按**同一顺序**读回（midiumAudio → midiumWaitSeconds）",
       "midiumAudio@%d / arriveAudio@%d" % (_ma, _ao))
 # 形参：漏加 ⇒ 编不过；这里顺带把「传参顺序」也钉住
 check(re.search(r"int closeWaitSeconds,\s*String midiumAudio, int midiumWaitSeconds,\s*"
                 r"String arriveAudio, int arriveSeconds", mgr) is not None,
       "★ applyClientPsdChime 形参尾部依次是 closeWaitSeconds → midiumAudio → midiumWaitSeconds"
       " → arriveAudio → arriveSeconds")
-check(re.search(r"pkt\.toneAudioOpen, pkt\.toneAudioClose, pkt\.closeWaitSeconds,\s*\n"
-                r"\s*pkt\.midiumAudio, pkt\.midiumWaitSeconds, pkt\.arriveAudio, pkt\.arriveSeconds,\s*\n"
-                r"\s*pkt\.midiumVolume, pkt\.arriveVolume", _pkt_chime) is not None,
+# 【Forge 移植】调用点在 handle：实参是读回来的**局部变量**（不是 pkt.xxx 字段）
+check(re.search(r"toneAudioOpen, toneAudioClose, closeWaitSeconds,\s*\n"
+                r"\s*midiumAudio, midiumWaitSeconds, arriveAudio, arriveSeconds,\s*\n"
+                r"\s*midiumVolume, arriveVolume", _pkt_chime) is not None,
       "★ 调用点的**实参顺序**与形参一致（这里错位同样不报错，只会把值串到别的字段上）"
       "—— 含【1.21】追加的 arriveAudio → arriveSeconds")
 check("data.psdMidiumAudio = EscalatorSpeedData.normalizePsdMidiumAudio(midiumAudio)" in mgr
@@ -453,8 +469,8 @@ check("PSD_MIDIUM_OFF" in mid_norm and "DEFAULT" not in mid_norm,
 check("isPsdMidiumOff" in data and "isPsdMidiumOff" in player,
       "isPsdMidiumOff 被播放端用上（不是死代码）")
 # 素材解析：**不许收内置名**
-_mid_resolve = re.search(r"public static String resolvePsdMidiumName\(ServerLevel level, String name\)\s*"
-                         r"\{(.*?)\n    \}", mgr, re.S)
+_mid_resolve = re.search(r"public static String resolvePsdMidiumName\(ServerLevel level, "
+                         r"String category, String name\)\s*\{(.*?)\n    \}", mgr, re.S)
 mid_resolve = _mid_resolve.group(1) if _mid_resolve else ""
 check(bool(mid_resolve) and "isPsdBuiltinName" not in mid_resolve,
       "★ resolvePsdMidiumName **不收内置名**（到站播报没有内置素材，收下会变成一条播不出的引用）")
@@ -655,8 +671,10 @@ for pkt_cls, setter in (("SetPsdToneSwitchPacket", "setDoorPsd"),
           % (pkt_cls, setter))
 
 # ---- 包编码：9 个可选字段各带「存在位」 ----
-check(pkt_tone.count("writeDoorOptBool(") >= 3 and pkt_tone.count("writeDoorOptInt(") >= 5
-      and "writeDoorOptString(" in pkt_tone,
+# 【Forge 移植】写端在**服务端管理类**（EscalatorSpeedManager 序列化 PsdToneAudio）；
+#   Packet 那侧只剩 readDoorOpt 读端（裸负载模型，见第 5 节）。
+check(mgr.count("writeDoorOptBool(") >= 3 and mgr.count("writeDoorOptInt(") >= 5
+      and "writeDoorOptString(" in mgr,
       "★★ 包编码：per-door 覆盖字段逐个带「存在位」（writeDoorOptBool/Int/String）—— "
       "包没有 NBT 的 contains，可空值必须显式标「存在与否」，否则「跟默认」与「真实值」在线上分不开",
       "Bool x%d / Int x%d" % (mgr.count("writeDoorOptBool("), mgr.count("writeDoorOptInt(")))
@@ -665,10 +683,11 @@ check("applyClientPsdDoorLocal" in mgr,
 
 # ---- 客户端接收：按写入顺序读回 13 个可选字段建记录（顺序错会整条错位） ----
 _client_reads = re.findall(r"readDoorOpt(?:Bool|Int|String)\(", pkt_tone)
-check(len(_client_reads) == 14 and "new EscalatorSpeedData.PsdToneAudio(" in pkt_tone,
-      "★ PsdToneSyncPacket.decode 按**写入顺序**读回 14 个可选字段建 16 字段记录"
+check(len(_client_reads) == 19 and "new EscalatorSpeedData.PsdToneAudio(" in pkt_tone,
+      "★ PsdToneSyncPacket.decode 按**写入顺序**读回 19 个可选字段建 PsdToneAudio 记录"
       "（顺序错 = 整条记录错位，而且不报错）"
-      "　★【1.23】可选字段 13 → 14（多了开门提示等待秒数）",
+      "　★【1.30-Forge】可选字段 14 → 19：进站素材/秒数、双音量、"
+      "讲述人模式/秒数 ×4、关门后等待发车延时",
       "读回可选字段 %d 个" % len(_client_reads))
 
 print("\n== 7.5 【1.21】进站报站 /pbmarrive + 一串门（runKey） ==")
@@ -721,8 +740,8 @@ check("resolvePsdArriveName" in mgr and "psdArriveSuggestions" in mgr
       and "setDefaultPsdArrive" in mgr and "getDoorPsdArriveAudio" in mgr
       and "getDoorPsdArriveSeconds" in mgr,
       "管理端一整套进站报站读写口都在")
-_ar_res = re.search(r"public static String resolvePsdArriveName\(ServerLevel level, String name\)\s*"
-                    r"\{(.*?)\n    \}", mgr, re.S)
+_ar_res = re.search(r"public static String resolvePsdArriveName\(ServerLevel level, "
+                    r"String category, String name\)\s*\{(.*?)\n    \}", mgr, re.S)
 ar_res = _ar_res.group(1) if _ar_res else ""
 check(bool(ar_res) and "isPsdBuiltinName" not in ar_res and "PSD_TONE_DEFAULT" not in ar_res,
       "★ resolvePsdArriveName **不收内置名**（进站报站没有内置素材，收下会变成一条播不出的引用）")
@@ -742,14 +761,14 @@ check("public static boolean isPsdFamily(BlockState state)" in tracker
       and '"psd_"' in tracker and '"apg_"' in tracker,
       "★ 一串的白名单 = MTR 屏蔽门**家族**（psd_ / apg_：站台门 + 屏蔽门玻璃 + 玻璃端）"
       "—— 用户点名「连在一起的屏蔽门是指站台门，屏蔽门玻璃，屏蔽门玻璃尾部相连的一串屏蔽门」")
-_fr = re.search(r"private static long floodRun\(Level level, BlockPos start\)\s*\{(.*?)\n    \}",
-                tracker, re.S)
+_fr = re.search(r"private static long psdWalk\(Level level, BlockPos start, "
+                r"java\.util\.List<Long> wallsOut\)\s*\{(.*?)\n    \}", tracker, re.S)
 fr = _fr.group(1) if _fr else ""
 check(bool(fr) and '"UPPER".equals(valueName' in fr and "pos.below()" in fr,
-      "★ floodRun 起点先折到**下半格**（门与玻璃都有 half=UPPER 的同伴格）——"
+      "★ psdWalk 起点先折到**下半格**（门与玻璃都有 half=UPPER 的同伴格）——"
       "不折的话同一个物理串会算出两个 runKey，「改一串」就断成两截")
 check("if (cur.asLong() < min)" in fr,
-      "★ floodRun 取 asLong 最小 ⇒ 同一串里任何起点都收敛到同一个 key")
+      "★ psdWalk 取 asLong 最小 ⇒ 同一串里任何起点都收敛到同一个 key")
 check("RUN_CACHE.clear()" in tracker,
       "★ 串锚点缓存会被清（不清就是「换世界后仍用旧串锚点」的静默错配）")
 # 播放端**读配置**一律走串锚点。
@@ -758,9 +777,10 @@ check("RUN_CACHE.clear()" in tracker,
 #   「把 get/is DoorPsd* 的第一个实参全抓出来，逐个看它是不是串锚点」，
 #   不再数 `door.runKey()` 的出现次数（数次数会绑死写法：本轮把它从 8 降到 6）。
 _reads = re.findall(r"(?:get|is)DoorPsd\w+\(mc\.level,\s*([^,()]+(?:\(\))?)", player)
-check(bool(_reads) and all("runKey" in t for t in _reads),
-      "★ 播放端读配置的第一个实参一律是**串锚点**（runKey / door.runKey() / plan.runKey）"
-      " —— 「改一个 = 改一串」；出现 door.key() 就是退回「只改右键那一扇」",
+check(bool(_reads) and all(("runKey" in t) or (".getKey()" in t) for t in _reads),
+      "★ 播放端读配置的第一个实参一律是**串锚点**（runKey / door.runKey() / "
+      "run.getKey() / plan.runKey）——「改一个 = 改一串」；出现 door.key() 就是退回"
+      "「只改右键那一扇」",
       "得到 %s" % sorted(set(t.strip() for t in _reads)))
 check("getDoorPsdMidiumAudio(mc.level, door.key())" not in player
       and "getDoorPsdToneVolume(mc.level, door.key(), which)" not in player
@@ -775,9 +795,10 @@ check(screen.count("new Set") >= 8 and "runKey" in screen and "buf.writeLong(key
 
 # ---- UI 版式：进站广播那一行 ----
 check('Component.literal("进站广播")' in screen, "UI 主界面有「进站广播」按钮")
-check(re.search(r"LIST_TOP \+ 10 \+ ROW_H \* 4", screen) is not None,
-      "★ 它排在站台广播（ROW_H*3）的**下面**一行（ROW_H*4）")
-check(re.search(r"LIST_TOP \+ 10 \+ ROW_H \* 4 \+ 20", screen) is not None,
+check(re.search(r"int arriveY = MAIN_ROW_Y \+ ROW_H \* 3;", screen) is not None,
+      "★ 进站广播按钮 = MAIN_ROW_Y + ROW_H*3 —— 排在站台广播那一行的**下面**"
+      "（再往下 ROW_H*4 = 站台讲述人、ROW_H*5 = 进站讲述人）")
+check(re.search(r"int fixedBottom = MAIN_ROW_Y \+ ROW_H \* 6 \+ 20;", screen) is not None,
       "★ 主界面状态行的下限也跟着下移（多了一行 ⇒ fixedBottom 必须一起改，"
       "否则状态行又会压回「挡住中间播报」那个原始症状上）")
 check("arriveLeadInput" in screen and "parseArriveLead" in screen and "sendSetArrive" in screen
@@ -815,15 +836,16 @@ rst = _rst.group(1) if _rst else ""
 check("arriveVoice" not in rst,
       "★★ reset() 里**不出现** arriveVoice —— reset 的第三个来路恰好是「门全看不见」"
       "（列车进站那一刻），在那儿清一下功能立刻就废了")
-check("arriveVoice.clear()" in player and "arrivePlatform.clear()" in player
+check("arriveVoice.clear()" in player and "arriveFailNextLog.clear()" in player
       and "arriveLastPoll.clear()" in player,
       "onDisconnect 清进站报站那一套（只有换世界才清）")
-check("MtrDwellAccess.nextArrivalRemainingMs" in player,
+check("MtrDwellAccess.nearestArrival(" in player and ".remainingMs" in player,
       "★ 触发读**时刻表**（不是猜列车位置/速度）—— 用户点名「看时刻表啊，不要猜」")
 check("MtrDwellAccess.platformIdAt" in player, "认站台走 MtrDwellAccess.platformIdAt")
 check("ARRIVE_SAME_TRAIN_MS" in player
-      and "Math.abs(arrivalMs - state.firedArrival) <= ARRIVE_SAME_TRAIN_MS" in player,
-      "★ 「同一班车只播一次」的守卫在（没有它，「还剩 |X| 秒到站」那个窗口内会每一 tick 重播一次）")
+      and "Math.abs(arrivalMs - recorded) <= ARRIVE_SAME_TRAIN_MS" in player,
+      "★ 「同一班车只播一次」的守卫在（sameTrainAs 收成函数，内为 |差| <= 容差；"
+      "没有它，「还剩 |X| 秒到站」那个窗口内会每一 tick 重播一次）")
 check("ARRIVE_POLL_TICKS" in player and "now - last < ARRIVE_POLL_TICKS" in player,
       "★ 查时刻表有节流（阈值以秒计，不该每 tick 都查）")
 check(player.find("tickArrivalAnnounce(mc)") < player.find("doors.isEmpty()"),
@@ -848,10 +870,10 @@ check("public static final long ARRIVAL_PAST_MS = 5_000L" in dwell,
       "（同一件事只留一个数字，别两头各写一份）")
 check("MtrDwellAccess.ARRIVAL_PAST_MS" in player and "ARRIVE_FIRE_GRACE_MS" not in player,
       "★ 播放端不再自带一份「宽限毫秒」，直接用 MtrDwellAccess.ARRIVAL_PAST_MS")
-check("long thresholdMs = (long) (-thresholdSeconds) * 1000L;" in player
-      and "remainMs > thresholdMs" in player,
-      "★ 触发口径 = 「**最近一班车还剩 |X| 秒到站**」：thresholdMs = -X*1000，"
-      "remainMs ≤ thresholdMs 就起播（X=-10 ⇒ 剩 10 秒到站时起播）")
+check("remainMs <= (long) (-customThresholdSeconds) * 1000L" in player
+      and "remainMs <= (long) (-narrateThresholdSeconds) * 1000L" in player,
+      "★ 触发口径 = 「**最近一班车还剩 |X| 秒到站**」：阈值 = -X*1000 内联，"
+      "remainMs ≤ 阈值就起播（X=-10 ⇒ 剩 10 秒到站时起播）")
 check("leadMs" not in player,
       "★ 旧的 leadMs（把 X 当「提前几秒开门」讲）彻底消失 —— 口径只与**到站剩余时间**有关")
 check("到站前 " in screen and "、到站前 " in main,
@@ -937,20 +959,26 @@ for _new in ("roundShow", "roundGlobal", "roundFromTo", "roundForceAll", "roundF
                     main) is not None,
           "%s 收 (context, kind)" % _new)
 # -f 的语义：setRoundAll / replaceRoundAll 要真的走「所有维度」
-check("setRoundAll(source.getServer(), kind, round)" in main
-      and "replaceRoundAll(source.getServer(), kind, from, to)" in main,
-      "-f 两条分支走 setRoundAll / replaceRoundAll（所有维度）")
+check("setRoundAll(source.getServer(), kind, xz, y)" in main
+      and "replaceRoundAll(source.getServer(), kind, fromXz, fromY, toXz, toY)" in main,
+      "-f 两条分支走 setRoundAll / replaceRoundAll（所有维度，双维 xz/y 都传）")
 check("roundForceAll" in main and "roundForceFromTo" in main,
       "-f <值> 与 -f <X> to <Y> 两条分支都在")
 
-print("\n== 9. 数据层：三份范围字段（默认都 = 16 ⇒ 老存档行为逐位不变） ==")
-for _f in ("defaultPsdMidiumRound", "defaultPsdArriveRound"):
-    check(re.search(r"public int %s = DEFAULT_" % _f, data) is not None,
-          "EscalatorSpeedData 有字段 %s" % _f)
-check(re.search(r"DEFAULT_PSD_MIDIUM_ROUND\s*=\s*DEFAULT_PSD_HELP_ROUND;", data) is not None
-      and re.search(r"DEFAULT_PSD_ARRIVE_ROUND\s*=\s*DEFAULT_PSD_HELP_ROUND;", data) is not None,
-      "★ 两个默认范围都**指向** DEFAULT_PSD_HELP_ROUND（16）"
-      " ⇒ 没敲过新指令时行为与 1.22 逐位相同")
+print("\n== 9. 数据层：两份范围字段（拆双维，默认 = 屏蔽门那对 ⇒ 老存档行为逐位不变） ==")
+# 【09-29】范围拆**双维**：每项水平格（Xz）+ 垂直格（Y），默认分别指向 HELP_ROUND_XZ / HELP_ROUND_Y
+check(re.search(r"public int defaultPsdMidiumRoundXz = DEFAULT_PSD_MIDIUM_ROUND_XZ;", data) is not None
+      and re.search(r"public int defaultPsdMidiumRoundY = DEFAULT_PSD_MIDIUM_ROUND_Y;", data) is not None,
+      "EscalatorSpeedData 有到站范围双维字段 defaultPsdMidiumRoundXz / Y")
+check(re.search(r"public int defaultPsdArriveRoundXz = DEFAULT_PSD_ARRIVE_ROUND_XZ;", data) is not None
+      and re.search(r"public int defaultPsdArriveRoundY = DEFAULT_PSD_ARRIVE_ROUND_Y;", data) is not None,
+      "EscalatorSpeedData 有进站范围双维字段 defaultPsdArriveRoundXz / Y")
+check(re.search(r"DEFAULT_PSD_MIDIUM_ROUND_XZ\s*=\s*DEFAULT_PSD_HELP_ROUND_XZ;", data) is not None
+      and re.search(r"DEFAULT_PSD_MIDIUM_ROUND_Y\s*=\s*DEFAULT_PSD_HELP_ROUND_Y;", data) is not None
+      and re.search(r"DEFAULT_PSD_ARRIVE_ROUND_XZ\s*=\s*DEFAULT_PSD_HELP_ROUND_XZ;", data) is not None
+      and re.search(r"DEFAULT_PSD_ARRIVE_ROUND_Y\s*=\s*DEFAULT_PSD_HELP_ROUND_Y;", data) is not None,
+      "★ 两个范围都**指向**屏蔽门的 DEFAULT_PSD_HELP_ROUND_XZ / Y（水平 10 / 垂直 5）"
+      " ⇒ 没敲过新指令时行为与拆分前逐位相同")
 check(re.search(r"PSD_MIDIUM_ROUND_MIN\s*=\s*PSD_HELP_ROUND_MIN;", data) is not None
       and re.search(r"PSD_MIDIUM_ROUND_MAX\s*=\s*PSD_HELP_ROUND_MAX;", data) is not None,
       "到站范围夹取边界指向提示音那一对（1 ~ 128）")
@@ -965,13 +993,19 @@ for _f in ("defaultPsdMidiumRound", "defaultPsdArriveRound"):
     check('tag.putInt("%s"' % _f in data, "NBT 写出 %s" % _f)
     check(re.search(r'if \(tag\.contains\("%s"\)\)' % _f, data) is not None,
           "★★ NBT 读 %s 有 contains 守卫（老存档没有这个键 ⇒ 保持默认，不是读成 0）" % _f)
-# 同步包：维度包追加两格 + 客户端读两格 + apply 两参
-check(re.search(r"buf\.writeVarInt\(pkt\.midiumRound\);", _pkt_chime) is not None
-      and re.search(r"buf\.writeVarInt\(pkt\.arriveRound\);", _pkt_chime) is not None,
-      "维度包把两份范围写出去（追加在最后两格）")
-check(re.search(r"buf\.readVarInt\(\), buf\.readVarInt\(\)\)", _pkt_chime) is not None
-      or re.search(r"midiumRound.*?arriveRound", _pkt_chime, re.S) is not None,
-      "★★ 客户端按**同样顺序**读回两格（包上没有字段名，差一格就是静默错位）")
+# 同步包：维度包追加四格（双维）+ 客户端读四格（双维）+ apply 四参
+# 【Forge 移植】写序在 buildPsdChimePacket、读序在 handle
+check(re.search(r"buf\.writeVarInt\(data\.defaultPsdMidiumRoundXz\);[\s\S]*?"
+                r"buf\.writeVarInt\(data\.defaultPsdMidiumRoundY\);[\s\S]*?"
+                r"buf\.writeVarInt\(data\.defaultPsdArriveRoundXz\);[\s\S]*?"
+                r"buf\.writeVarInt\(data\.defaultPsdArriveRoundY\);", mgr) is not None,
+      "★ buildPsdChimePacket 把两份范围写出去（每份水平格→垂直格，尾部四格）")
+check(re.search(r"int midiumRoundXz = data\.readVarInt\(\);", _pkt_chime) is not None
+      and re.search(r"int midiumRoundY = data\.readVarInt\(\);", _pkt_chime) is not None
+      and re.search(r"int arriveRoundXz = data\.readVarInt\(\);", _pkt_chime) is not None
+      and re.search(r"int arriveRoundY = data\.readVarInt\(\);", _pkt_chime) is not None
+      and _pkt_chime.find("midiumRoundXz") < _pkt_chime.find("arriveRoundXz"),
+      "★★ 客户端 handle 按**同样顺序**读回四格（包上没有字段名，差一格就是静默错位）")
 for _need in ("getPsdMidiumRound", "setDefaultPsdMidiumRound", "replaceDefaultPsdMidiumRound",
               "setDefaultPsdMidiumRoundAll", "replaceDefaultPsdMidiumRoundAll",
               "getPsdArriveRound", "setDefaultPsdArriveRound", "replaceDefaultPsdArriveRound",
