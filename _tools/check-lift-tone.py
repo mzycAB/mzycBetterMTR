@@ -167,8 +167,18 @@ check("STOP_SENTINEL" in chime and "STOP_SENTINEL.equals(customId)" in chime,
       "「不播」用哨兵值区分于「没设置」（没设置 = 内置素材）")
 check("injectAudio(mc, customId)" in chime,
       "自定义素材走 injectAudio 注入分支（复用扶梯那套解码注入）+ 自定义实例播放")
-check("new LiftMusicInstance(event, customId)" in chime,
-      "播放实例带 customId（resolve 覆盖 → 直接播引擎缓存里那段）")
+check("private static void playInstance(" in chime and "new LiftMusicInstance(event, playbackId)" in chime,
+      "播放实例带**注入 ID**（resolve 覆盖 → 直接播引擎缓存里那段）"
+      "；自定义素材与【补丁】素材共用这一份（不是两条各写一遍）")
+# 【补丁】up / down 的自带音频已按用户要求移除：
+#   事件查不到时必须是 **info**（不是 warn），并且文案要指向「导入补丁」这条路 ——
+#   否则玩家看到一条「sounds.json 没被加载？」的 WARN，会以为模组装坏了。
+check("WITHDRAWN_EVENTS" in chime and "withdrawnLogged" in chime,
+      "【补丁】up/down 登记为「已移除事件」：未注册是预期状态，用 info 说明怎么恢复（不是 warn）")
+check("WITHDRAWN_EVENTS.contains(event)" in chime and "导入补丁" in chime,
+      "【补丁】那条 info 里写明了恢复方式（把 Repair.zip 放进 存档/MBM_Repair 后点「导入补丁」）")
+check("patched(builtinKey)" in chime and "injectPlayback(mc, builtinKey, patch)" in chime,
+      "【补丁】被补丁覆盖的内置素材改走注入（补丁字节在 jar 之外，原版资源包那条路读不到）")
 
 print("\n== 6. 删除音频 → 直梯引用退默认 ==")
 m = re.search(r"public void removeAudio\((.*?)\n    \}", data, re.S)

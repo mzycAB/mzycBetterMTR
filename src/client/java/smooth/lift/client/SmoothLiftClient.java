@@ -476,18 +476,34 @@ public class SmoothLiftClient implements ClientModInitializer {
             // 【1.11】默认扶梯音频（空串 = 没有默认音频）
             String defaultAudioRaw = data.readUtf(128);
             final String defaultAudio = defaultAudioRaw.isEmpty() ? null : defaultAudioRaw;
+            // 【补丁】补丁素材：附加在负载**末尾**（追加式改包，老字段位置一个都没动）。
+            //   顺序必须与 EscalatorSpeedManager.buildAudioSyncPayload 的 ③ 逐格一致。
+            int repairCount = data.readVarInt();
+            final Map<String, byte[]> repairAssets = new HashMap<>();
+            for (int i = 0; i < repairCount; i++) {
+                String key = data.readUtf(64);
+                byte[] bytes = data.readByteArray();
+                if (bytes.length > 0 && bytes.length <= EscalatorSpeedData.MAX_AUDIO_BYTES) {
+                    repairAssets.put(key, bytes);
+                }
+            }
             client.execute(() -> {
                 EscalatorSpeedManager.applyClientAudioData(dimKey, audioLibrary, folderByCategory,
                         audioCategoryNames, blockAudio, defaultAudio);
+                EscalatorSpeedManager.applyClientRepairData(dimKey, repairAssets);
+                // ★ 补丁字节换了 ⇒ 必须清掉「已量出的时长 / 分界点」两张表：
+                //   它们是按**当时那段素材**量的，而屏蔽门的「结尾对齐门关上」直接按它算提前量。
+                EscalatorAudioPlayer.clearBundledMetrics();
                 long kb = 0L;
                 for (byte[] value : audioLibrary.values()) {
                     kb += value.length;
                 }
                 // 「绑定了却没声音」时，这条日志能立刻看出客户端到底有没有拿到音频数据。
                 LOGGER.info("[SmoothLift/Audio] 音频同步完成（{}）：已入库 {} 个音频（{}KB）、"
-                                + "分类 {} 个、扶梯绑定 {} 处、默认音频 {}",
+                                + "分类 {} 个、扶梯绑定 {} 处、默认音频 {}、补丁素材 {} 段",
                         dimKey.location(), audioLibrary.size(), kb / 1024, categoryCount,
-                        blockAudio.size(), defaultAudio == null ? "" : defaultAudio);
+                        blockAudio.size(), defaultAudio == null ? "" : defaultAudio,
+                        repairAssets.size());
                 EscalatorAudioPlayer.onAudioReloaded();
                 AudioSetupScreen.notifyAudioDataChanged();
                 // 【1.17】屏蔽门界面的「到站播放音频」也列出这两张表（未导入 / 已导入），

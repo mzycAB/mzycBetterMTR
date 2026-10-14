@@ -643,7 +643,7 @@ jar = jars[-1]
 check(mod_version in os.path.basename(jar),
       "jar 名带的是 gradle.properties 里的 mod_version",
       "%s / %s" % (os.path.basename(jar), mod_version))
-check(mod_version == "1.31.1204", "★ 版本号就是用户点名的 1.31.1204", "得到 %s" % mod_version)
+check(mod_version == "1.32.1204", "★ 版本号就是用户点名的 1.32.1204", "得到 %s" % mod_version)
 
 z = zipfile.ZipFile(jar)
 names = z.namelist()

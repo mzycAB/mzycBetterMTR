@@ -104,7 +104,37 @@ public class MbmHelpScreen extends Screen {
                         })),
                 this::applyVolume));
 
+        // 【补丁】右上角挂一只「导入补丁」（在「兼容模式」**左侧**）—— 用户点名的位置与形态：
+        //   「导入补丁按钮放在兼容模式按钮左侧，点击导入补丁按钮之后弹窗，窗口有：
+        //     『导入补丁』『删除补丁』『补丁文件夹』『取消』4 个按钮」。
+        //   弹窗直接用模组现成的通用选项弹窗（{@link SyncPopupScreen}），它会自动把「取消」
+        //   补在最后 ⇒ 正好 4 只，顺序与用户给的清单一致。
+        //   ★ 打开弹窗前先把音量输入框落地（弹窗会把宿主界面重建一次，没落地的手填值会丢）。
+        //   ★ 反馈：界面里**不写任何小字**（模组铁规）—— 成败由服务端记进「本次界面会话」，
+        //     退出界面时统一回一条「UI执行成功 / UI执行失败」到聊天栏。
+        addRenderableWidget(Button.builder(Component.literal("导入补丁"), button -> {
+                    applyVolume();
+                    Minecraft.getInstance().setScreen(new SyncPopupScreen(this, "导入补丁", List.of(
+                            new SyncPopupScreen.Option("导入补丁", RepairPatch::importPatch),
+                            new SyncPopupScreen.Option("删除补丁", RepairPatch::deletePatch),
+                            new SyncPopupScreen.Option("补丁文件夹", RepairPatch::openFolder))));
+                })
+                .bounds(rightRowX(1), SyncPopupScreen.ENTRY_Y,
+                        SyncPopupScreen.ENTRY_W, SyncPopupScreen.ENTRY_H)
+                .build());
+
         setInitialFocus(volumeInput);
+    }
+
+    /**
+     * 右上角那一排按钮里，从右数第 {@code index} 个的 x（0 = 最右边那个）。
+     *
+     * <p>整排的边距 / 宽 / 间距**只有 {@link SyncPopupScreen} 一处定义**，这里只做「往左数几个」，
+     * 免得以后挪那排按钮时这一只落在原地（工程教训：同一份规则出现在两处就是等着分叉）。
+     */
+    private int rightRowX(int index) {
+        return this.width - SyncPopupScreen.ENTRY_MARGIN - SyncPopupScreen.ENTRY_W
+                - index * (SyncPopupScreen.ENTRY_W + SyncPopupScreen.ENTRY_GAP);
     }
 
     /** 【09-30 续 2】把一条反馈打进聊天栏（「兼容模式」弹窗按钮的执行结果）。 */

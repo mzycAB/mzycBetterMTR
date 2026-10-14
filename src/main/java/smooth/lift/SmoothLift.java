@@ -51,12 +51,58 @@ public class SmoothLift implements ModInitializer {
      */
     private static final Map<UUID, Boolean> UI_SESSION_OK = new ConcurrentHashMap<>();
 
+    /** 【补丁】本类自己的日志（导入/删除补丁走这里；与其它类的 logger 名同名 "smoothlift"）。 */
+    private static final org.slf4j.Logger LOGGER = org.slf4j.LoggerFactory.getLogger("smoothlift");
+
     /** 【10-01】记录一次界面操作的结果（见 {@link #UI_SESSION_OK}）。 */
-    static void noteUiResult(ServerPlayer player, boolean ok) {
+    public static void noteUiResult(ServerPlayer player, boolean ok) {
         if (player == null) {
             return;
         }
         UI_SESSION_OK.merge(player.getUUID(), ok, (a, b) -> a && b);
+    }
+
+    /**
+     * 【补丁】**服务端侧**：把 `<存档>/MBM_Repair/Repair.zip` 里的音频导入存档。
+     *
+     * <p>★ 为什么抽成一个 public 方法、由各平台的网络接收器调它：五个工程的**网络层写法不同**
+     * （Fabric 用 {@code ServerPlayNetworking}、Forge1.18.2 走 {@code SLNet} 垫片、
+     * Forge1.20.1 走一个个 packet 类），但「导入这件事」必须只有一份实现
+     * —— 否则迟早出现「某个平台上导入是旧版本」这种分叉。
+     *
+     * @return 是否真的导进去了（0 段 = 失败：包不在 / 解不开 / 里面没有可用素材）
+     */
+    public static boolean serverImportRepair(ServerPlayer player) {
+        if (player == null) {
+            return false;
+        }
+        ServerLevel level = player.serverLevel();
+        int imported = RepairStore.importFromSave(level);
+        if (imported > 0) {
+            // 让在线客户端拿到补丁字节（分块同步，与音频库同一条通道）
+            EscalatorSpeedManager.syncAudioToAll(player.server);
+            LOGGER.info("[SmoothLift/Repair] 已导入并同步补丁素材 {} 段（{}）",
+                    imported, RepairStore.keys(level));
+        }
+        noteUiResult(player, imported > 0);
+        return imported > 0;
+    }
+
+    /**
+     * 【补丁】**服务端侧**：把已经融入存档的补丁素材删掉（只清补丁那一张表）。
+     *
+     * @return 之前是否有补丁（没有补丁可删 = false，界面会话记失败）
+     */
+    public static boolean serverDeleteRepair(ServerPlayer player) {
+        if (player == null) {
+            return false;
+        }
+        boolean deleted = RepairStore.deleteFromSave(player.serverLevel());
+        if (deleted) {
+            EscalatorSpeedManager.syncAudioToAll(player.server);
+        }
+        noteUiResult(player, deleted);
+        return deleted;
     }
 
     /** 客户端 -> 服务端：请求设置某个扶梯的【运行】速度。 */
@@ -366,6 +412,30 @@ public class SmoothLift implements ModInitializer {
      */
     public static final ResourceLocation MBM_OPEN_FOLDER_CHANNEL =
             new ResourceLocation("smoothlift", "mbm_open_folder");
+
+    /**
+     * 【补丁】客户端 -&gt; 服务端：把存档目录 `MBM_Repair/Repair.zip` 里的音频**导入存档**（无数据）。
+     *
+     * <p>用户点名的口径：「补丁导入之后是直接把那些补丁音频**融入存档**的，而不是修补 jar 文件…
+     * 补丁不要改模组 jar 文件内容！只修改存档！」⇒ 落地方式就是
+     * {@code RepairStore.importFromSave} 把解出来的 6 段 ogg 写进
+     * {@link EscalatorSpeedData#repairAssets}（存档字段），再让客户端走已有的分块音频同步拿到字节。
+     *
+     * <p>★ 成败走 {@link #noteUiResult}（退出界面时那条「UI执行成功 / UI执行失败」汇总），
+     * **不往界面上写任何字** —— 模组铁规。
+     */
+    public static final ResourceLocation MBM_REPAIR_IMPORT_CHANNEL =
+            new ResourceLocation("smoothlift", "mbm_repair_import");
+
+    /**
+     * 【补丁】客户端 -&gt; 服务端：把**已经融入存档**的补丁素材删掉（无数据）。
+     *
+     * <p>只清 {@link EscalatorSpeedData#repairAssets}；玩家自己导入的 ogg
+     * （{@link EscalatorSpeedData#audioLibrary}）**一个都不动**（用户点名要求）。
+     * 删除之后内置素材自动退回 jar 里随包分发的自合成素材。
+     */
+    public static final ResourceLocation MBM_REPAIR_DELETE_CHANNEL =
+            new ResourceLocation("smoothlift", "mbm_repair_delete");
 
     // ------------------------------------------------------------------
     // 【1.57】「列车音效」界面（**石斧右键侧线铁轨**打开，不再是指令）
@@ -1461,6 +1531,18 @@ public class SmoothLift implements ModInitializer {
                 // false = 走聊天栏：退出界面之后还看得见这次同步到底做了什么
                 noteUiResult(player, true);
             });
+        });
+
+        // 【补丁】「导入补丁」：读 <存档>/MBM_Repair/Repair.zip -> 解密 -> 写进存档的 repairAssets。
+        //   ★ 全程只在**服务端**做（文件在世界目录下、数据也写在世界存档里）；
+        //     写完调一次整库音频同步，客户端就有了字节（播放端优先取补丁那份）。
+        ServerPlayNetworking.registerGlobalReceiver(MBM_REPAIR_IMPORT_CHANNEL, (server, player, handler, buf, responseSender) -> {
+            server.execute(() -> serverImportRepair(player));
+        });
+
+        // 【补丁】「删除补丁」：只清存档里的 repairAssets；玩家自己导入的 ogg 一个都不动。
+        ServerPlayNetworking.registerGlobalReceiver(MBM_REPAIR_DELETE_CHANNEL, (server, player, handler, buf, responseSender) -> {
+            server.execute(() -> serverDeleteRepair(player));
         });
 
         // 扶梯方块被破坏时清除对应记录

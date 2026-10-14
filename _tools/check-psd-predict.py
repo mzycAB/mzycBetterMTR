@@ -100,9 +100,14 @@ print("===== 0) 常量：从 Java 源码里读出来 =====")
 EDGE = float(re.search(r"float EDGE\s*=\s*([0-9.]+)f", player).group(1))
 GRACE = int(re.search(r"PLAN_GRACE_TICKS\s*=\s*(\d+)", player).group(1))
 WAIT = int(re.search(r"ALIGN_MAX_WAIT_TICKS\s*=\s*(\d+)", player).group(1))
-DUR = 10806          # mdoorclose.ogg（实测）
-SPLIT = 6707         # 分界点（实测）
+DUR = 10806          # ★ 参照素材（= 原来那段 10.8 秒的两段结构录音：人声 6.7s + 嘀嘀 3.5s）
+SPLIT = 6707         #    ↑ 分界点（那一版实测）
 ANN = True           # 「默认」= 要人声
+# ★★【补丁】那一轮起，**内置**关门素材换成自合成的「纯嘀嘀串」（4.000s，分界点 -1）。
+#   这个脚本的状态机验的是**「两段结构素材走提前量」**这条算法（现在只有玩家导入的录音
+#   还会有那种结构），所以上面两个数是**参照素材**的参数、不再是内置文件的实测值。
+#   内置素材走的是「剪头」那一档（无播报段 ⇒ 排不出提前量），由 `check-psd-align.py` 钉住；
+#   下面 0b 会把两边都核一次 —— 既核参照参数自洽，也核内置文件确实是另一副样子。
 check(abs(EDGE - 0.02) < 1e-9, "EDGE = 0.02（判「全开/全关」的容差）", "得到 %s" % EDGE)
 check(GRACE == 40, "PLAN_GRACE_TICKS = 40", "得到 %d" % GRACE)
 check(WAIT == 5, "ALIGN_MAX_WAIT_TICKS = 5", "得到 %d" % WAIT)
@@ -111,15 +116,13 @@ STEP = 1.0 / 80.0        # 每 tick 门值变化（字节码：partialTick*20/32
 check(abs(STEP - 0.0125) < 1e-12, "门值步长 = 1/80 = 0.0125（字节码实测）")
 print("        EDGE=%.3f  vs  步长=%.4f  ⇒ 阈值窗口宽度 = 一个步长" % (EDGE, STEP))
 
-# ---- 0b) 本脚本用的 DUR / SPLIT 必须是**关门**素材的（第七轮根因就是拿错了素材）----
-# 这里的 DUR/SPLIT 是硬编码的，但它们必须是 mdoorclose.ogg 的真实值 —— 顺手用真素材核一次，
-# 免得「素材换了 / 有人把常数改成开门素材的 2283」之后脚本还照样绿。
+# ---- 0b) 参照素材的参数自洽 + 内置素材的现状（第七轮根因就是拿错了素材）----
 try:
     import soundfile as _sf
     _sfok = True
 except Exception:
     _sfok = False
-check(_sfok, "soundfile 可用（要用真素材核 DUR —— 这个脚本的状态机就是按它跑的）")
+check(_sfok, "soundfile 可用（要用真素材核 —— 这个脚本的状态机就是按它跑的）")
 if _sfok:
     _adir = os.path.join(ROOT, "src", "main", "resources", "assets", "smoothlift", "sounds", "audio")
     _ms = {}
@@ -127,14 +130,19 @@ if _sfok:
         _x, _sr = _sf.read(os.path.join(_adir, _n), always_2d=True)
         _ms[_n] = int(round(1000.0 * _x.shape[0] / _sr))
         print("        %-15s 实测时长 %dms" % (_n, _ms[_n]))
-    check(abs(_ms["mdoorclose.ogg"] - DUR) <= 30,
-          "DUR = %dms 就是关门素材 mdoorclose.ogg 的真实时长" % DUR, "实测 %dms" % _ms["mdoorclose.ogg"])
+    # ★【补丁】内置关门素材现在是 4.000s 的纯嘀嘀串（== MTR4 门程）——
+    #   本条把「内置换了」这件事本身钉住，免得哪天又被当成「脚本写错了」。
+    check(abs(_ms["mdoorclose.ogg"] - 4000) <= 30,
+          "★ 内置 mdoorclose.ogg = 4000ms（自合成的纯嘀嘀串，长度 = MTR4 门程："
+          "对齐算式 start ≈ 0 ⇒ 整串播完、结尾正好落在门关上）",
+          "实测 %dms" % _ms["mdoorclose.ogg"])
     check(abs(_ms["dooropen.ogg"] - DUR) > 1000,
           "★ 开门素材 dooropen.ogg 的时长（%dms）与关门素材**明显不同** ⇒ 「拿错素材」是可被发现的"
           "（第七轮就是这么错的：开门素材还兼有 splitMs = -1，于是提前量永远排不出来）"
           % _ms["dooropen.ogg"])
     check(0 < SPLIT < DUR,
-          "SPLIT = %dms 落在 (0, 素材时长) 内 ⇒ 分界点这一刀切得出来" % SPLIT)
+          "★ 参照素材的 SPLIT = %dms 落在 (0, %dms) 内 ⇒ 分界点这一刀切得出来（状态机的前提）"
+          % (SPLIT, DUR))
 print()
 
 TICK = 50

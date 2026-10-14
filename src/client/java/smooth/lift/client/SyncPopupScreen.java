@@ -56,9 +56,23 @@ public class SyncPopupScreen extends Screen {
     /** 【09-29】右上角那排按钮的 y 与高度（与旧的 6 / 20 逐值相同，只是抽成了常量）。 */
     public static final int ENTRY_Y = 6;
     public static final int ENTRY_H = 20;
-    /** 面板尺寸。 */
+    /** 面板宽度。 */
     private static final int PANEL_W = 240;
-    private static final int PANEL_H = 112;
+
+    /**
+     * 面板高度：**按实际按钮数算**，不是写死的。
+     *
+     * <p>排布是 {@code y = panelY + 30} 起、每只间隔 26、每只高 20（见 {@link #init()}），
+     * 所以「n 只按钮」需要 {@code 30 + n*26 + 4}，底部留 10px。
+     * 3 只（= 2 个选项 + 取消）时算出 **112**，与 1.55 那个写死的常量逐值相同
+     * ⇒ 老的「同步」弹窗观感一分不变；而【补丁】那个 4 只按钮的面板会自动长到 138。
+     *
+     * <p>★ 教训：弹窗按钮数是**调用方给的**，面板写死高度就会让多出来的那只掉到黑框外面
+     * （还能点，但看着像没画出来）。
+     */
+    private int panelH() {
+        return 30 + (options.size() + 1) * 26 + 4;
+    }
 
     /** 关掉弹窗之后回到哪个界面。 */
     private final Screen returnTo;
@@ -191,7 +205,7 @@ public class SyncPopupScreen extends Screen {
     }
 
     private int panelY() {
-        return (this.height - PANEL_H) / 2;
+        return (this.height - panelH()) / 2;
     }
 
     @Override
@@ -200,8 +214,9 @@ public class SyncPopupScreen extends Screen {
         int px = panelX();
         int py = panelY();
         // 面板：先描一圈深色边，再填半透明底 —— 与模组其它界面的「黑底白字」一致
-        guiGraphics.fill(px - 2, py - 2, px + PANEL_W + 2, py + PANEL_H + 2, 0xFF000000);
-        guiGraphics.fill(px, py, px + PANEL_W, py + PANEL_H, 0xF0101010);
+        int ph = panelH();
+        guiGraphics.fill(px - 2, py - 2, px + PANEL_W + 2, py + ph + 2, 0xFF000000);
+        guiGraphics.fill(px, py, px + PANEL_W, py + ph, 0xF0101010);
         guiGraphics.drawCenteredString(this.font, this.title, this.width / 2, py + 10, 0xFFFFFF);
         super.render(guiGraphics, mouseX, mouseY, partialTick);
     }

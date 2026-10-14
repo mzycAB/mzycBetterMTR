@@ -28,14 +28,18 @@
 
 ## 这个脚本查什么
 
-1. 素材：`up.ogg` / `down.ogg` 存在、非空、是 OggS；且与用户给的原始文件**逐字节相同**（没被转码/裁掉）；
-2. `sounds.json` 注册了 `audio/up` / `audio/down`，且指向的 .ogg 真的在；
+1. 素材：**`up.ogg` / `down.ogg` 必须已经不存在**（用户点名「直梯上下楼语音提示音的自带音频删掉」
+   —— 实测那两段是人声播报、外部来源）；同时 **`Repair.zip` 必须含这两段**（补丁是唯一的恢复途径）；
+2. `sounds.json` **不再注册** `audio/up` / `audio/down`（注册了却没有文件 = 引擎静默不响，
+   最难查的那类；这里是反过来：删条目才是「干净地静音」）；
 3. `LiftChimePlayer` 的判据 / 只响一次 / 不走连播排期 / 音量与倍速复用既有旋钮 / 只对最近那条响；
+   ★ 并断言「事件查不到」这一支走的是 **info + 指向导入补丁**，而不是那条会吓人的 WARN；
 4. `MtrLiftAccess` 的方向解析（枚举恰为 NONE/UP/DOWN、按名字解析、认不出 → NONE、
    getter 缺失只 WARN 不 throw，不能把开关门提示音一起带坏）；
 5. **语义模拟 + 对照实验**：用 Python 复刻判据跑几条真实轨迹，断言「恰好响一次」；
    再把 `now == prev` 去掉跑一遍，确认它会重复响（证明该判据有鉴别力，不是恒真）；
-6. 打包：jar 里确实含两个 .ogg、`sounds.json` 有那两条、`LiftChimePlayer.class` 里有那两个字面量。
+6. 打包：jar 里**确实没有**两个 .ogg、`sounds.json` 里没有那两条、`LiftChimePlayer.class`
+   里仍有 `audio/up`/`audio/down` 两个字面量（事件常量还在，只是不再注册）。
 
 解析失败**报错退出**，不做静默兜底 —— 以后改写法时脚本会明确要求同步更新。
 
@@ -115,53 +119,70 @@ def ogg_duration(path):
 
 
 # ----------------------------------------------------------------------
-# 1) 素材：存在、非空、是 OggS、且与用户原始文件逐字节相同
+# 1) 素材：两段音频必须已移除，且补丁里必须有它们（唯一恢复途径）
 # ----------------------------------------------------------------------
-print("== 1. 素材 ==")
+print("== 1. 素材（已移除 + 补丁可恢复） ==")
 for name in ("up", "down"):
     path = os.path.join(AUDIO_DIR, name + ".ogg")
-    ok = os.path.isfile(path) and os.path.getsize(path) > 1024
-    check(ok, "assets/smoothlift/sounds/audio/%s.ogg 存在且非空" % name,
-          ("%d B" % os.path.getsize(path)) if os.path.isfile(path) else "缺失")
-    if ok:
-        with open(path, "rb") as fh:
-            magic = fh.read(4)
-        check(magic == b"OggS", "%s.ogg 是 OggS 容器（Minecraft 只认 OGG Vorbis）" % name,
-              "魔数 %r" % magic)
-        dur = ogg_duration(path)
-        if dur is not None:
-            check(dur < 10.0, "%s.ogg 时长 %.2f s < 10 s（短素材，可直接内嵌不必 stream）"
-                  % (name, dur))
+    check(not os.path.isfile(path),
+          "assets/smoothlift/sounds/audio/%s.ogg **已删除**（用户点名：直梯上下楼语音提示音改静音）"
+          % name,
+          ("仍然存在 %d B" % os.path.getsize(path)) if os.path.isfile(path) else "确认删除")
+    check(not os.path.isfile(os.path.join(GIVEN_DIR, name + ".ogg")),
+          "工作区根也不再有用户给的原始 %s.ogg（原文件已收进补丁包，不再散落）" % name)
 
-        given = os.path.join(GIVEN_DIR, name + ".ogg")
-        if os.path.isfile(given):
-            same = sha256(given) == sha256(path)
-            check(same, "%s.ogg 与用户给的原始素材逐字节相同（没被转码 / 裁掉）" % name,
-                  "sha256 %s" % sha256(path)[:16])
-        else:
-            print("[SKIP] 工作区根没有 %s.ogg，跳过「与原素材逐字节相同」这一步" % name)
+# 补丁包：**唯一的恢复途径**。这里只查「zip 里有这两个条目名」——
+# 内容加密（AES-256），要解密得靠 RepairPatch；真正的「解密对不对」由
+# _tools/RepairCryptoSelfTest.java 离线跑「造包 → 读包 → 逐字节比对」。
+REPAIR_ZIP = os.path.join(os.path.dirname(GIVEN_DIR), "Repair.zip")
+check(os.path.isfile(REPAIR_ZIP),
+      "补丁包 Repair.zip 在工作区根（%s）" % os.path.relpath(REPAIR_ZIP, os.path.dirname(GIVEN_DIR)),
+      "玩家把它放进 存档/MBM_Repair/ 后点「导入补丁」即可恢复原语音")
+if os.path.isfile(REPAIR_ZIP):
+    with zipfile.ZipFile(REPAIR_ZIP) as z:
+        names = set(z.namelist())
+    for name in ("up", "down"):
+        check(name + ".ogg" in names, "补丁包含 %s.ogg（恢复用的原始素材在里面）" % name)
+    check(all((k + ".ogg") in names for k in
+              ("up", "down", "liftmusic", "dooropen", "doorclose", "mdoorclose")),
+          "补丁包含全部 6 段被移除的原素材",
+          "实际 = %s" % sorted(names))
+    # AES-256 的证据：条目声明了加密（flag bit0）且压缩方式是 99（AES 的哨兵）
+    with zipfile.ZipFile(REPAIR_ZIP) as z:
+        infos = z.infolist()
+    enc = all(i.flag_bits & 0x1 for i in infos)
+    aes = all(i.compress_type == 99 for i in infos)
+    check(enc and aes,
+          "★ 补丁包真的加密了（每个条目 flag.bit0 = 1 且 compress_type = 99 = AES）",
+          "flag/type = %s" % [(i.flag_bits, i.compress_type) for i in infos][:2])
+    # 整包搜明文魔数（`z.read` 对加密条目会要求密码，所以直接扫整份文件字节；
+    # 条目名里不含 `OggS`，所以这条判据不会误报）
+    with open(REPAIR_ZIP, "rb") as fh:
+        whole = fh.read()
+    check(b"OggS" not in whole,
+          "★ 整份补丁包里搜不到明文 `OggS`（内容真的被加密，不是「只加了个密码标记」）")
 
 
 # ----------------------------------------------------------------------
-# 2) sounds.json 注册
+# 2) sounds.json：两条事件必须**不再注册**
 # ----------------------------------------------------------------------
-print("\n== 2. sounds.json ==")
+print("\n== 2. sounds.json（两条事件已摘掉） ==")
 sounds = {}
 if os.path.isfile(SOUNDS_JSON):
     sounds = json.loads(read(SOUNDS_JSON))
 for name in ("up", "down"):
     ev = "audio/%s" % name
-    entry = sounds.get(ev)
-    ok = bool(entry) and bool(entry.get("sounds"))
-    ref = (entry or {}).get("sounds", [{}])[0].get("name") if ok else None
-    check(ok and ref == "smoothlift:%s" % ev,
-          "sounds.json 注册了 %s → smoothlift:%s" % (ev, ev),
-          "实际 %s" % ref)
-    check(os.path.isfile(os.path.join(AUDIO_DIR, name + ".ogg")),
-          "%s 指向的 .ogg 文件真的在（注册了却没有文件 = 引擎静默不响，最难查的那类）" % ev)
-# 对照：故意写一个不存在的入口，确认「注册了但没有文件」这件事查得出来
-check(not os.path.isfile(os.path.join(AUDIO_DIR, "no_such_sound.ogg")),
-      "对照：本脚本确实能区分「有注册」与「有文件」（用一个不存在的名字验证查得到）")
+    check(ev not in sounds,
+          "sounds.json **不再**注册 %s（删条目才是干净地静音：留条目少文件会在资源重载时报警告，"
+          "且 getSoundEvent 仍非 null、起播后才静默失败）" % ev,
+          "仍然注册着 → %s" % sounds.get(ev))
+# 对照组：同一个文件里别的条目必须还在（证明上面那条不是「整个文件读空了」造成的假绿）
+for ev in ("audio/liftmusic", "audio/dooropen", "audio/doorclose", "audio/mdoorclose"):
+    check(ev in sounds and bool(sounds[ev].get("sounds")),
+          "对照：sounds.json 里 %s 仍然注册着（不是整份读空）" % ev)
+for ev in ("audio/liftmusic", "audio/dooropen", "audio/doorclose", "audio/mdoorclose"):
+    check(os.path.isfile(os.path.join(AUDIO_DIR, ev.split("/")[1] + ".ogg")),
+          "对照：%s 指向的 .ogg 文件真的在" % ev)
 
 
 # ----------------------------------------------------------------------
@@ -628,15 +649,14 @@ else:
         names = set(z.namelist())
         for name in ("up", "down"):
             entry = "assets/smoothlift/sounds/audio/%s.ogg" % name
-            check(entry in names, "jar 内含 %s" % entry)
-            if entry in names:
-                check(z.read(entry) == open(os.path.join(AUDIO_DIR, name + ".ogg"), "rb").read(),
-                      "jar 内的 %s.ogg 与源码里的逐字节相同" % name)
+            check(entry not in names, "jar 内**不含** %s（已按用户要求移除）" % entry)
         if "assets/smoothlift/sounds.json" in names:
             bundled = json.loads(z.read("assets/smoothlift/sounds.json").decode("utf-8"))
-            check("audio/up" in bundled and "audio/down" in bundled,
-                  "jar 内的 sounds.json 有 audio/up 与 audio/down",
+            check("audio/up" not in bundled and "audio/down" not in bundled,
+                  "jar 内的 sounds.json **没有** audio/up 与 audio/down",
                   "实际含 %s" % [k for k in bundled if "up" in k or "down" in k])
+            for ev in ("audio/liftmusic", "audio/dooropen", "audio/doorclose", "audio/mdoorclose"):
+                check(ev in bundled, "对照：jar 内 sounds.json 仍有 %s" % ev)
         else:
             check(False, "jar 内含 assets/smoothlift/sounds.json")
 
@@ -644,9 +664,60 @@ else:
         if cls in names:
             blob = z.read(cls)
             check(b"audio/up" in blob and b"audio/down" in blob,
-                  "LiftChimePlayer.class 里有 audio/up 与 audio/down 两个字面量（确认编进去了）")
+                  "LiftChimePlayer.class 里仍有 audio/up 与 audio/down 两个字面量"
+                  "（事件常量还在，只是不再注册 —— 补丁恢复后就要用它）")
         else:
             check(False, "jar 内含 %s" % cls)
+
+        # 【补丁】两个新类必须真的打进 jar 了（它们只被客户端代码引用，容易在移植时漏）
+        # ★【第二轮】RepairCrypto / RepairStore 搬到了**公共源集**（服务端也要解密），
+        #   所以它们是 smooth/lift/*.class；只有 RepairPatch 还留在客户端包里。
+        for cls_name in ("smooth/lift/RepairCrypto.class", "smooth/lift/RepairStore.class",
+                         "smooth/lift/client/RepairPatch.class"):
+            check(cls_name in names, "jar 内含 %s" % cls_name)
+
+        # ★ 密码不许以**明文**出现在任何 class 里（`strings` 一下 jar 拿不到密码）。
+        #   密码真值从 RepairCrypto.java 的 LOCK 数组按同一个 LCG 反推 ——
+        #   于是这条断言同时把「LOCK ↔ 生成脚本里的密码」这一对焊住了
+        #   （生成脚本 _tools/make_repair_zip.py 是唯一真值，改一边这里就红）。
+        #   ★ 注意：这是「抬高门槛」而非「不可提取」—— 反编译仍能还原，那是有意的取舍。
+        # ★【第二轮】RepairCrypto.java 在**公共源集**：
+        #   Fabric = src/main/java/smooth/lift/RepairCrypto.java
+        #   Forge  = src/main/java/smooth/lift/RepairCrypto.java（同一个位置）
+        #   ★ 别用 dirname(CLIENT) —— 那还留在**客户端源集**里（src/client/java/smooth/lift），
+        #     开发时它恰好是个存在的目录，会静默读不到文件。
+        _crypto_path = os.path.join(ROOT, "src", "main", "java", "smooth", "lift",
+                                    "RepairCrypto.java")
+        if not os.path.isfile(_crypto_path):
+            _crypto_path = os.path.join(CLIENT, "RepairCrypto.java")
+            if not os.path.isfile(_crypto_path):
+                raise SystemExit("找不到 RepairCrypto.java（它应当在 src/main/java/smooth/lift/ 下）")
+        crypto_src = read(_crypto_path)
+        m_lock = re.search(r"int\[\] LOCK\s*=\s*\{(.*?)\};", crypto_src, re.S)
+        lock = [int(x, 16) for x in re.findall(r"0x([0-9A-Fa-f]{2})",
+                                               m_lock.group(1))] if m_lock else []
+        check(len(lock) == 20, "RepairCrypto.LOCK 是 20 个字节（= 密码 20 字符）",
+              "实际 %d 个" % len(lock))
+
+        def un_lock(items, seed=0x5A17):
+            st = seed
+            out = []
+            for masked in items:
+                st = (st * 1103515245 + 12345) & 0xFFFFFFFF
+                out.append(chr(masked ^ ((st >> 16) & 0xFF)))
+            return "".join(out)
+
+        pwd = un_lock(lock)
+        check(len(pwd) == 20 and any(c.isalpha() for c in pwd) and any(c.isdigit() for c in pwd)
+              and any(not c.isalnum() for c in pwd),
+              "★ 由 LOCK 反推出的密码是 20 位、且字母/数字/特殊符号三种都有",
+              "解出 %r" % pwd)
+        blob_all = b"".join(z.read(n) for n in names if n.endswith(".class"))
+        check(pwd.encode() not in blob_all,
+              "★ 明文密码**不出现**在任何 class 里（`strings` 一下 jar 拿不到密码）")
+        # 反向对照：换一个种子解出来的必然不是同一串 ⇒ 上面那条判据不是恒真
+        check(un_lock(lock, 0x1234) != pwd,
+              "对照：换一个 LCG 种子 ⇒ 解出的字符串不同（说明这个推导真有鉴别力）")
 
 if FAILS:
     print("\n== 失败 %d 项 ==" % len(FAILS))

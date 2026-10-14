@@ -332,6 +332,23 @@ public class EscalatorSpeedData extends SavedData {
 
     /** 音频ID → OGG 文件字节（按内容哈希去重，一个音频可被多条扶梯复用）。 */
     public final Map<String, byte[]> audioLibrary = new HashMap<>();
+
+    /**
+     * 【补丁】**补丁素材**：内置素材键 → 原始 ogg 字节（`up` / `down` / `liftmusic` /
+     * `dooropen` / `doorclose` / `mdoorclose`）。
+     *
+     * <p>用户点名的口径：「补丁导入之后是直接把那些补丁音频**融入存档**的，而不是修补 jar 文件…
+     * 补丁不要改模组 jar 文件内容！只修改存档！」⇒ 所以它是**存档里的一个字段**
+     * （跟着世界走、换世界换一份），由 {@code RepairStore} 从
+     * {@code <存档>/MBM_Repair/Repair.zip} 解出来后写进来。
+     *
+     * <p>★ 与 {@link #audioLibrary} 是**两张独立的表**，这是「删补丁不许动玩家自己导入的 ogg」
+     * 这条要求的实现方式：删补丁只清这一张；反过来在 UI 里删玩家音频也动不到补丁。
+     *
+     * <p>读取方（客户端）拿的是同步过来的镜像（{@code RepairPatch.bytes}），
+     * 播放端 {@code EscalatorAudioPlayer.bundledBytes} 会**优先**取它、没有才退回 jar 内资源。
+     */
+    public final Map<String, byte[]> repairAssets = new HashMap<>();
     /**
      * 【1.28】音频分类 → 该分类已导入存档的音频名集合。
      *
@@ -1522,8 +1539,17 @@ public class EscalatorSpeedData extends SavedData {
                 data.audioLibrary.put(key, bytes);
             }
         }
-        // 【1.28】音频分类注册表：每分类一个名字列表。
-        //   旧存档没有这张表 → 把平铺库里的名字放进**所有**分类（旧版 = 一个共享库，
+        // 【补丁】补丁素材（内置素材键 → 原始 ogg 字节）：与音频库**分开一张表**，
+        //   这样「删补丁」与「删玩家音频」互不牵连（用户点名的要求）。
+        CompoundTag repairTag = tag.getCompound("repairAssets");
+        for (String key : repairTag.getAllKeys()) {
+            byte[] bytes = repairTag.getByteArray(key);
+            if (bytes.length > 0 && bytes.length <= MAX_AUDIO_BYTES) {
+                data.repairAssets.put(key, bytes);
+            }
+        }
+
+        // 【1.28】音频分类注册表：每分类一个名字列表。        //   旧存档没有这张表 → 把平铺库里的名字放进**所有**分类（旧版 = 一个共享库，
         //   任何界面都看得到；迁移后保持「到处都看得到」，玩家可自行在新文件夹结构下重新导入）。
         //   【1.28+】分类改过目录（futi / music / help）→ 按 migrateCategoryKey 把旧键迁到新键。
         CompoundTag catTag = tag.getCompound("audioCategoryNames");
@@ -2068,6 +2094,14 @@ public class EscalatorSpeedData extends SavedData {
             audioTag.putByteArray(entry.getKey(), entry.getValue());
         }
         tag.put("audioLibrary", audioTag);
+        // 【补丁】补丁素材：与音频库同一种平铺字节存储（读侧一一对应）。
+        //   ★ 它是**存档字段**（不是 jar、也不是游戏目录下的文件）—— 用户点名
+        //   「补丁导入之后直接把音频融入存档」「补丁不要改模组 jar 文件内容！只修改存档！」
+        CompoundTag repairTag = new CompoundTag();
+        for (Map.Entry<String, byte[]> entry : repairAssets.entrySet()) {
+            repairTag.putByteArray(entry.getKey(), entry.getValue());
+        }
+        tag.put("repairAssets", repairTag);
         // 【1.28】音频分类注册表：每分类一个名字列表（与读侧一一对应）。
         net.minecraft.nbt.CompoundTag catTag = new net.minecraft.nbt.CompoundTag();
         for (Map.Entry<String, Set<String>> e : audioCategoryNames.entrySet()) {

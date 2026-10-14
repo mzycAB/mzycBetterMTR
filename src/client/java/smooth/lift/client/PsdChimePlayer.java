@@ -3116,6 +3116,17 @@ public final class PsdChimePlayer {
                 playbackId = null; // 剪头那档播不出来 → 退回整段从头播
             }
         }
+        if (playbackId == null && tone.customId() == null
+                && EscalatorAudioPlayer.patched(tone.builtinKey())) {
+            // 【补丁】这段内置素材（dooropen / doorclose / mdoorclose）被补丁覆盖过。
+            //   补丁字节既不在 jar 里、也不在资源包里，而是**存档的 repairAssets** 同步过来的镜像
+            //   ⇒ 原版资源包那条路读不到，所以整段起播也必须走注入
+            //   （注入 ID 用内置 key，与 bundledBytes 的键同源）。
+            byte[] patch = EscalatorAudioPlayer.bundledBytes(tone.builtinKey());
+            if (patch != null && EscalatorAudioPlayer.injectPlayback(mc, tone.builtinKey(), patch)) {
+                playbackId = tone.builtinKey();
+            }
+        }
         if (playbackId == null) {
             if (tone.customId() == null) {
                 if (mc.getSoundManager().getSoundEvent(tone.event()) == null) {

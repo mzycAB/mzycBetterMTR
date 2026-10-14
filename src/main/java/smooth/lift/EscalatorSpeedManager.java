@@ -64,6 +64,13 @@ public final class EscalatorSpeedManager {
         public double stepValue = EscalatorSpeedData.DEFAULT_SPEED;
         /** 【1.7】音频ID → OGG 字节（服务端同步过来的镜像，供客户端播放器注入声音引擎）。 */
         public final Map<String, byte[]> audioLibrary = new HashMap<>();
+        /**
+         * 【补丁】内置素材键 → 原始 ogg 字节（服务端同步过来的镜像）。
+         *
+         * <p>与 {@link #audioLibrary} 分开一张表：删补丁动不到玩家导入的 ogg，反之亦然。
+         * 播放端 {@code EscalatorAudioPlayer.bundledBytes} 会优先取这里。
+         */
+        public final Map<String, byte[]> repairAssets = new HashMap<>();
         /** 【1.7】扶梯方块 → 音频ID（服务端同步过来的镜像）。 */
         public final Map<BlockPos, String> blockAudio = new HashMap<>();
         /** 【1.9】扶梯方块 → 声音音量（1~1000，服务端同步过来的镜像）。 */
@@ -1762,6 +1769,42 @@ public final class EscalatorSpeedManager {
             return data == null ? null : data.audioLibrary.get(audioId);
         }
         return getServerData((ServerLevel) level).audioLibrary.get(audioId);
+    }
+
+    /**
+     * 【补丁】取**补丁素材**字节（内置素材键 → 原始 ogg）；没导入过补丁时返回 {@code null}。
+     *
+     * <p>与 {@link #getAudioBytes} 是两张独立的表：这样删补丁不会动到玩家自己导入的 ogg，
+     * 在 UI 里删玩家音频也不会把补丁弄没。
+     */
+    public static byte[] getRepairBytes(Level level, String builtinKey) {
+        if (level == null || builtinKey == null) {
+            return null;
+        }
+        if (level.isClientSide()) {
+            ClientDimensionData data = CLIENT_DATA.get(level.dimension());
+            return data == null ? null : data.repairAssets.get(builtinKey);
+        }
+        return getServerData((ServerLevel) level).repairAssets.get(builtinKey);
+    }
+
+    /** 【补丁】当前维度有没有补丁素材（客户端读镜像 / 服务端读存档；诊断与校验用）。 */
+    public static boolean hasRepairData(Level level) {
+        if (level == null) {
+            return false;
+        }
+        if (level.isClientSide()) {
+            ClientDimensionData data = CLIENT_DATA.get(level.dimension());
+            return data != null && !data.repairAssets.isEmpty();
+        }
+        return !getServerData((ServerLevel) level).repairAssets.isEmpty();
+    }
+
+    /** 【补丁】应用服务端同步过来的补丁素材镜像（覆盖式更新）。 */
+    public static void applyClientRepairData(ResourceKey<Level> dimension, Map<String, byte[]> repairAssets) {
+        ClientDimensionData data = CLIENT_DATA.computeIfAbsent(dimension, k -> new ClientDimensionData());
+        data.repairAssets.clear();
+        data.repairAssets.putAll(repairAssets);
     }
 
     /** 【1.7】客户端：当前维度全部扶梯-音频绑定（只读视图），供声音播放器每 tick 遍历候选；无数据返回空 Map。 */
@@ -3596,6 +3639,14 @@ public final class EscalatorSpeedManager {
         }
         // 【1.11】默认扶梯音频（空串表示没有默认音频）
         buf.writeUtf(data.defaultAudio == null ? "" : data.defaultAudio, 128);
+        // ③【补丁】补丁素材（内置素材键 → 原始 ogg 字节）。
+        //   ★ 放在**末尾**追加（追加式改包的标准姿势：老位置的字段一个都没动）。
+        //   客户端读侧必须**同序同数**读回，见 SmoothLiftClient 的 AUDIO_SYNC 接收段。
+        buf.writeVarInt(data.repairAssets.size());
+        for (Map.Entry<String, byte[]> entry : data.repairAssets.entrySet()) {
+            buf.writeUtf(entry.getKey(), 64);
+            buf.writeByteArray(entry.getValue());
+        }
         byte[] payload = new byte[buf.readableBytes()];
         buf.readBytes(payload);
         return payload;

@@ -232,6 +232,19 @@ public final class LiftChimePlayer {
     /** {@code sounds.json} 里没注册某个事件时只提示一次（资源包缺条目 / 装错 jar）。 */
     private static final Set<ResourceLocation> warnedMissingEvents = new HashSet<>();
 
+    /**
+     * 【补丁】这版**故意移除**了两个内置事件（{@link #LIFT_UP} / {@link #LIFT_DOWN}）。
+     *
+     * <p>用户点名：「直梯上下楼语音提示音的自带音频删掉」—— 实测那两段是人声播报，
+     * 属于外部来源素材。所以 `up.ogg` / `down.ogg` 与它们在 {@code sounds.json} 里的条目
+     * 都已删除，**默认不出声**；`Repair.zip` 导入后由补丁字节经注入路径发声。
+     * 这两个事件「查不到」是**预期状态**，用 info 而不是 warn（见 {@link #play}）。
+     */
+    private static final Set<ResourceLocation> WITHDRAWN_EVENTS = Set.of(LIFT_UP, LIFT_DOWN);
+
+    /** 「已移除」那条 info 只打一次（每次门跳变都打会把日志刷爆）。 */
+    private static final Set<ResourceLocation> withdrawnLogged = new HashSet<>();
+
     private LiftChimePlayer() {
     }
 
@@ -691,8 +704,29 @@ public final class LiftChimePlayer {
     private static void play(Minecraft mc, ResourceLocation event, String customId, Vec3 pos,
                             float baseVolume, float pitch, MtrLiftAccess.Cabin cabin) {
         if (customId == null) {
+            // 【补丁】这段内置素材被补丁覆盖过（Repair.zip：up / down / liftmusic 三段的原始音频）：
+            //   补丁字节既不在 jar 里、也不在资源包里，而是**存档的 repairAssets** 同步过来的镜像
+            //   ⇒ 原版资源包那条路读不到，只能走注入 —— 注入 ID 就用内置 key
+            //   （与 EscalatorAudioPlayer.bundledBytes 的键一致）。
+            String builtinKey = builtinKeyOf(event);
+            if (builtinKey != null && EscalatorAudioPlayer.patched(builtinKey)) {
+                byte[] patch = EscalatorAudioPlayer.bundledBytes(builtinKey);
+                if (patch != null && EscalatorAudioPlayer.injectPlayback(mc, builtinKey, patch)) {
+                    playInstance(mc, event, builtinKey, pos, baseVolume, pitch, cabin);
+                    return;
+                }
+                // 注入失败（解不出来 / 缓存拿不到）→ 掉到下面原版事件那条路，宁可出原音也不要静音
+            }
             if (mc.getSoundManager().getSoundEvent(event) == null) {
-                if (warnedMissingEvents.add(event)) {
+                if (WITHDRAWN_EVENTS.contains(event)) {
+                    // 【补丁】up / down 的自带音频已按用户要求**移除**（直梯上下楼提示音默认静音）
+                    //   ⇒ 这里不是故障，用 info 说明「怎么恢复」，免得玩家以为模组坏了。
+                    if (withdrawnLogged.add(event)) {
+                        LOGGER.info("[SmoothLift/LiftChime] 直梯上下楼提示音已移除（默认静音）：{} 未注册。"
+                                + "想恢复原始语音：把 Repair.zip 放进 存档/MBM_Repair/ 后，在 /MBM help 里点「导入补丁」",
+                                event);
+                    }
+                } else if (warnedMissingEvents.add(event)) {
                     LOGGER.warn("[SmoothLift/LiftChime] 声音事件 {} 没注册（模组的 sounds.json 没被加载？），"
                             + "这个直梯提示音不会出声", event);
                 }
@@ -702,33 +736,60 @@ public final class LiftChimePlayer {
             inst.setPosition(pos, baseVolume, cabin);
             inst.setPitch(pitch);
             mc.getSoundManager().play(inst);
-            // 【1.43】音量上限要**成对**放开，只做一半就还是「调到 100 以上完全没变化」：
-            //   ① LiftMusicInstance 实现 GainManagedSound → SoundEngineVolumeMixin 不再把
-            //      calculateVolume 夹到原版的 1.0（这一步在 play() 之前就已经靠接口成立）；
-            //   ② 这里再把该 OpenAL 源的 AL_MAX_GAIN 抬到 MAX_GAIN —— 否则 OpenAL 自己会把
-            //      **有效增益**压回 1.0×（它默认就是 1.0）。
-            // 该属性是按源保留的（引擎每 tick 只改 AL_GAIN / pitch / position，不碰它），
-            // 所以开播时设一次即可；和 EscalatorChimePlayer 那边是同一套做法。
-            SoundEngine engine = mc.getSoundManager().soundEngine;
-            ChannelAccess.ChannelHandle handle = engine.instanceToChannel.get(inst);
-            if (handle != null) {
-                handle.execute(ch -> AL10.alSourcef(ch.source, AL10.AL_MAX_GAIN, EscalatorAudioPlayer.MAX_GAIN));
-            }
+            raiseMaxGain(mc, inst);
             return;
         }
         // 【1.45】自定义（玩家导入的）素材：注入→播，逻辑复用扶梯那套（injectAudio + 自定义实例）。
         if (!EscalatorAudioPlayer.injectAudio(mc, customId)) {
             return; // 没同步到 / 解码失败 / 已被删除 → 静默跳过（日志已在 injectAudio 内部处理过）
         }
-        LiftMusicInstance inst = new LiftMusicInstance(event, customId);
+        playInstance(mc, event, customId, pos, baseVolume, pitch, cabin);
+    }
+
+    /**
+     * 【1.43】注入路径的实例播放（自定义素材 / 补丁素材共用这一份）。
+     *
+     * <p>音量上限要**成对**放开，只做一半就还是「调到 100 以上完全没变化」：
+     * ① {@code LiftMusicInstance} 实现 {@code GainManagedSound} → {@code SoundEngineVolumeMixin}
+     * 不再把 {@code calculateVolume} 夹到原版的 1.0（这一步在 {@code play()} 之前就已经靠接口成立）；
+     * ② 这里再把该 OpenAL 源的 {@code AL_MAX_GAIN} 抬到 {@code MAX_GAIN} —— 否则 OpenAL 自己会把
+     * **有效增益**压回 1.0×（它默认就是 1.0）。
+     * 该属性是按源保留的（引擎每 tick 只改 AL_GAIN / pitch / position，不碰它），
+     * 所以开播时设一次即可；和 EscalatorChimePlayer 那边是同一套做法。
+     */
+    private static void playInstance(Minecraft mc, ResourceLocation event, String playbackId, Vec3 pos,
+                                     float baseVolume, float pitch, MtrLiftAccess.Cabin cabin) {
+        LiftMusicInstance inst = new LiftMusicInstance(event, playbackId);
         inst.setPosition(pos, baseVolume, cabin);
         inst.setPitch(pitch);
         mc.getSoundManager().play(inst);
+        raiseMaxGain(mc, inst);
+    }
+
+    /** 见 {@link #playInstance} 的说明。 */
+    private static void raiseMaxGain(Minecraft mc, LiftMusicInstance inst) {
         SoundEngine engine = mc.getSoundManager().soundEngine;
         ChannelAccess.ChannelHandle handle = engine.instanceToChannel.get(inst);
         if (handle != null) {
             handle.execute(ch -> AL10.alSourcef(ch.source, AL10.AL_MAX_GAIN, EscalatorAudioPlayer.MAX_GAIN));
         }
+    }
+
+    /**
+     * 【补丁】内置事件 → 补丁/素材键（{@code liftmusic} / {@code up} / {@code down}）。
+     * 认不出来返回 {@code null}（调用方按「没有补丁」处理）。
+     */
+    private static String builtinKeyOf(ResourceLocation event) {
+        if (LIFT_MUSIC.equals(event)) {
+            return "liftmusic";
+        }
+        if (LIFT_UP.equals(event)) {
+            return "up";
+        }
+        if (LIFT_DOWN.equals(event)) {
+            return "down";
+        }
+        return null;
     }
 
     /**

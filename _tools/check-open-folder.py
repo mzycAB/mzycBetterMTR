@@ -20,8 +20,9 @@
 4. 分类值（`pbm/arrive`…）的**上级目录**必须恰好是五个组名之一，且组名常量
    `GROUP_FUTI/TRAIN/PSD/LIFT/ZHAJI` 与之一致（组名只是目录、不是分类）。
 5. 路径白名单 `SAFE_FOLDER` 必须是**整串匹配**（`.matches()`）的
-   `MBM_(Audio|Picture)(/[a-z]+)*`：`..`、绝对路径、盘符、反斜杠、大写子目录全部进不来。
-   （`/MBM picture fold` 的相对路径是**走网络**进来的，客户端不能无条件信任。）
+   `MBM_(Audio|Picture|Repair)(/[a-z]+)*`：`..`、绝对路径、盘符、反斜杠、大写子目录全部进不来。
+   （`/MBM picture fold` 的相对路径是**走网络**进来的，客户端不能无条件信任。
+   ★ `MBM_Repair` 是【补丁】那一轮加的第三个根目录 —— 补丁包 Repair.zip 的投放目录。）
 6. 通道 `MBM_OPEN_FOLDER_CHANNEL`：服务端 `writeUtf(path, 64)` 一处、客户端 `readUtf(64)` 一处，
    写读**逐格同序同类型**；客户端拿到后必须落到**同一个** `FolderOpenButton.open`。
 7. 指令树：`/MBM picture fold` 是**字面量**（Brigadier 先试字面量再试 `name` 参数，
@@ -214,14 +215,17 @@ check("SAFE_FOLDER.matcher(relativePath).matches()" in folder_t,
       "★ 白名单用 .matches()（整串匹配），不是 .find()")
 m = re.search(r'Pattern\.compile\("([^"]*)"\)', folder_no)
 JAVA_PAT = m.group(1) if m else None
-check(JAVA_PAT == "MBM_(Audio|Picture)(/[a-z]+)*",
-      "白名单正则字形正确", "实际 = %s" % JAVA_PAT)
+# ★【补丁】那一轮加了第三个允许的根目录 MBM_Repair（补丁包 Repair.zip 的投放目录）
+check(JAVA_PAT == "MBM_(Audio|Picture|Repair)(/[a-z]+)*",
+      "白名单正则字形正确（三个模组自己的根目录；子目录仍限纯小写一层/两层）",
+      "实际 = %s" % JAVA_PAT)
 
 if JAVA_PAT is not None:
     rx = re.compile("^(?:" + JAVA_PAT + ")$")
     SAMPLES = [
         ("MBM_Audio", True),
         ("MBM_Picture", True),
+        ("MBM_Repair", True),
         ("MBM_Audio/pbm", True),
         ("MBM_Audio/pbm/arrive", True),
         ("MBM_Audio/futi/music", True),
@@ -234,12 +238,14 @@ if JAVA_PAT is not None:
         ("MBM_Picture/..", False),
         ("MBM_Audio/../pbm", False),
         ("MBM_Audio/../../etc", False),
+        ("MBM_Repair/../../etc", False),
         ("C:/MBM_Audio", False),
         ("MBM_Audio\\pbm", False),
         ("MBM_Audio/pbm/Arrive", False),
         ("MBM_Picturex", False),
         ("MBM_Something", False),
         ("MBM_Audio/pbm/arrive/", False),
+        ("MBM_Repair/Repair.zip", False),
     ]
     bad = [(s, ok) for s, ok in SAMPLES if bool(rx.match(s)) != ok]
     check(not bad, "★★ %d 个样本全部判对（合法放行、越界全挡）" % len(SAMPLES),
@@ -339,7 +345,7 @@ check("returncategory==null?EscalatorSpeedManager.GROUP_PSD:category;" not in _m
       "★ folderCategoryForPage 少一层组目录回落 -> 同源判据变红（对照）")
 
 # 9c) 白名单放宽成「MBM_ 开头就行」
-_loose = "MBM_(Audio|Picture)(/.*)"
+_loose = "MBM_(Audio|Picture|Repair)(/.*)"
 _mut = folder_no.replace(JAVA_PAT or "___", _loose)
 check(JAVA_PAT != _loose and 'Pattern.compile("%s")' % _loose in _mut,
       "★ 白名单放宽成 (/.*) -> 正则字形判据变红（对照）")

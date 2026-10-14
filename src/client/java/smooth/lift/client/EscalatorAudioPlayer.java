@@ -745,14 +745,25 @@ public final class EscalatorAudioPlayer {
     }
 
     /**
-     * 【1.15】模组自带素材（{@code dooropen / doorclose / mdoorclose} 这一类）的 ogg 字节。
+     * 【1.15】模组自带素材（{@code liftmusic / dooropen / up / …}）的 ogg 字节。
      *
-     * <p>读不到（打包漏了文件 / 开发环境没把 resources 挂上）返回 null —— 调用方一律
-     * 退回「不剪头」的老路径，不会因此静音。
+     * <p><b>【补丁】优先取补丁素材</b>（{@link RepairPatch#bytes}）：玩家从
+     * `/MBM help` →「导入补丁」把 `Repair.zip` 的音频**融入存档**之后，内置素材就换回原始音频
+     * （用户点名的口径：「补丁导入之后直接把那些音频融入存档」「补丁不要改模组 jar 文件内容」）。
+     * 没有补丁时才读自己 jar 内的资源。
+     *
+     * <p>读不到（打包漏了文件 / 开发环境没把 resources 挂上 / 该素材已被移除且没有补丁）
+     * 返回 {@code null} —— 调用方一律退回「不剪头」的老路径，不会因此静音。
+     * ★ `up` / `down` 两段就是「已被移除且没有补丁」的典型：返回 null 是**预期**的，
+     * 播放端据此把上下楼提示音静音（见 {@code LiftChimePlayer#play}）。
      */
     static byte[] bundledBytes(String builtinKey) {
         if (builtinKey == null || builtinKey.isEmpty()) {
             return null;
+        }
+        byte[] patch = RepairPatch.bytes(builtinKey);
+        if (patch != null && patch.length > 0) {
+            return patch;
         }
         try (InputStream in = EscalatorAudioPlayer.class
                 .getResourceAsStream(BUNDLED_AUDIO_PREFIX + builtinKey + ".ogg")) {
@@ -761,6 +772,29 @@ public final class EscalatorAudioPlayer {
             LOGGER.warn("[SmoothLift/Audio] 读不到模组自带素材 {}.ogg：{}", builtinKey, e.getMessage());
             return null;
         }
+    }
+
+    /**
+     * 【补丁】有没有**特意**用补丁字节覆盖某段内置素材。
+     *
+     * <p>与 {@link #bundledBytes} 的区别：那个把「jar 里的自合成素材」也一并返回了。
+     * 播放端要区分「该走原版资源包事件」还是「该走注入」时用这一个
+     * （补丁字节来自存档、不在资源包里，原版资源包那条路读不到它，只能注入）。
+     */
+    static boolean patched(String builtinKey) {
+        byte[] patch = RepairPatch.bytes(builtinKey);
+        return patch != null && patch.length > 0;
+    }
+
+    /**
+     * 【补丁】导入补丁之后必须调一次：把「已量出的时长 / 分界点」缓存清掉。
+     *
+     * <p>那两张表是按**当时那段素材**算的（key 是 {@code "builtin:<key>"}）。补丁一换字节，
+     * 旧数值就是错的 —— 屏蔽门的「结尾对齐门关上」直接按它算提前量，不清就会对齐到错的地方。
+     */
+    static void clearBundledMetrics() {
+        DURATION_MS.clear();
+        ANNOUNCE_SPLIT_MS.clear();
     }
 
     /**

@@ -51,15 +51,18 @@ public final class FolderOpenButton {
     /**
      * 允许打开的**相对文件夹**（相对存档根目录）白名单。
      *
-     * <p>只放行 {@code MBM_Audio} / {@code MBM_Picture} 这两个模组自己的来源文件夹，
-     * 以及它们下面**纯小写字母**的一层 / 两层子目录（{@code pbm/arrive}、{@code futi/music}…）。
+     * <p>只放行 {@code MBM_Audio} / {@code MBM_Picture} / {@code MBM_Repair} 这三个模组自己的
+     * 来源文件夹，以及它们下面**纯小写字母**的一层 / 两层子目录（{@code pbm/arrive}、{@code futi/music}…）。
      * 这样 {@code ..}、绝对路径、盘符、反斜杠全部进不来。
+     *
+     * <p>★ {@code MBM_Repair}（【补丁】那一轮加的）= 补丁包 `Repair.zip` 的投放目录，
+     * 由 {@code MbmHelpScreen} 右上角的「打开补丁文件夹」打开；它是一级目录，没有子目录。
      *
      * <p>★ 服务端回包也要过这一道：{@link #open(String)} 是**唯一**入口，
      * 「包是服务端发来的」不构成无条件信任的理由（见工程教训：读别人的输入之前先问一句
      * 「这判据还会命中谁」）。
      */
-    private static final Pattern SAFE_FOLDER = Pattern.compile("MBM_(Audio|Picture)(/[a-z]+)*");
+    private static final Pattern SAFE_FOLDER = Pattern.compile("MBM_(Audio|Picture|Repair)(/[a-z]+)*");
 
     private FolderOpenButton() {
     }

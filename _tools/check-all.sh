@@ -150,6 +150,9 @@
 #   check-lift-chime.py           直梯提示音：开关/倍速/音量链路 + 同步包读写顺序配对
 #   check-lift-tone.py            直梯四提示音（up/down/open/close）素材：数据/指令/UI/播放端
 #   check-lift-move-sound.py      直梯「准备移动」up.ogg / down.ogg 的触发判据与素材选择
+#                                 ★【补丁】up/down 已移除、改由 Repair.zip 恢复：本脚本同时核补丁包
+#   check-repair-patch.py         【补丁】/MBM help 右上角「导入补丁」「打开补丁文件夹」+
+#                                 RepairCrypto/RepairPatch + 两条播放路的补丁优先级 + 密码与 AES 格式
 #   check-fade-curves.py          ★ 全项目「淡入淡出范围」的距离曲线一律**按比例线性** (1 - d/R)
 #                                  （扶梯底噪 / 扶梯提示音 / 直梯提示音 / 屏蔽门三类，四份源码逐份钉）
 #                                  2026-10-03 用户点名统一；讲述人 TTS 不参与（无音量接口）
@@ -227,9 +230,11 @@ run "列车音效界面与侧线" "$PY" _tools/check-1.57-train-siding.py
 run "直梯提示音链路"        "$PY" _tools/check-lift-chime.py
 run "直梯四提示音素材"      "$PY" _tools/check-lift-tone.py
 run "直梯准备移动音"        "$PY" _tools/check-lift-move-sound.py
+run "补丁导入链路"          "$PY" _tools/check-repair-patch.py
 run "淡入淡出全按比例"      "$PY" _tools/check-fade-curves.py
 run "无障碍提示音分档"      "$PY" _tools/check-chime-tiers.py
 run "直梯楼层轨道外观"      "$PY" _tools/check-lift-track-look.py
+run "mtrqx 默认值与预设      " "$PY" _tools/check-mtrqx-default.py
 run "指令树"                bash _tools/check-command-tree.sh
 run "PIDS 站台名掩码"      "$PY" _tools/check-pids-name-mask.py
 run "关门等待发车"          "$PY" _tools/check-psd-depart.py

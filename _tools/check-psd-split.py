@@ -69,6 +69,7 @@
 用法：`python _tools/check-psd-split.py`（退出码 0 = 全部通过）
 """
 import glob
+import math
 import os
 import re
 import sys
@@ -229,17 +230,28 @@ else:
         print("        %-15s %5dms  分界点 = %s   合格安静起点：%s"
               % (name, dur, ("%dms" % split) if split >= 0 else "-1（无两段结构）", q))
 
+    # ★【补丁】那一轮起，**内置**关门素材换成了自合成的「纯嘀嘀串」（人声播报段整段删掉）
+    #   ⇒ 内置素材**量不出分界点**（split == -1），播放端由此自动走「剪头」那一档。
+    #   两段结构这条路仍然要留（玩家导入的录音还有这种结构），所以 §1b / §2 改用
+    #   **合成构造物**来验证同一个检测器与同一套算术（见下面的 synth_two_segment）。
     if "mdoorclose.ogg" in INFO:
         info = INFO["mdoorclose.ogg"]
-        split = info["split"]
-        check(0 < split and abs(split - 6707) <= 30,
-              "mdoorclose.ogg 分界点 ≈ 6707ms（6.707s 处 514ms 静音的起点，允许 ±30ms 漂移）",
-              "得到 %dms" % split)
+        check(info["split"] == -1,
+              "★ 内置 mdoorclose.ogg 分界点 = -1（换成自合成的纯嘀嘀串，人声播报段已删除）",
+              "得到 %dms" % info["split"])
+        check(abs(info["ms"] - MTR4_TRAVEL_MS) <= 25,
+              "★★ 内置关门素材时长 ≈ MTR4 门程（%dms vs %dms）—— 这不是巧合："
+              "对齐算式 start = 量化(素材时长 − 门还在走的毫秒数)，两者相等时 start ≈ 0，"
+              "整串嘀嘀完整播完、结尾正好落在门关上那一刻" % (info["ms"], MTR4_TRAVEL_MS),
+              "差距 %dms" % (info["ms"] - MTR4_TRAVEL_MS))
 
     if "doorclose.ogg" in INFO:
-        split = INFO["doorclose.ogg"]["split"]
-        check(split > 0 and abs(split - 6424) <= 30,
-              "doorclose.ogg 分界点 ≈ 6424ms（允许 ±30ms 漂移）", "得到 %dms" % split)
+        info = INFO["doorclose.ogg"]
+        check(info["split"] == -1,
+              "★ 内置 doorclose.ogg 分界点 = -1（同上；两个名字指向同一段纯嘀嘀串）",
+              "得到 %dms" % info["split"])
+        check(abs(info["ms"] - 4000) <= 25, "★ doorclose.ogg 时长 ≈ 4000ms",
+              "得到 %dms" % info["ms"])
 
     # ★ 开门素材必须量不出分界点 ⇒ 开门端行为与 1.15 一字未改
     if "dooropen.ogg" in INFO:
@@ -247,38 +259,105 @@ else:
         check(split == -1,
               "dooropen.ogg 分界点 = -1（没有「播报+嘀嘀」结构）⇒ 开门端走老的整段播，一刀未改",
               "得到 %s" % split)
+        check(abs(INFO["dooropen.ogg"]["ms"] - 2283) <= 25,
+              "★ 开门素材仍是 2.28 秒（自合成版本与原长一致：播放端的提前量算式按素材长度算）",
+              "得到 %dms" % INFO["dooropen.ogg"]["ms"])
 
-# ---- 1b) 分界点之后是**严格等间隔**的嘀嘀；分界点之前有**比阈值还长**的句间停顿 ----
+# ---- 1b) ★【补丁】内置素材已经没有两段结构了，检测器改用**合成构造物**验证 ----
 print()
-print("===== 1b) 为什么「阈值大小」不是关键（关键在「取最后一段」）=====")
+print("===== 1b) 分界点检测器仍然工作（用合成构造物；内置素材已无「播报+嘀嘀」结构）=====")
+print("        为什么要这样测：内置素材换成了纯嘀嘀串之后，`detectAnnounceSplitMs` 在它上面")
+print("        必然返回 -1 —— 那是**文件的属性**，不是检测器坏了。要证明检测器没坏、")
+print("        「取最后一段」这条语义还在，就得喂它一段**真的有**两段结构的音频。")
+
+SYN_SR = 44100
+SYN_VOICE1_END_MS = 4000      # 人声第一截
+SYN_HOLD_MS = 1150            # 人声段内部的句间停顿（> 阈值 400ms：用来证明「取最后一段」）
+SYN_VOICE2_END_MS = 6707      # 人声第二截结束 = **真正的分界点**
+SYN_GAP_MS = 699              # 分界处的安静（挑这个值只为把总长凑到原件的 10806ms）
+SYN_BEEPS = 17
+SYN_BEEP_STEP_MS = 200
+SYN_TOTAL_MS = SYN_VOICE2_END_MS + SYN_GAP_MS + SYN_BEEPS * SYN_BEEP_STEP_MS
+
+
+def synth_two_segment(sr=SYN_SR):
+    """合成一段**真有**两段结构的素材（只为验证检测器与算术，**不是**内置素材）。
+
+    结构：`[人声1 0~4.0s][停顿 1.15s][人声2 5.15~6.707s][安静 514ms][嘀嘀 17×200ms]`。
+    两段安静都"合格"（都 ≥400ms、后面都还剩 >1500ms 有声），
+    所以判据必须取**最后**那一段 ⇒ 分界点 = 6707ms。这正是原来那条语义。
+    """
+    n = int(round(sr * SYN_TOTAL_MS / 1000.0))
+    x = np.zeros(n)
+    t = np.arange(n) / sr
+    rng = np.random.default_rng(20261013)
+
+    def i(ms):
+        return int(round(ms / 1000.0 * sr))
+
+    # 「人声」：几个共振峰附近的窄带噪声（只要"响"就够，检测器看的是绝对值）
+    voiced = 0.10 * (np.sin(2 * math.pi * 380.0 * t) + 0.6 * np.sin(2 * math.pi * 1050.0 * t)
+                     + 0.35 * np.sin(2 * math.pi * 1800.0 * t))
+    voiced = voiced * (0.55 + 0.45 * np.abs(np.sin(2 * math.pi * 2.7 * t)))
+    voiced = voiced + 0.02 * rng.standard_normal(n)
+    # 用「有声音节 + 短停顿（<400ms，不构成合格安静）」拼出人声段
+    for start_ms, end_ms in ((0, SYN_VOICE1_END_MS), (SYN_VOICE1_END_MS + SYN_HOLD_MS,
+                                                      SYN_VOICE2_END_MS)):
+        a, b = i(start_ms), i(end_ms)
+        x[a:b] = voiced[a:b]
+        for j in range(a + int(0.25 * sr), b, int(0.42 * sr)):
+            # ★ 末尾要留出余量：短停顿若压在段尾，会和「分界处的安静」连成一段，
+            #   分界点就会被量到停顿的起点上（实测偏差 47ms，正是这样来的）。
+            if j + int(0.06 * sr) > b - int(0.12 * sr):
+                break
+            x[j:j + int(0.06 * sr)] = 0.0          # 短停顿（60ms，远小于阈值）
+    # 嘀嘀：517Hz，113ms 指数收尾
+    for k in range(SYN_BEEPS):
+        off = i(SYN_VOICE2_END_MS + SYN_GAP_MS + k * SYN_BEEP_STEP_MS)
+        m = int(0.16 * sr)
+        tt = np.arange(min(m, n - off)) / sr
+        env_ = np.exp(-tt * 19.0) * np.minimum(tt / 0.0015, 1.0)
+        x[off:off + len(tt)] += 0.30 * env_ * np.sin(2 * math.pi * 516.7 * tt)
+    return x, sr
+
+
+SYN = None
 if sf is not None:
+    syn_x, syn_sr = synth_two_segment()
+    SYN = {"x": np.stack([syn_x, syn_x], axis=1), "sr": syn_sr, "ms": SYN_TOTAL_MS}
+    syn_split, syn_qual, _ = detect_split(SYN["x"], syn_sr)
+    print("        合成构造物：%dms，合格安静起点 = %s"
+          % (SYN_TOTAL_MS,
+             ", ".join("%.0fms" % (f / syn_sr * 1000.0) for f in syn_qual) or "（无）"))
+    check(len(syn_qual) >= 2,
+          "★ 合成构造物里**有两段以上**合格安静（人声段的句间停顿 + 真正的分界）⇒ "
+          "「取最后一段」这条语义才有东西可鉴别",
+          "合格数 = %d" % len(syn_qual))
+    check(abs(syn_split - SYN_VOICE2_END_MS) <= 30,
+          "★ 检测器在合成构造物上量出的分界点 ≈ %dms（= **最后**一段合格安静的起点，"
+          "而不是人声段里那个更早的 1150ms 停顿）⇒ 检测器本身没坏" % SYN_VOICE2_END_MS,
+          "得到 %s" % syn_split)
+
+    # 内置素材：**必须**量不出分界点，因为它就是一串连续的嘀嘀（没有 ≥400ms 的安静）
     for name in ("mdoorclose.ogg", "doorclose.ogg"):
         if name not in INFO:
             continue
         info = INFO[name]
         d, sr, x = info["ms"], info["sr"], info["x"]
-        split = info["split"]
         env, t = envelope(x, sr)
         st = pulse_starts(env, t)
-        gaps = [(s, st[i + 1] - st[i]) for i, s in enumerate(st[:-1])]
-        tail = [g for s, g in gaps if s >= split]
-        head = [g for s, g in gaps if s < split]
-        print("        %s：分界点之后 %d 个间隔，极差 %.0fms（%s）"
-              % (name, len(tail), (max(tail) - min(tail)) if tail else 0,
-                 "严格等间隔" if tail and max(tail) - min(tail) <= 30 else "不等间隔!"))
-        check(len(tail) >= 12 and max(tail) - min(tail) <= 30,
-              "%s 分界点之后是**20 个左右的等间隔脉冲**（极差 ≤30ms）⇒ 后面确实是「一整串嘀嘀」"
-              % name,
-              "n=%d 极差=%.0fms" % (len(tail), (max(tail) - min(tail)) if tail else 0))
-        long_pauses = [g for g in head if g > SPLIT_MIN_SILENCE_MS]
-        print("        语音段里 > %dms 的停顿：%s"
-              % (SPLIT_MIN_SILENCE_MS,
-                 ", ".join("%.0fms" % g for g in long_pauses) or "（无）"))
-        check(len(long_pauses) >= 1,
-              "★ 语音播报段里确实有**超过阈值**的句间停顿（%.0fms）—— 它照样被选中、"
-              "只是被最后的真分界点覆盖 ⇒ 机制是「取最后一段」而不是「阈值大小」"
-              % (max(long_pauses) if long_pauses else 0),
-              "最长 %.0fms" % (max(long_pauses) if long_pauses else 0))
+        gaps = [st[j + 1] - st[j] for j in range(len(st) - 1)]
+        print("        %s：%d 个脉冲，间隔极差 %.0fms → 一整串等间隔嘀嘀（无两段结构）"
+              % (name, len(st), (max(gaps) - min(gaps)) if gaps else 0))
+        check(len(st) >= 15 and gaps and max(gaps) - min(gaps) <= 30,
+              "★ 内置 %s 就是**一整串等间隔嘀嘀**（%d 响，间隔极差 ≤30ms）⇒ 正是「纯嘀嘀」素材"
+              % (name, len(st)),
+              "n=%d 极差=%.0fms" % (len(st), (max(gaps) - min(gaps)) if gaps else 0))
+        check(max(gaps) < SPLIT_MIN_SILENCE_MS,
+              "★ 内置 %s 的脉冲间隔（最长 %.0fms）都小于分界阈值 %dms ⇒ 量不出分界点，"
+              "与上面那条 -1 相互印证（不是随机结果）"
+              % (name, max(gaps) if gaps else 0, SPLIT_MIN_SILENCE_MS),
+              "最长间隔 %.0fms" % (max(gaps) if gaps else 0))
 
 # ======================================================================
 # 2) 提前量算术：起播 = 门全关 − 素材时长（照搬 Java 的 planClose）
@@ -300,15 +379,15 @@ def plan_close(dwell_ms, duration_ms, travel_ms=MTR4_TRAVEL_MS):
     return (cycle_ticks - lead_ticks) * 50.0, cycle_ticks, lead_ticks
 
 
-if "mdoorclose.ogg" in INFO:
-    info = INFO["mdoorclose.ogg"]
-    d, sr, x = info["ms"], info["sr"], info["x"]
-    split = info["split"]
-    env, t = envelope(x, sr)
+if SYN is not None:
+    # ★【补丁】这里改用**合成构造物**（`SYN`）：内置素材已经没有两段结构了（§1 已断言 -1），
+    #   而 §2 要验证的是**提前量算术**这件与素材无关的事 —— 用一段真有结构的素材跑，判据才有意义。
+    d, split = SYN["ms"], SYN_VOICE2_END_MS
+    env, t = envelope(SYN["x"], SYN["sr"])
     st = pulse_starts(env, t)
     first_beep = next((s for s in st if s >= split), None)
     beep_n = sum(1 for s in st if s >= split)
-    print("        素材：%dms（人声 0~%dms / 嘀嘀 %d~%dms，%d 声）；门程 %dms；T = 门开始关"
+    print("        素材（合成构造物）：%dms（人声 0~%dms / 嘀嘀 %d~%dms，%d 声）；门程 %dms；T = 门开始关"
           % (d, split, int(first_beep), d, beep_n, MTR4_TRAVEL_MS))
 
     for dwell in (7000, 9000, 15000, 30000):
@@ -413,18 +492,22 @@ check(raw_clamped == 8000,
       "得到 %d" % raw_clamped)
 
 if "mdoorclose.ogg" in INFO:
+    # ★【补丁】内置素材**没有播报段**（split == -1）⇒ 播放端「排不排提前量」那道闸
+    #   （`!tone.announce() || tone.splitMs() <= 0`）必然走「不排」那一支，
+    #   于是内置这一档永远走**剪头**（路 A）。这里把等式两侧都钉住。
     info = INFO["mdoorclose.ogg"]
     d, split = info["ms"], info["split"]
-    got, raw, _ = close_start_with_clamp(d, 4000, 1.0 - TICK_MS / 4000.0, split)
+    got, raw, remain = close_start_with_clamp(d, MTR4_TRAVEL_MS, 1.0 - TICK_MS / MTR4_TRAVEL_MS, split)
+    print("        内置素材：%dms / 分界点 %d ⇒ 剪点 %dms（门还剩 %.0fms）" % (d, split, raw, remain))
+    check(split <= 0,
+          "★ 内置素材没有播报段 ⇒ planClose 那道闸 `!announce() || splitMs <= 0` 判定「不排提前量」",
+          "split = %d" % split)
     check(got == raw,
-          "★ 内置素材**不触发**夹取（raw=%dms 已在分界点 %dms 之后）⇒ 退回剪头这一档的"
-          "「结尾落在门上」不受影响" % (raw, split),
-          "得到 %d" % got)
-    print("        退回剪头时的剪点 %dms 与分界点 %dms 的关系：剪点%s人声"
-          % (raw, split, "晚于" if raw >= split else "早于"))
-    check(raw >= split,
-          "★ 兜底剪掉的正是整段人声（剪点 %dms ≥ 分界点 %dms）⇒ 兜底那一轮听到的是"
-          "**结尾仍然落在门上**的一串嘀嘀，不会漏出半句人声" % (raw, split))
+          "★ 没有播报段时**不触发夹取**（夹取只在 split > 0 时才有意义）", "得到 %d" % got)
+    check(abs((d - raw) - remain) <= SLICE_STEP_MS / 2.0 + 1,
+          "★★ 内置这一档走剪头，**结尾仍然落在门上**（误差 %+.0fms ≤ 半格量化）"
+          % ((d - raw) - remain),
+          "余 %dms vs 门还剩 %.0fms" % (d - raw, remain))
 
 # ======================================================================
 # 3) 「默认（短）」（default-s）= 不播人声、但仍走「结尾对齐门关」
@@ -510,9 +593,19 @@ check(re.search(r"bundledAnnounceSplitMs\(builtin\)", player) is not None
 check("bundledAnnounceSplitMs" in ap and "customAnnounceSplitMs" in ap
       and "detectAnnounceSplitMs" in ap,
       "EscalatorAudioPlayer 有「探测分界点」与两个取用入口")
-check("ANNOUNCE_SPLIT_MS" in ap and ap.count("ANNOUNCE_SPLIT_MS.clear()") == 2,
-      "分界点缓存与时长缓存同生共死（断线 / 重载两处都清）",
+check("ANNOUNCE_SPLIT_MS" in ap and ap.count("ANNOUNCE_SPLIT_MS.clear()") == 3,
+      "分界点缓存与时长缓存同生共死（断线 / 重载 / 【补丁】导入后 三处都清）",
       "clear 次数 = %d" % ap.count("ANNOUNCE_SPLIT_MS.clear()"))
+# ★【补丁】第三处清缓存的理由：导入 Repair.zip 之后内置素材**换了字节**，
+#   而这两张表的 key 是 `builtin:<key>`、值是**按旧字节**量的 ⇒ 不清就会按错的时长/分界点对齐。
+check(re.search(r"static void clearBundledMetrics\(\)\s*\{", ap) is not None
+      and "DURATION_MS.clear()" in ap and "ANNOUNCE_SPLIT_MS.clear()" in ap,
+      "★【补丁】clearBundledMetrics() 把两张表一起清（时长 + 分界点，缺一张就会对齐到旧素材）")
+# ★【第二轮】「清缓存」这一下从 RepairPatch（点按钮那一刻）挪到了**客户端音频同步应用处**：
+#   现在补丁字节是走整库同步回到客户端的，同步一到就必须清（否则屏蔽门还按旧素材算对齐）。
+_sync_files = sorted(glob.glob(os.path.join(CLIENT, "SmoothLiftClient*.java")))
+check(any("EscalatorAudioPlayer.clearBundledMetrics()" in read(x) for x in _sync_files),
+      "★【补丁】客户端音频同步应用处**真的调了** clearBundledMetrics（不是写了不用的死代码）")
 check(re.search(r"if \(format\.getSampleSizeInBits\(\) != 16\)\s*\{\s*return -1", ap) is not None,
       "分界点探测只认 16bit PCM（其它位深返回 -1，不猜格式）")
 check(re.search(r"split = \(int\) Math\.round\(1000\.0 \* runStart / rate\)", ap) is not None,
