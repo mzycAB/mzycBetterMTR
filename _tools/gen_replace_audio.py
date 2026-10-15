@@ -14,7 +14,11 @@
   源（量出来的锚点，见 `_measure_src_audio.py` 的输出）            产物
   ------------------------------------------------------------------------------
   liftmusic.ogg   0.859s / f0≈801.882Hz / 峰值 0.1873      →  liftmusic.ogg（同长同音色、纯合成）
-  dooropen.ogg    2.283s / 峰值 0.519                      →  dooropen.ogg（气动开门：轻咔 + 放气 + 收尾碰）
+  dooropen.ogg    2.283s / 峰值 0.519 / 门音 880Hz→700Hz   →  dooropen.ogg（**两声同音高的「叮-叮」**，880Hz×2）
+                                                              ★【2026-10-15 用户点名】原先合成的「气动开门」
+                                                              （轻咔+放气嘶声）被用户听成「ding-pong」，
+                                                              要求改成两声**同音高**的「叮-叮」。只改这一段，
+                                                              其余三段按用户要求**一字不动**。
   doorclose.ogg   嘀嘀段 200ms 等间隔 / 主频≈516.7Hz / 峰值≈0.3835
   mdoorclose.ogg  同上                                     →  两段都换成**纯嘀嘀串**（20 响 @200ms = 4.000s）
                                                               —— 人声播报段被删掉，素材从 10.5s 缩到 4.0s。
@@ -68,8 +72,15 @@ DOOR_TOTAL_MS = DOOR_BEEP_STEP_MS * DOOR_BEEP_COUNT   # 4000ms
 DOOR_BEEP_RMS = 0.1340
 
 OPEN_SECONDS = 2.283       # 与 dooropen.ogg 原长一致（播放端的提前量算式按素材长度算）
-OPEN_PEAK = 0.519
-OPEN_RMS = 0.1891          # 与新素材要匹配的原件整段 RMS
+# ★【2026-10-15】开门音改成「两声同音高的叮-叮」之后，这三条锚点没用了；
+#   下面 DING_* 是新的合成参数。峰值沿用**关门嘀嘀**那一档（用户点名「关门声是对的」，
+#   作为对照 ⇒ 开门音与关门音在游戏里响度同级）。
+DING_SECONDS = OPEN_SECONDS      # 2.283s —— 长度**必须**保持不变（回归：check-psd-split.py 断言 2283±25ms）
+DING_F = 880.0                   # 与旧 dooropen.ogg 的第一声同音高（实测第一声主频 = 880Hz）
+DING_ONSETS_MS = [0.0, 700.0]    # 两声的起点：0ms 与 700ms（间隔 700ms，听感「叮……叮」）
+DING_DECAY = 4.2                 # 指数衰减 /s ⇒ 约 0.7s 可闻（是「叮」的长尾，不是「嘀」的 113ms）
+DING_ATTACK = 0.002              # 2ms 起振（与关门嘀嘀同一手法）
+DING_PEAK = DOOR_BEEP_PEAK       # 0.3835（= 关门嘀嘀的归一化峰值）
 
 
 # ----------------------------------------------------------------------
@@ -162,6 +173,13 @@ def make_liftmusic():
 # ----------------------------------------------------------------------
 
 def clack(n, freq, decay, gain, t0_ratio, noise_mix=0.25, seed=7):
+    """阻尼谐振撞击（「咔 / 哒」）。
+
+    ★【2026-10-15】`make_dooropen` 改成「叮-叮」之后，本函数与 `hiss` /
+    `rbj_bandpass` / `one_pole_lowpass` **当前一个调用点都没有了**。
+    保留原因：它们是上一版「气动开门音」的完整配方，用户若要求改回去，
+    直接换回 `make_dooropen` 的旧实现即可（别再重新推导一遍）。
+    """
     rng = np.random.default_rng(seed)
     t = np.arange(n) / SR
     start = int(t0_ratio * (n - 1))
@@ -181,29 +199,40 @@ def hiss(n, f0, q, gain, points, seed=20260920):
     return noise * envelope(n, points) * gain
 
 
+def make_ding(n, freq, gain=1.0):
+    """一声「叮」：主频 + 2/3 次谐波（与关门嘀嘀**同一套谐波配方**，两段同族），
+    包络 = 2ms 起振 × 指数衰减 `DING_DECAY`/s（长尾 ⇒ 是「叮」不是「嘀」）。"""
+    t = np.arange(n) / SR
+    env = np.exp(-t * DING_DECAY) * np.minimum(t / DING_ATTACK, 1.0)
+    body = (np.sin(2.0 * math.pi * freq * t)
+            + 0.35 * np.sin(2.0 * math.pi * freq * 2.0 * t + 0.9)
+            + 0.15 * np.sin(2.0 * math.pi * freq * 3.0 * t + 2.1))
+    return body * env * gain
+
+
 def make_dooropen():
-    n = int(SR * OPEN_SECONDS)
+    """屏蔽门**开门**提示音 = 两声**同音高**的「叮-叮」（用户 2026-10-15 点名）。
+
+    ★ 与关门音的关系：关门 = 516.7Hz 的「嘀」×20（200ms 等间隔）；
+      开门 = 880Hz 的「叮」×2（间隔 700ms）。谐波配方相同、音高与节奏不同
+      ⇒ 正是用户那句「开关门的声音是稍微有不同的」。
+    ★ 两条硬约束：
+      ① 长度固定 2283ms —— 播放端的提前量算式按素材长度算，
+         `check-psd-split.py` 断言 2283±25ms；
+      ② 峰值对齐关门那一档（0.3835）—— 用户点名「关门声音是对的」，以它为对照，
+         保证游戏里开门/关门两段**响度同级**。
+    ★ 两声之间的 700ms 间隔远小于分界点检测的下限 400ms ⇒ `split` 仍是 -1，
+      开门端继续走「整段播」，播放端一行未改。
+    """
+    n = int(SR * DING_SECONDS)
     x = np.zeros(n)
-    # ① 起头轻「咔」（门机脱扣）
-    x += clack(n, 430.0, 26.0, 0.35, 0.005, 0.30, seed=101)
-    # ② 放气「嘶——」：几乎铺满整段（原件也是「整段有底噪、不是几个孤立脉冲」——
-    #    实测原件 RMS 0.189 / 峰值 0.519 ⇒ RMS/峰值 ≈ 0.36，所以持续层必须够厚。
-    x += hiss(n, 2100.0, 0.75, 1.60,
-              [(0.00, 0.0), (0.03, 0.0), (0.08, 0.90), (0.50, 1.00), (0.85, 0.72), (0.97, 0.0)], seed=202)
-    # ③ 第二下（门叶过中段）轻碰
-    x += clack(n, 350.0, 20.0, 0.20, 0.52, 0.22, seed=303)
-    # ④ 收尾「哒」——门滑到尽头
-    x += clack(n, 620.0, 34.0, 0.26, 0.88, 0.28, seed=404)
-    # ⑤ 低频行程底噪（"有质量的门"而不是纯电子音）
-    x += hiss(n, 160.0, 1.1, 0.55,
-              [(0.0, 0.0), (0.06, 0.75), (0.30, 1.0), (0.75, 0.9), (0.95, 0.3), (1.0, 0.0)], seed=505)
-    # ⑥ 软限幅：带通白噪声的**波峰因数**约 5（RMS/峰值 ≈ 0.2），而原件是录出来的
-    #    连续底噪（RMS/峰值 ≈ 0.36）⇒ 不做这一步，新素材听感会明显比原件"薄 / 轻"。
-    #    tanh 软削顶把波峰因数压下来（实测 k=2.2 ⇒ RMS/峰值 ≈ 0.36，与原件同量级），
-    #    再归一化到原峰值 —— 两段素材在游戏里的响度就一致了。
-    x = np.tanh(2.2 * x / np.abs(x).max()) * np.abs(x).max()
+    for onset_ms in DING_ONSETS_MS:
+        off = int(round(onset_ms / 1000.0 * SR))
+        x[off:] += make_ding(n - off, DING_F)
+    # 软限幅：与关门嘀嘀同一条理由（压波峰因数 ⇒ 峰值与 RMS 同时落在同一量级）
+    x = np.tanh(3.0 * x / np.abs(x).max()) * np.abs(x).max()
     x = fade_edges(x, 4.0)
-    x = normalize_rms(x, OPEN_RMS)
+    x = normalize_peak(x, DING_PEAK)
     return np.stack([x, x], axis=1)
 
 
@@ -269,14 +298,26 @@ def write_ogg(path, data):
 
 
 def main():
-    out = sys.argv[1] if len(sys.argv) > 1 else os.path.join(DEFAULT_OUT, "replace")
+    argv = sys.argv[1:]
+    out = argv[0] if argv and not argv[0].startswith("-") else os.path.join(DEFAULT_OUT, "replace")
+    only = [k for k in (argv[1:] if argv and not argv[0].startswith("-") else argv) if k]
     out = os.path.abspath(out)
-    print("== 生成替换素材 -> %s" % out)
-    write_ogg(os.path.join(out, "liftmusic.ogg"), make_liftmusic())
-    write_ogg(os.path.join(out, "dooropen.ogg"), make_dooropen())
-    close = make_doorclose()
-    write_ogg(os.path.join(out, "doorclose.ogg"), close)
-    write_ogg(os.path.join(out, "mdoorclose.ogg"), close.copy())
+    print("== 生成替换素材 -> %s%s"
+          % (out, ("（只做 %s）" % ", ".join(only)) if only else ""))
+
+    def want(key):
+        return not only or key in only
+
+    if want("liftmusic"):
+        write_ogg(os.path.join(out, "liftmusic.ogg"), make_liftmusic())
+    if want("dooropen"):
+        write_ogg(os.path.join(out, "dooropen.ogg"), make_dooropen())
+    if want("doorclose") or want("mdoorclose"):
+        close = make_doorclose()
+        if want("doorclose"):
+            write_ogg(os.path.join(out, "doorclose.ogg"), close)
+        if want("mdoorclose"):
+            write_ogg(os.path.join(out, "mdoorclose.ogg"), close.copy())
     print("== 完成（编码器：imageio_ffmpeg 自带的静态 ffmpeg + libvorbis）")
 
 

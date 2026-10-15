@@ -1,0 +1,17 @@
+{
+    "block.shsubwaypicture.example_block": "Example Block",
+    "block.shsubwaypicture.test_1": "Test 1",
+    "block.shsubwaypicture.pic_tl": "Map Block TL",
+    "block.shsubwaypicture.pic_tr": "Map Block TR",
+    "block.shsubwaypicture.pic_bl": "Map Block BL",
+    "block.shsubwaypicture.pic_br": "Map Block BR",
+    "block.shsubwaypicture.flat_tl": "Flat Map TL",
+    "block.shsubwaypicture.flat_tr": "Flat Map TR",
+    "block.shsubwaypicture.flat_bl": "Flat Map BL",
+    "block.shsubwaypicture.flat_br": "Flat Map BR",
+    "block.shsubwaypicture.flat_tl_small": "Small Flat Map TL",
+    "block.shsubwaypicture.flat_tr_small": "Small Flat Map TR",
+    "block.shsubwaypicture.flat_bl_small": "Small Flat Map BL",
+    "block.shsubwaypicture.flat_br_small": "Small Flat Map BR",
+    "itemGroup.shsubwaypicture.main": "SHSubwayPicture"
+}

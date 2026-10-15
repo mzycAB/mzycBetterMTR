@@ -66,6 +66,12 @@ def strip_events(text, events):
 
 
 def main():
+    # ★【2026-10-15】支持只刷某几段：`python _tools/apply_replace_audio.py dooropen`
+    #   只拷贝 dooropen.ogg，**不碰**删 up/down 与 sounds.json 那两步（那两步已经做过、
+    #   重做是幂等的，但「只改用户点名的那一段」时不该顺手动别的文件）。
+    argv = [a for a in sys.argv[1:] if a]
+    names = [n for n in REPLACE if not argv or os.path.splitext(n)[0] in argv]
+    whole = not argv
     for proj in PROJECTS:
         root = os.path.join(WORKSPACE, proj)
         if not os.path.isdir(root):
@@ -73,11 +79,14 @@ def main():
             sys.exit(1)
         print("== %s" % proj)
         # 1) 覆盖
-        for name in REPLACE:
+        for name in names:
             src = os.path.join(GEN, name)
             dst = os.path.join(root, AUDIO_REL, name)
+            before = os.path.getsize(dst) if os.path.isfile(dst) else -1
             shutil.copyfile(src, dst)
-            print("   替换 %-16s %d 字节" % (name, os.path.getsize(dst)))
+            print("   替换 %-16s %d -> %d 字节" % (name, before, os.path.getsize(dst)))
+        if not whole:
+            continue
         # 2) 删除
         for name in DELETE:
             dst = os.path.join(root, AUDIO_REL, name)

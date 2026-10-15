@@ -52,7 +52,11 @@ public final class RepairPatch {
     }
 
     /**
-     * 「导入补丁」：请服务端去读 `<存档>/MBM_Repair/Repair.zip` 并**融入存档**。
+     * 「导入补丁」：请服务端去读补丁文件夹（`<存档>/MBM_Repair`）里**唯一那个 `.zip`** 并**融入存档**。
+     *
+     * <p>★ 2026-10-15 用户点名：那个 zip **名字不限、也不需要密码** —— 玩家自己录的 ogg 直接
+     * 压进去就行（条目名用 {@code doorclose.ogg} 这种）。**缺哪个条目，哪个就回模组默认**；
+     * 但文件夹里 zip **多于一个**时服务端**什么都不做、也不给任何提示**。
      *
      * @return 请求有没有发出去（不在世界里 = 没发，界面会记失败）
      */
@@ -62,8 +66,8 @@ public final class RepairPatch {
             return false;
         }
         ClientPlayNetworking.send(SmoothLift.MBM_REPAIR_IMPORT_CHANNEL, PacketByteBufs.empty());
-        LOGGER.info("[SmoothLift/Repair] 已请服务端导入补丁（读 {} / {}）",
-                RepairStore.FOLDER, RepairStore.ZIP_NAME);
+        LOGGER.info("[SmoothLift/Repair] 已请服务端导入补丁（读 {} 文件夹里唯一那个 .zip）",
+                RepairStore.FOLDER);
         return true;
     }
 

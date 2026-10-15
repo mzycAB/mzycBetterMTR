@@ -63,14 +63,19 @@ public class SmoothLift implements ModInitializer {
     }
 
     /**
-     * 【补丁】**服务端侧**：把 `<存档>/MBM_Repair/Repair.zip` 里的音频导入存档。
+     * 【补丁】**服务端侧**：把补丁文件夹（`<存档>/MBM_Repair`）里那个 zip 里的音频导入存档。
+     *
+     * <p>★ 2026-10-15 起规则改了（用户点名）：那个 zip **名字不限、也不需要密码** ——
+     * 文件夹里**正好一个** `.zip` 才导入；**多于一个** ⇒ 什么都不做、也不给任何提示
+     * （见 {@link RepairStore#IMPORT_SILENT}）；**一个都没有** ⇒ 失败（原行为）。
      *
      * <p>★ 为什么抽成一个 public 方法、由各平台的网络接收器调它：五个工程的**网络层写法不同**
      * （Fabric 用 {@code ServerPlayNetworking}、Forge1.18.2 走 {@code SLNet} 垫片、
      * Forge1.20.1 走一个个 packet 类），但「导入这件事」必须只有一份实现
      * —— 否则迟早出现「某个平台上导入是旧版本」这种分叉。
      *
-     * @return 是否真的导进去了（0 段 = 失败：包不在 / 解不开 / 里面没有可用素材）
+     * @return 是否真的导进去了（0 段 = 失败：没有包 / 解不开 / 里面没有可用素材；
+     *         补丁文件夹里 zip 多于一个 ⇒ 直接返回 false 且**什么都不做、也不给提示**）
      */
     public static boolean serverImportRepair(ServerPlayer player) {
         if (player == null) {
@@ -78,6 +83,12 @@ public class SmoothLift implements ModInitializer {
         }
         ServerLevel level = player.serverLevel();
         int imported = RepairStore.importFromSave(level);
+        if (imported == RepairStore.IMPORT_SILENT) {
+            // ★★ 用户点名（2026-10-15）：补丁文件夹里的补丁压缩包**大于 1 个** ⇒
+            //    不执行任何操作、也不给任何报错提示。⇒ 这里**不许** noteUiResult：
+            //    一记失败，玩家退出界面就会收到「UI执行失败」，那正是用户不要的那句提示。
+            return false;
+        }
         if (imported > 0) {
             // 让在线客户端拿到补丁字节（分块同步，与音频库同一条通道）
             EscalatorSpeedManager.syncAudioToAll(player.server);

@@ -1,0 +1,143 @@
+SmoothLift 内置音频 · 出处与许可
+Bundled audio — source and license
+=========================================================
+
+【2026-10-13】本模组随 jar 分发的音频**除 1 段 CC0 扶梯底噪外，全部是自己合成的**。
+此前随 jar 分发过 6 段**外部来源**（源码里标注为「用户提供 / 用户给的原始素材」）的音频，
+已按用户要求处理如下：
+
+  · up.ogg        （直梯「准备向上移动」播报，3.39s，实测为人声语音）      → **删除**（该提示音默认静音）
+  · down.ogg      （直梯「准备向下移动」播报，3.62s，实测为人声语音）      → **删除**（同上）
+  · liftmusic.ogg （直梯开关门提示音，0.859s，谐波长音）                   → 换成**自合成**同族音
+  · dooropen.ogg  （屏蔽门开门，2.283s）                                   → 换成**自合成**气动开门音
+  · doorclose.ogg （屏蔽门关门，10.536s = 人声播报 ~6.6s + 嘀嘀 ~3.5s）    → 换成**自合成**纯嘀嘀串
+  · mdoorclose.ogg（屏蔽门关门默认音，10.806s，结构同上）                  → 换成**自合成**纯嘀嘀串
+
+被删掉的这 6 段**原始文件不进 jar**，改由单独的补丁包 `Repair.zip` 交付（见第四节）。
+`audio/up` / `audio/down` 两个声音事件也已从 `sounds.json` 里移除 —— 直梯上下楼提示音
+默认不出声；玩家想恢复，导入 `Repair.zip` 即可（见第四节）。
+
+--------------------------------------------------------------------
+一、随 jar 分发 · 自合成素材（synthesized by the mod author）
+
+复现脚本：`_tools/gen_replace_audio.py`（numpy 纯合成 → 经 `imageio_ffmpeg` 自带的静态
+ffmpeg + libvorbis 编码成 Ogg Vorbis）。
+方法论：**先量旧素材、再照着量出来的锚点合成「同族」的新音**，不是逐样本复刻。
+量测脚本：`_tools/_measure_src_audio.py`。
+
+文件 / file                             时长      峰值      RMS       合成锚点（旧素材实测值）
+--------------------------------------  --------  --------  --------  --------------------------------------------
+audio/subway_escalator.ogg              19.780s   0.0642    0.0088    ← 外部素材，CC0（见 1.1）
+audio/escalator_chime_board.ogg         2.000s    0.3303    0.0237    ← 港铁式「咔」敲击，按真实录音反推后自合成（单声道）
+audio/escalator_chime_alight.ogg        2.000s    0.3153    0.0059    ← 同上（离开端，单声道）
+audio/escalator_chime_rate4.ogg         2.000s    0.3215    0.0134    ← 同上（4 Hz 档，单声道）
+audio/escalator_chime_rate25.ogg        2.000s    0.3396    0.0342    ← 同上（2.5 Hz 档，单声道）
+audio/escalator_chime_rate50.ogg        2.000s    0.3308    0.0364    ← 同上（5 Hz 档，单声道）
+audio/liftmusic.ogg                     0.859s    0.1267    0.0491    ← 0.859s / f0=801.882Hz / 峰值0.1873 / RMS0.0489
+audio/dooropen.ogg                      2.283s    0.6204    0.1836    ← 2.283s / 峰值0.5191 / RMS0.1891
+audio/doorclose.ogg                     4.000s    0.4006    0.1373    ← 旧素材嘀嘀段：200ms 等间隔 / 主频516.7Hz / RMS0.1378
+audio/mdoorclose.ogg                    4.000s    0.4006    0.1373    ← 同上
+
+★ **响度对齐的口径 = RMS，不是峰值**。游戏里「音量 100 = 原始音量」是一条**响度**约定；
+  两类素材的波峰因数不同（旧 liftmusic 实测 RMS/峰值 = 0.261，纯合成版本 ≈ 0.39），
+  按峰值对齐会让新素材听起来明显更响/更轻。所以合成脚本最后一步按 RMS 对齐（`normalize_rms`）。
+
+★ 4 段合成音的详细配方（都在 `gen_replace_audio.py` 里，逐条有注释）：
+
+  · liftmusic.ogg —— 基频 801.882Hz 的第 5/6/7/8/9 次谐波按实测相对高度叠（各带不同相位），
+    包络 = 8ms 起振 → 平段 → 末 18% 收尾，**与新素材同长 0.859s**（开关门连播的节奏是按它定的）。
+  · dooropen.ogg —— 气动开门：轻「咔」（阻尼谐振簇）+ 放气「嘶——」（带通白噪声 × 折线包络）
+    + 中段轻碰 + 收尾「哒」+ 低频行程底噪；最后做一次 tanh 软限幅把波峰因数压到与原录音同量级。
+  · doorclose.ogg / mdoorclose.ogg —— **纯嘀嘀串**：20 响、严格 200ms 等间隔、主频 516.7Hz，
+    单响时长 113ms（与旧素材实测的单响时长一致）、强度逐步略降；同样经 tanh 软限幅对齐波峰因数。
+    ★ 旧素材那 6.6 秒**人声播报段删掉之后**，素材就只剩那串嘀嘀。
+    ★ **长度为什么取 4.000s**：MTR4 的门程正好 80 tick = 4000ms（字节码直算，见
+    `_tools/check-psd-align.py` 第 1 节）。播放端的对齐算式是
+    `start = 量化(素材时长 − 门还在走的毫秒数)` ⇒ 素材时长 == 门程时 `start ≈ 0`，
+    于是**整串嘀嘀完整播完、结尾正好落在门关上那一刻**（这正是这个功能的老需求）。
+    若素材比门程短，算式会退化成「从头整段播」⇒ 结尾提前 550ms 收声（差一截才好听不整）。
+
+### 1.1 subway_escalator.ogg（唯一一段外部素材 · CC0）
+
+它由作者转换为 Ogg Vorbis 并做剪辑，玩家直接装模组即可使用，无需任何转码工具。
+
+作者对原始录音做的剪辑（因为要循环播放）：
+  1. 原始录音是「11.8 秒声音 + 2.2 秒完全静音 + 9.4 秒声音」，
+     剪掉中间 2.2 秒空白与首尾静音（共约 2.8 秒），两段声音拼接；
+  2. 拼接处 0.40 秒等功率交叉淡化（crossfade），避免爆音；
+  3. 首尾做 0.70 秒等功率交叉淡化（循环点在淡化区内），循环播放无接缝、无停顿；
+  4. 未做任何电平（音量）处理，峰值仍为 -23.8 dBFS，与原始录音一致。
+
+原始素材 / original source
+  Freesound 标题 : 4_Escalator.wav
+  Freesound 页面 : https://freesound.org/people/14G_Panska_Hoskovcova_Eliska/sounds/419482/
+  作者 / author  : 14G_Panska_Hoskovcova_Eliska
+  说明 / about   : "Two recordings of different moving stairs."
+                   （地铁站里两段不同的自动扶梯录音 / Praha, Prague, Czech Republic）
+  发布 / posted  : 2018-02-26
+  原始规格       : 0:23.637, WAV, 6.5 MB, 48 kHz, 24 bit, Stereo
+  镜像页         : 淘声网 toSound「地铁 " 4 自动扶梯」（sound-wrp7aq1d）
+
+许可 / LICENSE
+  ★ Creative Commons 0 (CC0 1.0 Universal, Public Domain Dedication)
+  ★ https://creativecommons.org/publicdomain/zero/1.0/
+
+  Freesound 页面上的许可字段原文（逐字引用）：
+      Creative Commons 0
+      You can copy, modify, distribute and perform the sound, even for
+      commercial purposes, all without the need of asking permission
+      to the author.
+
+  即：属于公共领域奉献（Public Domain Dedication）。
+  - 可以自由复制、修改、分发、公开表演（含商业用途）；
+  - **不需要署名**，也不需要事先征得作者同意；
+  - 无 NonCommercial 限制，无 ShareAlike 传染性。
+
+  校验信息 / verification: 由于分发的是剪辑+循环化后的版本，其哈希与原始转码件**不同**，
+  两者都记录如下（CC0 允许修改，此处仅为可溯源）。
+    jar 内 / shipped  subway_escalator.ogg : e1f619c1118de732ef383066baf97e1a0b9e1d757d99a8c2d328d40066347a1d
+    剪辑前 / source   sound-wrp7aq1d.ogg   : f036b0d4c951e18d4c3cc7863b2bae62d475899e4de53251fcc612c7c08cf0dc
+
+--------------------------------------------------------------------
+二、不随 jar 分发 · 被移除的 6 段外部来源素材
+
+下列 6 段的**原始字节**既不在本模组的 jar 内，也不在本仓库的资源目录里分发。
+它们只存在于单独交付的补丁包 `Repair.zip` 里（AES-256 加密封装，密码只存在于模组 jar 内部，
+由 `RepairPatch` 解密后导入 —— 玩家自己解压解不开）。各文件 sha256（便于核对）：
+
+  up.ogg          f5a8127b617f5c54bb84e256cb1008966c1970c8b536a86298f3457b2d84e53a
+  down.ogg        a4b9aa1f263c228aeb816c59f5270ef125b2e8c153b616248d9adb706d35e3f6
+  liftmusic.ogg   af1cc4bb0a7d66e61753417dac3046f95ed037ec511a5cbdcd6d8369a2021208
+  dooropen.ogg    46d59ef80bbc5698b3efb12cb9fc77d65a7953c89a06d2126a77e6cfc1a043df
+  doorclose.ogg   7ff2f19fb712769197338abe3f380f7ad6b054a4c23a4b38e86b2804257813ac
+  mdoorclose.ogg  92621888d73f7c4b5e3a479f7a96e8d805346b172a9365036bc98d65919a5abe
+
+★ 为什么这样做：用户要求「把这 5 个模组里…的自带音频删掉 / 改成自己合成的」——
+  自合成的部分见第一节；被删掉的原音另行打包，只有把 `Repair.zip` 放进
+  `<存档>/MBM_Repair/` 并在游戏里点「导入补丁」之后才会生效（见第四节）。
+  这样公开分发的 jar 里不含这些外部素材。
+
+--------------------------------------------------------------------
+三、其它 · 本模组不改动、也不分发 MTR 的任何音频
+
+SmoothLift 只在**运行期**通过反射 / Mixin 调用 MTR 的类，并在少数界面上读取 MTR 的数据
+（车站、时刻表、轿厢尺寸…）。这些都不构成对 MTR 素材的再分发。
+`assets/mtr/models/block/lift_track_floor_1.json` 是**手写**的楼层轨道模型覆盖
+（用的是原版 `block/smooth_stone` 贴图），不是从 MTR 复制出来的文件。
+
+--------------------------------------------------------------------
+四、补丁包 Repair.zip 与「导入补丁」
+
+  · 玩家把 `Repair.zip` 放进 `<存档文件夹>/MBM_Repair/`，
+    在 `/MBM help` 打开的界面里点**右上角**的「导入补丁」；
+  · 点开之后是一个 4 项小窗：**导入补丁 / 删除补丁 / 补丁文件夹 / 取消**
+    （入口按钮就在「兼容模式」左边）；
+  · 「导入补丁」= **服务端**读那个 zip、用内置密码解密并校验每个条目，
+    然后把解出来的 6 段 ogg **写进存档**（SavedData 里的 `repairAssets` 字段，
+    与玩家自己导入的音频库是**两张独立的表**）；
+  · 之后内置素材的解析会**优先用补丁里的字节** ⇒ 直梯上下楼提示音、直梯开关门提示音、
+    屏蔽门开关门提示音都恢复成原始音频；**即使把 `Repair.zip` 删掉也仍然生效**；
+  · 「删除补丁」只清那张**补丁表** —— 玩家自己导入的 ogg 一个都不动；
+  · ★ 整个过程**不改模组 jar 的任何内容、也不往 jar 外写文件**：只读存档目录下的
+    `MBM_Repair/Repair.zip`、只写存档数据。
+  · 解密所需的密码只以混淆形式存在于模组 jar 内部（`RepairCrypto`），不在任何配置文件里。

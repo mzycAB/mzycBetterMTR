@@ -28,6 +28,11 @@ import java.util.zip.Inflater;
  * 解出来的字节直接写进存档的 SavedData）⇒ 它不能住在只给客户端编译的源集里。
  * 客户端那边（{@code smooth.lift.client.RepairPatch}）只负责发请求 / 开文件夹 / 写日志。
  *
+ * <p>★ 2026-10-15 追加：**玩家自制（未加密）的普通 zip 也走这个读法** ——
+ * {@link #readAesZip} 里 {@code strength == 0} 那一支就是它（`method` 是 0/8 时直接 inflate）。
+ * 所以「玩家把自己录的 `doorclose.ogg` 压进 zip 就能当补丁包」这件事**不需要新增解析代码**，
+ * 只是补了一条「补丁文件夹里 zip 必须正好一个」的门禁（见 {@code RepairStore#importFromSave}）。
+ *
  * <h2>加密格式（WinZip AES-256，AE-2）</h2>
  * <ul>
  *   <li>条目 `compressionMethod = 99`，真正的压缩方式写在 `0x9901` 扩展字段里；</li>
