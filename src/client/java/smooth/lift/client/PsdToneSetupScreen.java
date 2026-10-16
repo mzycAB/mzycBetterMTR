@@ -1446,7 +1446,7 @@ public class PsdToneSetupScreen extends Screen {
     //   ★★【09-30 续 2】布局改版（用户点名）：
     //     · **左侧**原来空着的地方 = 一个**巨大输入框**（WrappingEditBox，顶边自动换行
     //       —— 只是视觉，存进去的字符串没有换行符，真正换行只有 | 记号才算数）；
-    //       输入框下面两排「插入」按钮（换行 / 车站 / 目的地 / 路线 / 站台 × 中英），
+    //       输入框下面两排「插入」按钮（换行 / 车站 / 目的地 / 路线 / 站台 / 车节 × 中英，
     //       点一下在光标处填进对应记号；
     //     · **右侧**每条自定义词从输入框改回**按钮**（名字就是 userX），点一下 = 左侧
     //       大输入框变成这一条的编辑器；右侧还有「选择」（这一串门念它，✓当前）与
@@ -1662,18 +1662,24 @@ public class PsdToneSetupScreen extends Screen {
     /**
      * 【09-30 续 2】输入框下面的两排「插入记号」按钮：
      * <pre>
-     *   换行   车站(中)  目的地(中)  路线(中)  站台(中)
-     *   （空）  车站(英)  目的地(英)  路线(英)  站台(英)
+     *   换行   车站(中)  目的地(中)  路线(中)  站台(中)  车节(中)
+     *   （空）  车站(英)  目的地(英)  路线(英)  站台(英)  车节(英)
      * </pre>
      * 列在两排之间**左右对齐**（列宽 = 两排里较宽的那个标签 + 内边距）；「换行」下面空着。
      * 点一下在**光标处**填进对应记号（用户点名）。太窄的窗口自动把内边距压到 1px 再均摊。
+     *
+     * <p>★★【1.34】列数 5 → 6：多了「车节(中) / 车节(英)」这一列（用户点名
+     * 「增加 |AC| 和 |AE|，按钮名字：车节(中) 和 车节(英)」）。⇒ 窄窗口下压内边距这一步
+     * 可能**压不进**可用宽度（6 列的最小宽度比 5 列大），所以后面又加了一道按比例缩列的兜底，
+     * 保证整排**不越过 x1** —— 越过去就会盖到右列那些自定义词按钮上。
      */
     private void buildInsertButtons(int x0, int x1, int row1Y, int row2Y) {
-        String[] cn = {"换行", "车站(中)", "目的地(中)", "路线(中)", "站台(中)"};
-        String[] en = {null, "车站(英)", "目的地(英)", "路线(英)", "站台(英)"};
+        String[] cn = {"换行", "车站(中)", "目的地(中)", "路线(中)", "站台(中)", "车节(中)"};
+        String[] en = {null, "车站(英)", "目的地(英)", "路线(英)", "站台(英)", "车节(英)"};
         // 列 → 记号（列 0 = 换行；中英两排同一列是同一对象的中文名 / 英文名）。
-        String[] cnTokens = {"|", "|SC|", "|WC|", "|LC|", "|DC|"};
-        String[] enTokens = {"|SE|", "|WE|", "|LE|", "|DE|"};
+        //   车节 = 本次列车**几节车**（|AC| 中 / |AE| 英，见 TrainAnnounceNarrator#carsText）。
+        String[] cnTokens = {"|", "|SC|", "|WC|", "|LC|", "|DC|", "|AC|"};
+        String[] enTokens = {"|SE|", "|WE|", "|LE|", "|DE|", "|AE|"};
         int cols = cn.length;
         int[] widths = new int[cols];
         int total = 0;
@@ -1691,6 +1697,30 @@ public class PsdToneSetupScreen extends Screen {
             }
             total -= 4 * cols;
             gap = 1;
+        }
+        if (total + gap * (cols - 1) > avail) {
+            // 【1.34】压内边距还不够（列数变多了）⇒ 把列宽**按比例缩**（下限 8px，能点就行），
+            //   缩完再逐个从最宽的列里扣，直到整排装得进 avail（保证不越过 x1、不盖住右列）。
+            int budget = Math.max(cols * 8, avail - gap * (cols - 1));
+            int sum = 0;
+            for (int i = 0; i < cols; i++) {
+                widths[i] = Math.max(8, widths[i] * budget / Math.max(1, total));
+                sum += widths[i];
+            }
+            while (sum > budget) {
+                int widest = 0;
+                for (int i = 1; i < cols; i++) {
+                    if (widths[i] > widths[widest]) {
+                        widest = i;
+                    }
+                }
+                if (widths[widest] <= 8) {
+                    break;
+                }
+                widths[widest]--;
+                sum--;
+            }
+            total = sum;
         }
         // 剩余空间均摊进列宽（保持左右对齐、右侧不超出左区）。
         int slack = avail - total - gap * (cols - 1);

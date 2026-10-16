@@ -1077,9 +1077,10 @@ _e_pos = screen.find("addRenderableWidget(editor);")
 _i_pos = screen.find("buildInsertButtons(")
 check(_e_pos != -1 and _i_pos != -1 and _e_pos < _i_pos,
       "★ editor 先于 buildInsertButtons 入 children（顺序就是本 bug 的成因）")
-check('String[] cnTokens = {"|", "|SC|", "|WC|", "|LC|", "|DC|"};' in screen
-      and 'String[] enTokens = {"|SE|", "|WE|", "|LE|", "|DE|"};' in screen,
-      "两排插入按钮的记号表原样在（中文 5 列 / 英文 4 列）")
+check('String[] cnTokens = {"|", "|SC|", "|WC|", "|LC|", "|DC|", "|AC|"};' in screen
+      and 'String[] enTokens = {"|SE|", "|WE|", "|LE|", "|DE|", "|AE|"};' in screen,
+      "两排插入按钮的记号表原样在（中文 6 列 / 英文 5 列；"
+      "★【1.34】最后一列是「车节(中)|AC| / 车节(英)|AE|」，用户点名「可以播报来的是几节车」）")
 check("insertAtCursor(cnTokens[col])" in screen and "insertAtCursor(enTokens[col - 1])" in screen
       and ".bounds(x, row1Y," in screen and ".bounds(x, row2Y," in screen,
       "两排都在：中文排 row1Y、英文排 row2Y（点一下在光标处填记号）")

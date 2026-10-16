@@ -413,8 +413,10 @@ def main():
     f1 = preset_fails(m1, smooth, manager)
     check(bool(f1), "m1 后「经典预设聊天框」必须判红",
           ("命中：" + f1[0]) if f1 else "★ 没判红 ⇒ 第 3 节是假网")
-    # m2：arriveTextForStyle 退回 5 参 + 全局单份
-    m2, n2 = re.subn(r"String\s+lineName,\s*List<String>\s+userTexts\)",
+    # m2：arriveTextForStyle 退回「丢列表参」的那一版
+    #   （★【1.34】签名末位多了 `int carCount`，所以正则也要跟着带上它 —— 否则替换 0 处，
+    #    这条对照实验会静默失效；下面 n2 == 1 就是防这个的）
+    m2, n2 = re.subn(r"String\s+lineName,\s*List<String>\s+userTexts,\s*int\s+carCount\)",
                      "String lineName)", narr)
     check(n2 == 1, "对照 m2 注入成功（arriveTextForStyle 丢列表参）", "替换 %d 处" % n2)
     f2 = split_lists_fails(m2, player, pss)

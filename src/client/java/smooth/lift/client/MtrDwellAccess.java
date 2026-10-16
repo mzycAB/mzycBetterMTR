@@ -399,6 +399,17 @@ public final class MtrDwellAccess {
      * <p><b>可选</b>，同 {@link #arrivalGetDestination}。
      */
     private static Method arrivalGetPlatformName;
+    /**
+     * 【1.34】{@code ArrivalResponse.getCarCount()} —— **本次列车几节车**（用户点名）。
+     *
+     * <p>MTR 4.0.5 字节码实证：方法体 = {@code getfield cars; ObjectArrayList.size(); ireturn}，
+     * 也就是「这一条时刻表排给这班车的车厢数」；{@code cars} 会随对象一起上线路
+     * （{@code ArrivalResponseSchema.updateData} 的 {@code "cars"} / {@code serializeCars}），
+     * 且 MTR 自己的 {@code RenderPIDS} 也用同一个 getter 印在屏上。
+     *
+     * <p><b>可选</b>，同 {@link #arrivalGetDestination}：缺了只少念一句「几节车」。
+     */
+    private static Method arrivalGetCarCount;
     /** {@code org.mtr.libraries...LongArrayList} 的无参构造 + {@code add(long)}（构造入参用）。 */
     private static java.lang.reflect.Constructor<?> longListCtor;
     private static Method longListAdd;
@@ -918,7 +929,10 @@ public final class MtrDwellAccess {
                     bestDest = PlatformNameMask.mask(mtr3DestinationFor(entry));
                 }
             }
-            return best == Long.MIN_VALUE ? null : new ArrivalInfo(best, bestDest, bestPlatform);
+            // 【1.34】车节数（第 4 个参数）MTR3 这一支给 0 = **读不到** —— MTR3 的
+            //   SCHEDULES_FOR_PLATFORM 条目上没有车厢清单（那个字段是 MTR4 的
+            //   ArrivalResponse.cars）。⇒ MTR3 上 |AC| / |AE| 替成空串，其余照常。
+            return best == Long.MIN_VALUE ? null : new ArrivalInfo(best, bestDest, bestPlatform, 0);
         } catch (Throwable t) {
             LOGGER.warn("[SmoothLift/PsdChime] MTR3 查时刻表失败，/pbmarrive 暂不响：{}", t.toString());
             return null;
@@ -978,6 +992,7 @@ public final class MtrDwellAccess {
         arrivalGetArrival = null;
         arrivalGetDestination = null;
         arrivalGetPlatformName = null;
+        arrivalGetCarCount = null;
         longListCtor = null;
         longListAdd = null;
         try {
@@ -993,6 +1008,13 @@ public final class MtrDwellAccess {
             //   用 method(...) 取（它自己吞异常）⇒ 这两个是**可选**的：缺了只少一句台词。
             arrivalGetDestination = method(response, "getDestination");
             arrivalGetPlatformName = method(response, "getPlatformName");
+            // 【1.34】几节车（用户点名「可以播报来的是几节车」）—— **可选**绑定，同上一对。
+            //   ★ MTR 4.0.5 字节码实证：`public int getCarCount()` 的方法体就是
+            //     `getfield cars; invokevirtual ObjectArrayList.size; ireturn`，
+            //     而 cars 会随这一条 ArrivalResponse 一起上线路（ArrivalResponseSchema
+            //     的 updateData 读 "cars"、serializeCars 写回）⇒ 客户端在**同一个对象**上
+            //     读到的就是 MTR 自己 PIDS 上显示的那个数（RenderPIDS 也调 getCarCount）。
+            arrivalGetCarCount = method(response, "getCarCount");
             Class<?> longList = Class.forName(
                     "org.mtr.libraries.it.unimi.dsi.fastutil.longs.LongArrayList");
             longListCtor = longList.getConstructor();
@@ -1196,11 +1218,11 @@ public final class MtrDwellAccess {
     }
 
     /**
-     * 【09-28】**最近的一班**车的到站信息（时间 + 终点站 + 站台名）。
+     * 【09-28】**最近的一班**车的到站信息（时间 + 终点站 + 站台名 + 【1.34】车节数）。
      *
-     * <p>这是 {@link #nearestArrival} 的返回体。三个字段都来自**同一个** {@code ArrivalResponse}
-     * —— 也就是 MTR 站台显示屏正在显示的那一条，所以「念出来的终点站 / 站台」与玩家抬头看到
-     * 的那块屏**永远一致**（不会出现「屏幕写 A、广播念 B」）。
+     * <p>这是 {@link #nearestArrival} 的返回体。四个字段都来自**同一个** {@code ArrivalResponse}
+     * —— 也就是 MTR 站台显示屏正在显示的那一条，所以「念出来的终点站 / 站台 / 几节车」与玩家
+     * 抬头看到的那块屏**永远一致**（不会出现「屏幕写 A、广播念 B」）。
      */
     public static final class ArrivalInfo {
 
@@ -1213,15 +1235,29 @@ public final class MtrDwellAccess {
         /** **站台名/编号**（{@code ArrivalResponse.getPlatformName()}）；读不到 = {@code null}。 */
         public final String platformName;
 
-        private ArrivalInfo(long remainingMs, String destination, String platformName) {
+        /**
+         * 【1.34】**本次列车几节车**（{@code ArrivalResponse.getCarCount()}）；
+         * {@code <= 0} = 读不到（MTR3 / 这一条时刻表没有车辆信息 / 没绑上那个 getter）。
+         *
+         * <p>★ 值就是 {@code cars.size()}（MTR 4.0.5 字节码实证：{@code getCarCount()} 的方法体
+         * 只有 {@code getfield cars; invokevirtual size; ireturn}），而 {@code cars} 会随
+         * {@code ArrivalResponse} 一起**上线路**（{@code ArrivalResponseSchema.updateData} 里
+         * 读 {@code "cars"}、{@code serializeCars} 写回）⇒ 客户端拿到的这一条与 MTR 自己
+         * PIDS 上显示的那一条是**同一个数**（{@code RenderPIDS} 也读 {@code getCarCount()}）。
+         */
+        public final int carCount;
+
+        private ArrivalInfo(long remainingMs, String destination, String platformName, int carCount) {
             this.remainingMs = remainingMs;
             this.destination = destination;
             this.platformName = platformName;
+            this.carCount = carCount;
         }
     }
 
     /**
-     * 【1.21】这个站台**最近的一班**列车：还有多少毫秒到站，以及它的终点站 / 站台名。
+     * 【1.21】这个站台**最近的一班**列车：还有多少毫秒到站，以及它的终点站 / 站台名 /
+     * 【1.34】几节车。
      *
      * <p>对时刻表里每一条算 {@code arrival - millisOffset - System.currentTimeMillis()}，
      * 丢掉「已经过站超过 {@link #ARRIVAL_PAST_MS}」的条目（它们不再算「最近的一班」），
@@ -1229,6 +1265,7 @@ public final class MtrDwellAccess {
      *
      * <p>★【09-28】终点站与站台名**只从被选中的那一条**上取（不是各自再扫一遍）：
      * 三条信息同属一班车，分开取会在「两条车几乎同时到时」拼出「A 车的终点站 + B 车的站台」。
+     * 【1.34】车节数（{@code getCarCount()}）也**只从被选中的那一条**上取，同一条理由。
      *
      * @return 最近一班车的信息；{@code null} = 读不到
      *         （没装 MTR4 / 还没同步 / 调用失败 / 时刻表里一条有效条目都没有）
@@ -1257,6 +1294,7 @@ public final class MtrDwellAccess {
             long best = Long.MIN_VALUE;
             String bestDestination = null;
             String bestPlatform = null;
+            int bestCarCount = 0;
             for (Object response : responses) {
                 if (response == null) {
                     continue;
@@ -1281,9 +1319,14 @@ public final class MtrDwellAccess {
                     //   这里等于零成本），再掩一次只是让「有没有装 MTR / 装的是哪版」都不影响
                     //   讲述人念出来的站台名 —— 用户点名「跟屏蔽门一致」。
                     bestPlatform = PlatformNameMask.mask(textOf(response, arrivalGetPlatformName));
+                    // 【1.34】几节车也**只从被选中的这一条上取**（与上面两条同一条 ArrivalResponse）
+                    //   —— 分开取会在「两条车几乎同时到」时拼出「A 车的终点站 + B 车的车节数」。
+                    //   getCarCount 是可选绑定（缺了 = 0 = 念不出车节，其余照常）。
+                    bestCarCount = intOf(response, arrivalGetCarCount);
                 }
             }
-            return best == Long.MIN_VALUE ? null : new ArrivalInfo(best, bestDestination, bestPlatform);
+            return best == Long.MIN_VALUE ? null
+                    : new ArrivalInfo(best, bestDestination, bestPlatform, bestCarCount);
         } catch (Throwable t) {
             broken = true;
             LOGGER.warn("[SmoothLift/PsdChime] 查 MTR 时刻表失败，/pbmarrive 暂不响：{}", t.toString());
@@ -1310,6 +1353,24 @@ public final class MtrDwellAccess {
             return text.isEmpty() ? null : text;
         } catch (Throwable ignored) {
             return null;
+        }
+    }
+
+    /**
+     * 【1.34】对一个对象调一个**可选**的 int getter（{@code null} / 调用失败 → {@code 0}）。
+     *
+     * <p>与 {@link #textOf} 同一个套路，只是返回值是数 —— 目前只有
+     * {@code ArrivalResponse.getCarCount()}{@code :int}（几节车）这一处用。
+     */
+    private static int intOf(Object target, Method getter) {
+        if (getter == null) {
+            return 0;
+        }
+        try {
+            Object value = getter.invoke(target);
+            return value instanceof Number n ? n.intValue() : 0;
+        } catch (Throwable ignored) {
+            return 0;
         }
     }
 

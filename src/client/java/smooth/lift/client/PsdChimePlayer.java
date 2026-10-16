@@ -1955,7 +1955,7 @@ public final class PsdChimePlayer {
                         ? MtrDwellAccess.lineNameForPlatform(platformId) : null;
                 String text = TrainAnnounceNarrator.arriveTextForStyle(
                         narrateMode, arrival.destination, arrival.platformName, stationName,
-                        lineName, TrainAnnounceSwitch.arriveUserTexts());
+                        lineName, TrainAnnounceSwitch.arriveUserTexts(), arrival.carCount);
                 // 【09-29】speak 带上声源身份（runKey）与坐标：护栏每 tick 现算
                 //   「到这一串门此刻最近的一扇」的距离，超出 /jsr round 的那一刻
                 //   把正在念的话当场掐掉（clear()）。
@@ -2213,7 +2213,8 @@ public final class PsdChimePlayer {
             String text = TrainAnnounceNarrator.arriveTextForStyle(mode,
                     arrival == null ? null : arrival.destination,
                     arrival == null ? null : arrival.platformName,
-                    stationName, lineName, TrainAnnounceSwitch.midiumUserTextsList());
+                    stationName, lineName, TrainAnnounceSwitch.midiumUserTextsList(),
+                    arrival == null ? 0 : arrival.carCount);
             boolean spoke = text != null
                     && TrainAnnounceNarrator.speak(text, plan.runKey,
                     plan.source.x(), plan.source.y(), plan.source.z(), true);

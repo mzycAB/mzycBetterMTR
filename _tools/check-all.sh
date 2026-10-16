@@ -65,6 +65,14 @@
 #                                    播报仍按车站级（传 PLATFORM_ID_NONE）；
 #                                 ④ 纯逻辑复现器：LOG013 那两对（隔 2 tick / 8 秒）必须只念 1 次；
 #                                    删掉「放回表里」⇒ 必须复现成 2 次。脚本自带对照实验。
+#   check-narrate-carcount.py     【1.34】讲述人自定义播报词新增 |AC|（车节(中)）/ |AE|（车节(英)）：
+#                                 数 = MTR ArrivalResponse.getCarCount()（MTR 4.0.5 字节码实证
+#                                 = cars.size()，与 MTR 自己 PIDS 上印的同一个数），且必须与
+#                                 终点站/站台名取自**同一条**被选中的 ArrivalResponse；
+#                                 |AC|「8节车厢」/ |AE|「8 cars」（1 节 = 1 car），读不到 ⇒ 空串；
+#                                 记号要在「单个 | → 换行」**之前**替换（顺序反了记号成换行）；
+#                                 石斧 UI 两排按钮加成 6 列（车节(中)/(英) 与 |AC|/|AE| 同列配对）
+#                                 + 窄窗口按比例缩列兜底。13 条变异对照全变红。
 #   check-escalator-step-engine.py 【1.26】扶梯阶梯渲染引擎（/mtrxr）：
 #                                 ★ 根因「/mtrxr off 后阶梯整片消失、退重进才回来」——
 #                                 apply() 只许 invalidate()/**不得** reset()（LOADED 登记表被清空
@@ -216,6 +224,7 @@ run "屏蔽门讲述人/自定义拆开" "$PY" _tools/check-train-announce.py
 run "屏蔽门讲述人只念一次"  "$PY" _tools/check-psd-midium-once.py
 run "讲述人默认值/预设/按存档文字" "$PY" _tools/check-narrate-preset-save.py
 run "讲述人香港档与UI清全局"  "$PY" _tools/check-narrate-ui-hk.py
+run "讲述人车节占位符|AC||AE|" "$PY" _tools/check-narrate-carcount.py
 run "扶梯阶梯渲染引擎"      "$PY" _tools/check-escalator-step-engine.py
 run "扶梯黑面修复(原版MTR)" "$PY" _tools/check-escalator-light-repair.py
 run "扶梯黑面修复(Sodium兼容)" "$PY" _tools/check-sodium-light-repair.py

@@ -329,6 +329,14 @@ public final class TrainAnnounceNarrator {
     //   |SE|  → 当前车站名字的英文段（S = Station，E = English）
     //   |DC|  → 当前**站台**名（编号）的中文段（D = platform Desk，C = Chinese）
     //   |DE|  → 当前站台名（编号）的英文段（D = platform Desk，E = English）
+    //   |WC|  → 本次列车**目的地（终点站）**的中文段（W = Where to，C = Chinese）
+    //   |WE|  → 本次列车目的地的英文段（W = Where to，E = English）
+    //   |LC|  → 当前**线路**名字的中文段（L = Line，C = Chinese）
+    //   |LE|  → 当前线路名字的英文段（L = Line，E = English）
+    //   |AC|  → 【1.34】本次列车**几节车**（A = 车节/编组，C = Chinese）—— 中英两个按钮
+    //   |AE|  → 【1.34】本次列车几节车（A = 车节/编组，E = English）—— **都只输出数字本身**
+    //             （例：「6」），不带量词；中/英读法由念这一句的语音引擎决定
+    //             （中文句念「六」、英文句念「six」）。【10-16 用户拍板改规矩】
     //
     //   「当前车站」= 屏蔽门所在的那个 MTR 车站（MtrDwellAccess.stationNameForPlatform），
     //   **不是**本次列车终点站；「当前站台」= ArrivalResponse.getPlatformName()
@@ -361,25 +369,62 @@ public final class TrainAnnounceNarrator {
     static final String TOKEN_LINE_CN = "|LC|";
     /** 【09-30 续 2】占位符：当前线路名字的英文段。 */
     static final String TOKEN_LINE_EN = "|LE|";
+    /**
+     * 【1.34】占位符：**本次列车几节车**（A = 车节/编组，C = Chinese）——用户点名
+     * 「可以播报来的是几节车」，与石斧 UI 里那只「车节(中)」按钮同一件事。
+     *
+     * <p>★【10-16 用户拍板】和 {@link #TOKEN_CARS_EN} **一样都只输出数字本身**
+     * （例：{@code 6}，不带量词）；中/英读法由念这一句的语音引擎决定，见 {@link #carsText}。
+     * 读不到车节数（MTR3 / 这一条时刻表没有车辆信息）时替成**空串**。
+     */
+    static final String TOKEN_CARS_CN = "|AC|";
+    /** 【1.34】占位符：本次列车几节车（A = 车节/编组，E = English）；输出与 |AC| 相同的纯数字。 */
+    static final String TOKEN_CARS_EN = "|AE|";
     /** 占位符：换行（长记号都换完之后，剩下的单个 | 全是它）。 */
     static final String TOKEN_LINE_BREAK = "|";
 
     /**
+     * 【1.34】{@code |AC|} / {@code |AE|} 的替换值：**本次列车几节车**（用户点名）。
+     *
+     * <p>★【10-16 用户拍板改规矩】两个按钮**都只输出数字本身**（例：{@code 6}），
+     * **不带任何量词** —— 不是「6节车厢」、也不是「6 cars」。
+     * <p>★ 中/英读法的区分**不在内容里**，而在**这一句由谁念**：数字写进中文句
+     * （{@code 共|AC|}），中文语音引擎念「六」；写进英文句（{@code This train has |AE|}），
+     * 英文语音引擎念「six」 —— 与 {@code com.mojang.text2speech.NarratorWindows}
+     * 的行为一致（{@code SpVoice} 按系统默认语音念，SPF_IS_NOT_XML 纯文本，每段数字
+     * 由语音引擎按句子的语言读）。
+     *
+     * <p>数 = MTR {@code ArrivalResponse.getCarCount()}，也就是 {@code cars.size()}
+     * —— MTR 自己 PIDS 上印的就是这个数（{@code RenderPIDS} 调同一个 getter）。
+     * 读不到（{@code carCount <= 0}）时返回**空串** —— 与其它占位符「请求的那一段不存在
+     * 就替成空」同一条规矩（见 {@link #namePart}）。
+     */
+    private static String carsText(int carCount) {
+        if (carCount <= 0) {
+            return "";
+        }
+        return Integer.toString(carCount);
+    }
+
+    /**
      * 【09-30 续】把玩家自定义播报词里的占位符换成**这一班车这一站台**的实际值。
      *
-     * <p>八个长记号（车站 / 站台 / 目的地 / 线路 × 中英）都换完之后，剩下的单个 |
-     * 全部是用户点名的「换行」。换完之后若整串只剩空白（模板是空的 / 全是没值可替的记号）
-     * 返回 {@code null}，调用方按「这一档拼不出话」跳过。原样文字（不含任何记号）原样通过。
+     * <p>十个长记号（车站 / 站台 / 目的地 / 线路 × 中英，外加【1.34】的几节车 × 中英）
+     * 都换完之后，剩下的单个 | 全部是用户点名的「换行」。换完之后若整串只剩空白
+     * （模板是空的 / 全是没值可替的记号）返回 {@code null}，调用方按「这一档拼不出话」跳过。
+     * 原样文字（不含任何记号）原样通过。
      *
      * @param template     玩家写的模板（{@code TrainAnnounceSwitch.userText} 的原文）
      * @param stationName  当前车站的双语名字（{@code 中文|English}）；读不到 = {@code null}
      * @param platformName 当前站台名（编号）的双语名字；读不到 = {@code null}
      * @param destination  本次列车目的地（终点站）的双语名字；读不到 = {@code null}
      * @param lineName     当前线路的双语名字；读不到 = {@code null}
+     * @param carCount     【1.34】本次列车几节车（{@code MtrDwellAccess.ArrivalInfo.carCount}）；
+     *                     {@code <= 0} = 读不到 ⇒ {@code |AC|} / {@code |AE|} 替成空串
      * @return 要念的整句（记号已替换、| 已成换行）；{@code null} = 空模板 / 全空白
      */
     public static String expandUserTemplate(String template, String stationName, String platformName,
-                                            String destination, String lineName) {
+                                            String destination, String lineName, int carCount) {
         if (template == null || template.isBlank()) {
             return null;
         }
@@ -392,6 +437,10 @@ public final class TrainAnnounceNarrator {
         text = text.replace(TOKEN_DEST_EN, namePart(destination, false));
         text = text.replace(TOKEN_LINE_CN, namePart(lineName, true));
         text = text.replace(TOKEN_LINE_EN, namePart(lineName, false));
+        // 【1.34】几节车（用户点名）—— 两个按钮**都只输出数字本身**（「6」，不带量词），
+        //   中/英读法由**念这一句的语音引擎**决定（中文句念「六」、英文句念「six」）。
+        text = text.replace(TOKEN_CARS_CN, carsText(carCount));
+        text = text.replace(TOKEN_CARS_EN, carsText(carCount));
         // 长记号都换完，剩下的单个 | 全部是用户点名的「换行」。
         text = text.replace(TOKEN_LINE_BREAK, "\n");
         return trimToNull(text.replace("\r", ""));
@@ -433,7 +482,8 @@ public final class TrainAnnounceNarrator {
      * ★【09-30】新增**玩家自定义档**（userN，档位号 ≥ {@link EscalatorSpeedData#PSD_NARRATE_USER_BASE}）：
      * 玩家写的模板先过 {@link #expandUserTemplate} —— {@code |} 换行、{@code |SC|}/{@code |SE|}
      * 当前车站中英文名、{@code |DC|}/{@code |DE|} 当前站台中英文名、【09-30 续 2】
-     * {@code |WC|}/{@code |WE|} 本次列车目的地中英文名、{@code |LC|}/{@code |LE|} 当前线路中英文名
+     * {@code |WC|}/{@code |WE|} 本次列车目的地中英文名、{@code |LC|}/{@code |LE|} 当前线路中英文名、
+     * 【1.34】{@code |AC|}/{@code |AE|} 本次列车几节车的中英文说法
      * （都是用户点名）。换完是空的（没写 / 全是没值可替的记号）⇒ 返回 {@code null}，调用方跳过。
      *
      * @param mode         讲述人样式（{@link EscalatorSpeedData#PSD_NARRATE_OFF} /
@@ -442,10 +492,13 @@ public final class TrainAnnounceNarrator {
      * @param platformName 站台名/编号（上海档与 userN 的 {@code |DC|}/{@code |DE|} 用）
      * @param stationName  当前车站名（**只 userN 的 {@code |SC|}/{@code |SE|} 用**；{@code null} = 读不到）
      * @param lineName     当前线路名（**只 userN 的 {@code |LC|}/{@code |LE|} 用**；{@code null} = 读不到）
+     * @param carCount     【1.34】本次列车几节车（**只 userN 的 {@code |AC|}/{@code |AE|} 用**；
+     *                     {@code <= 0} = 读不到 ⇒ 替成空串）
      * @return 要念的整句；{@code null} = 这一档拼不出话 ⇒ 调用方跳过
      */
     public static String arriveTextForStyle(int mode, String destination, String platformName,
-                                            String stationName, String lineName, List<String> userTexts) {
+                                            String stationName, String lineName, List<String> userTexts,
+                                            int carCount) {
         // 【09-30】玩家自定义档排在最前面判 —— 占位符吃的是**这一班**的实际值。
         //   【10-01 续】userN 模板**按调用方给的那份列表**取：进站讲述人传进站那份、
         //   站台讲述人传站台那份 —— 两条广播的文字各自独立（用户点名「不要共用一个文字列表」）。
@@ -454,7 +507,7 @@ public final class TrainAnnounceNarrator {
             String template = userTexts == null || idx < 0 || idx >= userTexts.size()
                     ? null : userTexts.get(idx);
             return expandUserTemplate(template,
-                    stationName, platformName, destination, lineName);
+                    stationName, platformName, destination, lineName, carCount);
         }
         if (mode == EscalatorSpeedData.PSD_NARRATE_HONGKONG) {
             return arriveTextHongKong(destination);
