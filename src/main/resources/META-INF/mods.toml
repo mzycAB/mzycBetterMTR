@@ -1,0 +1,44 @@
+modLoader="javafml"
+loaderVersion="[47,)"
+license="MIT"
+
+[[mods]]
+modId="smooth_lift"
+version="${file.jarVersion}"
+displayName="mzycBetterMTR"
+logoFile="assets/smoothlift/icon.png"
+credits="mzycAB"
+authors="mzycAB"
+description='''
+Makes MTR escalators smooth instead of bumpy.
+- Smooth surface-following movement on escalator slopes
+- Right-click an escalator with a stone axe to set its speed
+- Speeds persist across world reloads
+- /futispeed <speed> to set the default speed of the current dimension
+- /MBM help 预设选择、/MBM music in|delete 批量音频、屏蔽门开关门自定义声音
+'''
+
+[[dependencies.smooth_lift]]
+    modId="forge"
+    mandatory=true
+    versionRange="[47,)"
+    ordering="NONE"
+    side="BOTH"
+
+[[dependencies.smooth_lift]]
+    modId="minecraft"
+    mandatory=true
+    versionRange="[1.20.1,1.21)"
+    ordering="NONE"
+    side="BOTH"
+
+# 不做 mtr 版本范围断言：同时兼容 MTR3 和 MTR4。
+# 扶梯检测、阶梯动画均基于运行时反射/类名判断，不依赖具体 MTR 版本；
+# 且 MTR 版本号可能带预发布后缀（如 3.2.2-hotfix-2），Forge 范围解析会出错。
+# ordering=AFTER 保证本 mod 在 MTR 之后加载，使 assets/mtr 模型覆盖资源生效。
+[[dependencies.smooth_lift]]
+    modId="mtr"
+    mandatory=false
+    versionRange="*"
+    ordering="AFTER"
+    side="BOTH"
