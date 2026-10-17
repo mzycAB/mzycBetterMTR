@@ -1,0 +1,6 @@
+{
+    "parent": "shsubwaypicture:block/flat_panel_base",
+    "textures": {
+        "front": "shsubwaypicture:block/pic_br"
+    }
+}

@@ -1,0 +1,21 @@
+{
+	"required": true,
+	"refmap": "client-mzycBetterMTR-refmap.json",
+	"package": "smooth.lift.client.mixin",
+	"compatibilityLevel": "JAVA_17",
+	"client": [
+		"EscalatorSpriteTickerMixin",
+		"LevelBlockChangeMixin",
+		"SoundEngineVolumeMixin",
+		"EscalatorAoStashMixin",
+		"EscalatorAoSampleMixin",
+		"EscalatorFlatLightMixin",
+		"ZhajiSoundMixin"
+	],
+	"injectors": {
+		"defaultRequire": 1
+	},
+	"overwrites": {
+		"requireAnnotations": true
+	}
+}
