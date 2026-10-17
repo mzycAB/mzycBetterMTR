@@ -1,0 +1,1394 @@
+﻿
+> Configure project :
+MixinGradle is skipping eclipse integration, extension not found
+
+> Task :downloadMcpConfig
+> Task :extractSrg UP-TO-DATE
+> Task :createMcpToSrg UP-TO-DATE
+
+> Task :compileJava FAILED
+.\gradlew.bat : Note: SpongePowered MIXIN Annotation Processor Version=0.8.5 (MixinGradle Version=0.7.38)
+At line:15 char:1571
++ ... \ripgrep\bin'; .\gradlew.bat compileJava --console=plain 2>&1 | Tee-O ...
++                    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : NotSpecified: (Note: SpongePow...Version=0.7.38):String) [], RemoteException
+    + FullyQualifiedErrorId : NativeCommandError
+ 
+Note: Supported obfuscation types: ObfuscationServiceMCP supports [notch] ObfuscationServiceFG3 supports [searge]
+Note: Loading searge mappings from C:\Users\user\Desktop\2\mzycBetterMTR-Forge-1.18.2\build\createMcpToSrg\output.tsrg
+C:\Users\user\Desktop\2\mzycBetterMTR-Forge-1.18.2\src\main\java\smooth\lift\mixin\mtr\Mtr3LiftDoorMixin.java:72: Note:
+ @Inject target 'tickServer' in @Pseudo mixin will not be obfuscated
+    @Inject(method = "tickServer", at = @At("TAIL"))
+    ^
+Note: Writing refmap to C:\Users\user\Desktop\2\mzycBetterMTR-Forge-1.18.2\build\tmp\compileJava\compileJava-refmap.jso
+n
+C:\Users\user\Desktop\2\mzycBetterMTR-Forge-1.18.2\src\main\java\smooth\lift\client\mixin\sodium\LightDataAccessCafMixi
+n.java:32: warning: Unable to locate obfuscation mapping for @Shadow field
+    @Shadow
+    ^
+C:\Users\user\Desktop\2\mzycBetterMTR-Forge-1.18.2\src\main\java\smooth\lift\client\mixin\sodium\LightDataAccessCafMixi
+n.java:35: warning: Unable to locate obfuscation mapping for @Shadow field
+    @Shadow
+    ^
+C:\Users\user\Desktop\2\mzycBetterMTR-Forge-1.18.2\src\main\java\smooth\lift\client\mixin\sodium\LightDataAccessCafMixi
+n.java:38: warning: Unable to locate obfuscation mapping for @Shadow method
+    @Shadow
+    ^
+C:\Users\user\Desktop\2\mzycBetterMTR-Forge-1.18.2\src\main\java\smooth\lift\client\mixin\sodium\LightDataAccessCafMixi
+n.java:41: warning: Unable to locate obfuscation mapping for @Shadow method
+    @Shadow
+    ^
+C:\Users\user\Desktop\2\mzycBetterMTR-Forge-1.18.2\src\main\java\smooth\lift\client\mixin\sodium\LightDataAccessJellyMi
+xin.java:38: warning: Unable to locate obfuscation mapping for @Shadow field
+    @Shadow
+    ^
+C:\Users\user\Desktop\2\mzycBetterMTR-Forge-1.18.2\src\main\java\smooth\lift\client\mixin\sodium\LightDataAccessJellyMi
+xin.java:41: warning: Unable to locate obfuscation mapping for @Shadow field
+    @Shadow
+    ^
+C:\Users\user\Desktop\2\mzycBetterMTR-Forge-1.18.2\src\main\java\smooth\lift\client\mixin\sodium\LightDataAccessJellyMi
+xin.java:44: warning: Unable to locate obfuscation mapping for @Shadow method
+    @Shadow
+    ^
+C:\Users\user\Desktop\2\mzycBetterMTR-Forge-1.18.2\src\main\java\smooth\lift\client\mixin\sodium\LightDataAccessJellyMi
+xin.java:47: warning: Unable to locate obfuscation mapping for @Shadow method
+    @Shadow
+    ^
+Note: Writing refmap to C:\Users\user\Desktop\2\mzycBetterMTR-Forge-1.18.2\build\tmp\compileJava\compileJava-refmap.jso
+n
+Note: Writing searge composite mappings to C:\Users\user\Desktop\2\mzycBetterMTR-Forge-1.18.2\build\tmp\compileJava\com
+pileJava-mappings.tsrg
+Note: Writing refmap to C:\Users\user\Desktop\2\mzycBetterMTR-Forge-1.18.2\build\tmp\compileJava\compileJava-refmap.jso
+n
+Note: Writing refmap to C:\Users\user\Desktop\2\mzycBetterMTR-Forge-1.18.2\build\tmp\compileJava\compileJava-refmap.jso
+n
+Note: Writing searge composite mappings to C:\Users\user\Desktop\2\mzycBetterMTR-Forge-1.18.2\build\tmp\compileJava\com
+pileJava-mappings.tsrg
+C:\Users\user\Desktop\2\mzycBetterMTR-Forge-1.18.2\src\main\java\smooth\lift\client\AudioSetupScreen.java:180: error: c
+annot find symbol
+        addRenderableWidget(Button.builder(new net.minecraft.network.chat.TextComponent("����"), button -> onClose())
+                                  ^
+  symbol:   method builder(TextComponent,(button)->onClose())
+  location: class Button
+C:\Users\user\Desktop\2\mzycBetterMTR-Forge-1.18.2\src\main\java\smooth\lift\client\AudioSetupScreen.java:183: error: c
+annot find symbol
+        addRenderableWidget(Button.builder(new net.minecraft.network.chat.TextComponent("ˢ��"), button -> {
+                                  ^
+  symbol:   method builder(TextComponent,(button)->[...]"); })
+  location: class Button
+C:\Users\user\Desktop\2\mzycBetterMTR-Forge-1.18.2\src\main\java\smooth\lift\client\AudioSetupScreen.java:204: error: c
+annot find symbol
+            addRenderableWidget(Button.builder(new net.minecraft.network.chat.TextComponent(truncate(id, 22)),
+                                      ^
+  symbol:   method builder(TextComponent,(button)->[...]o(id))
+  location: class Button
+C:\Users\user\Desktop\2\mzycBetterMTR-Forge-1.18.2\src\main\java\smooth\lift\client\AudioSetupScreen.java:218: error: c
+annot find symbol
+            addRenderableWidget(Button.builder(
+                                      ^
+  symbol:   method builder(TextComponent,(button)->playOff())
+  location: class Button
+C:\Users\user\Desktop\2\mzycBetterMTR-Forge-1.18.2\src\main\java\smooth\lift\client\AudioSetupScreen.java:223: error: c
+annot find symbol
+            addRenderableWidget(Button.builder(new net.minecraft.network.chat.TextComponent("ѡ��"), button -> playOff()
+)
+                                      ^
+  symbol:   method builder(TextComponent,(button)->playOff())
+  location: class Button
+C:\Users\user\Desktop\2\mzycBetterMTR-Forge-1.18.2\src\main\java\smooth\lift\client\AudioSetupScreen.java:233: error: c
+annot find symbol
+            addRenderableWidget(Button.builder(
+                                      ^
+  symbol:   method builder(TextComponent,(button)->[...]dio())
+  location: class Button
+C:\Users\user\Desktop\2\mzycBetterMTR-Forge-1.18.2\src\main\java\smooth\lift\client\AudioSetupScreen.java:238: error: c
+annot find symbol
+            addRenderableWidget(Button.builder(new net.minecraft.network.chat.TextComponent("ѡ��"), button -> unbindAud
+io())
+                                      ^
+  symbol:   method builder(TextComponent,(button)->[...]dio())
+  location: class Button
+C:\Users\user\Desktop\2\mzycBetterMTR-Forge-1.18.2\src\main\java\smooth\lift\client\AudioSetupScreen.java:254: error: c
+annot find symbol
+            addRenderableWidget(Button.builder(
+                                      ^
+  symbol:   method builder(TextComponent,(button)->[...]o(id))
+  location: class Button
+C:\Users\user\Desktop\2\mzycBetterMTR-Forge-1.18.2\src\main\java\smooth\lift\client\AudioSetupScreen.java:259: error: c
+annot find symbol
+            addRenderableWidget(Button.builder(new net.minecraft.network.chat.TextComponent("ѡ��"), button -> bindAudio
+(id))
+                                      ^
+  symbol:   method builder(TextComponent,(button)->[...]o(id))
+  location: class Button
+C:\Users\user\Desktop\2\mzycBetterMTR-Forge-1.18.2\src\main\java\smooth\lift\client\AudioSetupScreen.java:262: error: c
+annot find symbol
+            addRenderableWidget(Button.builder(new net.minecraft.network.chat.TextComponent("ɾ��"), button -> deleteAud
+io(id))
+                                      ^
+  symbol:   method builder(TextComponent,(button)->[...]o(id))
+  location: class Button
+C:\Users\user\Desktop\2\mzycBetterMTR-Forge-1.18.2\src\main\java\smooth\lift\client\AudioSetupScreen.java:285: error: m
+ethod does not override or implement a method from a supertype
+    @Override
+    ^
+C:\Users\user\Desktop\2\mzycBetterMTR-Forge-1.18.2\src\main\java\smooth\lift\client\AudioSetupScreen.java:293: error: m
+ethod mouseScrolled in interface ContainerEventHandler cannot be applied to given types;
+        return super.mouseScrolled(mouseX, mouseY, scrollX, scrollY);
+                    ^
+  required: double,double,double
+  found:    double,double,double,double
+  reason: actual and formal argument lists differ in length
+C:\Users\user\Desktop\2\mzycBetterMTR-Forge-1.18.2\src\main\java\smooth\lift\client\AudioSetupScreen.java:377: error: m
+ethod does not override or implement a method from a supertype
+    @Override
+    ^
+C:\Users\user\Desktop\2\mzycBetterMTR-Forge-1.18.2\src\main\java\smooth\lift\client\AudioSetupScreen.java:379: error: n
+o suitable method found for renderBackground(GuiGraphics,int,int,float)
+        this.renderBackground(guiGraphics, mouseX, mouseY, partialTick);
+            ^
+    method Screen.renderBackground(PoseStack) is not applicable
+      (actual and formal argument lists differ in length)
+    method Screen.renderBackground(PoseStack,int) is not applicable
+      (actual and formal argument lists differ in length)
+C:\Users\user\Desktop\2\mzycBetterMTR-Forge-1.18.2\src\main\java\smooth\lift\client\EscalatorAudioPlayer.java:418: erro
+r: cannot find symbol
+            inst.setPosition(bestNear.getCenter(), FADE_IN_FLOOR);
+                                     ^
+  symbol:   method getCenter()
+  location: variable bestNear of type BlockPos
+C:\Users\user\Desktop\2\mzycBetterMTR-Forge-1.18.2\src\main\java\smooth\lift\client\EscalatorAudioPlayer.java:447: erro
+r: cannot find symbol
+        inst.setPosition(bestNear.getCenter(), fadeInGain(mc, inst, target));
+                                 ^
+  symbol:   method getCenter()
+  location: variable bestNear of type BlockPos
+C:\Users\user\Desktop\2\mzycBetterMTR-Forge-1.18.2\src\main\java\smooth\lift\client\EscalatorAudioPlayer.java:1019: err
+or: cannot find symbol
+        return location.withPath("sounds/" + location.getPath() + ".ogg");
+                       ^
+  symbol:   method withPath(String)
+  location: variable location of type ResourceLocation
+C:\Users\user\Desktop\2\mzycBetterMTR-Forge-1.18.2\src\main\java\smooth\lift\client\EscalatorAudioPlayer.java:1058: err
+or: no suitable constructor found for AbstractSoundInstance(ResourceLocation,SoundSource,RandomSource)
+            super(initialLocation(audioId), SoundSource.BLOCKS, RandomSource.create());
+            ^
+    constructor AbstractSoundInstance.AbstractSoundInstance(SoundEvent,SoundSource) is not applicable
+      (actual and formal argument lists differ in length)
+    constructor AbstractSoundInstance.AbstractSoundInstance(ResourceLocation,SoundSource) is not applicable
+      (actual and formal argument lists differ in length)
+C:\Users\user\Desktop\2\mzycBetterMTR-Forge-1.18.2\src\main\java\smooth\lift\client\EscalatorAudioPlayer.java:1080: err
+or: incompatible types: ConstantFloat cannot be converted to float
+            Sound s = new Sound(name.toString(), ConstantFloat.of(1.0F), ConstantFloat.of(1.0F),
+                                                                 ^
+C:\Users\user\Desktop\2\mzycBetterMTR-Forge-1.18.2\src\main\java\smooth\lift\client\EscalatorChimePlayer.java:1264: err
+or: no suitable constructor found for AbstractSoundInstance(ResourceLocation,SoundSource,RandomSource)
+            super(sample.event(), SoundSource.BLOCKS, RandomSource.create());
+            ^
+    constructor AbstractSoundInstance.AbstractSoundInstance(SoundEvent,SoundSource) is not applicable
+      (actual and formal argument lists differ in length)
+    constructor AbstractSoundInstance.AbstractSoundInstance(ResourceLocation,SoundSource) is not applicable
+      (actual and formal argument lists differ in length)
+C:\Users\user\Desktop\2\mzycBetterMTR-Forge-1.18.2\src\main\java\smooth\lift\client\EscalatorChimePlayer.java:1290: err
+or: incompatible types: ConstantFloat cannot be converted to float
+            Sound s = new Sound(name.toString(), ConstantFloat.of(1.0F), ConstantFloat.of(1.0F),
+                                                                 ^
+C:\Users\user\Desktop\2\mzycBetterMTR-Forge-1.18.2\src\main\java\smooth\lift\client\EscalatorSpeedScreen.java:146: erro
+r: cannot find symbol
+        addRenderableWidget(Button.builder(new net.minecraft.network.chat.TextComponent("�������á�"), button -> openAud
+ioSetup())
+                                  ^
+  symbol:   method builder(TextComponent,(button)->[...]tup())
+  location: class Button
+C:\Users\user\Desktop\2\mzycBetterMTR-Forge-1.18.2\src\main\java\smooth\lift\client\EscalatorSpeedScreen.java:160: erro
+r: cannot find symbol
+        addRenderableWidget(Button.builder(new net.minecraft.network.chat.TextComponent("��ʾ��(����)"),
+                                  ^
+  symbol:   method builder(TextComponent,(button)->[...]true))
+  location: class Button
+C:\Users\user\Desktop\2\mzycBetterMTR-Forge-1.18.2\src\main\java\smooth\lift\client\EscalatorSpeedScreen.java:172: erro
+r: cannot find symbol
+        addRenderableWidget(Button.builder(new net.minecraft.network.chat.TextComponent("��ʾ��(�뿪)"),
+                                  ^
+  symbol:   method builder(TextComponent,(button)->[...]alse))
+  location: class Button
+C:\Users\user\Desktop\2\mzycBetterMTR-Forge-1.18.2\src\main\java\smooth\lift\client\EscalatorSpeedScreen.java:212: erro
+r: cannot find symbol
+            super(x, y, BTN_W, 20, label, button -> { }, DEFAULT_NARRATION);
+                                                         ^
+  symbol:   variable DEFAULT_NARRATION
+  location: class RowNameButton
+C:\Users\user\Desktop\2\mzycBetterMTR-Forge-1.18.2\src\main\java\smooth\lift\client\EscalatorSpeedScreen.java:217: erro
+r: method does not override or implement a method from a supertype
+        @Override
+        ^
+C:\Users\user\Desktop\2\mzycBetterMTR-Forge-1.18.2\src\main\java\smooth\lift\client\EscalatorSpeedScreen.java:222: erro
+r: method does not override or implement a method from a supertype
+        @Override
+        ^
+C:\Users\user\Desktop\2\mzycBetterMTR-Forge-1.18.2\src\main\java\smooth\lift\client\EscalatorSpeedScreen.java:227: erro
+r: cannot find symbol
+                super.renderWidget(guiGraphics, mouseX, mouseY, partialTick);
+                     ^
+  symbol: method renderWidget(GuiGraphics,int,int,float)
+C:\Users\user\Desktop\2\mzycBetterMTR-Forge-1.18.2\src\main\java\smooth\lift\client\EscalatorSpeedScreen.java:439: erro
+r: method does not override or implement a method from a supertype
+    @Override
+    ^
+C:\Users\user\Desktop\2\mzycBetterMTR-Forge-1.18.2\src\main\java\smooth\lift\client\EscalatorSpeedScreen.java:441: erro
+r: no suitable method found for renderBackground(GuiGraphics,int,int,float)
+        this.renderBackground(guiGraphics, mouseX, mouseY, partialTick);
+            ^
+    method Screen.renderBackground(PoseStack) is not applicable
+      (actual and formal argument lists differ in length)
+    method Screen.renderBackground(PoseStack,int) is not applicable
+      (actual and formal argument lists differ in length)
+C:\Users\user\Desktop\2\mzycBetterMTR-Forge-1.18.2\src\main\java\smooth\lift\client\EscalatorStepCache.java:654: error:
+ cannot find symbol
+            buffer = new VertexBuffer(VertexBuffer.Usage.STATIC);
+                                                  ^
+  symbol:   variable Usage
+  location: class VertexBuffer
+C:\Users\user\Desktop\2\mzycBetterMTR-Forge-1.18.2\src\main\java\smooth\lift\client\EscalatorStepCache.java:657: error:
+ cannot find symbol
+        BufferBuilder.RenderedBuffer rendered = active.end();
+                     ^
+  symbol:   class RenderedBuffer
+  location: class BufferBuilder
+C:\Users\user\Desktop\2\mzycBetterMTR-Forge-1.18.2\src\main\java\smooth\lift\client\EscalatorStepModels.java:169: error
+: cannot find symbol
+                if (sprite == null || sprite.contents() == null) {
+                                            ^
+  symbol:   method contents()
+  location: variable sprite of type TextureAtlasSprite
+C:\Users\user\Desktop\2\mzycBetterMTR-Forge-1.18.2\src\main\java\smooth\lift\client\EscalatorStepModels.java:172: error
+: cannot find symbol
+                ResourceLocation id = sprite.contents().name();
+                                            ^
+  symbol:   method contents()
+  location: variable sprite of type TextureAtlasSprite
+C:\Users\user\Desktop\2\mzycBetterMTR-Forge-1.18.2\src\main\java\smooth\lift\client\EscalatorStepRenderer.java:519: err
+or: cannot find symbol
+                if (buffer == null || buffer.isInvalid()) {
+                                            ^
+  symbol:   method isInvalid()
+  location: variable buffer of type VertexBuffer
+C:\Users\user\Desktop\2\mzycBetterMTR-Forge-1.18.2\src\main\java\smooth\lift\client\EscalatorStepRenderer.java:606: err
+or: cannot find symbol
+        if (shader.GLINT_ALPHA != null) {
+                  ^
+  symbol:   variable GLINT_ALPHA
+  location: variable shader of type ShaderInstance
+C:\Users\user\Desktop\2\mzycBetterMTR-Forge-1.18.2\src\main\java\smooth\lift\client\EscalatorStepRenderer.java:607: err
+or: cannot find symbol
+            shader.GLINT_ALPHA.set(RenderSystem.getShaderGlintAlpha());
+                  ^
+  symbol:   variable GLINT_ALPHA
+  location: variable shader of type ShaderInstance
+C:\Users\user\Desktop\2\mzycBetterMTR-Forge-1.18.2\src\main\java\smooth\lift\client\EscalatorStepRenderer.java:607: err
+or: cannot find symbol
+            shader.GLINT_ALPHA.set(RenderSystem.getShaderGlintAlpha());
+                                               ^
+  symbol:   method getShaderGlintAlpha()
+  location: class RenderSystem
+C:\Users\user\Desktop\2\mzycBetterMTR-Forge-1.18.2\src\main\java\smooth\lift\client\EscalatorStepTextures.java:389: err
+or: incompatible types: Resource cannot be converted to Optional<Resource>
+        Optional<Resource> upResource = resources.getResource(family.pngUp);
+                                                             ^
+C:\Users\user\Desktop\2\mzycBetterMTR-Forge-1.18.2\src\main\java\smooth\lift\client\EscalatorStepTextures.java:399: err
+or: cannot find symbol
+            down = resources.getResource(family.pngDown).orElse(null);
+                                                        ^
+  symbol:   method orElse(<null>)
+  location: interface Resource
+C:\Users\user\Desktop\2\mzycBetterMTR-Forge-1.18.2\src\main\java\smooth\lift\client\EscalatorStepTextures.java:452: err
+or: cannot find symbol
+        try (InputStream stream = resource.open()) {
+                                          ^
+  symbol:   method open()
+  location: variable resource of type Resource
+C:\Users\user\Desktop\2\mzycBetterMTR-Forge-1.18.2\src\main\java\smooth\lift\client\EscalatorStepTextures.java:475: err
+or: cannot find symbol
+        return Arrays.equals(a.getPixelsRGBA(), b.getPixelsRGBA());
+                              ^
+  symbol:   method getPixelsRGBA()
+  location: variable a of type NativeImage
+C:\Users\user\Desktop\2\mzycBetterMTR-Forge-1.18.2\src\main\java\smooth\lift\client\EscalatorStepTextures.java:475: err
+or: cannot find symbol
+        return Arrays.equals(a.getPixelsRGBA(), b.getPixelsRGBA());
+                                                 ^
+  symbol:   method getPixelsRGBA()
+  location: variable b of type NativeImage
+C:\Users\user\Desktop\2\mzycBetterMTR-Forge-1.18.2\src\main\java\smooth\lift\client\EscalatorStepTextures.java:502: err
+or: method copyRect in class NativeImage cannot be applied to given types;
+            source.copyRect(target, 0, sourceFrame * width, 0, 0, width, width, false, false);
+                  ^
+  required: int,int,int,int,int,int,boolean,boolean
+  found:    NativeImage,int,int,int,int,int,int,boolean,boolean
+  reason: actual and formal argument lists differ in length
+C:\Users\user\Desktop\2\mzycBetterMTR-Forge-1.18.2\src\main\java\smooth\lift\client\EscalatorStepTextures.java:564: err
+or: cannot find symbol
+                    resource.metadata().getSection(AnimationMetadataSection.SERIALIZER);
+                            ^
+  symbol:   method metadata()
+  location: variable resource of type Resource
+C:\Users\user\Desktop\2\mzycBetterMTR-Forge-1.18.2\src\main\java\smooth\lift\client\EscalatorStepTextures.java:584: err
+or: cannot find symbol
+            LOGGER.warn("[SmoothLift] ���� {} �Ķ���֡��ʧ�ܣ���˳�򲥷�", resource.sourcePackId(), t);
+                                                                    ^
+  symbol:   method sourcePackId()
+  location: variable resource of type Resource
+C:\Users\user\Desktop\2\mzycBetterMTR-Forge-1.18.2\src\main\java\smooth\lift\client\FolderOpenButton.java:92: error: ca
+nnot find symbol
+        return Button.builder(new net.minecraft.network.chat.TextComponent("���ļ���"), button -> open(relativePath))
+                     ^
+  symbol:   method builder(TextComponent,(button)->[...]Path))
+  location: class Button
+C:\Users\user\Desktop\2\mzycBetterMTR-Forge-1.18.2\src\main\java\smooth\lift\client\HelpAudioSetupScreen.java:224: erro
+r: cannot find symbol
+        addRenderableWidget(Button.builder(new net.minecraft.network.chat.TextComponent("����"), button -> onClose())
+                                  ^
+  symbol:   method builder(TextComponent,(button)->onClose())
+  location: class Button
+C:\Users\user\Desktop\2\mzycBetterMTR-Forge-1.18.2\src\main\java\smooth\lift\client\HelpAudioSetupScreen.java:227: erro
+r: cannot find symbol
+        addRenderableWidget(Button.builder(new net.minecraft.network.chat.TextComponent("ˢ��"), button -> {
+                                  ^
+  symbol:   method builder(TextComponent,(button)->[...]"); })
+  location: class Button
+C:\Users\user\Desktop\2\mzycBetterMTR-Forge-1.18.2\src\main\java\smooth\lift\client\HelpAudioSetupScreen.java:247: erro
+r: cannot find symbol
+            addRenderableWidget(Button.builder(new net.minecraft.network.chat.TextComponent(truncate(id, 22)),
+                                      ^
+  symbol:   method builder(TextComponent,(button)->[...]o(id))
+  location: class Button
+C:\Users\user\Desktop\2\mzycBetterMTR-Forge-1.18.2\src\main\java\smooth\lift\client\HelpAudioSetupScreen.java:258: erro
+r: cannot find symbol
+            addRenderableWidget(Button.builder(
+                                      ^
+  symbol:   method builder(TextComponent,(button)->[...]_OFF))
+  location: class Button
+C:\Users\user\Desktop\2\mzycBetterMTR-Forge-1.18.2\src\main\java\smooth\lift\client\HelpAudioSetupScreen.java:263: erro
+r: cannot find symbol
+            addRenderableWidget(Button.builder(new net.minecraft.network.chat.TextComponent("ѡ��"),
+                                      ^
+  symbol:   method builder(TextComponent,(button)->[...]_OFF))
+  location: class Button
+C:\Users\user\Desktop\2\mzycBetterMTR-Forge-1.18.2\src\main\java\smooth\lift\client\HelpAudioSetupScreen.java:273: erro
+r: cannot find symbol
+            addRenderableWidget(Button.builder(
+                                      ^
+  symbol:   method builder(TextComponent,(button)->[...]AULT))
+  location: class Button
+C:\Users\user\Desktop\2\mzycBetterMTR-Forge-1.18.2\src\main\java\smooth\lift\client\HelpAudioSetupScreen.java:278: erro
+r: cannot find symbol
+            addRenderableWidget(Button.builder(new net.minecraft.network.chat.TextComponent("ѡ��"),
+                                      ^
+  symbol:   method builder(TextComponent,(button)->[...]AULT))
+  location: class Button
+C:\Users\user\Desktop\2\mzycBetterMTR-Forge-1.18.2\src\main\java\smooth\lift\client\HelpAudioSetupScreen.java:292: erro
+r: cannot find symbol
+            addRenderableWidget(Button.builder(
+                                      ^
+  symbol:   method builder(TextComponent,(button)->[...]o(id))
+  location: class Button
+C:\Users\user\Desktop\2\mzycBetterMTR-Forge-1.18.2\src\main\java\smooth\lift\client\HelpAudioSetupScreen.java:297: erro
+r: cannot find symbol
+            addRenderableWidget(Button.builder(new net.minecraft.network.chat.TextComponent("ѡ��"), button -> setHelpAu
+dio(id))
+                                      ^
+  symbol:   method builder(TextComponent,(button)->[...]o(id))
+  location: class Button
+C:\Users\user\Desktop\2\mzycBetterMTR-Forge-1.18.2\src\main\java\smooth\lift\client\HelpAudioSetupScreen.java:300: erro
+r: cannot find symbol
+            addRenderableWidget(Button.builder(new net.minecraft.network.chat.TextComponent("ɾ��"), button -> deleteAud
+io(id))
+                                      ^
+  symbol:   method builder(TextComponent,(button)->[...]o(id))
+  location: class Button
+C:\Users\user\Desktop\2\mzycBetterMTR-Forge-1.18.2\src\main\java\smooth\lift\client\HelpAudioSetupScreen.java:323: erro
+r: method does not override or implement a method from a supertype
+    @Override
+    ^
+C:\Users\user\Desktop\2\mzycBetterMTR-Forge-1.18.2\src\main\java\smooth\lift\client\HelpAudioSetupScreen.java:331: erro
+r: method mouseScrolled in interface ContainerEventHandler cannot be applied to given types;
+        return super.mouseScrolled(mouseX, mouseY, scrollX, scrollY);
+                    ^
+  required: double,double,double
+  found:    double,double,double,double
+  reason: actual and formal argument lists differ in length
+C:\Users\user\Desktop\2\mzycBetterMTR-Forge-1.18.2\src\main\java\smooth\lift\client\HelpAudioSetupScreen.java:389: erro
+r: method does not override or implement a method from a supertype
+    @Override
+    ^
+C:\Users\user\Desktop\2\mzycBetterMTR-Forge-1.18.2\src\main\java\smooth\lift\client\HelpAudioSetupScreen.java:391: erro
+r: no suitable method found for renderBackground(GuiGraphics,int,int,float)
+        this.renderBackground(guiGraphics, mouseX, mouseY, partialTick);
+            ^
+    method Screen.renderBackground(PoseStack) is not applicable
+      (actual and formal argument lists differ in length)
+    method Screen.renderBackground(PoseStack,int) is not applicable
+      (actual and formal argument lists differ in length)
+C:\Users\user\Desktop\2\mzycBetterMTR-Forge-1.18.2\src\main\java\smooth\lift\client\LiftChimePlayer.java:804: error: no
+ suitable constructor found for AbstractSoundInstance(ResourceLocation,SoundSource,RandomSource)
+            super(event, SoundSource.BLOCKS, RandomSource.create());
+            ^
+    constructor AbstractSoundInstance.AbstractSoundInstance(SoundEvent,SoundSource) is not applicable
+      (actual and formal argument lists differ in length)
+    constructor AbstractSoundInstance.AbstractSoundInstance(ResourceLocation,SoundSource) is not applicable
+      (actual and formal argument lists differ in length)
+C:\Users\user\Desktop\2\mzycBetterMTR-Forge-1.18.2\src\main\java\smooth\lift\client\LiftChimePlayer.java:820: error: in
+compatible types: ConstantFloat cannot be converted to float
+            Sound s = new Sound(name.toString(), ConstantFloat.of(1.0F), ConstantFloat.of(1.0F),
+                                                                 ^
+C:\Users\user\Desktop\2\mzycBetterMTR-Forge-1.18.2\src\main\java\smooth\lift\client\LiftToneSetupScreen.java:292: error
+: cannot find symbol
+        addRenderableWidget(Button.builder(new net.minecraft.network.chat.TextComponent("����"), button -> onClose())
+                                  ^
+  symbol:   method builder(TextComponent,(button)->onClose())
+  location: class Button
+C:\Users\user\Desktop\2\mzycBetterMTR-Forge-1.18.2\src\main\java\smooth\lift\client\LiftToneSetupScreen.java:295: error
+: cannot find symbol
+        addRenderableWidget(Button.builder(new net.minecraft.network.chat.TextComponent("ˢ��"), button -> {
+                                  ^
+  symbol:   method builder(TextComponent,(button)->[...]"); })
+  location: class Button
+C:\Users\user\Desktop\2\mzycBetterMTR-Forge-1.18.2\src\main\java\smooth\lift\client\LiftToneSetupScreen.java:306: error
+: cannot find symbol
+            addRenderableWidget(Button.builder(
+                                      ^
+  symbol:   method builder(TextComponent,(button)->[...](); })
+  location: class Button
+C:\Users\user\Desktop\2\mzycBetterMTR-Forge-1.18.2\src\main\java\smooth\lift\client\LiftToneSetupScreen.java:409: error
+: cannot find symbol
+        addRenderableWidget(Button.builder(new net.minecraft.network.chat.TextComponent("����"), button -> {
+                                  ^
+  symbol:   method builder(TextComponent,(button)->[...](); })
+  location: class Button
+C:\Users\user\Desktop\2\mzycBetterMTR-Forge-1.18.2\src\main\java\smooth\lift\client\LiftToneSetupScreen.java:415: error
+: cannot find symbol
+        addRenderableWidget(Button.builder(new net.minecraft.network.chat.TextComponent("ˢ��"), button -> {
+                                  ^
+  symbol:   method builder(TextComponent,(button)->[...]"); })
+  location: class Button
+C:\Users\user\Desktop\2\mzycBetterMTR-Forge-1.18.2\src\main\java\smooth\lift\client\LiftToneSetupScreen.java:429: error
+: cannot find symbol
+            addRenderableWidget(Button.builder(new net.minecraft.network.chat.TextComponent(truncate(id, 22)),
+                                      ^
+  symbol:   method builder(TextComponent,(button)->[...], id))
+  location: class Button
+C:\Users\user\Desktop\2\mzycBetterMTR-Forge-1.18.2\src\main\java\smooth\lift\client\LiftToneSetupScreen.java:445: error
+: cannot find symbol
+            addRenderableWidget(Button.builder(
+                                      ^
+  symbol:   method builder(TextComponent,(button)->[...]alse))
+  location: class Button
+C:\Users\user\Desktop\2\mzycBetterMTR-Forge-1.18.2\src\main\java\smooth\lift\client\LiftToneSetupScreen.java:450: error
+: cannot find symbol
+            addRenderableWidget(Button.builder(new net.minecraft.network.chat.TextComponent("ѡ��"),
+                                      ^
+  symbol:   method builder(TextComponent,(button)->[...]alse))
+  location: class Button
+C:\Users\user\Desktop\2\mzycBetterMTR-Forge-1.18.2\src\main\java\smooth\lift\client\LiftToneSetupScreen.java:461: error
+: cannot find symbol
+            addRenderableWidget(Button.builder(
+                                      ^
+  symbol:   method builder(TextComponent,(button)->[...]alse))
+  location: class Button
+C:\Users\user\Desktop\2\mzycBetterMTR-Forge-1.18.2\src\main\java\smooth\lift\client\LiftToneSetupScreen.java:466: error
+: cannot find symbol
+            addRenderableWidget(Button.builder(new net.minecraft.network.chat.TextComponent("ѡ��"),
+                                      ^
+  symbol:   method builder(TextComponent,(button)->[...]alse))
+  location: class Button
+C:\Users\user\Desktop\2\mzycBetterMTR-Forge-1.18.2\src\main\java\smooth\lift\client\LiftToneSetupScreen.java:481: error
+: cannot find symbol
+            addRenderableWidget(Button.builder(
+                                      ^
+  symbol:   method builder(TextComponent,(button)->[...]alse))
+  location: class Button
+C:\Users\user\Desktop\2\mzycBetterMTR-Forge-1.18.2\src\main\java\smooth\lift\client\LiftToneSetupScreen.java:486: error
+: cannot find symbol
+            addRenderableWidget(Button.builder(new net.minecraft.network.chat.TextComponent("ѡ��"), button -> pick(whic
+h, id, false))
+                                      ^
+  symbol:   method builder(TextComponent,(button)->[...]alse))
+  location: class Button
+C:\Users\user\Desktop\2\mzycBetterMTR-Forge-1.18.2\src\main\java\smooth\lift\client\LiftToneSetupScreen.java:489: error
+: cannot find symbol
+            addRenderableWidget(Button.builder(new net.minecraft.network.chat.TextComponent("ɾ��"), button -> deleteSto
+red(which, id))
+                                      ^
+  symbol:   method builder(TextComponent,(button)->[...], id))
+  location: class Button
+C:\Users\user\Desktop\2\mzycBetterMTR-Forge-1.18.2\src\main\java\smooth\lift\client\LiftToneSetupScreen.java:682: error
+: method does not override or implement a method from a supertype
+    @Override
+    ^
+C:\Users\user\Desktop\2\mzycBetterMTR-Forge-1.18.2\src\main\java\smooth\lift\client\LiftToneSetupScreen.java:690: error
+: method mouseScrolled in interface ContainerEventHandler cannot be applied to given types;
+        return super.mouseScrolled(mouseX, mouseY, scrollX, scrollY);
+                    ^
+  required: double,double,double
+  found:    double,double,double,double
+  reason: actual and formal argument lists differ in length
+C:\Users\user\Desktop\2\mzycBetterMTR-Forge-1.18.2\src\main\java\smooth\lift\client\LiftToneSetupScreen.java:693: error
+: method does not override or implement a method from a supertype
+    @Override
+    ^
+C:\Users\user\Desktop\2\mzycBetterMTR-Forge-1.18.2\src\main\java\smooth\lift\client\LiftToneSetupScreen.java:695: error
+: no suitable method found for renderBackground(GuiGraphics,int,int,float)
+        this.renderBackground(guiGraphics, mouseX, mouseY, partialTick);
+            ^
+    method Screen.renderBackground(PoseStack) is not applicable
+      (actual and formal argument lists differ in length)
+    method Screen.renderBackground(PoseStack,int) is not applicable
+      (actual and formal argument lists differ in length)
+C:\Users\user\Desktop\2\mzycBetterMTR-Forge-1.18.2\src\main\java\smooth\lift\client\MbmHelpScreen.java:73: error: canno
+t find symbol
+        addRenderableWidget(Button.builder(new net.minecraft.network.chat.TextComponent("�������Ԥ��"), button -> sendPr
+eset(ID_CLASSIC))
+                                  ^
+  symbol:   method builder(TextComponent,(button)->[...]SSIC))
+  location: class Button
+C:\Users\user\Desktop\2\mzycBetterMTR-Forge-1.18.2\src\main\java\smooth\lift\client\MbmHelpScreen.java:76: error: canno
+t find symbol
+        addRenderableWidget(Button.builder(new net.minecraft.network.chat.TextComponent("�򵥸���Ԥ��"), button -> sendPre
+set(ID_SIMPLE))
+                                  ^
+  symbol:   method builder(TextComponent,(button)->[...]MPLE))
+  location: class Button
+C:\Users\user\Desktop\2\mzycBetterMTR-Forge-1.18.2\src\main\java\smooth\lift\client\MbmHelpScreen.java:79: error: canno
+t find symbol
+        addRenderableWidget(Button.builder(new net.minecraft.network.chat.TextComponent("�հ�Ԥ��"), button -> sendPreset
+(ID_BLANK))
+                                  ^
+  symbol:   method builder(TextComponent,(button)->[...]LANK))
+  location: class Button
+C:\Users\user\Desktop\2\mzycBetterMTR-Forge-1.18.2\src\main\java\smooth\lift\client\MbmHelpScreen.java:204: error: meth
+od does not override or implement a method from a supertype
+    @Override
+    ^
+C:\Users\user\Desktop\2\mzycBetterMTR-Forge-1.18.2\src\main\java\smooth\lift\client\MbmHelpScreen.java:206: error: no s
+uitable method found for renderBackground(GuiGraphics,int,int,float)
+        this.renderBackground(guiGraphics, mouseX, mouseY, partialTick);
+            ^
+    method Screen.renderBackground(PoseStack) is not applicable
+      (actual and formal argument lists differ in length)
+    method Screen.renderBackground(PoseStack,int) is not applicable
+      (actual and formal argument lists differ in length)
+C:\Users\user\Desktop\2\mzycBetterMTR-Forge-1.18.2\src\main\java\smooth\lift\client\PsdChimePlayer.java:3519: error: no
+ suitable constructor found for AbstractSoundInstance(ResourceLocation,SoundSource,RandomSource)
+            super(event, SoundSource.BLOCKS, RandomSource.create());
+            ^
+    constructor AbstractSoundInstance.AbstractSoundInstance(SoundEvent,SoundSource) is not applicable
+      (actual and formal argument lists differ in length)
+    constructor AbstractSoundInstance.AbstractSoundInstance(ResourceLocation,SoundSource) is not applicable
+      (actual and formal argument lists differ in length)
+C:\Users\user\Desktop\2\mzycBetterMTR-Forge-1.18.2\src\main\java\smooth\lift\client\PsdChimePlayer.java:3643: error: in
+compatible types: ConstantFloat cannot be converted to float
+            Sound s = new Sound(name.toString(), ConstantFloat.of(1.0F), ConstantFloat.of(1.0F),
+                                                                 ^
+C:\Users\user\Desktop\2\mzycBetterMTR-Forge-1.18.2\src\main\java\smooth\lift\client\PsdToneSetupScreen.java:461: error:
+ cannot find symbol
+        addRenderableWidget(Button.builder(new net.minecraft.network.chat.TextComponent("����"), button -> onClose())
+                                  ^
+  symbol:   method builder(TextComponent,(button)->onClose())
+  location: class Button
+C:\Users\user\Desktop\2\mzycBetterMTR-Forge-1.18.2\src\main\java\smooth\lift\client\PsdToneSetupScreen.java:464: error:
+ cannot find symbol
+        addRenderableWidget(Button.builder(new net.minecraft.network.chat.TextComponent("ˢ��"), button -> {
+                                  ^
+  symbol:   method builder(TextComponent,(button)->[...]"); })
+  location: class Button
+C:\Users\user\Desktop\2\mzycBetterMTR-Forge-1.18.2\src\main\java\smooth\lift\client\PsdToneSetupScreen.java:478: error:
+ cannot find symbol
+            addRenderableWidget(Button.builder(
+                                      ^
+  symbol:   method builder(TextComponent,(button)->[...](); })
+  location: class Button
+C:\Users\user\Desktop\2\mzycBetterMTR-Forge-1.18.2\src\main\java\smooth\lift\client\PsdToneSetupScreen.java:517: error:
+ cannot find symbol
+        addRenderableWidget(Button.builder(new net.minecraft.network.chat.TextComponent("վ̨�㲥"), button -> {
+                                  ^
+  symbol:   method builder(TextComponent,(button)->[...](); })
+  location: class Button
+C:\Users\user\Desktop\2\mzycBetterMTR-Forge-1.18.2\src\main\java\smooth\lift\client\PsdToneSetupScreen.java:542: error:
+ cannot find symbol
+        addRenderableWidget(Button.builder(new net.minecraft.network.chat.TextComponent("��վ�㲥"), button -> {
+                                  ^
+  symbol:   method builder(TextComponent,(button)->[...](); })
+  location: class Button
+C:\Users\user\Desktop\2\mzycBetterMTR-Forge-1.18.2\src\main\java\smooth\lift\client\PsdToneSetupScreen.java:567: error:
+ cannot find symbol
+        addRenderableWidget(Button.builder(new net.minecraft.network.chat.TextComponent("վ̨�㲥(������)"), button -> {
+                                  ^
+  symbol:   method builder(TextComponent,(button)->[...](); })
+  location: class Button
+C:\Users\user\Desktop\2\mzycBetterMTR-Forge-1.18.2\src\main\java\smooth\lift\client\PsdToneSetupScreen.java:588: error:
+ cannot find symbol
+        addRenderableWidget(Button.builder(new net.minecraft.network.chat.TextComponent("��վ�㲥(������)"), button -> {
+                                  ^
+  symbol:   method builder(TextComponent,(button)->[...](); })
+  location: class Button
+C:\Users\user\Desktop\2\mzycBetterMTR-Forge-1.18.2\src\main\java\smooth\lift\client\PsdToneSetupScreen.java:959: error:
+ cannot find symbol
+        addRenderableWidget(Button.builder(new net.minecraft.network.chat.TextComponent("����"), button -> {
+                                  ^
+  symbol:   method builder(TextComponent,(button)->[...](); })
+  location: class Button
+C:\Users\user\Desktop\2\mzycBetterMTR-Forge-1.18.2\src\main\java\smooth\lift\client\PsdToneSetupScreen.java:964: error:
+ cannot find symbol
+        addRenderableWidget(Button.builder(new net.minecraft.network.chat.TextComponent("ˢ��"), button -> {
+                                  ^
+  symbol:   method builder(TextComponent,(button)->[...]"); })
+  location: class Button
+C:\Users\user\Desktop\2\mzycBetterMTR-Forge-1.18.2\src\main\java\smooth\lift\client\PsdToneSetupScreen.java:978: error:
+ cannot find symbol
+            addRenderableWidget(Button.builder(new net.minecraft.network.chat.TextComponent(truncate(id, 22)),
+                                      ^
+  symbol:   method builder(TextComponent,(button)->[...]g(id))
+  location: class Button
+C:\Users\user\Desktop\2\mzycBetterMTR-Forge-1.18.2\src\main\java\smooth\lift\client\PsdToneSetupScreen.java:988: error:
+ cannot find symbol
+            addRenderableWidget(Button.builder(
+                                      ^
+  symbol:   method builder(TextComponent,(button)->[...]alse))
+  location: class Button
+C:\Users\user\Desktop\2\mzycBetterMTR-Forge-1.18.2\src\main\java\smooth\lift\client\PsdToneSetupScreen.java:993: error:
+ cannot find symbol
+            addRenderableWidget(Button.builder(new net.minecraft.network.chat.TextComponent("ѡ��"),
+                                      ^
+  symbol:   method builder(TextComponent,(button)->[...]alse))
+  location: class Button
+C:\Users\user\Desktop\2\mzycBetterMTR-Forge-1.18.2\src\main\java\smooth\lift\client\PsdToneSetupScreen.java:1007: error
+: cannot find symbol
+            addRenderableWidget(Button.builder(
+                                      ^
+  symbol:   method builder(TextComponent,(button)->[...]alse))
+  location: class Button
+C:\Users\user\Desktop\2\mzycBetterMTR-Forge-1.18.2\src\main\java\smooth\lift\client\PsdToneSetupScreen.java:1012: error
+: cannot find symbol
+            addRenderableWidget(Button.builder(new net.minecraft.network.chat.TextComponent("ѡ��"),
+                                      ^
+  symbol:   method builder(TextComponent,(button)->[...]alse))
+  location: class Button
+C:\Users\user\Desktop\2\mzycBetterMTR-Forge-1.18.2\src\main\java\smooth\lift\client\PsdToneSetupScreen.java:1025: error
+: cannot find symbol
+            addRenderableWidget(Button.builder(
+                                      ^
+  symbol:   method builder(TextComponent,(button)->[...]alse))
+  location: class Button
+C:\Users\user\Desktop\2\mzycBetterMTR-Forge-1.18.2\src\main\java\smooth\lift\client\PsdToneSetupScreen.java:1030: error
+: cannot find symbol
+            addRenderableWidget(Button.builder(new net.minecraft.network.chat.TextComponent("ѡ��"), button -> pick(whic
+h, id, false))
+                                      ^
+  symbol:   method builder(TextComponent,(button)->[...]alse))
+  location: class Button
+C:\Users\user\Desktop\2\mzycBetterMTR-Forge-1.18.2\src\main\java\smooth\lift\client\PsdToneSetupScreen.java:1033: error
+: cannot find symbol
+            addRenderableWidget(Button.builder(new net.minecraft.network.chat.TextComponent("ɾ��"), button -> deleteSto
+red(id))
+                                      ^
+  symbol:   method builder(TextComponent,(button)->[...]d(id))
+  location: class Button
+C:\Users\user\Desktop\2\mzycBetterMTR-Forge-1.18.2\src\main\java\smooth\lift\client\PsdToneSetupScreen.java:1085: error
+: cannot find symbol
+        addRenderableWidget(Button.builder(new net.minecraft.network.chat.TextComponent("����"), button -> {
+                                  ^
+  symbol:   method builder(TextComponent,(button)->[...](); })
+  location: class Button
+C:\Users\user\Desktop\2\mzycBetterMTR-Forge-1.18.2\src\main\java\smooth\lift\client\PsdToneSetupScreen.java:1090: error
+: cannot find symbol
+        addRenderableWidget(Button.builder(new net.minecraft.network.chat.TextComponent("ˢ��"), button -> {
+                                  ^
+  symbol:   method builder(TextComponent,(button)->[...]"); })
+  location: class Button
+C:\Users\user\Desktop\2\mzycBetterMTR-Forge-1.18.2\src\main\java\smooth\lift\client\PsdToneSetupScreen.java:1107: error
+: cannot find symbol
+            addRenderableWidget(Button.builder(new net.minecraft.network.chat.TextComponent(truncate(id, 22)),
+                                      ^
+  symbol:   method builder(TextComponent,(button)->[...]g(id))
+  location: class Button
+C:\Users\user\Desktop\2\mzycBetterMTR-Forge-1.18.2\src\main\java\smooth\lift\client\PsdToneSetupScreen.java:1122: error
+: cannot find symbol
+            addRenderableWidget(Button.builder(
+                                      ^
+  symbol:   method builder(TextComponent,(button)->[...]_OFF))
+  location: class Button
+C:\Users\user\Desktop\2\mzycBetterMTR-Forge-1.18.2\src\main\java\smooth\lift\client\PsdToneSetupScreen.java:1127: error
+: cannot find symbol
+            addRenderableWidget(Button.builder(new net.minecraft.network.chat.TextComponent("ѡ��"),
+                                      ^
+  symbol:   method builder(TextComponent,(button)->[...]_OFF))
+  location: class Button
+C:\Users\user\Desktop\2\mzycBetterMTR-Forge-1.18.2\src\main\java\smooth\lift\client\PsdToneSetupScreen.java:1139: error
+: cannot find symbol
+            addRenderableWidget(Button.builder(
+                                      ^
+  symbol:   method builder(TextComponent,(button)->[...]m(id))
+  location: class Button
+C:\Users\user\Desktop\2\mzycBetterMTR-Forge-1.18.2\src\main\java\smooth\lift\client\PsdToneSetupScreen.java:1144: error
+: cannot find symbol
+            addRenderableWidget(Button.builder(new net.minecraft.network.chat.TextComponent("ѡ��"), button -> pickMidiu
+m(id))
+                                      ^
+  symbol:   method builder(TextComponent,(button)->[...]m(id))
+  location: class Button
+C:\Users\user\Desktop\2\mzycBetterMTR-Forge-1.18.2\src\main\java\smooth\lift\client\PsdToneSetupScreen.java:1147: error
+: cannot find symbol
+            addRenderableWidget(Button.builder(new net.minecraft.network.chat.TextComponent("ɾ��"), button -> deleteSto
+red(id))
+                                      ^
+  symbol:   method builder(TextComponent,(button)->[...]d(id))
+  location: class Button
+C:\Users\user\Desktop\2\mzycBetterMTR-Forge-1.18.2\src\main\java\smooth\lift\client\PsdToneSetupScreen.java:1167: error
+: cannot find symbol
+        addRenderableWidget(Button.builder(new net.minecraft.network.chat.TextComponent("����"), button -> {
+                                  ^
+  symbol:   method builder(TextComponent,(button)->[...](); })
+  location: class Button
+C:\Users\user\Desktop\2\mzycBetterMTR-Forge-1.18.2\src\main\java\smooth\lift\client\PsdToneSetupScreen.java:1172: error
+: cannot find symbol
+        addRenderableWidget(Button.builder(new net.minecraft.network.chat.TextComponent("ˢ��"), button -> {
+                                  ^
+  symbol:   method builder(TextComponent,(button)->[...]"); })
+  location: class Button
+C:\Users\user\Desktop\2\mzycBetterMTR-Forge-1.18.2\src\main\java\smooth\lift\client\PsdToneSetupScreen.java:1187: error
+: cannot find symbol
+            addRenderableWidget(Button.builder(new net.minecraft.network.chat.TextComponent(truncate(id, 22)),
+                                      ^
+  symbol:   method builder(TextComponent,(button)->[...]g(id))
+  location: class Button
+C:\Users\user\Desktop\2\mzycBetterMTR-Forge-1.18.2\src\main\java\smooth\lift\client\PsdToneSetupScreen.java:1198: error
+: cannot find symbol
+            addRenderableWidget(Button.builder(
+                                      ^
+  symbol:   method builder(TextComponent,(button)->[...]_OFF))
+  location: class Button
+C:\Users\user\Desktop\2\mzycBetterMTR-Forge-1.18.2\src\main\java\smooth\lift\client\PsdToneSetupScreen.java:1203: error
+: cannot find symbol
+            addRenderableWidget(Button.builder(new net.minecraft.network.chat.TextComponent("ѡ��"),
+                                      ^
+  symbol:   method builder(TextComponent,(button)->[...]_OFF))
+  location: class Button
+C:\Users\user\Desktop\2\mzycBetterMTR-Forge-1.18.2\src\main\java\smooth\lift\client\PsdToneSetupScreen.java:1215: error
+: cannot find symbol
+            addRenderableWidget(Button.builder(
+                                      ^
+  symbol:   method builder(TextComponent,(button)->[...]e(id))
+  location: class Button
+C:\Users\user\Desktop\2\mzycBetterMTR-Forge-1.18.2\src\main\java\smooth\lift\client\PsdToneSetupScreen.java:1220: error
+: cannot find symbol
+            addRenderableWidget(Button.builder(new net.minecraft.network.chat.TextComponent("ѡ��"), button -> pickArriv
+e(id))
+                                      ^
+  symbol:   method builder(TextComponent,(button)->[...]e(id))
+  location: class Button
+C:\Users\user\Desktop\2\mzycBetterMTR-Forge-1.18.2\src\main\java\smooth\lift\client\PsdToneSetupScreen.java:1223: error
+: cannot find symbol
+            addRenderableWidget(Button.builder(new net.minecraft.network.chat.TextComponent("ɾ��"), button -> deleteSto
+red(id))
+                                      ^
+  symbol:   method builder(TextComponent,(button)->[...]d(id))
+  location: class Button
+C:\Users\user\Desktop\2\mzycBetterMTR-Forge-1.18.2\src\main\java\smooth\lift\client\PsdToneSetupScreen.java:1426: error
+: cannot find symbol
+        addRenderableWidget(Button.builder(new net.minecraft.network.chat.TextComponent("����"), button -> {
+                                  ^
+  symbol:   method builder(TextComponent,(button)->[...](); })
+  location: class Button
+C:\Users\user\Desktop\2\mzycBetterMTR-Forge-1.18.2\src\main\java\smooth\lift\client\PsdToneSetupScreen.java:1431: error
+: cannot find symbol
+        addRenderableWidget(Button.builder(new net.minecraft.network.chat.TextComponent("ˢ��"), button -> {
+                                  ^
+  symbol:   method builder(TextComponent,(button)->[...]"); })
+  location: class Button
+C:\Users\user\Desktop\2\mzycBetterMTR-Forge-1.18.2\src\main\java\smooth\lift\client\PsdToneSetupScreen.java:1457: error
+: cannot find symbol
+            addRenderableWidget(Button.builder(
+                                      ^
+  symbol:   method builder(TextComponent,(button)->[...]rget))
+  location: class Button
+C:\Users\user\Desktop\2\mzycBetterMTR-Forge-1.18.2\src\main\java\smooth\lift\client\PsdToneSetupScreen.java:1462: error
+: cannot find symbol
+            addRenderableWidget(Button.builder(new net.minecraft.network.chat.TextComponent("ѡ��"),
+                                      ^
+  symbol:   method builder(TextComponent,(button)->[...]rget))
+  location: class Button
+C:\Users\user\Desktop\2\mzycBetterMTR-Forge-1.18.2\src\main\java\smooth\lift\client\PsdToneSetupScreen.java:1477: error
+: cannot find symbol
+            addRenderableWidget(Button.builder(new net.minecraft.network.chat.TextComponent("user" + (i + 1)),
+                                      ^
+  symbol:   method builder(TextComponent,(button)->[...]idx0))
+  location: class Button
+C:\Users\user\Desktop\2\mzycBetterMTR-Forge-1.18.2\src\main\java\smooth\lift\client\PsdToneSetupScreen.java:1481: error
+: cannot find symbol
+            addRenderableWidget(Button.builder(new net.minecraft.network.chat.TextComponent(mode == target ? "?��ǰ" : "
+ѡ��"),
+                                      ^
+  symbol:   method builder(TextComponent,(button)->[...]rget))
+  location: class Button
+C:\Users\user\Desktop\2\mzycBetterMTR-Forge-1.18.2\src\main\java\smooth\lift\client\PsdToneSetupScreen.java:1485: error
+: cannot find symbol
+            addRenderableWidget(Button.builder(new net.minecraft.network.chat.TextComponent("ɾ��"), button -> deleteUse
+rEntry(idx0))
+                                      ^
+  symbol:   method builder(TextComponent,(button)->[...]idx0))
+  location: class Button
+C:\Users\user\Desktop\2\mzycBetterMTR-Forge-1.18.2\src\main\java\smooth\lift\client\PsdToneSetupScreen.java:1493: error
+: cannot find symbol
+            addRenderableWidget(Button.builder(new net.minecraft.network.chat.TextComponent("���Ԥ��"), button -> addNew
+UserSlot())
+                                      ^
+  symbol:   method builder(TextComponent,(button)->[...]lot())
+  location: class Button
+C:\Users\user\Desktop\2\mzycBetterMTR-Forge-1.18.2\src\main\java\smooth\lift\client\PsdToneSetupScreen.java:1517: error
+: cannot find symbol
+                editor.setHint(new net.minecraft.network.chat.TextComponent("���Ҳ��ѡҪ�༭��Ԥ��"));
+                      ^
+  symbol:   method setHint(TextComponent)
+  location: variable editor of type WrappingEditBox
+C:\Users\user\Desktop\2\mzycBetterMTR-Forge-1.18.2\src\main\java\smooth\lift\client\PsdToneSetupScreen.java:1522: error
+: cannot find symbol
+                editor.setHint(new net.minecraft.network.chat.TextComponent("user" + (editingIndex + 1)));
+                      ^
+  symbol:   method setHint(TextComponent)
+  location: variable editor of type WrappingEditBox
+C:\Users\user\Desktop\2\mzycBetterMTR-Forge-1.18.2\src\main\java\smooth\lift\client\PsdToneSetupScreen.java:1572: error
+: cannot find symbol
+            addRenderableWidget(Button.builder(new net.minecraft.network.chat.TextComponent(cn[i]),
+                                      ^
+  symbol:   method builder(TextComponent,(button)->[...]col]))
+  location: class Button
+C:\Users\user\Desktop\2\mzycBetterMTR-Forge-1.18.2\src\main\java\smooth\lift\client\PsdToneSetupScreen.java:1576: error
+: cannot find symbol
+                addRenderableWidget(Button.builder(new net.minecraft.network.chat.TextComponent(en[i]),
+                                          ^
+  symbol:   method builder(TextComponent,(button)->[...]- 1]))
+  location: class Button
+C:\Users\user\Desktop\2\mzycBetterMTR-Forge-1.18.2\src\main\java\smooth\lift\client\PsdToneSetupScreen.java:2024: error
+: method does not override or implement a method from a supertype
+    @Override
+    ^
+C:\Users\user\Desktop\2\mzycBetterMTR-Forge-1.18.2\src\main\java\smooth\lift\client\PsdToneSetupScreen.java:2036: error
+: method mouseScrolled in interface ContainerEventHandler cannot be applied to given types;
+        return super.mouseScrolled(mouseX, mouseY, scrollX, scrollY);
+                    ^
+  required: double,double,double
+  found:    double,double,double,double
+  reason: actual and formal argument lists differ in length
+C:\Users\user\Desktop\2\mzycBetterMTR-Forge-1.18.2\src\main\java\smooth\lift\client\PsdToneSetupScreen.java:2072: error
+: method does not override or implement a method from a supertype
+    @Override
+    ^
+C:\Users\user\Desktop\2\mzycBetterMTR-Forge-1.18.2\src\main\java\smooth\lift\client\PsdToneSetupScreen.java:2074: error
+: no suitable method found for renderBackground(GuiGraphics,int,int,float)
+        this.renderBackground(guiGraphics, mouseX, mouseY, partialTick);
+            ^
+    method Screen.renderBackground(PoseStack) is not applicable
+      (actual and formal argument lists differ in length)
+    method Screen.renderBackground(PoseStack,int) is not applicable
+      (actual and formal argument lists differ in length)
+C:\Users\user\Desktop\2\mzycBetterMTR-Forge-1.18.2\src\main\java\smooth\lift\client\WrappingEditBox.java:67: error: met
+hod does not override or implement a method from a supertype
+    @Override
+    ^
+C:\Users\user\Desktop\2\mzycBetterMTR-Forge-1.18.2\src\main\java\smooth\lift\client\WrappingEditBox.java:73: error: can
+not find symbol
+        guiGraphics.fill(getX(), getY(), getX() + width, getY() + height, 0xFF000000);
+                                         ^
+  symbol:   method getX()
+  location: class WrappingEditBox
+C:\Users\user\Desktop\2\mzycBetterMTR-Forge-1.18.2\src\main\java\smooth\lift\client\WrappingEditBox.java:73: error: can
+not find symbol
+        guiGraphics.fill(getX(), getY(), getX() + width, getY() + height, 0xFF000000);
+                                                         ^
+  symbol:   method getY()
+  location: class WrappingEditBox
+C:\Users\user\Desktop\2\mzycBetterMTR-Forge-1.18.2\src\main\java\smooth\lift\client\WrappingEditBox.java:73: error: can
+not find symbol
+        guiGraphics.fill(getX(), getY(), getX() + width, getY() + height, 0xFF000000);
+                         ^
+  symbol:   method getX()
+  location: class WrappingEditBox
+C:\Users\user\Desktop\2\mzycBetterMTR-Forge-1.18.2\src\main\java\smooth\lift\client\WrappingEditBox.java:73: error: can
+not find symbol
+        guiGraphics.fill(getX(), getY(), getX() + width, getY() + height, 0xFF000000);
+                                 ^
+  symbol:   method getY()
+  location: class WrappingEditBox
+C:\Users\user\Desktop\2\mzycBetterMTR-Forge-1.18.2\src\main\java\smooth\lift\client\WrappingEditBox.java:74: error: can
+not find symbol
+        guiGraphics.renderOutline(getX(), getY(), width, height, isFocused() ? 0xFFFFFFFF : 0xFF606060);
+                                  ^
+  symbol:   method getX()
+  location: class WrappingEditBox
+C:\Users\user\Desktop\2\mzycBetterMTR-Forge-1.18.2\src\main\java\smooth\lift\client\WrappingEditBox.java:74: error: can
+not find symbol
+        guiGraphics.renderOutline(getX(), getY(), width, height, isFocused() ? 0xFFFFFFFF : 0xFF606060);
+                                          ^
+  symbol:   method getY()
+  location: class WrappingEditBox
+C:\Users\user\Desktop\2\mzycBetterMTR-Forge-1.18.2\src\main\java\smooth\lift\client\WrappingEditBox.java:85: error: can
+not find symbol
+        int textX = getX() + PAD;
+                    ^
+  symbol:   method getX()
+  location: class WrappingEditBox
+C:\Users\user\Desktop\2\mzycBetterMTR-Forge-1.18.2\src\main\java\smooth\lift\client\WrappingEditBox.java:86: error: can
+not find symbol
+        int textY = getY() + PAD;
+                    ^
+  symbol:   method getY()
+  location: class WrappingEditBox
+C:\Users\user\Desktop\2\mzycBetterMTR-Forge-1.18.2\src\main\java\smooth\lift\client\WrappingEditBox.java:89: error: can
+not find symbol
+        guiGraphics.enableScissor(getX() + 1, getY() + 1, getX() + width - 1, getY() + height - 1);
+                                  ^
+  symbol:   method getX()
+  location: class WrappingEditBox
+C:\Users\user\Desktop\2\mzycBetterMTR-Forge-1.18.2\src\main\java\smooth\lift\client\WrappingEditBox.java:89: error: can
+not find symbol
+        guiGraphics.enableScissor(getX() + 1, getY() + 1, getX() + width - 1, getY() + height - 1);
+                                              ^
+  symbol:   method getY()
+  location: class WrappingEditBox
+C:\Users\user\Desktop\2\mzycBetterMTR-Forge-1.18.2\src\main\java\smooth\lift\client\WrappingEditBox.java:89: error: can
+not find symbol
+        guiGraphics.enableScissor(getX() + 1, getY() + 1, getX() + width - 1, getY() + height - 1);
+                                                          ^
+  symbol:   method getX()
+  location: class WrappingEditBox
+C:\Users\user\Desktop\2\mzycBetterMTR-Forge-1.18.2\src\main\java\smooth\lift\client\WrappingEditBox.java:89: error: can
+not find symbol
+        guiGraphics.enableScissor(getX() + 1, getY() + 1, getX() + width - 1, getY() + height - 1);
+                                                                              ^
+  symbol:   method getY()
+  location: class WrappingEditBox
+C:\Users\user\Desktop\2\mzycBetterMTR-Forge-1.18.2\src\main\java\smooth\lift\client\WrappingEditBox.java:128: error: ca
+nnot find symbol
+        boolean inside = mouseX >= getX() && mouseX < getX() + width
+                                   ^
+  symbol:   method getX()
+  location: class WrappingEditBox
+C:\Users\user\Desktop\2\mzycBetterMTR-Forge-1.18.2\src\main\java\smooth\lift\client\WrappingEditBox.java:128: error: ca
+nnot find symbol
+        boolean inside = mouseX >= getX() && mouseX < getX() + width
+                                                      ^
+  symbol:   method getX()
+  location: class WrappingEditBox
+C:\Users\user\Desktop\2\mzycBetterMTR-Forge-1.18.2\src\main\java\smooth\lift\client\WrappingEditBox.java:129: error: ca
+nnot find symbol
+                && mouseY >= getY() && mouseY < getY() + height;
+                             ^
+  symbol:   method getY()
+  location: class WrappingEditBox
+C:\Users\user\Desktop\2\mzycBetterMTR-Forge-1.18.2\src\main\java\smooth\lift\client\WrappingEditBox.java:129: error: ca
+nnot find symbol
+                && mouseY >= getY() && mouseY < getY() + height;
+                                                ^
+  symbol:   method getY()
+  location: class WrappingEditBox
+C:\Users\user\Desktop\2\mzycBetterMTR-Forge-1.18.2\src\main\java\smooth\lift\client\WrappingEditBox.java:195: error: ca
+nnot find symbol
+        int row = top + (int) ((mouseY - (getY() + PAD)) / lineH);
+                                          ^
+  symbol:   method getY()
+  location: class WrappingEditBox
+C:\Users\user\Desktop\2\mzycBetterMTR-Forge-1.18.2\src\main\java\smooth\lift\client\WrappingEditBox.java:199: error: ca
+nnot find symbol
+        String fit = font.plainSubstrByWidth(line, (int) (mouseX - (getX() + PAD)));
+                                                                    ^
+  symbol:   method getX()
+  location: class WrappingEditBox
+C:\Users\user\Desktop\2\mzycBetterMTR-Forge-1.18.2\src\main\java\smooth\lift\client\SyncPopupScreen.java:117: error: ca
+nnot find symbol
+        return Button.builder(new net.minecraft.network.chat.TextComponent(label), button -> {
+                     ^
+  symbol:   method builder(TextComponent,(button)->[...])); })
+  location: class Button
+C:\Users\user\Desktop\2\mzycBetterMTR-Forge-1.18.2\src\main\java\smooth\lift\client\SyncPopupScreen.java:143: error: ca
+nnot find symbol
+        return Button.builder(new net.minecraft.network.chat.TextComponent("ͬ������"), button -> {
+                     ^
+  symbol:   method builder(TextComponent,(button)->[...])); })
+  location: class Button
+C:\Users\user\Desktop\2\mzycBetterMTR-Forge-1.18.2\src\main\java\smooth\lift\client\SyncPopupScreen.java:159: error: ca
+nnot find symbol
+            addRenderableWidget(Button.builder(new net.minecraft.network.chat.TextComponent(option.label()),
+                                      ^
+  symbol:   method builder(TextComponent,(button)->[...]run())
+  location: class Button
+C:\Users\user\Desktop\2\mzycBetterMTR-Forge-1.18.2\src\main\java\smooth\lift\client\SyncPopupScreen.java:166: error: ca
+nnot find symbol
+        addRenderableWidget(Button.builder(new net.minecraft.network.chat.TextComponent("ȡ��"), button -> onClose())
+                                  ^
+  symbol:   method builder(TextComponent,(button)->onClose())
+  location: class Button
+C:\Users\user\Desktop\2\mzycBetterMTR-Forge-1.18.2\src\main\java\smooth\lift\client\SyncPopupScreen.java:197: error: me
+thod does not override or implement a method from a supertype
+    @Override
+    ^
+C:\Users\user\Desktop\2\mzycBetterMTR-Forge-1.18.2\src\main\java\smooth\lift\client\SyncPopupScreen.java:199: error: no
+ suitable method found for renderBackground(GuiGraphics,int,int,float)
+        this.renderBackground(guiGraphics, mouseX, mouseY, partialTick);
+            ^
+    method Screen.renderBackground(PoseStack) is not applicable
+      (actual and formal argument lists differ in length)
+    method Screen.renderBackground(PoseStack,int) is not applicable
+      (actual and formal argument lists differ in length)
+C:\Users\user\Desktop\2\mzycBetterMTR-Forge-1.18.2\src\main\java\smooth\lift\client\TrainAnnounceSubtitle.java:290: err
+or: incompatible types: invalid method reference
+        HudRenderCallback.EVENT.register(TrainAnnounceSubtitle::render);
+                                         ^
+    incompatible types: PoseStack cannot be converted to GuiGraphics
+C:\Users\user\Desktop\2\mzycBetterMTR-Forge-1.18.2\src\main\java\smooth\lift\client\TrainSoundScreen.java:339: error: c
+annot find symbol
+            addRenderableWidget(Button.builder(new net.minecraft.network.chat.TextComponent(LABELS[i]),
+                                      ^
+  symbol:   method builder(TextComponent,(button)->[...]Page))
+  location: class Button
+C:\Users\user\Desktop\2\mzycBetterMTR-Forge-1.18.2\src\main\java\smooth\lift\client\TrainSoundScreen.java:368: error: c
+annot find symbol
+        addRenderableWidget(Button.builder(new net.minecraft.network.chat.TextComponent(BACK_LABEL), button -> {
+                                  ^
+  symbol:   method builder(TextComponent,(button)->[...](); })
+  location: class Button
+C:\Users\user\Desktop\2\mzycBetterMTR-Forge-1.18.2\src\main\java\smooth\lift\client\TrainSoundScreen.java:373: error: c
+annot find symbol
+        addRenderableWidget(Button.builder(new net.minecraft.network.chat.TextComponent(REFRESH_LABEL), button -> {
+                                  ^
+  symbol:   method builder(TextComponent,(button)->[...]"); })
+  location: class Button
+C:\Users\user\Desktop\2\mzycBetterMTR-Forge-1.18.2\src\main\java\smooth\lift\client\TrainSoundScreen.java:396: error: c
+annot find symbol
+            addRenderableWidget(Button.builder(new net.minecraft.network.chat.TextComponent(truncate(id, 22)),
+                                      ^
+  symbol:   method builder(TextComponent,(button)->[...]g(id))
+  location: class Button
+C:\Users\user\Desktop\2\mzycBetterMTR-Forge-1.18.2\src\main\java\smooth\lift\client\TrainSoundScreen.java:405: error: c
+annot find symbol
+            addRenderableWidget(Button.builder(new net.minecraft.network.chat.TextComponent(MTR_BUILTIN_LABEL),
+                                      ^
+  symbol:   method builder(TextComponent,(button)->[...]tin())
+  location: class Button
+C:\Users\user\Desktop\2\mzycBetterMTR-Forge-1.18.2\src\main\java\smooth\lift\client\TrainSoundScreen.java:409: error: c
+annot find symbol
+            addRenderableWidget(Button.builder(new net.minecraft.network.chat.TextComponent("ѡ��"),
+                                      ^
+  symbol:   method builder(TextComponent,(button)->[...]tin())
+  location: class Button
+C:\Users\user\Desktop\2\mzycBetterMTR-Forge-1.18.2\src\main\java\smooth\lift\client\TrainSoundScreen.java:422: error: c
+annot find symbol
+            addRenderableWidget(Button.builder(
+                                      ^
+  symbol:   method builder(TextComponent,(button)->[...]d(id))
+  location: class Button
+C:\Users\user\Desktop\2\mzycBetterMTR-Forge-1.18.2\src\main\java\smooth\lift\client\TrainSoundScreen.java:427: error: c
+annot find symbol
+            addRenderableWidget(Button.builder(new net.minecraft.network.chat.TextComponent("ѡ��"), button -> pickStore
+d(id))
+                                      ^
+  symbol:   method builder(TextComponent,(button)->[...]d(id))
+  location: class Button
+C:\Users\user\Desktop\2\mzycBetterMTR-Forge-1.18.2\src\main\java\smooth\lift\client\TrainSoundScreen.java:430: error: c
+annot find symbol
+            addRenderableWidget(Button.builder(new net.minecraft.network.chat.TextComponent("ɾ��"), button -> deleteSto
+red(id))
+                                      ^
+  symbol:   method builder(TextComponent,(button)->[...]d(id))
+  location: class Button
+C:\Users\user\Desktop\2\mzycBetterMTR-Forge-1.18.2\src\main\java\smooth\lift\client\TrainSoundScreen.java:583: error: m
+ethod does not override or implement a method from a supertype
+    @Override
+    ^
+C:\Users\user\Desktop\2\mzycBetterMTR-Forge-1.18.2\src\main\java\smooth\lift\client\TrainSoundScreen.java:591: error: m
+ethod mouseScrolled in interface ContainerEventHandler cannot be applied to given types;
+        return super.mouseScrolled(mouseX, mouseY, scrollX, scrollY);
+                    ^
+  required: double,double,double
+  found:    double,double,double,double
+  reason: actual and formal argument lists differ in length
+C:\Users\user\Desktop\2\mzycBetterMTR-Forge-1.18.2\src\main\java\smooth\lift\client\TrainSoundScreen.java:598: error: m
+ethod does not override or implement a method from a supertype
+    @Override
+    ^
+C:\Users\user\Desktop\2\mzycBetterMTR-Forge-1.18.2\src\main\java\smooth\lift\client\TrainSoundScreen.java:600: error: n
+o suitable method found for renderBackground(GuiGraphics,int,int,float)
+        this.renderBackground(guiGraphics, mouseX, mouseY, partialTick);
+            ^
+    method Screen.renderBackground(PoseStack) is not applicable
+      (actual and formal argument lists differ in length)
+    method Screen.renderBackground(PoseStack,int) is not applicable
+      (actual and formal argument lists differ in length)
+C:\Users\user\Desktop\2\mzycBetterMTR-Forge-1.18.2\src\main\java\smooth\lift\client\ZhajiChimePlayer.java:126: error: c
+annot find symbol
+        BlockPos pos = BlockPos.containing(instance.getX(), instance.getY(), instance.getZ());
+                               ^
+  symbol:   method containing(double,double,double)
+  location: class BlockPos
+C:\Users\user\Desktop\2\mzycBetterMTR-Forge-1.18.2\src\main\java\smooth\lift\client\ZhajiChimePlayer.java:282: error: i
+ncompatible types: ConstantFloat cannot be converted to float
+            Sound s = new Sound(name.toString(), ConstantFloat.of(1.0F), ConstantFloat.of(1.0F),
+                                                                 ^
+C:\Users\user\Desktop\2\mzycBetterMTR-Forge-1.18.2\src\main\java\smooth\lift\client\ZhajiToneSetupScreen.java:222: erro
+r: cannot find symbol
+        addRenderableWidget(Button.builder(new net.minecraft.network.chat.TextComponent("����"), button -> onClose())
+                                  ^
+  symbol:   method builder(TextComponent,(button)->onClose())
+  location: class Button
+C:\Users\user\Desktop\2\mzycBetterMTR-Forge-1.18.2\src\main\java\smooth\lift\client\ZhajiToneSetupScreen.java:225: erro
+r: cannot find symbol
+        addRenderableWidget(Button.builder(new net.minecraft.network.chat.TextComponent("ˢ��"), button -> {
+                                  ^
+  symbol:   method builder(TextComponent,(button)->[...]"); })
+  location: class Button
+C:\Users\user\Desktop\2\mzycBetterMTR-Forge-1.18.2\src\main\java\smooth\lift\client\ZhajiToneSetupScreen.java:235: erro
+r: cannot find symbol
+            addRenderableWidget(Button.builder(
+                                      ^
+  symbol:   method builder(TextComponent,(button)->[...](); })
+  location: class Button
+C:\Users\user\Desktop\2\mzycBetterMTR-Forge-1.18.2\src\main\java\smooth\lift\client\ZhajiToneSetupScreen.java:319: erro
+r: cannot find symbol
+        addRenderableWidget(Button.builder(new net.minecraft.network.chat.TextComponent("����"), button -> {
+                                  ^
+  symbol:   method builder(TextComponent,(button)->[...](); })
+  location: class Button
+C:\Users\user\Desktop\2\mzycBetterMTR-Forge-1.18.2\src\main\java\smooth\lift\client\ZhajiToneSetupScreen.java:324: erro
+r: cannot find symbol
+        addRenderableWidget(Button.builder(new net.minecraft.network.chat.TextComponent("ˢ��"), button -> {
+                                  ^
+  symbol:   method builder(TextComponent,(button)->[...]"); })
+  location: class Button
+C:\Users\user\Desktop\2\mzycBetterMTR-Forge-1.18.2\src\main\java\smooth\lift\client\ZhajiToneSetupScreen.java:338: erro
+r: cannot find symbol
+            addRenderableWidget(Button.builder(new net.minecraft.network.chat.TextComponent(truncate(id, 22)),
+                                      ^
+  symbol:   method builder(TextComponent,(button)->[...], id))
+  location: class Button
+C:\Users\user\Desktop\2\mzycBetterMTR-Forge-1.18.2\src\main\java\smooth\lift\client\ZhajiToneSetupScreen.java:350: erro
+r: cannot find symbol
+            addRenderableWidget(Button.builder(
+                                      ^
+  symbol:   method builder(TextComponent,(button)->[...]_OFF))
+  location: class Button
+C:\Users\user\Desktop\2\mzycBetterMTR-Forge-1.18.2\src\main\java\smooth\lift\client\ZhajiToneSetupScreen.java:355: erro
+r: cannot find symbol
+            addRenderableWidget(Button.builder(new net.minecraft.network.chat.TextComponent("ѡ��"),
+                                      ^
+  symbol:   method builder(TextComponent,(button)->[...]_OFF))
+  location: class Button
+C:\Users\user\Desktop\2\mzycBetterMTR-Forge-1.18.2\src\main\java\smooth\lift\client\ZhajiToneSetupScreen.java:365: erro
+r: cannot find symbol
+            addRenderableWidget(Button.builder(
+                                      ^
+  symbol:   method builder(TextComponent,(button)->[...]AULT))
+  location: class Button
+C:\Users\user\Desktop\2\mzycBetterMTR-Forge-1.18.2\src\main\java\smooth\lift\client\ZhajiToneSetupScreen.java:370: erro
+r: cannot find symbol
+            addRenderableWidget(Button.builder(new net.minecraft.network.chat.TextComponent("ѡ��"),
+                                      ^
+  symbol:   method builder(TextComponent,(button)->[...]AULT))
+  location: class Button
+C:\Users\user\Desktop\2\mzycBetterMTR-Forge-1.18.2\src\main\java\smooth\lift\client\ZhajiToneSetupScreen.java:385: erro
+r: cannot find symbol
+            addRenderableWidget(Button.builder(
+                                      ^
+  symbol:   method builder(TextComponent,(button)->[...], id))
+  location: class Button
+C:\Users\user\Desktop\2\mzycBetterMTR-Forge-1.18.2\src\main\java\smooth\lift\client\ZhajiToneSetupScreen.java:390: erro
+r: cannot find symbol
+            addRenderableWidget(Button.builder(new net.minecraft.network.chat.TextComponent("ѡ��"), button -> pick(whic
+h, id))
+                                      ^
+  symbol:   method builder(TextComponent,(button)->[...], id))
+  location: class Button
+C:\Users\user\Desktop\2\mzycBetterMTR-Forge-1.18.2\src\main\java\smooth\lift\client\ZhajiToneSetupScreen.java:393: erro
+r: cannot find symbol
+            addRenderableWidget(Button.builder(new net.minecraft.network.chat.TextComponent("ɾ��"), button -> deleteSto
+red(which, id))
+                                      ^
+  symbol:   method builder(TextComponent,(button)->[...], id))
+  location: class Button
+C:\Users\user\Desktop\2\mzycBetterMTR-Forge-1.18.2\src\main\java\smooth\lift\client\ZhajiToneSetupScreen.java:539: erro
+r: method does not override or implement a method from a supertype
+    @Override
+    ^
+C:\Users\user\Desktop\2\mzycBetterMTR-Forge-1.18.2\src\main\java\smooth\lift\client\ZhajiToneSetupScreen.java:547: erro
+r: method mouseScrolled in interface ContainerEventHandler cannot be applied to given types;
+        return super.mouseScrolled(mouseX, mouseY, scrollX, scrollY);
+                    ^
+  required: double,double,double
+  found:    double,double,double,double
+  reason: actual and formal argument lists differ in length
+C:\Users\user\Desktop\2\mzycBetterMTR-Forge-1.18.2\src\main\java\smooth\lift\client\ZhajiToneSetupScreen.java:550: erro
+r: method does not override or implement a method from a supertype
+    @Override
+    ^
+C:\Users\user\Desktop\2\mzycBetterMTR-Forge-1.18.2\src\main\java\smooth\lift\client\ZhajiToneSetupScreen.java:552: erro
+r: no suitable method found for renderBackground(GuiGraphics,int,int,float)
+        this.renderBackground(guiGraphics, mouseX, mouseY, partialTick);
+            ^
+    method Screen.renderBackground(PoseStack) is not applicable
+      (actual and formal argument lists differ in length)
+    method Screen.renderBackground(PoseStack,int) is not applicable
+      (actual and formal argument lists differ in length)
+C:\Users\user\Desktop\2\mzycBetterMTR-Forge-1.18.2\src\main\java\smooth\lift\mixin\LivingEntityMixin.java:748: error: c
+annot find symbol
+                || !self.onGround()
+                        ^
+  symbol:   method onGround()
+  location: variable self of type LivingEntity
+C:\Users\user\Desktop\2\mzycBetterMTR-Forge-1.18.2\src\main\java\smooth\lift\mixin\LivingEntityMixin.java:934: error: c
+annot find symbol
+        self.walkAnimation.update(Math.min(4.0F * selfLen, 1.0F), 0.4F);
+            ^
+  symbol:   variable walkAnimation
+  location: variable self of type LivingEntity
+C:\Users\user\Desktop\2\mzycBetterMTR-Forge-1.18.2\src\main\java\smooth\lift\PictureBlocks.java:59: error: incompatible
+ types: Block cannot be converted to ItemStack
+                entries.accept(PIC_TL);
+                               ^
+C:\Users\user\Desktop\2\mzycBetterMTR-Forge-1.18.2\src\main\java\smooth\lift\PictureBlocks.java:60: error: incompatible
+ types: Block cannot be converted to ItemStack
+                entries.accept(PIC_TR);
+                               ^
+C:\Users\user\Desktop\2\mzycBetterMTR-Forge-1.18.2\src\main\java\smooth\lift\PictureBlocks.java:61: error: incompatible
+ types: Block cannot be converted to ItemStack
+                entries.accept(PIC_BL);
+                               ^
+C:\Users\user\Desktop\2\mzycBetterMTR-Forge-1.18.2\src\main\java\smooth\lift\PictureBlocks.java:62: error: incompatible
+ types: Block cannot be converted to ItemStack
+                entries.accept(PIC_BR);
+                               ^
+C:\Users\user\Desktop\2\mzycBetterMTR-Forge-1.18.2\src\main\java\smooth\lift\PictureBlocks.java:63: error: incompatible
+ types: Block cannot be converted to ItemStack
+                entries.accept(FLAT_TL);
+                               ^
+C:\Users\user\Desktop\2\mzycBetterMTR-Forge-1.18.2\src\main\java\smooth\lift\PictureBlocks.java:64: error: incompatible
+ types: Block cannot be converted to ItemStack
+                entries.accept(FLAT_TR);
+                               ^
+C:\Users\user\Desktop\2\mzycBetterMTR-Forge-1.18.2\src\main\java\smooth\lift\PictureBlocks.java:65: error: incompatible
+ types: Block cannot be converted to ItemStack
+                entries.accept(FLAT_BL);
+                               ^
+C:\Users\user\Desktop\2\mzycBetterMTR-Forge-1.18.2\src\main\java\smooth\lift\PictureBlocks.java:66: error: incompatible
+ types: Block cannot be converted to ItemStack
+                entries.accept(FLAT_BR);
+4 actionable tasks: 2 executed, 2 up-to-date
+                               ^
+C:\Users\user\Desktop\2\mzycBetterMTR-Forge-1.18.2\src\main\java\smooth\lift\PictureBlocks.java:67: error: incompatible
+ types: Block cannot be converted to ItemStack
+                entries.accept(FLAT_TL_SMALL);
+                               ^
+C:\Users\user\Desktop\2\mzycBetterMTR-Forge-1.18.2\src\main\java\smooth\lift\PictureBlocks.java:68: error: incompatible
+ types: Block cannot be converted to ItemStack
+                entries.accept(FLAT_TR_SMALL);
+                               ^
+C:\Users\user\Desktop\2\mzycBetterMTR-Forge-1.18.2\src\main\java\smooth\lift\PictureBlocks.java:69: error: incompatible
+ types: Block cannot be converted to ItemStack
+                entries.accept(FLAT_BL_SMALL);
+                               ^
+C:\Users\user\Desktop\2\mzycBetterMTR-Forge-1.18.2\src\main\java\smooth\lift\PictureBlocks.java:70: error: incompatible
+ types: Block cannot be converted to ItemStack
+                entries.accept(FLAT_BR_SMALL);
+                               ^
+C:\Users\user\Desktop\2\mzycBetterMTR-Forge-1.18.2\src\main\java\smooth\lift\PictureBlocks.java:78: error: no suitable 
+method found for of(no arguments)
+        return BlockBehaviour.Properties.of().strength(1.5f).requiresCorrectToolForDrops();
+                                        ^
+    method Properties.of(Material) is not applicable
+      (actual and formal argument lists differ in length)
+    method Properties.of(Material,DyeColor) is not applicable
+      (actual and formal argument lists differ in length)
+    method Properties.of(Material,MaterialColor) is not applicable
+      (actual and formal argument lists differ in length)
+    method Properties.of(Material,Function<BlockState,MaterialColor>) is not applicable
+      (actual and formal argument lists differ in length)
+C:\Users\user\Desktop\2\mzycBetterMTR-Forge-1.18.2\src\main\java\smooth\lift\SmoothLift.java:1466: error: incompatible 
+types: Component is not a functional interface
+        source.sendSuccess(
+              ^
+    multiple non-overriding abstract methods found in interface Component
+C:\Users\user\Desktop\2\mzycBetterMTR-Forge-1.18.2\src\main\java\smooth\lift\SmoothLift.java:1480: error: incompatible 
+types: Component is not a functional interface
+            source.sendSuccess(
+                  ^
+    multiple non-overriding abstract methods found in interface Component
+C:\Users\user\Desktop\2\mzycBetterMTR-Forge-1.18.2\src\main\java\smooth\lift\SmoothLift.java:1487: error: incompatible 
+types: Component is not a functional interface
+        source.sendSuccess(
+              ^
+    multiple non-overriding abstract methods found in interface Component
+C:\Users\user\Desktop\2\mzycBetterMTR-Forge-1.18.2\src\main\java\smooth\lift\SmoothLift.java:1500: error: incompatible 
+types: Component is not a functional interface
+        source.sendSuccess(
+              ^
+    multiple non-overriding abstract methods found in interface Component
+C:\Users\user\Desktop\2\mzycBetterMTR-Forge-1.18.2\src\main\java\smooth\lift\SmoothLift.java:1516: error: incompatible 
+types: Component is not a functional interface
+            source.sendSuccess(
+                  ^
+    multiple non-overriding abstract methods found in interface Component
+C:\Users\user\Desktop\2\mzycBetterMTR-Forge-1.18.2\src\main\java\smooth\lift\SmoothLift.java:1521: error: incompatible 
+types: Component is not a functional interface
+        source.sendSuccess(
+              ^
+    multiple non-overriding abstract methods found in interface Component
+C:\Users\user\Desktop\2\mzycBetterMTR-Forge-1.18.2\src\main\java\smooth\lift\SmoothLift.java:1572: error: incompatible 
+types: Component is not a functional interface
+        source.sendSuccess(
+              ^
+    multiple non-overriding abstract methods found in interface Component
+C:\Users\user\Desktop\2\mzycBetterMTR-Forge-1.18.2\src\main\java\smooth\lift\SmoothLift.java:1586: error: incompatible 
+types: Component is not a functional interface
+            source.sendSuccess(
+                  ^
+    multiple non-overriding abstract methods found in interface Component
+C:\Users\user\Desktop\2\mzycBetterMTR-Forge-1.18.2\src\main\java\smooth\lift\SmoothLift.java:1593: error: incompatible 
+types: Component is not a functional interface
+        source.sendSuccess(
+              ^
+    multiple non-overriding abstract methods found in interface Component
+C:\Users\user\Desktop\2\mzycBetterMTR-Forge-1.18.2\src\main\java\smooth\lift\SmoothLift.java:1606: error: incompatible 
+types: Component is not a functional interface
+        source.sendSuccess(
+              ^
+    multiple non-overriding abstract methods found in interface Component
+C:\Users\user\Desktop\2\mzycBetterMTR-Forge-1.18.2\src\main\java\smooth\lift\SmoothLift.java:1623: error: incompatible 
+types: Component is not a functional interface
+            source.sendSuccess(
+                  ^
+    multiple non-overriding abstract methods found in interface Component
+C:\Users\user\Desktop\2\mzycBetterMTR-Forge-1.18.2\src\main\java\smooth\lift\SmoothLift.java:1628: error: incompatible 
+types: Component is not a functional interface
+        source.sendSuccess(
+              ^
+    multiple non-overriding abstract methods found in interface Component
+C:\Users\user\Desktop\2\mzycBetterMTR-Forge-1.18.2\src\main\java\smooth\lift\SmoothLift.java:5119: error: cannot find s
+ymbol
+            player.getServer().getCommands().performPrefixedCommand(base, command);
+                                            ^
+  symbol:   method performPrefixedCommand(CommandSourceStack,String)
+  location: class Commands
+Note: Some input files use or override a deprecated API.
+Note: Recompile with -Xlint:deprecation for details.
+Note: Some messages have been simplified; recompile with -Xdiags:verbose to get full output
+222 errors
+8 warnings
+
+FAILURE: Build failed with an exception.
+
+* What went wrong:
+Execution failed for task ':compileJava'.
+> Compilation failed; see the compiler error output for details.
+
+* Try:
+> Run with --info option to get more log output.
+> Run with --scan to get full insights.
+
+BUILD FAILED in 6s

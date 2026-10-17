@@ -1,0 +1,15 @@
+// 临时用（不参与打包）：把主源集的运行时类路径打印出来，
+// 供 _tools/CmdTreeCheck.java 脱离游戏环境做指令树校验。
+allprojects {
+    afterEvaluate { p ->
+        if (p.plugins.hasPlugin('java')) {
+            p.tasks.register('dumpRuntimeClasspath') {
+                doLast {
+                    println 'CLASSPATH_START'
+                    println p.sourceSets.main.runtimeClasspath.asPath
+                    println 'CLASSPATH_END'
+                }
+            }
+        }
+    }
+}
