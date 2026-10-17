@@ -1,0 +1,50 @@
+# ===== mzycBetterMTR 通用 .gitignore（五个版本共用，保持一字不差）=====
+
+# ---- gradle / 构建产物 ----
+.gradle/
+build/
+out/
+classes/
+*.class
+
+# ---- 本地临时 / 移植 / 对照目录（不属于源码）----
+_baseline/
+_bak_*/
+_repair_audio/
+_tools_port/
+_port135/
+_mtr410/
+
+# ---- 本地校验工具 _tools 的派生产物（含本机绝对路径，别提交）----
+_tools/runtime.cp
+_tools/out/
+
+# ---- 参考 MTR jar 的工程内拷贝（>100MB，超 GitHub 100MB 单文件硬上限，push 会被拒）----
+# 参考 jar 统一放 桌面/2/mtr/，工程内不要再放。
+_mtr*.jar
+
+# ---- 游戏运行时 ----
+run/
+logs/
+
+# ---- IDE ----
+.idea/
+*.iml
+*.ipr
+*.iws
+.settings/
+.vscode/
+bin/
+.classpath
+.project
+*.launch
+
+# ---- 操作系统 ----
+.DS_Store
+Thumbs.db
+
+# ---- Java / 崩溃转储 ----
+hs_err_*.log
+replay_*.log
+*.hprof
+*.jfr

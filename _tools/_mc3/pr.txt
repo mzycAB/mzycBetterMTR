@@ -1,0 +1,282 @@
+﻿Compiled from "PackRepository.java"
+public class net.minecraft.server.packs.repository.PackRepository {
+  private final java.util.Set<net.minecraft.server.packs.repository.RepositorySource> sources;
+
+  private java.util.Map<java.lang.String, net.minecraft.server.packs.repository.Pack> available;
+
+  private java.util.List<net.minecraft.server.packs.repository.Pack> selected;
+
+  public net.minecraft.server.packs.repository.PackRepository(net.minecraft.server.packs.repository.RepositorySource...);
+    Code:
+       0: aload_0
+       1: invokespecial #30                 // Method java/lang/Object."<init>":()V
+       4: aload_0
+       5: invokestatic  #36                 // Method com/google/common/collect/ImmutableMap.of:()Lcom/google/common/collect/ImmutableMap;
+       8: putfield      #38                 // Field available:Ljava/util/Map;
+      11: aload_0
+      12: invokestatic  #43                 // Method com/google/common/collect/ImmutableList.of:()Lcom/google/common/collect/ImmutableList;
+      15: putfield      #45                 // Field selected:Ljava/util/List;
+      18: aload_0
+      19: aload_1
+      20: invokestatic  #51                 // Method com/google/common/collect/ImmutableSet.copyOf:([Ljava/lang/Object;)Lcom/google/common/collect/ImmutableSet;
+      23: putfield      #53                 // Field sources:Ljava/util/Set;
+      26: return
+
+  public void reload();
+    Code:
+       0: aload_0
+       1: getfield      #45                 // Field selected:Ljava/util/List;
+       4: invokeinterface #63,  1           // InterfaceMethod java/util/List.stream:()Ljava/util/stream/Stream;
+       9: invokedynamic #83,  0             // InvokeDynamic #0:apply:()Ljava/util/function/Function;
+      14: invokeinterface #89,  2           // InterfaceMethod java/util/stream/Stream.map:(Ljava/util/function/Function;)Ljava/util/stream/Stream;
+      19: invokestatic  #93                 // Method com/google/common/collect/ImmutableList.toImmutableList:()Ljava/util/stream/Collector;
+      22: invokeinterface #97,  2           // InterfaceMethod java/util/stream/Stream.collect:(Ljava/util/stream/Collector;)Ljava/lang/Object;
+      27: checkcast     #59                 // class java/util/List
+      30: astore_1
+      31: aload_0
+      32: aload_0
+      33: invokevirtual #101                // Method discoverAvailable:()Ljava/util/Map;
+      36: putfield      #38                 // Field available:Ljava/util/Map;
+      39: aload_0
+      40: aload_0
+      41: aload_1
+      42: invokevirtual #105                // Method rebuildSelected:(Ljava/util/Collection;)Ljava/util/List;
+      45: putfield      #45                 // Field selected:Ljava/util/List;
+      48: return
+
+  private java.util.Map<java.lang.String, net.minecraft.server.packs.repository.Pack> discoverAvailable();
+    Code:
+       0: invokestatic  #114                // Method com/google/common/collect/Maps.newTreeMap:()Ljava/util/TreeMap;
+       3: astore_1
+       4: aload_0
+       5: getfield      #53                 // Field sources:Ljava/util/Set;
+       8: invokeinterface #120,  1          // InterfaceMethod java/util/Set.iterator:()Ljava/util/Iterator;
+      13: astore_2
+      14: aload_2
+      15: invokeinterface #128,  1          // InterfaceMethod java/util/Iterator.hasNext:()Z
+      20: ifeq          48
+      23: aload_2
+      24: invokeinterface #132,  1          // InterfaceMethod java/util/Iterator.next:()Ljava/lang/Object;
+      29: checkcast     #134                // class net/minecraft/server/packs/repository/RepositorySource
+      32: astore_3
+      33: aload_3
+      34: aload_1
+      35: invokedynamic #147,  0            // InvokeDynamic #1:accept:(Ljava/util/Map;)Ljava/util/function/Consumer;
+      40: invokeinterface #151,  2          // InterfaceMethod net/minecraft/server/packs/repository/RepositorySource.loadPacks:(Ljava/util/function/Consumer;)V
+      45: goto          14
+      48: aload_1
+      49: invokestatic  #154                // Method com/google/common/collect/ImmutableMap.copyOf:(Ljava/util/Map;)Lcom/google/common/collect/ImmutableMap;
+      52: areturn
+
+  public void setSelected(java.util.Collection<java.lang.String>);
+    Code:
+       0: aload_0
+       1: aload_0
+       2: aload_1
+       3: invokevirtual #105                // Method rebuildSelected:(Ljava/util/Collection;)Ljava/util/List;
+       6: putfield      #45                 // Field selected:Ljava/util/List;
+       9: return
+
+  public boolean addPack(java.lang.String);
+    Code:
+       0: aload_0
+       1: getfield      #38                 // Field available:Ljava/util/Map;
+       4: aload_1
+       5: invokeinterface #170,  2          // InterfaceMethod java/util/Map.get:(Ljava/lang/Object;)Ljava/lang/Object;
+      10: checkcast     #9                  // class net/minecraft/server/packs/repository/Pack
+      13: astore_2
+      14: aload_2
+      15: ifnull        54
+      18: aload_0
+      19: getfield      #45                 // Field selected:Ljava/util/List;
+      22: aload_2
+      23: invokeinterface #174,  2          // InterfaceMethod java/util/List.contains:(Ljava/lang/Object;)Z
+      28: ifne          54
+      31: aload_0
+      32: getfield      #45                 // Field selected:Ljava/util/List;
+      35: invokestatic  #180                // Method com/google/common/collect/Lists.newArrayList:(Ljava/lang/Iterable;)Ljava/util/ArrayList;
+      38: astore_3
+      39: aload_3
+      40: aload_2
+      41: invokeinterface #183,  2          // InterfaceMethod java/util/List.add:(Ljava/lang/Object;)Z
+      46: pop
+      47: aload_0
+      48: aload_3
+      49: putfield      #45                 // Field selected:Ljava/util/List;
+      52: iconst_1
+      53: ireturn
+      54: iconst_0
+      55: ireturn
+
+  public boolean removePack(java.lang.String);
+    Code:
+       0: aload_0
+       1: getfield      #38                 // Field available:Ljava/util/Map;
+       4: aload_1
+       5: invokeinterface #170,  2          // InterfaceMethod java/util/Map.get:(Ljava/lang/Object;)Ljava/lang/Object;
+      10: checkcast     #9                  // class net/minecraft/server/packs/repository/Pack
+      13: astore_2
+      14: aload_2
+      15: ifnull        54
+      18: aload_0
+      19: getfield      #45                 // Field selected:Ljava/util/List;
+      22: aload_2
+      23: invokeinterface #174,  2          // InterfaceMethod java/util/List.contains:(Ljava/lang/Object;)Z
+      28: ifeq          54
+      31: aload_0
+      32: getfield      #45                 // Field selected:Ljava/util/List;
+      35: invokestatic  #180                // Method com/google/common/collect/Lists.newArrayList:(Ljava/lang/Iterable;)Ljava/util/ArrayList;
+      38: astore_3
+      39: aload_3
+      40: aload_2
+      41: invokeinterface #190,  2          // InterfaceMethod java/util/List.remove:(Ljava/lang/Object;)Z
+      46: pop
+      47: aload_0
+      48: aload_3
+      49: putfield      #45                 // Field selected:Ljava/util/List;
+      52: iconst_1
+      53: ireturn
+      54: iconst_0
+      55: ireturn
+
+  private java.util.List<net.minecraft.server.packs.repository.Pack> rebuildSelected(java.util.Collection<java.lang.String>);
+    Code:
+       0: aload_0
+       1: aload_1
+       2: invokevirtual #195                // Method getAvailablePacks:(Ljava/util/Collection;)Ljava/util/stream/Stream;
+       5: invokestatic  #200                // Method java/util/stream/Collectors.toList:()Ljava/util/stream/Collector;
+       8: invokeinterface #97,  2           // InterfaceMethod java/util/stream/Stream.collect:(Ljava/util/stream/Collector;)Ljava/lang/Object;
+      13: checkcast     #59                 // class java/util/List
+      16: astore_2
+      17: aload_0
+      18: getfield      #38                 // Field available:Ljava/util/Map;
+      21: invokeinterface #204,  1          // InterfaceMethod java/util/Map.values:()Ljava/util/Collection;
+      26: invokeinterface #207,  1          // InterfaceMethod java/util/Collection.iterator:()Ljava/util/Iterator;
+      31: astore_3
+      32: aload_3
+      33: invokeinterface #128,  1          // InterfaceMethod java/util/Iterator.hasNext:()Z
+      38: ifeq          90
+      41: aload_3
+      42: invokeinterface #132,  1          // InterfaceMethod java/util/Iterator.next:()Ljava/lang/Object;
+      47: checkcast     #9                  // class net/minecraft/server/packs/repository/Pack
+      50: astore        4
+      52: aload         4
+      54: invokevirtual #210                // Method net/minecraft/server/packs/repository/Pack.isRequired:()Z
+      57: ifeq          87
+      60: aload_2
+      61: aload         4
+      63: invokeinterface #174,  2          // InterfaceMethod java/util/List.contains:(Ljava/lang/Object;)Z
+      68: ifne          87
+      71: aload         4
+      73: invokevirtual #214                // Method net/minecraft/server/packs/repository/Pack.getDefaultPosition:()Lnet/minecraft/server/packs/repository/Pack$Position;
+      76: aload_2
+      77: aload         4
+      79: invokestatic  #220                // Method com/google/common/base/Functions.identity:()Lcom/google/common/base/Function;
+      82: iconst_0
+      83: invokevirtual #224                // Method net/minecraft/server/packs/repository/Pack$Position.insert:(Ljava/util/List;Ljava/lang/Object;Ljava/util/function/Function;Z)I
+      86: pop
+      87: goto          32
+      90: aload_2
+      91: invokestatic  #227                // Method com/google/common/collect/ImmutableList.copyOf:(Ljava/util/Collection;)Lcom/google/common/collect/ImmutableList;
+      94: areturn
+
+  private java.util.stream.Stream<net.minecraft.server.packs.repository.Pack> getAvailablePacks(java.util.Collection<java.lang.String>);
+    Code:
+       0: aload_1
+       1: invokeinterface #229,  1          // InterfaceMethod java/util/Collection.stream:()Ljava/util/stream/Stream;
+       6: aload_0
+       7: getfield      #38                 // Field available:Ljava/util/Map;
+      10: dup
+      11: invokestatic  #234                // Method java/util/Objects.requireNonNull:(Ljava/lang/Object;)Ljava/lang/Object;
+      14: pop
+      15: invokedynamic #240,  0            // InvokeDynamic #2:apply:(Ljava/util/Map;)Ljava/util/function/Function;
+      20: invokeinterface #89,  2           // InterfaceMethod java/util/stream/Stream.map:(Ljava/util/function/Function;)Ljava/util/stream/Stream;
+      25: invokedynamic #251,  0            // InvokeDynamic #3:test:()Ljava/util/function/Predicate;
+      30: invokeinterface #255,  2          // InterfaceMethod java/util/stream/Stream.filter:(Ljava/util/function/Predicate;)Ljava/util/stream/Stream;
+      35: areturn
+
+  public java.util.Collection<java.lang.String> getAvailableIds();
+    Code:
+       0: aload_0
+       1: getfield      #38                 // Field available:Ljava/util/Map;
+       4: invokeinterface #261,  1          // InterfaceMethod java/util/Map.keySet:()Ljava/util/Set;
+       9: areturn
+
+  public java.util.Collection<net.minecraft.server.packs.repository.Pack> getAvailablePacks();
+    Code:
+       0: aload_0
+       1: getfield      #38                 // Field available:Ljava/util/Map;
+       4: invokeinterface #204,  1          // InterfaceMethod java/util/Map.values:()Ljava/util/Collection;
+       9: areturn
+
+  public java.util.Collection<java.lang.String> getSelectedIds();
+    Code:
+       0: aload_0
+       1: getfield      #45                 // Field selected:Ljava/util/List;
+       4: invokeinterface #63,  1           // InterfaceMethod java/util/List.stream:()Ljava/util/stream/Stream;
+       9: invokedynamic #83,  0             // InvokeDynamic #0:apply:()Ljava/util/function/Function;
+      14: invokeinterface #89,  2           // InterfaceMethod java/util/stream/Stream.map:(Ljava/util/function/Function;)Ljava/util/stream/Stream;
+      19: invokestatic  #266                // Method com/google/common/collect/ImmutableSet.toImmutableSet:()Ljava/util/stream/Collector;
+      22: invokeinterface #97,  2           // InterfaceMethod java/util/stream/Stream.collect:(Ljava/util/stream/Collector;)Ljava/lang/Object;
+      27: checkcast     #206                // class java/util/Collection
+      30: areturn
+
+  public net.minecraft.world.flag.FeatureFlagSet getRequestedFeatureFlags();
+    Code:
+       0: aload_0
+       1: invokevirtual #271                // Method getSelectedPacks:()Ljava/util/Collection;
+       4: invokeinterface #229,  1          // InterfaceMethod java/util/Collection.stream:()Ljava/util/stream/Stream;
+       9: invokedynamic #278,  0            // InvokeDynamic #4:apply:()Ljava/util/function/Function;
+      14: invokeinterface #89,  2           // InterfaceMethod java/util/stream/Stream.map:(Ljava/util/function/Function;)Ljava/util/stream/Stream;
+      19: invokedynamic #292,  0            // InvokeDynamic #5:apply:()Ljava/util/function/BinaryOperator;
+      24: invokeinterface #296,  2          // InterfaceMethod java/util/stream/Stream.reduce:(Ljava/util/function/BinaryOperator;)Ljava/util/Optional;
+      29: invokestatic  #298                // Method net/minecraft/world/flag/FeatureFlagSet.of:()Lnet/minecraft/world/flag/FeatureFlagSet;
+      32: invokevirtual #303                // Method java/util/Optional.orElse:(Ljava/lang/Object;)Ljava/lang/Object;
+      35: checkcast     #282                // class net/minecraft/world/flag/FeatureFlagSet
+      38: areturn
+
+  public java.util.Collection<net.minecraft.server.packs.repository.Pack> getSelectedPacks();
+    Code:
+       0: aload_0
+       1: getfield      #45                 // Field selected:Ljava/util/List;
+       4: areturn
+
+  public net.minecraft.server.packs.repository.Pack getPack(java.lang.String);
+    Code:
+       0: aload_0
+       1: getfield      #38                 // Field available:Ljava/util/Map;
+       4: aload_1
+       5: invokeinterface #170,  2          // InterfaceMethod java/util/Map.get:(Ljava/lang/Object;)Ljava/lang/Object;
+      10: checkcast     #9                  // class net/minecraft/server/packs/repository/Pack
+      13: areturn
+
+  public boolean isAvailable(java.lang.String);
+    Code:
+       0: aload_0
+       1: getfield      #38                 // Field available:Ljava/util/Map;
+       4: aload_1
+       5: invokeinterface #309,  2          // InterfaceMethod java/util/Map.containsKey:(Ljava/lang/Object;)Z
+      10: ireturn
+
+  public java.util.List<net.minecraft.server.packs.PackResources> openAllSelected();
+    Code:
+       0: aload_0
+       1: getfield      #45                 // Field selected:Ljava/util/List;
+       4: invokeinterface #63,  1           // InterfaceMethod java/util/List.stream:()Ljava/util/stream/Stream;
+       9: invokedynamic #320,  0            // InvokeDynamic #6:apply:()Ljava/util/function/Function;
+      14: invokeinterface #89,  2           // InterfaceMethod java/util/stream/Stream.map:(Ljava/util/function/Function;)Ljava/util/stream/Stream;
+      19: invokestatic  #93                 // Method com/google/common/collect/ImmutableList.toImmutableList:()Ljava/util/stream/Collector;
+      22: invokeinterface #97,  2           // InterfaceMethod java/util/stream/Stream.collect:(Ljava/util/stream/Collector;)Ljava/lang/Object;
+      27: checkcast     #59                 // class java/util/List
+      30: areturn
+
+  private static void method_29484(java.util.Map, net.minecraft.server.packs.repository.Pack);
+    Code:
+       0: aload_0
+       1: aload_1
+       2: invokevirtual #69                 // Method net/minecraft/server/packs/repository/Pack.getId:()Ljava/lang/String;
+       5: aload_1
+       6: invokeinterface #323,  3          // InterfaceMethod java/util/Map.put:(Ljava/lang/Object;Ljava/lang/Object;)Ljava/lang/Object;
+      11: pop
+      12: return
+}

@@ -1,0 +1,14 @@
+﻿Compiled from "BlockModelShaper.java"
+public class net.minecraft.client.renderer.block.BlockModelShaper {
+  private java.util.Map<net.minecraft.world.level.block.state.BlockState, net.minecraft.client.resources.model.BakedModel> modelByStateCache;
+  private final net.minecraft.client.resources.model.ModelManager modelManager;
+  public net.minecraft.client.renderer.block.BlockModelShaper(net.minecraft.client.resources.model.ModelManager);
+  public net.minecraft.client.renderer.texture.TextureAtlasSprite getParticleIcon(net.minecraft.world.level.block.state.BlockState);
+  public net.minecraft.client.resources.model.BakedModel getBlockModel(net.minecraft.world.level.block.state.BlockState);
+  public net.minecraft.client.resources.model.ModelManager getModelManager();
+  public void replaceCache(java.util.Map<net.minecraft.world.level.block.state.BlockState, net.minecraft.client.resources.model.BakedModel>);
+  public static net.minecraft.client.resources.model.ModelResourceLocation stateToModelLocation(net.minecraft.world.level.block.state.BlockState);
+  public static net.minecraft.client.resources.model.ModelResourceLocation stateToModelLocation(net.minecraft.resources.ResourceLocation, net.minecraft.world.level.block.state.BlockState);
+  public static java.lang.String statePropertiesToString(java.util.Map<net.minecraft.world.level.block.state.properties.Property<?>, java.lang.Comparable<?>>);
+  private static <T extends java.lang.Comparable<T>> java.lang.String getValue(net.minecraft.world.level.block.state.properties.Property<T>, java.lang.Comparable<?>);
+}

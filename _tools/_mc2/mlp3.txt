@@ -1,0 +1,15 @@
+﻿Compiled from "ModelModifier.java"
+public interface net.fabricmc.fabric.api.client.model.loading.v1.ModelModifier$AfterBake$Context {
+  public abstract net.minecraft.class_2960 id();
+  public abstract net.minecraft.class_1100 sourceModel();
+  public abstract java.util.function.Function<net.minecraft.class_4730, net.minecraft.class_1058> textureGetter();
+  public abstract net.minecraft.class_3665 settings();
+  public abstract net.minecraft.class_7775 baker();
+  public abstract net.minecraft.class_1088 loader();
+}
+Compiled from "ModelModifier.java"
+public interface net.fabricmc.fabric.api.client.model.loading.v1.ModelModifier$OnLoad$Context {
+  public abstract net.minecraft.class_2960 id();
+  public abstract net.minecraft.class_1100 getOrLoadModel(net.minecraft.class_2960);
+  public abstract net.minecraft.class_1088 loader();
+}

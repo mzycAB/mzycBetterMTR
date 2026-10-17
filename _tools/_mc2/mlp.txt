@@ -1,0 +1,31 @@
+﻿Compiled from "ModelLoadingPlugin.java"
+public interface net.fabricmc.fabric.api.client.model.loading.v1.ModelLoadingPlugin {
+  public static void register(net.fabricmc.fabric.api.client.model.loading.v1.ModelLoadingPlugin);
+  public abstract void onInitializeModelLoader(net.fabricmc.fabric.api.client.model.loading.v1.ModelLoadingPlugin$Context);
+}
+Compiled from "ModelLoadingPlugin.java"
+public interface net.fabricmc.fabric.api.client.model.loading.v1.ModelLoadingPlugin$Context {
+  public abstract void addModels(net.minecraft.class_2960...);
+  public abstract void addModels(java.util.Collection<? extends net.minecraft.class_2960>);
+  public abstract void registerBlockStateResolver(net.minecraft.class_2248, net.fabricmc.fabric.api.client.model.loading.v1.BlockStateResolver);
+  public abstract net.fabricmc.fabric.api.event.Event<net.fabricmc.fabric.api.client.model.loading.v1.ModelResolver> resolveModel();
+  public abstract net.fabricmc.fabric.api.event.Event<net.fabricmc.fabric.api.client.model.loading.v1.ModelModifier$OnLoad> modifyModelOnLoad();
+  public abstract net.fabricmc.fabric.api.event.Event<net.fabricmc.fabric.api.client.model.loading.v1.ModelModifier$BeforeBake> modifyModelBeforeBake();
+  public abstract net.fabricmc.fabric.api.event.Event<net.fabricmc.fabric.api.client.model.loading.v1.ModelModifier$AfterBake> modifyModelAfterBake();
+}
+javap : ����: �Ҳ�����: net.fabricmc.fabric.api.client.model.loading.v1.ModelModifier$AfterBakeBlock
+At line:19 char:1
++ javap -p -cp "$jar" "net.fabricmc.fabric.api.client.model.loading.v1. ...
++ ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : NotSpecified: (����: �Ҳ�����: ...$AfterBakeBlock:String) [], RemoteException
+    + FullyQualifiedErrorId : NativeCommandError
+ 
+Compiled from "ModelModifier.java"
+public final class net.fabricmc.fabric.api.client.model.loading.v1.ModelModifier {
+  public static final net.minecraft.class_2960 OVERRIDE_PHASE;
+  public static final net.minecraft.class_2960 DEFAULT_PHASE;
+  public static final net.minecraft.class_2960 WRAP_PHASE;
+  public static final net.minecraft.class_2960 WRAP_LAST_PHASE;
+  private net.fabricmc.fabric.api.client.model.loading.v1.ModelModifier();
+  static {};
+}

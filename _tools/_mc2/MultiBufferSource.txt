@@ -1,0 +1,6 @@
+﻿Compiled from "MultiBufferSource.java"
+public interface net.minecraft.client.renderer.MultiBufferSource {
+  public static net.minecraft.client.renderer.MultiBufferSource$BufferSource immediate(com.mojang.blaze3d.vertex.BufferBuilder);
+  public static net.minecraft.client.renderer.MultiBufferSource$BufferSource immediateWithBuffers(java.util.Map<net.minecraft.client.renderer.RenderType, com.mojang.blaze3d.vertex.BufferBuilder>, com.mojang.blaze3d.vertex.BufferBuilder);
+  public abstract com.mojang.blaze3d.vertex.VertexConsumer getBuffer(net.minecraft.client.renderer.RenderType);
+}

@@ -1,0 +1,351 @@
+﻿Compiled from "DefaultVertexFormat.java"
+public class com.mojang.blaze3d.vertex.DefaultVertexFormat {
+  public static final com.mojang.blaze3d.vertex.VertexFormatElement ELEMENT_POSITION;
+
+  public static final com.mojang.blaze3d.vertex.VertexFormatElement ELEMENT_COLOR;
+
+  public static final com.mojang.blaze3d.vertex.VertexFormatElement ELEMENT_UV0;
+
+  public static final com.mojang.blaze3d.vertex.VertexFormatElement ELEMENT_UV1;
+
+  public static final com.mojang.blaze3d.vertex.VertexFormatElement ELEMENT_UV2;
+
+  public static final com.mojang.blaze3d.vertex.VertexFormatElement ELEMENT_NORMAL;
+
+  public static final com.mojang.blaze3d.vertex.VertexFormatElement ELEMENT_PADDING;
+
+  public static final com.mojang.blaze3d.vertex.VertexFormatElement ELEMENT_UV;
+
+  public static final com.mojang.blaze3d.vertex.VertexFormat BLIT_SCREEN;
+
+  public static final com.mojang.blaze3d.vertex.VertexFormat BLOCK;
+
+  public static final com.mojang.blaze3d.vertex.VertexFormat NEW_ENTITY;
+
+  public static final com.mojang.blaze3d.vertex.VertexFormat PARTICLE;
+
+  public static final com.mojang.blaze3d.vertex.VertexFormat POSITION;
+
+  public static final com.mojang.blaze3d.vertex.VertexFormat POSITION_COLOR;
+
+  public static final com.mojang.blaze3d.vertex.VertexFormat POSITION_COLOR_NORMAL;
+
+  public static final com.mojang.blaze3d.vertex.VertexFormat POSITION_COLOR_LIGHTMAP;
+
+  public static final com.mojang.blaze3d.vertex.VertexFormat POSITION_TEX;
+
+  public static final com.mojang.blaze3d.vertex.VertexFormat POSITION_COLOR_TEX;
+
+  public static final com.mojang.blaze3d.vertex.VertexFormat POSITION_TEX_COLOR;
+
+  public static final com.mojang.blaze3d.vertex.VertexFormat POSITION_COLOR_TEX_LIGHTMAP;
+
+  public static final com.mojang.blaze3d.vertex.VertexFormat POSITION_TEX_LIGHTMAP_COLOR;
+
+  public static final com.mojang.blaze3d.vertex.VertexFormat POSITION_TEX_COLOR_NORMAL;
+
+  public com.mojang.blaze3d.vertex.DefaultVertexFormat();
+    Code:
+       0: aload_0
+       1: invokespecial #46                 // Method java/lang/Object."<init>":()V
+       4: return
+
+  static {};
+    Code:
+       0: new           #9                  // class com/mojang/blaze3d/vertex/VertexFormatElement
+       3: dup
+       4: iconst_0
+       5: getstatic     #53                 // Field com/mojang/blaze3d/vertex/VertexFormatElement$Type.FLOAT:Lcom/mojang/blaze3d/vertex/VertexFormatElement$Type;
+       8: getstatic     #56                 // Field com/mojang/blaze3d/vertex/VertexFormatElement$Usage.POSITION:Lcom/mojang/blaze3d/vertex/VertexFormatElement$Usage;
+      11: iconst_3
+      12: invokespecial #59                 // Method com/mojang/blaze3d/vertex/VertexFormatElement."<init>":(ILcom/mojang/blaze3d/vertex/VertexFormatElement$Type;Lcom/mojang/blaze3d/vertex/VertexFormatElement$Usage;I)V
+      15: putstatic     #61                 // Field ELEMENT_POSITION:Lcom/mojang/blaze3d/vertex/VertexFormatElement;
+      18: new           #9                  // class com/mojang/blaze3d/vertex/VertexFormatElement
+      21: dup
+      22: iconst_0
+      23: getstatic     #64                 // Field com/mojang/blaze3d/vertex/VertexFormatElement$Type.UBYTE:Lcom/mojang/blaze3d/vertex/VertexFormatElement$Type;
+      26: getstatic     #67                 // Field com/mojang/blaze3d/vertex/VertexFormatElement$Usage.COLOR:Lcom/mojang/blaze3d/vertex/VertexFormatElement$Usage;
+      29: iconst_4
+      30: invokespecial #59                 // Method com/mojang/blaze3d/vertex/VertexFormatElement."<init>":(ILcom/mojang/blaze3d/vertex/VertexFormatElement$Type;Lcom/mojang/blaze3d/vertex/VertexFormatElement$Usage;I)V
+      33: putstatic     #69                 // Field ELEMENT_COLOR:Lcom/mojang/blaze3d/vertex/VertexFormatElement;
+      36: new           #9                  // class com/mojang/blaze3d/vertex/VertexFormatElement
+      39: dup
+      40: iconst_0
+      41: getstatic     #53                 // Field com/mojang/blaze3d/vertex/VertexFormatElement$Type.FLOAT:Lcom/mojang/blaze3d/vertex/VertexFormatElement$Type;
+      44: getstatic     #72                 // Field com/mojang/blaze3d/vertex/VertexFormatElement$Usage.UV:Lcom/mojang/blaze3d/vertex/VertexFormatElement$Usage;
+      47: iconst_2
+      48: invokespecial #59                 // Method com/mojang/blaze3d/vertex/VertexFormatElement."<init>":(ILcom/mojang/blaze3d/vertex/VertexFormatElement$Type;Lcom/mojang/blaze3d/vertex/VertexFormatElement$Usage;I)V
+      51: putstatic     #74                 // Field ELEMENT_UV0:Lcom/mojang/blaze3d/vertex/VertexFormatElement;
+      54: new           #9                  // class com/mojang/blaze3d/vertex/VertexFormatElement
+      57: dup
+      58: iconst_1
+      59: getstatic     #77                 // Field com/mojang/blaze3d/vertex/VertexFormatElement$Type.SHORT:Lcom/mojang/blaze3d/vertex/VertexFormatElement$Type;
+      62: getstatic     #72                 // Field com/mojang/blaze3d/vertex/VertexFormatElement$Usage.UV:Lcom/mojang/blaze3d/vertex/VertexFormatElement$Usage;
+      65: iconst_2
+      66: invokespecial #59                 // Method com/mojang/blaze3d/vertex/VertexFormatElement."<init>":(ILcom/mojang/blaze3d/vertex/VertexFormatElement$Type;Lcom/mojang/blaze3d/vertex/VertexFormatElement$Usage;I)V
+      69: putstatic     #79                 // Field ELEMENT_UV1:Lcom/mojang/blaze3d/vertex/VertexFormatElement;
+      72: new           #9                  // class com/mojang/blaze3d/vertex/VertexFormatElement
+      75: dup
+      76: iconst_2
+      77: getstatic     #77                 // Field com/mojang/blaze3d/vertex/VertexFormatElement$Type.SHORT:Lcom/mojang/blaze3d/vertex/VertexFormatElement$Type;
+      80: getstatic     #72                 // Field com/mojang/blaze3d/vertex/VertexFormatElement$Usage.UV:Lcom/mojang/blaze3d/vertex/VertexFormatElement$Usage;
+      83: iconst_2
+      84: invokespecial #59                 // Method com/mojang/blaze3d/vertex/VertexFormatElement."<init>":(ILcom/mojang/blaze3d/vertex/VertexFormatElement$Type;Lcom/mojang/blaze3d/vertex/VertexFormatElement$Usage;I)V
+      87: putstatic     #81                 // Field ELEMENT_UV2:Lcom/mojang/blaze3d/vertex/VertexFormatElement;
+      90: new           #9                  // class com/mojang/blaze3d/vertex/VertexFormatElement
+      93: dup
+      94: iconst_0
+      95: getstatic     #84                 // Field com/mojang/blaze3d/vertex/VertexFormatElement$Type.BYTE:Lcom/mojang/blaze3d/vertex/VertexFormatElement$Type;
+      98: getstatic     #87                 // Field com/mojang/blaze3d/vertex/VertexFormatElement$Usage.NORMAL:Lcom/mojang/blaze3d/vertex/VertexFormatElement$Usage;
+     101: iconst_3
+     102: invokespecial #59                 // Method com/mojang/blaze3d/vertex/VertexFormatElement."<init>":(ILcom/mojang/blaze3d/vertex/VertexFormatElement$Type;Lcom/mojang/blaze3d/vertex/VertexFormatElement$Usage;I)V
+     105: putstatic     #89                 // Field ELEMENT_NORMAL:Lcom/mojang/blaze3d/vertex/VertexFormatElement;
+     108: new           #9                  // class com/mojang/blaze3d/vertex/VertexFormatElement
+     111: dup
+     112: iconst_0
+     113: getstatic     #84                 // Field com/mojang/blaze3d/vertex/VertexFormatElement$Type.BYTE:Lcom/mojang/blaze3d/vertex/VertexFormatElement$Type;
+     116: getstatic     #92                 // Field com/mojang/blaze3d/vertex/VertexFormatElement$Usage.PADDING:Lcom/mojang/blaze3d/vertex/VertexFormatElement$Usage;
+     119: iconst_1
+     120: invokespecial #59                 // Method com/mojang/blaze3d/vertex/VertexFormatElement."<init>":(ILcom/mojang/blaze3d/vertex/VertexFormatElement$Type;Lcom/mojang/blaze3d/vertex/VertexFormatElement$Usage;I)V
+     123: putstatic     #94                 // Field ELEMENT_PADDING:Lcom/mojang/blaze3d/vertex/VertexFormatElement;
+     126: getstatic     #74                 // Field ELEMENT_UV0:Lcom/mojang/blaze3d/vertex/VertexFormatElement;
+     129: putstatic     #96                 // Field ELEMENT_UV:Lcom/mojang/blaze3d/vertex/VertexFormatElement;
+     132: new           #98                 // class com/mojang/blaze3d/vertex/VertexFormat
+     135: dup
+     136: invokestatic  #102                // Method com/google/common/collect/ImmutableMap.builder:()Lcom/google/common/collect/ImmutableMap$Builder;
+     139: ldc           #104                // String Position
+     141: getstatic     #61                 // Field ELEMENT_POSITION:Lcom/mojang/blaze3d/vertex/VertexFormatElement;
+     144: invokevirtual #108                // Method com/google/common/collect/ImmutableMap$Builder.put:(Ljava/lang/Object;Ljava/lang/Object;)Lcom/google/common/collect/ImmutableMap$Builder;
+     147: ldc           #109                // String UV
+     149: getstatic     #96                 // Field ELEMENT_UV:Lcom/mojang/blaze3d/vertex/VertexFormatElement;
+     152: invokevirtual #108                // Method com/google/common/collect/ImmutableMap$Builder.put:(Ljava/lang/Object;Ljava/lang/Object;)Lcom/google/common/collect/ImmutableMap$Builder;
+     155: ldc           #111                // String Color
+     157: getstatic     #69                 // Field ELEMENT_COLOR:Lcom/mojang/blaze3d/vertex/VertexFormatElement;
+     160: invokevirtual #108                // Method com/google/common/collect/ImmutableMap$Builder.put:(Ljava/lang/Object;Ljava/lang/Object;)Lcom/google/common/collect/ImmutableMap$Builder;
+     163: invokevirtual #115                // Method com/google/common/collect/ImmutableMap$Builder.build:()Lcom/google/common/collect/ImmutableMap;
+     166: invokespecial #118                // Method com/mojang/blaze3d/vertex/VertexFormat."<init>":(Lcom/google/common/collect/ImmutableMap;)V
+     169: putstatic     #120                // Field BLIT_SCREEN:Lcom/mojang/blaze3d/vertex/VertexFormat;
+     172: new           #98                 // class com/mojang/blaze3d/vertex/VertexFormat
+     175: dup
+     176: invokestatic  #102                // Method com/google/common/collect/ImmutableMap.builder:()Lcom/google/common/collect/ImmutableMap$Builder;
+     179: ldc           #104                // String Position
+     181: getstatic     #61                 // Field ELEMENT_POSITION:Lcom/mojang/blaze3d/vertex/VertexFormatElement;
+     184: invokevirtual #108                // Method com/google/common/collect/ImmutableMap$Builder.put:(Ljava/lang/Object;Ljava/lang/Object;)Lcom/google/common/collect/ImmutableMap$Builder;
+     187: ldc           #111                // String Color
+     189: getstatic     #69                 // Field ELEMENT_COLOR:Lcom/mojang/blaze3d/vertex/VertexFormatElement;
+     192: invokevirtual #108                // Method com/google/common/collect/ImmutableMap$Builder.put:(Ljava/lang/Object;Ljava/lang/Object;)Lcom/google/common/collect/ImmutableMap$Builder;
+     195: ldc           #122                // String UV0
+     197: getstatic     #74                 // Field ELEMENT_UV0:Lcom/mojang/blaze3d/vertex/VertexFormatElement;
+     200: invokevirtual #108                // Method com/google/common/collect/ImmutableMap$Builder.put:(Ljava/lang/Object;Ljava/lang/Object;)Lcom/google/common/collect/ImmutableMap$Builder;
+     203: ldc           #124                // String UV2
+     205: getstatic     #81                 // Field ELEMENT_UV2:Lcom/mojang/blaze3d/vertex/VertexFormatElement;
+     208: invokevirtual #108                // Method com/google/common/collect/ImmutableMap$Builder.put:(Ljava/lang/Object;Ljava/lang/Object;)Lcom/google/common/collect/ImmutableMap$Builder;
+     211: ldc           #126                // String Normal
+     213: getstatic     #89                 // Field ELEMENT_NORMAL:Lcom/mojang/blaze3d/vertex/VertexFormatElement;
+     216: invokevirtual #108                // Method com/google/common/collect/ImmutableMap$Builder.put:(Ljava/lang/Object;Ljava/lang/Object;)Lcom/google/common/collect/ImmutableMap$Builder;
+     219: ldc           #128                // String Padding
+     221: getstatic     #94                 // Field ELEMENT_PADDING:Lcom/mojang/blaze3d/vertex/VertexFormatElement;
+     224: invokevirtual #108                // Method com/google/common/collect/ImmutableMap$Builder.put:(Ljava/lang/Object;Ljava/lang/Object;)Lcom/google/common/collect/ImmutableMap$Builder;
+     227: invokevirtual #115                // Method com/google/common/collect/ImmutableMap$Builder.build:()Lcom/google/common/collect/ImmutableMap;
+     230: invokespecial #118                // Method com/mojang/blaze3d/vertex/VertexFormat."<init>":(Lcom/google/common/collect/ImmutableMap;)V
+     233: putstatic     #130                // Field BLOCK:Lcom/mojang/blaze3d/vertex/VertexFormat;
+     236: new           #98                 // class com/mojang/blaze3d/vertex/VertexFormat
+     239: dup
+     240: invokestatic  #102                // Method com/google/common/collect/ImmutableMap.builder:()Lcom/google/common/collect/ImmutableMap$Builder;
+     243: ldc           #104                // String Position
+     245: getstatic     #61                 // Field ELEMENT_POSITION:Lcom/mojang/blaze3d/vertex/VertexFormatElement;
+     248: invokevirtual #108                // Method com/google/common/collect/ImmutableMap$Builder.put:(Ljava/lang/Object;Ljava/lang/Object;)Lcom/google/common/collect/ImmutableMap$Builder;
+     251: ldc           #111                // String Color
+     253: getstatic     #69                 // Field ELEMENT_COLOR:Lcom/mojang/blaze3d/vertex/VertexFormatElement;
+     256: invokevirtual #108                // Method com/google/common/collect/ImmutableMap$Builder.put:(Ljava/lang/Object;Ljava/lang/Object;)Lcom/google/common/collect/ImmutableMap$Builder;
+     259: ldc           #122                // String UV0
+     261: getstatic     #74                 // Field ELEMENT_UV0:Lcom/mojang/blaze3d/vertex/VertexFormatElement;
+     264: invokevirtual #108                // Method com/google/common/collect/ImmutableMap$Builder.put:(Ljava/lang/Object;Ljava/lang/Object;)Lcom/google/common/collect/ImmutableMap$Builder;
+     267: ldc           #132                // String UV1
+     269: getstatic     #79                 // Field ELEMENT_UV1:Lcom/mojang/blaze3d/vertex/VertexFormatElement;
+     272: invokevirtual #108                // Method com/google/common/collect/ImmutableMap$Builder.put:(Ljava/lang/Object;Ljava/lang/Object;)Lcom/google/common/collect/ImmutableMap$Builder;
+     275: ldc           #124                // String UV2
+     277: getstatic     #81                 // Field ELEMENT_UV2:Lcom/mojang/blaze3d/vertex/VertexFormatElement;
+     280: invokevirtual #108                // Method com/google/common/collect/ImmutableMap$Builder.put:(Ljava/lang/Object;Ljava/lang/Object;)Lcom/google/common/collect/ImmutableMap$Builder;
+     283: ldc           #126                // String Normal
+     285: getstatic     #89                 // Field ELEMENT_NORMAL:Lcom/mojang/blaze3d/vertex/VertexFormatElement;
+     288: invokevirtual #108                // Method com/google/common/collect/ImmutableMap$Builder.put:(Ljava/lang/Object;Ljava/lang/Object;)Lcom/google/common/collect/ImmutableMap$Builder;
+     291: ldc           #128                // String Padding
+     293: getstatic     #94                 // Field ELEMENT_PADDING:Lcom/mojang/blaze3d/vertex/VertexFormatElement;
+     296: invokevirtual #108                // Method com/google/common/collect/ImmutableMap$Builder.put:(Ljava/lang/Object;Ljava/lang/Object;)Lcom/google/common/collect/ImmutableMap$Builder;
+     299: invokevirtual #115                // Method com/google/common/collect/ImmutableMap$Builder.build:()Lcom/google/common/collect/ImmutableMap;
+     302: invokespecial #118                // Method com/mojang/blaze3d/vertex/VertexFormat."<init>":(Lcom/google/common/collect/ImmutableMap;)V
+     305: putstatic     #134                // Field NEW_ENTITY:Lcom/mojang/blaze3d/vertex/VertexFormat;
+     308: new           #98                 // class com/mojang/blaze3d/vertex/VertexFormat
+     311: dup
+     312: invokestatic  #102                // Method com/google/common/collect/ImmutableMap.builder:()Lcom/google/common/collect/ImmutableMap$Builder;
+     315: ldc           #104                // String Position
+     317: getstatic     #61                 // Field ELEMENT_POSITION:Lcom/mojang/blaze3d/vertex/VertexFormatElement;
+     320: invokevirtual #108                // Method com/google/common/collect/ImmutableMap$Builder.put:(Ljava/lang/Object;Ljava/lang/Object;)Lcom/google/common/collect/ImmutableMap$Builder;
+     323: ldc           #122                // String UV0
+     325: getstatic     #74                 // Field ELEMENT_UV0:Lcom/mojang/blaze3d/vertex/VertexFormatElement;
+     328: invokevirtual #108                // Method com/google/common/collect/ImmutableMap$Builder.put:(Ljava/lang/Object;Ljava/lang/Object;)Lcom/google/common/collect/ImmutableMap$Builder;
+     331: ldc           #111                // String Color
+     333: getstatic     #69                 // Field ELEMENT_COLOR:Lcom/mojang/blaze3d/vertex/VertexFormatElement;
+     336: invokevirtual #108                // Method com/google/common/collect/ImmutableMap$Builder.put:(Ljava/lang/Object;Ljava/lang/Object;)Lcom/google/common/collect/ImmutableMap$Builder;
+     339: ldc           #124                // String UV2
+     341: getstatic     #81                 // Field ELEMENT_UV2:Lcom/mojang/blaze3d/vertex/VertexFormatElement;
+     344: invokevirtual #108                // Method com/google/common/collect/ImmutableMap$Builder.put:(Ljava/lang/Object;Ljava/lang/Object;)Lcom/google/common/collect/ImmutableMap$Builder;
+     347: invokevirtual #115                // Method com/google/common/collect/ImmutableMap$Builder.build:()Lcom/google/common/collect/ImmutableMap;
+     350: invokespecial #118                // Method com/mojang/blaze3d/vertex/VertexFormat."<init>":(Lcom/google/common/collect/ImmutableMap;)V
+     353: putstatic     #136                // Field PARTICLE:Lcom/mojang/blaze3d/vertex/VertexFormat;
+     356: new           #98                 // class com/mojang/blaze3d/vertex/VertexFormat
+     359: dup
+     360: invokestatic  #102                // Method com/google/common/collect/ImmutableMap.builder:()Lcom/google/common/collect/ImmutableMap$Builder;
+     363: ldc           #104                // String Position
+     365: getstatic     #61                 // Field ELEMENT_POSITION:Lcom/mojang/blaze3d/vertex/VertexFormatElement;
+     368: invokevirtual #108                // Method com/google/common/collect/ImmutableMap$Builder.put:(Ljava/lang/Object;Ljava/lang/Object;)Lcom/google/common/collect/ImmutableMap$Builder;
+     371: invokevirtual #115                // Method com/google/common/collect/ImmutableMap$Builder.build:()Lcom/google/common/collect/ImmutableMap;
+     374: invokespecial #118                // Method com/mojang/blaze3d/vertex/VertexFormat."<init>":(Lcom/google/common/collect/ImmutableMap;)V
+     377: putstatic     #138                // Field POSITION:Lcom/mojang/blaze3d/vertex/VertexFormat;
+     380: new           #98                 // class com/mojang/blaze3d/vertex/VertexFormat
+     383: dup
+     384: invokestatic  #102                // Method com/google/common/collect/ImmutableMap.builder:()Lcom/google/common/collect/ImmutableMap$Builder;
+     387: ldc           #104                // String Position
+     389: getstatic     #61                 // Field ELEMENT_POSITION:Lcom/mojang/blaze3d/vertex/VertexFormatElement;
+     392: invokevirtual #108                // Method com/google/common/collect/ImmutableMap$Builder.put:(Ljava/lang/Object;Ljava/lang/Object;)Lcom/google/common/collect/ImmutableMap$Builder;
+     395: ldc           #111                // String Color
+     397: getstatic     #69                 // Field ELEMENT_COLOR:Lcom/mojang/blaze3d/vertex/VertexFormatElement;
+     400: invokevirtual #108                // Method com/google/common/collect/ImmutableMap$Builder.put:(Ljava/lang/Object;Ljava/lang/Object;)Lcom/google/common/collect/ImmutableMap$Builder;
+     403: invokevirtual #115                // Method com/google/common/collect/ImmutableMap$Builder.build:()Lcom/google/common/collect/ImmutableMap;
+     406: invokespecial #118                // Method com/mojang/blaze3d/vertex/VertexFormat."<init>":(Lcom/google/common/collect/ImmutableMap;)V
+     409: putstatic     #140                // Field POSITION_COLOR:Lcom/mojang/blaze3d/vertex/VertexFormat;
+     412: new           #98                 // class com/mojang/blaze3d/vertex/VertexFormat
+     415: dup
+     416: invokestatic  #102                // Method com/google/common/collect/ImmutableMap.builder:()Lcom/google/common/collect/ImmutableMap$Builder;
+     419: ldc           #104                // String Position
+     421: getstatic     #61                 // Field ELEMENT_POSITION:Lcom/mojang/blaze3d/vertex/VertexFormatElement;
+     424: invokevirtual #108                // Method com/google/common/collect/ImmutableMap$Builder.put:(Ljava/lang/Object;Ljava/lang/Object;)Lcom/google/common/collect/ImmutableMap$Builder;
+     427: ldc           #111                // String Color
+     429: getstatic     #69                 // Field ELEMENT_COLOR:Lcom/mojang/blaze3d/vertex/VertexFormatElement;
+     432: invokevirtual #108                // Method com/google/common/collect/ImmutableMap$Builder.put:(Ljava/lang/Object;Ljava/lang/Object;)Lcom/google/common/collect/ImmutableMap$Builder;
+     435: ldc           #126                // String Normal
+     437: getstatic     #89                 // Field ELEMENT_NORMAL:Lcom/mojang/blaze3d/vertex/VertexFormatElement;
+     440: invokevirtual #108                // Method com/google/common/collect/ImmutableMap$Builder.put:(Ljava/lang/Object;Ljava/lang/Object;)Lcom/google/common/collect/ImmutableMap$Builder;
+     443: ldc           #128                // String Padding
+     445: getstatic     #94                 // Field ELEMENT_PADDING:Lcom/mojang/blaze3d/vertex/VertexFormatElement;
+     448: invokevirtual #108                // Method com/google/common/collect/ImmutableMap$Builder.put:(Ljava/lang/Object;Ljava/lang/Object;)Lcom/google/common/collect/ImmutableMap$Builder;
+     451: invokevirtual #115                // Method com/google/common/collect/ImmutableMap$Builder.build:()Lcom/google/common/collect/ImmutableMap;
+     454: invokespecial #118                // Method com/mojang/blaze3d/vertex/VertexFormat."<init>":(Lcom/google/common/collect/ImmutableMap;)V
+     457: putstatic     #142                // Field POSITION_COLOR_NORMAL:Lcom/mojang/blaze3d/vertex/VertexFormat;
+     460: new           #98                 // class com/mojang/blaze3d/vertex/VertexFormat
+     463: dup
+     464: invokestatic  #102                // Method com/google/common/collect/ImmutableMap.builder:()Lcom/google/common/collect/ImmutableMap$Builder;
+     467: ldc           #104                // String Position
+     469: getstatic     #61                 // Field ELEMENT_POSITION:Lcom/mojang/blaze3d/vertex/VertexFormatElement;
+     472: invokevirtual #108                // Method com/google/common/collect/ImmutableMap$Builder.put:(Ljava/lang/Object;Ljava/lang/Object;)Lcom/google/common/collect/ImmutableMap$Builder;
+     475: ldc           #111                // String Color
+     477: getstatic     #69                 // Field ELEMENT_COLOR:Lcom/mojang/blaze3d/vertex/VertexFormatElement;
+     480: invokevirtual #108                // Method com/google/common/collect/ImmutableMap$Builder.put:(Ljava/lang/Object;Ljava/lang/Object;)Lcom/google/common/collect/ImmutableMap$Builder;
+     483: ldc           #124                // String UV2
+     485: getstatic     #81                 // Field ELEMENT_UV2:Lcom/mojang/blaze3d/vertex/VertexFormatElement;
+     488: invokevirtual #108                // Method com/google/common/collect/ImmutableMap$Builder.put:(Ljava/lang/Object;Ljava/lang/Object;)Lcom/google/common/collect/ImmutableMap$Builder;
+     491: invokevirtual #115                // Method com/google/common/collect/ImmutableMap$Builder.build:()Lcom/google/common/collect/ImmutableMap;
+     494: invokespecial #118                // Method com/mojang/blaze3d/vertex/VertexFormat."<init>":(Lcom/google/common/collect/ImmutableMap;)V
+     497: putstatic     #144                // Field POSITION_COLOR_LIGHTMAP:Lcom/mojang/blaze3d/vertex/VertexFormat;
+     500: new           #98                 // class com/mojang/blaze3d/vertex/VertexFormat
+     503: dup
+     504: invokestatic  #102                // Method com/google/common/collect/ImmutableMap.builder:()Lcom/google/common/collect/ImmutableMap$Builder;
+     507: ldc           #104                // String Position
+     509: getstatic     #61                 // Field ELEMENT_POSITION:Lcom/mojang/blaze3d/vertex/VertexFormatElement;
+     512: invokevirtual #108                // Method com/google/common/collect/ImmutableMap$Builder.put:(Ljava/lang/Object;Ljava/lang/Object;)Lcom/google/common/collect/ImmutableMap$Builder;
+     515: ldc           #122                // String UV0
+     517: getstatic     #74                 // Field ELEMENT_UV0:Lcom/mojang/blaze3d/vertex/VertexFormatElement;
+     520: invokevirtual #108                // Method com/google/common/collect/ImmutableMap$Builder.put:(Ljava/lang/Object;Ljava/lang/Object;)Lcom/google/common/collect/ImmutableMap$Builder;
+     523: invokevirtual #115                // Method com/google/common/collect/ImmutableMap$Builder.build:()Lcom/google/common/collect/ImmutableMap;
+     526: invokespecial #118                // Method com/mojang/blaze3d/vertex/VertexFormat."<init>":(Lcom/google/common/collect/ImmutableMap;)V
+     529: putstatic     #146                // Field POSITION_TEX:Lcom/mojang/blaze3d/vertex/VertexFormat;
+     532: new           #98                 // class com/mojang/blaze3d/vertex/VertexFormat
+     535: dup
+     536: invokestatic  #102                // Method com/google/common/collect/ImmutableMap.builder:()Lcom/google/common/collect/ImmutableMap$Builder;
+     539: ldc           #104                // String Position
+     541: getstatic     #61                 // Field ELEMENT_POSITION:Lcom/mojang/blaze3d/vertex/VertexFormatElement;
+     544: invokevirtual #108                // Method com/google/common/collect/ImmutableMap$Builder.put:(Ljava/lang/Object;Ljava/lang/Object;)Lcom/google/common/collect/ImmutableMap$Builder;
+     547: ldc           #111                // String Color
+     549: getstatic     #69                 // Field ELEMENT_COLOR:Lcom/mojang/blaze3d/vertex/VertexFormatElement;
+     552: invokevirtual #108                // Method com/google/common/collect/ImmutableMap$Builder.put:(Ljava/lang/Object;Ljava/lang/Object;)Lcom/google/common/collect/ImmutableMap$Builder;
+     555: ldc           #122                // String UV0
+     557: getstatic     #74                 // Field ELEMENT_UV0:Lcom/mojang/blaze3d/vertex/VertexFormatElement;
+     560: invokevirtual #108                // Method com/google/common/collect/ImmutableMap$Builder.put:(Ljava/lang/Object;Ljava/lang/Object;)Lcom/google/common/collect/ImmutableMap$Builder;
+     563: invokevirtual #115                // Method com/google/common/collect/ImmutableMap$Builder.build:()Lcom/google/common/collect/ImmutableMap;
+     566: invokespecial #118                // Method com/mojang/blaze3d/vertex/VertexFormat."<init>":(Lcom/google/common/collect/ImmutableMap;)V
+     569: putstatic     #148                // Field POSITION_COLOR_TEX:Lcom/mojang/blaze3d/vertex/VertexFormat;
+     572: new           #98                 // class com/mojang/blaze3d/vertex/VertexFormat
+     575: dup
+     576: invokestatic  #102                // Method com/google/common/collect/ImmutableMap.builder:()Lcom/google/common/collect/ImmutableMap$Builder;
+     579: ldc           #104                // String Position
+     581: getstatic     #61                 // Field ELEMENT_POSITION:Lcom/mojang/blaze3d/vertex/VertexFormatElement;
+     584: invokevirtual #108                // Method com/google/common/collect/ImmutableMap$Builder.put:(Ljava/lang/Object;Ljava/lang/Object;)Lcom/google/common/collect/ImmutableMap$Builder;
+     587: ldc           #122                // String UV0
+     589: getstatic     #74                 // Field ELEMENT_UV0:Lcom/mojang/blaze3d/vertex/VertexFormatElement;
+     592: invokevirtual #108                // Method com/google/common/collect/ImmutableMap$Builder.put:(Ljava/lang/Object;Ljava/lang/Object;)Lcom/google/common/collect/ImmutableMap$Builder;
+     595: ldc           #111                // String Color
+     597: getstatic     #69                 // Field ELEMENT_COLOR:Lcom/mojang/blaze3d/vertex/VertexFormatElement;
+     600: invokevirtual #108                // Method com/google/common/collect/ImmutableMap$Builder.put:(Ljava/lang/Object;Ljava/lang/Object;)Lcom/google/common/collect/ImmutableMap$Builder;
+     603: invokevirtual #115                // Method com/google/common/collect/ImmutableMap$Builder.build:()Lcom/google/common/collect/ImmutableMap;
+     606: invokespecial #118                // Method com/mojang/blaze3d/vertex/VertexFormat."<init>":(Lcom/google/common/collect/ImmutableMap;)V
+     609: putstatic     #150                // Field POSITION_TEX_COLOR:Lcom/mojang/blaze3d/vertex/VertexFormat;
+     612: new           #98                 // class com/mojang/blaze3d/vertex/VertexFormat
+     615: dup
+     616: invokestatic  #102                // Method com/google/common/collect/ImmutableMap.builder:()Lcom/google/common/collect/ImmutableMap$Builder;
+     619: ldc           #104                // String Position
+     621: getstatic     #61                 // Field ELEMENT_POSITION:Lcom/mojang/blaze3d/vertex/VertexFormatElement;
+     624: invokevirtual #108                // Method com/google/common/collect/ImmutableMap$Builder.put:(Ljava/lang/Object;Ljava/lang/Object;)Lcom/google/common/collect/ImmutableMap$Builder;
+     627: ldc           #111                // String Color
+     629: getstatic     #69                 // Field ELEMENT_COLOR:Lcom/mojang/blaze3d/vertex/VertexFormatElement;
+     632: invokevirtual #108                // Method com/google/common/collect/ImmutableMap$Builder.put:(Ljava/lang/Object;Ljava/lang/Object;)Lcom/google/common/collect/ImmutableMap$Builder;
+     635: ldc           #122                // String UV0
+     637: getstatic     #74                 // Field ELEMENT_UV0:Lcom/mojang/blaze3d/vertex/VertexFormatElement;
+     640: invokevirtual #108                // Method com/google/common/collect/ImmutableMap$Builder.put:(Ljava/lang/Object;Ljava/lang/Object;)Lcom/google/common/collect/ImmutableMap$Builder;
+     643: ldc           #124                // String UV2
+     645: getstatic     #81                 // Field ELEMENT_UV2:Lcom/mojang/blaze3d/vertex/VertexFormatElement;
+     648: invokevirtual #108                // Method com/google/common/collect/ImmutableMap$Builder.put:(Ljava/lang/Object;Ljava/lang/Object;)Lcom/google/common/collect/ImmutableMap$Builder;
+     651: invokevirtual #115                // Method com/google/common/collect/ImmutableMap$Builder.build:()Lcom/google/common/collect/ImmutableMap;
+     654: invokespecial #118                // Method com/mojang/blaze3d/vertex/VertexFormat."<init>":(Lcom/google/common/collect/ImmutableMap;)V
+     657: putstatic     #152                // Field POSITION_COLOR_TEX_LIGHTMAP:Lcom/mojang/blaze3d/vertex/VertexFormat;
+     660: new           #98                 // class com/mojang/blaze3d/vertex/VertexFormat
+     663: dup
+     664: invokestatic  #102                // Method com/google/common/collect/ImmutableMap.builder:()Lcom/google/common/collect/ImmutableMap$Builder;
+     667: ldc           #104                // String Position
+     669: getstatic     #61                 // Field ELEMENT_POSITION:Lcom/mojang/blaze3d/vertex/VertexFormatElement;
+     672: invokevirtual #108                // Method com/google/common/collect/ImmutableMap$Builder.put:(Ljava/lang/Object;Ljava/lang/Object;)Lcom/google/common/collect/ImmutableMap$Builder;
+     675: ldc           #122                // String UV0
+     677: getstatic     #74                 // Field ELEMENT_UV0:Lcom/mojang/blaze3d/vertex/VertexFormatElement;
+     680: invokevirtual #108                // Method com/google/common/collect/ImmutableMap$Builder.put:(Ljava/lang/Object;Ljava/lang/Object;)Lcom/google/common/collect/ImmutableMap$Builder;
+     683: ldc           #124                // String UV2
+     685: getstatic     #81                 // Field ELEMENT_UV2:Lcom/mojang/blaze3d/vertex/VertexFormatElement;
+     688: invokevirtual #108                // Method com/google/common/collect/ImmutableMap$Builder.put:(Ljava/lang/Object;Ljava/lang/Object;)Lcom/google/common/collect/ImmutableMap$Builder;
+     691: ldc           #111                // String Color
+     693: getstatic     #69                 // Field ELEMENT_COLOR:Lcom/mojang/blaze3d/vertex/VertexFormatElement;
+     696: invokevirtual #108                // Method com/google/common/collect/ImmutableMap$Builder.put:(Ljava/lang/Object;Ljava/lang/Object;)Lcom/google/common/collect/ImmutableMap$Builder;
+     699: invokevirtual #115                // Method com/google/common/collect/ImmutableMap$Builder.build:()Lcom/google/common/collect/ImmutableMap;
+     702: invokespecial #118                // Method com/mojang/blaze3d/vertex/VertexFormat."<init>":(Lcom/google/common/collect/ImmutableMap;)V
+     705: putstatic     #154                // Field POSITION_TEX_LIGHTMAP_COLOR:Lcom/mojang/blaze3d/vertex/VertexFormat;
+     708: new           #98                 // class com/mojang/blaze3d/vertex/VertexFormat
+     711: dup
+     712: invokestatic  #102                // Method com/google/common/collect/ImmutableMap.builder:()Lcom/google/common/collect/ImmutableMap$Builder;
+     715: ldc           #104                // String Position
+     717: getstatic     #61                 // Field ELEMENT_POSITION:Lcom/mojang/blaze3d/vertex/VertexFormatElement;
+     720: invokevirtual #108                // Method com/google/common/collect/ImmutableMap$Builder.put:(Ljava/lang/Object;Ljava/lang/Object;)Lcom/google/common/collect/ImmutableMap$Builder;
+     723: ldc           #122                // String UV0
+     725: getstatic     #74                 // Field ELEMENT_UV0:Lcom/mojang/blaze3d/vertex/VertexFormatElement;
+     728: invokevirtual #108                // Method com/google/common/collect/ImmutableMap$Builder.put:(Ljava/lang/Object;Ljava/lang/Object;)Lcom/google/common/collect/ImmutableMap$Builder;
+     731: ldc           #111                // String Color
+     733: getstatic     #69                 // Field ELEMENT_COLOR:Lcom/mojang/blaze3d/vertex/VertexFormatElement;
+     736: invokevirtual #108                // Method com/google/common/collect/ImmutableMap$Builder.put:(Ljava/lang/Object;Ljava/lang/Object;)Lcom/google/common/collect/ImmutableMap$Builder;
+     739: ldc           #126                // String Normal
+     741: getstatic     #89                 // Field ELEMENT_NORMAL:Lcom/mojang/blaze3d/vertex/VertexFormatElement;
+     744: invokevirtual #108                // Method com/google/common/collect/ImmutableMap$Builder.put:(Ljava/lang/Object;Ljava/lang/Object;)Lcom/google/common/collect/ImmutableMap$Builder;
+     747: ldc           #128                // String Padding
+     749: getstatic     #94                 // Field ELEMENT_PADDING:Lcom/mojang/blaze3d/vertex/VertexFormatElement;
+     752: invokevirtual #108                // Method com/google/common/collect/ImmutableMap$Builder.put:(Ljava/lang/Object;Ljava/lang/Object;)Lcom/google/common/collect/ImmutableMap$Builder;
+     755: invokevirtual #115                // Method com/google/common/collect/ImmutableMap$Builder.build:()Lcom/google/common/collect/ImmutableMap;
+     758: invokespecial #118                // Method com/mojang/blaze3d/vertex/VertexFormat."<init>":(Lcom/google/common/collect/ImmutableMap;)V
+     761: putstatic     #156                // Field POSITION_TEX_COLOR_NORMAL:Lcom/mojang/blaze3d/vertex/VertexFormat;
+     764: return
+}

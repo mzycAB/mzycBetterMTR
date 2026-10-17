@@ -1,0 +1,19 @@
+baseline: 37 sections / 9 FAIL
+now: 38 sections / 11 FAIL
+
+NEW FAILURES:
+  + 直梯楼层轨道外观
+  + PIDS 站台名掩码
+
+PRE-EXISTING (still failing in both):
+  = 屏蔽门锚点与跳变
+  = 屏蔽门提示音素材
+  = 屏蔽门关门提示音对齐
+  = 屏蔽门提示音顺序
+  = 屏蔽门提前量状态机
+  = 屏蔽门音量与淡入淡出
+  = 屏蔽门串身份=站台
+  = 屏蔽门讲述人/自定义拆开
+  = 同步所有按钮与弹窗
+
+FIXED (was failing, now passes):

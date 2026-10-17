@@ -1,0 +1,21 @@
+﻿Compiled from "VertexConsumer.java"
+public interface com.mojang.blaze3d.vertex.VertexConsumer {
+  public abstract com.mojang.blaze3d.vertex.VertexConsumer vertex(double, double, double);
+  public abstract com.mojang.blaze3d.vertex.VertexConsumer color(int, int, int, int);
+  public abstract com.mojang.blaze3d.vertex.VertexConsumer uv(float, float);
+  public abstract com.mojang.blaze3d.vertex.VertexConsumer overlayCoords(int, int);
+  public abstract com.mojang.blaze3d.vertex.VertexConsumer uv2(int, int);
+  public abstract com.mojang.blaze3d.vertex.VertexConsumer normal(float, float, float);
+  public abstract void endVertex();
+  public default void vertex(float, float, float, float, float, float, float, float, float, int, int, float, float, float);
+  public abstract void defaultColor(int, int, int, int);
+  public abstract void unsetDefaultColor();
+  public default com.mojang.blaze3d.vertex.VertexConsumer color(float, float, float, float);
+  public default com.mojang.blaze3d.vertex.VertexConsumer color(int);
+  public default com.mojang.blaze3d.vertex.VertexConsumer uv2(int);
+  public default com.mojang.blaze3d.vertex.VertexConsumer overlayCoords(int);
+  public default void putBulkData(com.mojang.blaze3d.vertex.PoseStack$Pose, net.minecraft.client.renderer.block.model.BakedQuad, float, float, float, int, int);
+  public default void putBulkData(com.mojang.blaze3d.vertex.PoseStack$Pose, net.minecraft.client.renderer.block.model.BakedQuad, float[], float, float, float, int[], int, boolean);
+  public default com.mojang.blaze3d.vertex.VertexConsumer vertex(org.joml.Matrix4f, float, float, float);
+  public default com.mojang.blaze3d.vertex.VertexConsumer normal(org.joml.Matrix3f, float, float, float);
+}

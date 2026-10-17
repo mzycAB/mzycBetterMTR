@@ -1,0 +1,22 @@
+﻿Compiled from "ModelBlockRenderer.java"
+public class net.minecraft.client.renderer.block.ModelBlockRenderer {
+  private static final int FACE_CUBIC;
+  private static final int FACE_PARTIAL;
+  static final net.minecraft.core.Direction[] DIRECTIONS;
+  private final net.minecraft.client.color.block.BlockColors blockColors;
+  private static final int CACHE_SIZE;
+  static final java.lang.ThreadLocal<net.minecraft.client.renderer.block.ModelBlockRenderer$Cache> CACHE;
+  public net.minecraft.client.renderer.block.ModelBlockRenderer(net.minecraft.client.color.block.BlockColors);
+  public void tesselateBlock(net.minecraft.world.level.BlockAndTintGetter, net.minecraft.client.resources.model.BakedModel, net.minecraft.world.level.block.state.BlockState, net.minecraft.core.BlockPos, com.mojang.blaze3d.vertex.PoseStack, com.mojang.blaze3d.vertex.VertexConsumer, boolean, net.minecraft.util.RandomSource, long, int);
+  public void tesselateWithAO(net.minecraft.world.level.BlockAndTintGetter, net.minecraft.client.resources.model.BakedModel, net.minecraft.world.level.block.state.BlockState, net.minecraft.core.BlockPos, com.mojang.blaze3d.vertex.PoseStack, com.mojang.blaze3d.vertex.VertexConsumer, boolean, net.minecraft.util.RandomSource, long, int);
+  public void tesselateWithoutAO(net.minecraft.world.level.BlockAndTintGetter, net.minecraft.client.resources.model.BakedModel, net.minecraft.world.level.block.state.BlockState, net.minecraft.core.BlockPos, com.mojang.blaze3d.vertex.PoseStack, com.mojang.blaze3d.vertex.VertexConsumer, boolean, net.minecraft.util.RandomSource, long, int);
+  private void renderModelFaceAO(net.minecraft.world.level.BlockAndTintGetter, net.minecraft.world.level.block.state.BlockState, net.minecraft.core.BlockPos, com.mojang.blaze3d.vertex.PoseStack, com.mojang.blaze3d.vertex.VertexConsumer, java.util.List<net.minecraft.client.renderer.block.model.BakedQuad>, float[], java.util.BitSet, net.minecraft.client.renderer.block.ModelBlockRenderer$AmbientOcclusionFace, int);
+  private void putQuadData(net.minecraft.world.level.BlockAndTintGetter, net.minecraft.world.level.block.state.BlockState, net.minecraft.core.BlockPos, com.mojang.blaze3d.vertex.VertexConsumer, com.mojang.blaze3d.vertex.PoseStack$Pose, net.minecraft.client.renderer.block.model.BakedQuad, float, float, float, float, int, int, int, int, int);
+  private void calculateShape(net.minecraft.world.level.BlockAndTintGetter, net.minecraft.world.level.block.state.BlockState, net.minecraft.core.BlockPos, int[], net.minecraft.core.Direction, float[], java.util.BitSet);
+  private void renderModelFaceFlat(net.minecraft.world.level.BlockAndTintGetter, net.minecraft.world.level.block.state.BlockState, net.minecraft.core.BlockPos, int, int, boolean, com.mojang.blaze3d.vertex.PoseStack, com.mojang.blaze3d.vertex.VertexConsumer, java.util.List<net.minecraft.client.renderer.block.model.BakedQuad>, java.util.BitSet);
+  public void renderModel(com.mojang.blaze3d.vertex.PoseStack$Pose, com.mojang.blaze3d.vertex.VertexConsumer, net.minecraft.world.level.block.state.BlockState, net.minecraft.client.resources.model.BakedModel, float, float, float, int, int);
+  private static void renderQuadList(com.mojang.blaze3d.vertex.PoseStack$Pose, com.mojang.blaze3d.vertex.VertexConsumer, float, float, float, java.util.List<net.minecraft.client.renderer.block.model.BakedQuad>, int, int);
+  public static void enableCaching();
+  public static void clearCache();
+  static {};
+}

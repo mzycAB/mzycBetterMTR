@@ -1,0 +1,8 @@
+﻿Compiled from "ModelModifier.java"
+public interface net.fabricmc.fabric.api.client.model.loading.v1.ModelModifier$AfterBake {
+  public abstract net.minecraft.class_1087 modifyModelAfterBake(net.minecraft.class_1087, net.fabricmc.fabric.api.client.model.loading.v1.ModelModifier$AfterBake$Context);
+}
+Compiled from "ModelModifier.java"
+public interface net.fabricmc.fabric.api.client.model.loading.v1.ModelModifier$OnLoad {
+  public abstract net.minecraft.class_1100 modifyModelOnLoad(net.minecraft.class_1100, net.fabricmc.fabric.api.client.model.loading.v1.ModelModifier$OnLoad$Context);
+}

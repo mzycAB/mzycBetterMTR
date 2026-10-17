@@ -1,0 +1,42 @@
+plugins {
+	id 'fabric-loom' version '1.6-SNAPSHOT'
+	id 'maven-publish'
+}
+
+version = project.mod_version
+group = project.maven_group
+
+// 【1.22】用户点名：模组改名 → jar 产物名也必须跟着改。
+// 注意 `archives_base_name` 只是**声明**，Loom 不会自动用它（默认取 rootProject.name
+// = `smooth-escalator`）⇒ 必须在这里 base.archivesName 显式应用，否则产物仍叫 smooth-escalator-*。
+base {
+	archivesName = project.archives_base_name
+}
+
+loom {
+	splitEnvironmentSourceSets()
+	accessWidenerPath = file("src/main/resources/smoothlift.accesswidener")
+}
+
+repositories {
+	// 如果你需要引入 MTR 源码依赖，可以在这里添加 Maven 仓库
+}
+
+dependencies {
+	minecraft "com.mojang:minecraft:${project.minecraft_version}"
+	mappings loom.officialMojangMappings()
+	modImplementation "net.fabricmc:fabric-loader:${project.loader_version}"
+	modImplementation "net.fabricmc.fabric-api:fabric-api:${project.fabric_version}"
+}
+
+processResources {
+	inputs.property "version", project.version
+	filesMatching("fabric.mod.json") {
+		expand "version": project.version
+	}
+}
+
+java {
+	sourceCompatibility = JavaVersion.VERSION_17
+	targetCompatibility = JavaVersion.VERSION_17
+}

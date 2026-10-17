@@ -1,0 +1,1746 @@
+Compiled from "LivingEntityMixin.java"
+public abstract class smooth.lift.mixin.LivingEntityMixin {
+  private static final double SPEED_TO_STEP;
+
+  private static final int MAX_WALK_LENGTH;
+
+  private static final double HOVER;
+
+  private static final double FLAT_EPSILON;
+
+  private static final double MIN_DESCENT_PER_TICK;
+
+  private static final double ENTRY_RISE;
+
+  private static final double TREAD_PITCH;
+
+  private static final double HANDRAIL_PROBE_STEP;
+
+  private static final double HANDRAIL_PEN_EPSILON;
+
+  private static final double RUN_BOOST;
+
+  private static final java.util.Map<java.lang.String, java.lang.Boolean> PLAYER_DIRECTION;
+
+  private static final java.util.Set<java.lang.String> MOD_EXEMPT;
+
+  public smooth.lift.mixin.LivingEntityMixin();
+    Code:
+       0: aload_0
+       1: invokespecial #59                 // Method java/lang/Object."<init>":()V
+       4: return
+
+  private static java.lang.String sideKey(net.minecraft.class_1309);
+    Code:
+       0: aload_0
+       1: invokevirtual #70                 // Method net/minecraft/class_1309.method_5667:()Ljava/util/UUID;
+       4: invokestatic  #76                 // Method java/lang/String.valueOf:(Ljava/lang/Object;)Ljava/lang/String;
+       7: aload_0
+       8: invokevirtual #80                 // Method net/minecraft/class_1309.method_37908:()Lnet/minecraft/class_1937;
+      11: invokevirtual #86                 // Method net/minecraft/class_1937.method_8608:()Z
+      14: ifeq          22
+      17: ldc           #88                 // String :c
+      19: goto          24
+      22: ldc           #90                 // String :s
+      24: invokedynamic #102,  0            // InvokeDynamic #0:makeConcatWithConstants:(Ljava/lang/String;Ljava/lang/String;)Ljava/lang/String;
+      29: areturn
+
+  private void smoothEscalator(net.minecraft.class_243, org.spongepowered.asm.mixin.injection.callback.CallbackInfo);
+    Code:
+       0: aload_0
+       1: checkcast     #66                 // class net/minecraft/class_1309
+       4: astore_3
+       5: aload_3
+       6: instanceof    #116                // class net/minecraft/class_1657
+       9: ifne          13
+      12: return
+      13: aload_3
+      14: checkcast     #116                // class net/minecraft/class_1657
+      17: invokevirtual #119                // Method net/minecraft/class_1657.method_7325:()Z
+      20: ifeq          52
+      23: aload_3
+      24: invokestatic  #121                // Method sideKey:(Lnet/minecraft/class_1309;)Ljava/lang/String;
+      27: astore        4
+      29: getstatic     #123                // Field PLAYER_DIRECTION:Ljava/util/Map;
+      32: aload         4
+      34: invokeinterface #129,  2          // InterfaceMethod java/util/Map.remove:(Ljava/lang/Object;)Ljava/lang/Object;
+      39: pop
+      40: getstatic     #131                // Field MOD_EXEMPT:Ljava/util/Set;
+      43: aload         4
+      45: invokeinterface #136,  2          // InterfaceMethod java/util/Set.remove:(Ljava/lang/Object;)Z
+      50: pop
+      51: return
+      52: aload_3
+      53: invokevirtual #139                // Method net/minecraft/class_1309.method_5765:()Z
+      56: ifne          94
+      59: aload_3
+      60: invokevirtual #142                // Method net/minecraft/class_1309.method_6128:()Z
+      63: ifne          94
+      66: aload_3
+      67: invokevirtual #145                // Method net/minecraft/class_1309.method_5715:()Z
+      70: ifne          94
+      73: aload_3
+      74: invokevirtual #148                // Method net/minecraft/class_1309.method_24828:()Z
+      77: ifeq          94
+      80: aload_3
+      81: invokevirtual #152                // Method net/minecraft/class_1309.method_18798:()Lnet/minecraft/class_243;
+      84: getfield      #157                // Field net/minecraft/class_243.field_1351:D
+      87: ldc2_w        #158                // double 0.01d
+      90: dcmpl
+      91: ifle          113
+      94: getstatic     #123                // Field PLAYER_DIRECTION:Ljava/util/Map;
+      97: aload_3
+      98: invokestatic  #121                // Method sideKey:(Lnet/minecraft/class_1309;)Ljava/lang/String;
+     101: invokeinterface #129,  2          // InterfaceMethod java/util/Map.remove:(Ljava/lang/Object;)Ljava/lang/Object;
+     106: pop
+     107: aload_3
+     108: iconst_0
+     109: invokestatic  #163                // Method setPhysicsExempt:(Lnet/minecraft/class_1309;Z)V
+     112: return
+     113: aload_3
+     114: invokevirtual #80                 // Method net/minecraft/class_1309.method_37908:()Lnet/minecraft/class_1937;
+     117: astore        4
+     119: aload         4
+     121: aload_3
+     122: invokestatic  #167                // Method findEscalatorBelow:(Lnet/minecraft/class_1937;Lnet/minecraft/class_1309;)Lnet/minecraft/class_2338;
+     125: astore        5
+     127: aload         5
+     129: ifnonnull     151
+     132: getstatic     #123                // Field PLAYER_DIRECTION:Ljava/util/Map;
+     135: aload_3
+     136: invokestatic  #121                // Method sideKey:(Lnet/minecraft/class_1309;)Ljava/lang/String;
+     139: invokeinterface #129,  2          // InterfaceMethod java/util/Map.remove:(Ljava/lang/Object;)Ljava/lang/Object;
+     144: pop
+     145: aload_3
+     146: iconst_0
+     147: invokestatic  #163                // Method setPhysicsExempt:(Lnet/minecraft/class_1309;Z)V
+     150: return
+     151: aload         4
+     153: aload         5
+     155: invokestatic  #173                // Method isStaticLanding:(Lnet/minecraft/class_1937;Lnet/minecraft/class_2338;)Z
+     158: ifeq          180
+     161: getstatic     #123                // Field PLAYER_DIRECTION:Ljava/util/Map;
+     164: aload_3
+     165: invokestatic  #121                // Method sideKey:(Lnet/minecraft/class_1309;)Ljava/lang/String;
+     168: invokeinterface #129,  2          // InterfaceMethod java/util/Map.remove:(Ljava/lang/Object;)Ljava/lang/Object;
+     173: pop
+     174: aload_3
+     175: iconst_0
+     176: invokestatic  #163                // Method setPhysicsExempt:(Lnet/minecraft/class_1309;Z)V
+     179: return
+     180: aload         4
+     182: aload         5
+     184: invokevirtual #177                // Method net/minecraft/class_1937.method_8320:(Lnet/minecraft/class_2338;)Lnet/minecraft/class_2680;
+     187: astore        6
+     189: aload_3
+     190: invokestatic  #121                // Method sideKey:(Lnet/minecraft/class_1309;)Ljava/lang/String;
+     193: astore        7
+     195: aload         6
+     197: invokestatic  #181                // Method getFacingProperty:(Lnet/minecraft/class_2680;)Lnet/minecraft/class_2350;
+     200: astore        8
+     202: aconst_null
+     203: astore        9
+     205: aconst_null
+     206: astore        10
+     208: aload         8
+     210: ifnull        400
+     213: aload         4
+     215: aload         5
+     217: ldc           #183                // String status
+     219: invokestatic  #187                // Method escalatorProp:(Lnet/minecraft/class_1937;Lnet/minecraft/class_2338;Ljava/lang/String;)Ljava/lang/Boolean;
+     222: astore        11
+     224: aload         11
+     226: ifnull        254
+     229: aload         11
+     231: invokevirtual #192                // Method java/lang/Boolean.booleanValue:()Z
+     234: ifne          254
+     237: getstatic     #123                // Field PLAYER_DIRECTION:Ljava/util/Map;
+     240: aload         7
+     242: invokeinterface #129,  2          // InterfaceMethod java/util/Map.remove:(Ljava/lang/Object;)Ljava/lang/Object;
+     247: pop
+     248: aload_3
+     249: iconst_0
+     250: invokestatic  #163                // Method setPhysicsExempt:(Lnet/minecraft/class_1309;Z)V
+     253: return
+     254: aload         4
+     256: aload         5
+     258: aload         8
+     260: invokestatic  #202                // Method findEndpointsAlongAxis:(Lnet/minecraft/class_1937;Lnet/minecraft/class_2338;Lnet/minecraft/class_2350;)[Lnet/minecraft/class_2338;
+     263: astore        12
+     265: aload         4
+     267: aload         5
+     269: ldc           #204                // String direction
+     271: invokestatic  #187                // Method escalatorProp:(Lnet/minecraft/class_1937;Lnet/minecraft/class_2338;Ljava/lang/String;)Ljava/lang/Boolean;
+     274: astore        13
+     276: aload         13
+     278: ifnull        307
+     281: aload         13
+     283: invokevirtual #192                // Method java/lang/Boolean.booleanValue:()Z
+     286: istore        14
+     288: getstatic     #123                // Field PLAYER_DIRECTION:Ljava/util/Map;
+     291: aload         7
+     293: iload         14
+     295: invokestatic  #207                // Method java/lang/Boolean.valueOf:(Z)Ljava/lang/Boolean;
+     298: invokeinterface #211,  3          // InterfaceMethod java/util/Map.put:(Ljava/lang/Object;Ljava/lang/Object;)Ljava/lang/Object;
+     303: pop
+     304: goto          380
+     307: getstatic     #123                // Field PLAYER_DIRECTION:Ljava/util/Map;
+     310: aload         7
+     312: invokeinterface #216,  2          // InterfaceMethod java/util/Map.get:(Ljava/lang/Object;)Ljava/lang/Object;
+     317: checkcast     #189                // class java/lang/Boolean
+     320: astore        15
+     322: aload         15
+     324: ifnull        337
+     327: aload         15
+     329: invokevirtual #192                // Method java/lang/Boolean.booleanValue:()Z
+     332: istore        14
+     334: goto          380
+     337: aload_3
+     338: aload         12
+     340: iconst_0
+     341: aaload
+     342: invokestatic  #220                // Method distanceSq:(Lnet/minecraft/class_1309;Lnet/minecraft/class_2338;)D
+     345: aload_3
+     346: aload         12
+     348: iconst_1
+     349: aaload
+     350: invokestatic  #220                // Method distanceSq:(Lnet/minecraft/class_1309;Lnet/minecraft/class_2338;)D
+     353: dcmpg
+     354: ifgt          361
+     357: iconst_1
+     358: goto          362
+     361: iconst_0
+     362: istore        14
+     364: getstatic     #123                // Field PLAYER_DIRECTION:Ljava/util/Map;
+     367: aload         7
+     369: iload         14
+     371: invokestatic  #207                // Method java/lang/Boolean.valueOf:(Z)Ljava/lang/Boolean;
+     374: invokeinterface #211,  3          // InterfaceMethod java/util/Map.put:(Ljava/lang/Object;Ljava/lang/Object;)Ljava/lang/Object;
+     379: pop
+     380: iload         14
+     382: ifeq          390
+     385: aload         8
+     387: goto          395
+     390: aload         8
+     392: invokevirtual #224                // Method net/minecraft/class_2350.method_10153:()Lnet/minecraft/class_2350;
+     395: astore        9
+     397: goto          704
+     400: aload         4
+     402: aload         5
+     404: invokestatic  #228                // Method findEscalatorEndpoints:(Lnet/minecraft/class_1937;Lnet/minecraft/class_2338;)[Lnet/minecraft/class_2338;
+     407: astore        11
+     409: aload         11
+     411: ifnull        421
+     414: aload         11
+     416: arraylength
+     417: iconst_2
+     418: if_icmpge     427
+     421: aload_3
+     422: iconst_0
+     423: invokestatic  #163                // Method setPhysicsExempt:(Lnet/minecraft/class_1309;Z)V
+     426: return
+     427: aload         11
+     429: iconst_0
+     430: aaload
+     431: astore        12
+     433: aload         11
+     435: iconst_1
+     436: aaload
+     437: astore        13
+     439: aload         6
+     441: ldc           #204                // String direction
+     443: invokestatic  #232                // Method getBooleanProperty:(Lnet/minecraft/class_2680;Ljava/lang/String;)Ljava/lang/Boolean;
+     446: astore        15
+     448: aload         15
+     450: ifnull        479
+     453: aload         15
+     455: invokevirtual #192                // Method java/lang/Boolean.booleanValue:()Z
+     458: istore        14
+     460: getstatic     #123                // Field PLAYER_DIRECTION:Ljava/util/Map;
+     463: aload         7
+     465: iload         14
+     467: invokestatic  #207                // Method java/lang/Boolean.valueOf:(Z)Ljava/lang/Boolean;
+     470: invokeinterface #211,  3          // InterfaceMethod java/util/Map.put:(Ljava/lang/Object;Ljava/lang/Object;)Ljava/lang/Object;
+     475: pop
+     476: goto          548
+     479: getstatic     #123                // Field PLAYER_DIRECTION:Ljava/util/Map;
+     482: aload         7
+     484: invokeinterface #216,  2          // InterfaceMethod java/util/Map.get:(Ljava/lang/Object;)Ljava/lang/Object;
+     489: checkcast     #189                // class java/lang/Boolean
+     492: astore        16
+     494: aload         16
+     496: ifnull        509
+     499: aload         16
+     501: invokevirtual #192                // Method java/lang/Boolean.booleanValue:()Z
+     504: istore        14
+     506: goto          548
+     509: aload_3
+     510: aload         12
+     512: invokestatic  #220                // Method distanceSq:(Lnet/minecraft/class_1309;Lnet/minecraft/class_2338;)D
+     515: aload_3
+     516: aload         13
+     518: invokestatic  #220                // Method distanceSq:(Lnet/minecraft/class_1309;Lnet/minecraft/class_2338;)D
+     521: dcmpg
+     522: ifgt          529
+     525: iconst_1
+     526: goto          530
+     529: iconst_0
+     530: istore        14
+     532: getstatic     #123                // Field PLAYER_DIRECTION:Ljava/util/Map;
+     535: aload         7
+     537: iload         14
+     539: invokestatic  #207                // Method java/lang/Boolean.valueOf:(Z)Ljava/lang/Boolean;
+     542: invokeinterface #211,  3          // InterfaceMethod java/util/Map.put:(Ljava/lang/Object;Ljava/lang/Object;)Ljava/lang/Object;
+     547: pop
+     548: iload         14
+     550: ifeq          629
+     553: new           #154                // class net/minecraft/class_243
+     556: dup
+     557: aload         13
+     559: invokevirtual #236                // Method net/minecraft/class_2338.method_10263:()I
+     562: i2d
+     563: ldc2_w        #29                 // double 0.5d
+     566: dadd
+     567: aload         12
+     569: invokevirtual #236                // Method net/minecraft/class_2338.method_10263:()I
+     572: i2d
+     573: ldc2_w        #29                 // double 0.5d
+     576: dadd
+     577: dsub
+     578: aload         13
+     580: invokevirtual #239                // Method net/minecraft/class_2338.method_10264:()I
+     583: i2d
+     584: ldc2_w        #29                 // double 0.5d
+     587: dadd
+     588: aload         12
+     590: invokevirtual #239                // Method net/minecraft/class_2338.method_10264:()I
+     593: i2d
+     594: ldc2_w        #29                 // double 0.5d
+     597: dadd
+     598: dsub
+     599: aload         13
+     601: invokevirtual #242                // Method net/minecraft/class_2338.method_10260:()I
+     604: i2d
+     605: ldc2_w        #29                 // double 0.5d
+     608: dadd
+     609: aload         12
+     611: invokevirtual #242                // Method net/minecraft/class_2338.method_10260:()I
+     614: i2d
+     615: ldc2_w        #29                 // double 0.5d
+     618: dadd
+     619: dsub
+     620: invokespecial #245                // Method net/minecraft/class_243."<init>":(DDD)V
+     623: invokevirtual #248                // Method net/minecraft/class_243.method_1029:()Lnet/minecraft/class_243;
+     626: goto          702
+     629: new           #154                // class net/minecraft/class_243
+     632: dup
+     633: aload         12
+     635: invokevirtual #236                // Method net/minecraft/class_2338.method_10263:()I
+     638: i2d
+     639: ldc2_w        #29                 // double 0.5d
+     642: dadd
+     643: aload         13
+     645: invokevirtual #236                // Method net/minecraft/class_2338.method_10263:()I
+     648: i2d
+     649: ldc2_w        #29                 // double 0.5d
+     652: dadd
+     653: dsub
+     654: aload         12
+     656: invokevirtual #239                // Method net/minecraft/class_2338.method_10264:()I
+     659: i2d
+     660: ldc2_w        #29                 // double 0.5d
+     663: dadd
+     664: aload         13
+     666: invokevirtual #239                // Method net/minecraft/class_2338.method_10264:()I
+     669: i2d
+     670: ldc2_w        #29                 // double 0.5d
+     673: dadd
+     674: dsub
+     675: aload         12
+     677: invokevirtual #242                // Method net/minecraft/class_2338.method_10260:()I
+     680: i2d
+     681: ldc2_w        #29                 // double 0.5d
+     684: dadd
+     685: aload         13
+     687: invokevirtual #242                // Method net/minecraft/class_2338.method_10260:()I
+     690: i2d
+     691: ldc2_w        #29                 // double 0.5d
+     694: dadd
+     695: dsub
+     696: invokespecial #245                // Method net/minecraft/class_243."<init>":(DDD)V
+     699: invokevirtual #248                // Method net/minecraft/class_243.method_1029:()Lnet/minecraft/class_243;
+     702: astore        10
+     704: aload         10
+     706: ifnull        727
+     709: aload         10
+     711: invokevirtual #252                // Method net/minecraft/class_243.method_1027:()D
+     714: ldc2_w        #253                // double 1.0E-4d
+     717: dcmpg
+     718: ifge          727
+     721: aload_3
+     722: iconst_0
+     723: invokestatic  #163                // Method setPhysicsExempt:(Lnet/minecraft/class_1309;Z)V
+     726: return
+     727: aload         10
+     729: ifnull        760
+     732: aload_1
+     733: invokevirtual #252                // Method net/minecraft/class_243.method_1027:()D
+     736: ldc2_w        #45                 // double 1.0E-7d
+     739: dcmpl
+     740: ifle          760
+     743: getstatic     #123                // Field PLAYER_DIRECTION:Ljava/util/Map;
+     746: aload         7
+     748: invokeinterface #129,  2          // InterfaceMethod java/util/Map.remove:(Ljava/lang/Object;)Ljava/lang/Object;
+     753: pop
+     754: aload_3
+     755: iconst_0
+     756: invokestatic  #163                // Method setPhysicsExempt:(Lnet/minecraft/class_1309;Z)V
+     759: return
+     760: aload         4
+     762: aload         5
+     764: invokestatic  #259                // Method smooth/lift/EscalatorSpeedManager.isRunEnabled:(Lnet/minecraft/class_1937;Lnet/minecraft/class_2338;)Z
+     767: istore        11
+     769: aload_3
+     770: invokevirtual #263                // Method net/minecraft/class_1309.method_6029:()F
+     773: f2d
+     774: ldc2_w        #23                 // double 2.16d
+     777: dmul
+     778: dstore        12
+     780: iload         11
+     782: ifeq          804
+     785: aload_1
+     786: invokevirtual #252                // Method net/minecraft/class_243.method_1027:()D
+     789: ldc2_w        #45                 // double 1.0E-7d
+     792: dcmpl
+     793: ifle          804
+     796: dload         12
+     798: ldc2_w        #48                 // double 1.5d
+     801: dmul
+     802: dstore        12
+     804: aload_1
+     805: dload         12
+     807: aload_3
+     808: invokevirtual #266                // Method net/minecraft/class_1309.method_36454:()F
+     811: invokestatic  #270                // Method inputVector:(Lnet/minecraft/class_243;DF)Lnet/minecraft/class_243;
+     814: astore        14
+     816: aload         4
+     818: aload         5
+     820: invokestatic  #274                // Method smooth/lift/EscalatorSpeedManager.getSpeed:(Lnet/minecraft/class_1937;Lnet/minecraft/class_2338;)D
+     823: ldc2_w        #275                // double 20.0d
+     826: ddiv
+     827: dstore        15
+     829: aload_3
+     830: aload         9
+     832: ifnull        839
+     835: iconst_1
+     836: goto          840
+     839: iconst_0
+     840: invokestatic  #163                // Method setPhysicsExempt:(Lnet/minecraft/class_1309;Z)V
+     843: aload         9
+     845: ifnull        938
+     848: aload         9
+     850: invokevirtual #279                // Method net/minecraft/class_2350.method_10148:()I
+     853: i2d
+     854: dload         15
+     856: dmul
+     857: aload         14
+     859: getfield      #282                // Field net/minecraft/class_243.field_1352:D
+     862: dadd
+     863: dstore        17
+     865: aload         9
+     867: invokevirtual #285                // Method net/minecraft/class_2350.method_10165:()I
+     870: i2d
+     871: dload         15
+     873: dmul
+     874: aload         14
+     876: getfield      #288                // Field net/minecraft/class_243.field_1350:D
+     879: dadd
+     880: dstore        19
+     882: aload         14
+     884: invokevirtual #252                // Method net/minecraft/class_243.method_1027:()D
+     887: ldc2_w        #45                 // double 1.0E-7d
+     890: dcmpl
+     891: ifle          898
+     894: iconst_1
+     895: goto          899
+     898: iconst_0
+     899: istore        21
+     901: aload_3
+     902: aload         4
+     904: aload         9
+     906: dload         17
+     908: dload         19
+     910: iload         21
+     912: invokestatic  #292                // Method rideOnSurface:(Lnet/minecraft/class_1309;Lnet/minecraft/class_1937;Lnet/minecraft/class_2350;DDZ)Z
+     915: ifne          935
+     918: getstatic     #123                // Field PLAYER_DIRECTION:Ljava/util/Map;
+     921: aload         7
+     923: invokeinterface #129,  2          // InterfaceMethod java/util/Map.remove:(Ljava/lang/Object;)Ljava/lang/Object;
+     928: pop
+     929: aload_3
+     930: iconst_0
+     931: invokestatic  #163                // Method setPhysicsExempt:(Lnet/minecraft/class_1309;Z)V
+     934: return
+     935: goto          969
+     938: aload_3
+     939: getstatic     #298                // Field net/minecraft/class_1313.field_6308:Lnet/minecraft/class_1313;
+     942: aload         10
+     944: dload         15
+     946: invokevirtual #302                // Method net/minecraft/class_243.method_1021:(D)Lnet/minecraft/class_243;
+     949: invokevirtual #306                // Method net/minecraft/class_1309.method_5784:(Lnet/minecraft/class_1313;Lnet/minecraft/class_243;)V
+     952: aload_3
+     953: getstatic     #310                // Field net/minecraft/class_243.field_1353:Lnet/minecraft/class_243;
+     956: invokevirtual #314                // Method net/minecraft/class_1309.method_18799:(Lnet/minecraft/class_243;)V
+     959: aload_3
+     960: iconst_1
+     961: invokevirtual #318                // Method net/minecraft/class_1309.method_24830:(Z)V
+     964: aload_3
+     965: fconst_0
+     966: putfield      #322                // Field net/minecraft/class_1309.field_6017:F
+     969: aload         14
+     971: getfield      #282                // Field net/minecraft/class_243.field_1352:D
+     974: aload         14
+     976: getfield      #282                // Field net/minecraft/class_243.field_1352:D
+     979: dmul
+     980: aload         14
+     982: getfield      #288                // Field net/minecraft/class_243.field_1350:D
+     985: aload         14
+     987: getfield      #288                // Field net/minecraft/class_243.field_1350:D
+     990: dmul
+     991: dadd
+     992: invokestatic  #328                // Method java/lang/Math.sqrt:(D)D
+     995: d2f
+     996: fstore        17
+     998: aload_3
+     999: getfield      #332                // Field net/minecraft/class_1309.field_42108:Lnet/minecraft/class_8080;
+    1002: ldc_w         #333                // float 4.0f
+    1005: fload         17
+    1007: fmul
+    1008: fconst_1
+    1009: invokestatic  #337                // Method java/lang/Math.min:(FF)F
+    1012: ldc_w         #338                // float 0.4f
+    1015: invokevirtual #344                // Method net/minecraft/class_8080.method_48568:(FF)V
+    1018: aload_3
+    1019: dup
+    1020: getfield      #347                // Field net/minecraft/class_1309.field_5973:F
+    1023: fload         17
+    1025: ldc_w         #348                // float 0.6f
+    1028: fmul
+    1029: fadd
+    1030: putfield      #347                // Field net/minecraft/class_1309.field_5973:F
+    1033: aload_2
+    1034: invokevirtual #351                // Method org/spongepowered/asm/mixin/injection/callback/CallbackInfo.cancel:()V
+    1037: return
+
+  private static net.minecraft.class_243 inputVector(net.minecraft.class_243, double, float);
+    Code:
+       0: aload_0
+       1: invokevirtual #252                // Method net/minecraft/class_243.method_1027:()D
+       4: dstore        4
+       6: dload         4
+       8: ldc2_w        #45                 // double 1.0E-7d
+      11: dcmpg
+      12: ifge          19
+      15: getstatic     #310                // Field net/minecraft/class_243.field_1353:Lnet/minecraft/class_243;
+      18: areturn
+      19: dload         4
+      21: dconst_1
+      22: dcmpl
+      23: ifle          33
+      26: aload_0
+      27: invokevirtual #248                // Method net/minecraft/class_243.method_1029:()Lnet/minecraft/class_243;
+      30: goto          34
+      33: aload_0
+      34: dload_1
+      35: invokevirtual #302                // Method net/minecraft/class_243.method_1021:(D)Lnet/minecraft/class_243;
+      38: astore        6
+      40: fload_3
+      41: ldc_w         #387                // float 0.017453292f
+      44: fmul
+      45: invokestatic  #393                // Method net/minecraft/class_3532.method_15374:(F)F
+      48: fstore        7
+      50: fload_3
+      51: ldc_w         #387                // float 0.017453292f
+      54: fmul
+      55: invokestatic  #396                // Method net/minecraft/class_3532.method_15362:(F)F
+      58: fstore        8
+      60: new           #154                // class net/minecraft/class_243
+      63: dup
+      64: aload         6
+      66: getfield      #282                // Field net/minecraft/class_243.field_1352:D
+      69: fload         8
+      71: f2d
+      72: dmul
+      73: aload         6
+      75: getfield      #288                // Field net/minecraft/class_243.field_1350:D
+      78: fload         7
+      80: f2d
+      81: dmul
+      82: dsub
+      83: aload         6
+      85: getfield      #157                // Field net/minecraft/class_243.field_1351:D
+      88: aload         6
+      90: getfield      #288                // Field net/minecraft/class_243.field_1350:D
+      93: fload         8
+      95: f2d
+      96: dmul
+      97: aload         6
+      99: getfield      #282                // Field net/minecraft/class_243.field_1352:D
+     102: fload         7
+     104: f2d
+     105: dmul
+     106: dadd
+     107: invokespecial #245                // Method net/minecraft/class_243."<init>":(DDD)V
+     110: areturn
+
+  private static void setPhysicsExempt(net.minecraft.class_1309, boolean);
+    Code:
+       0: aload_0
+       1: invokevirtual #80                 // Method net/minecraft/class_1309.method_37908:()Lnet/minecraft/class_1937;
+       4: invokevirtual #86                 // Method net/minecraft/class_1937.method_8608:()Z
+       7: ifne          54
+      10: aload_0
+      11: invokestatic  #121                // Method sideKey:(Lnet/minecraft/class_1309;)Ljava/lang/String;
+      14: astore_2
+      15: iload_1
+      16: ifeq          37
+      19: getstatic     #131                // Field MOD_EXEMPT:Ljava/util/Set;
+      22: aload_2
+      23: invokeinterface #404,  2          // InterfaceMethod java/util/Set.add:(Ljava/lang/Object;)Z
+      28: pop
+      29: aload_0
+      30: iconst_1
+      31: putfield      #407                // Field net/minecraft/class_1309.field_5960:Z
+      34: goto          54
+      37: getstatic     #131                // Field MOD_EXEMPT:Ljava/util/Set;
+      40: aload_2
+      41: invokeinterface #136,  2          // InterfaceMethod java/util/Set.remove:(Ljava/lang/Object;)Z
+      46: ifeq          54
+      49: aload_0
+      50: iconst_0
+      51: putfield      #407                // Field net/minecraft/class_1309.field_5960:Z
+      54: return
+
+  private static boolean rideOnSurface(net.minecraft.class_1309, net.minecraft.class_1937, net.minecraft.class_2350, double, double, boolean);
+    Code:
+       0: aload_2
+       1: ifnull        104
+       4: aload_2
+       5: invokevirtual #412                // Method net/minecraft/class_2350.method_10164:()I
+       8: ifne          104
+      11: aload_2
+      12: invokevirtual #279                // Method net/minecraft/class_2350.method_10148:()I
+      15: i2d
+      16: dstore        8
+      18: aload_2
+      19: invokevirtual #285                // Method net/minecraft/class_2350.method_10165:()I
+      22: i2d
+      23: dstore        10
+      25: dload_3
+      26: dload         8
+      28: dmul
+      29: dload         5
+      31: dload         10
+      33: dmul
+      34: dadd
+      35: dstore        12
+      37: dload_3
+      38: dload         12
+      40: dload         8
+      42: dmul
+      43: dsub
+      44: dstore        14
+      46: dload         5
+      48: dload         12
+      50: dload         10
+      52: dmul
+      53: dsub
+      54: dstore        16
+      56: dload         14
+      58: dconst_0
+      59: dcmpl
+      60: ifne          70
+      63: dload         16
+      65: dconst_0
+      66: dcmpl
+      67: ifeq          104
+      70: aload_1
+      71: aload_0
+      72: dload         14
+      74: dload         16
+      76: invokestatic  #416                // Method clipCrossByHandrail:(Lnet/minecraft/class_1937;Lnet/minecraft/class_1309;DD)[D
+      79: astore        18
+      81: dload         12
+      83: dload         8
+      85: dmul
+      86: aload         18
+      88: iconst_0
+      89: daload
+      90: dadd
+      91: dstore_3
+      92: dload         12
+      94: dload         10
+      96: dmul
+      97: aload         18
+      99: iconst_1
+     100: daload
+     101: dadd
+     102: dstore        5
+     104: aload_0
+     105: invokevirtual #419                // Method net/minecraft/class_1309.method_23317:()D
+     108: dload_3
+     109: dadd
+     110: dstore        8
+     112: aload_0
+     113: invokevirtual #422                // Method net/minecraft/class_1309.method_23321:()D
+     116: dload         5
+     118: dadd
+     119: dstore        10
+     121: aload_1
+     122: aload_0
+     123: invokevirtual #425                // Method net/minecraft/class_1309.method_23318:()D
+     126: dload         8
+     128: dload         10
+     130: iload         7
+     132: invokestatic  #429                // Method surfaceLineNear:(Lnet/minecraft/class_1937;DDDZ)D
+     135: dstore        12
+     137: aload_0
+     138: getstatic     #310                // Field net/minecraft/class_243.field_1353:Lnet/minecraft/class_243;
+     141: invokevirtual #314                // Method net/minecraft/class_1309.method_18799:(Lnet/minecraft/class_243;)V
+     144: aload_0
+     145: iconst_1
+     146: invokevirtual #318                // Method net/minecraft/class_1309.method_24830:(Z)V
+     149: aload_0
+     150: fconst_0
+     151: putfield      #322                // Field net/minecraft/class_1309.field_6017:F
+     154: dload         12
+     156: invokestatic  #435                // Method java/lang/Double.isNaN:(D)Z
+     159: ifeq          164
+     162: iconst_0
+     163: ireturn
+     164: dload_3
+     165: dload_3
+     166: dmul
+     167: dload         5
+     169: dload         5
+     171: dmul
+     172: dadd
+     173: invokestatic  #328                // Method java/lang/Math.sqrt:(D)D
+     176: dstore        14
+     178: iload         7
+     180: ifeq          198
+     183: ldc2_w        #38                 // double 0.6d
+     186: dload         14
+     188: ldc2_w        #436                // double 1.6d
+     191: dmul
+     192: invokestatic  #441                // Method java/lang/Math.max:(DD)D
+     195: goto          210
+     198: ldc2_w        #35                 // double 0.15d
+     201: dload         14
+     203: ldc2_w        #436                // double 1.6d
+     206: dmul
+     207: invokestatic  #441                // Method java/lang/Math.max:(DD)D
+     210: dstore        16
+     212: ldc2_w        #38                 // double 0.6d
+     215: dload         14
+     217: dadd
+     218: dstore        18
+     220: dload         12
+     222: aload_0
+     223: invokevirtual #425                // Method net/minecraft/class_1309.method_23318:()D
+     226: dload         18
+     228: dadd
+     229: invokestatic  #443                // Method java/lang/Math.min:(DD)D
+     232: aload_0
+     233: invokevirtual #425                // Method net/minecraft/class_1309.method_23318:()D
+     236: dload         16
+     238: dsub
+     239: invokestatic  #441                // Method java/lang/Math.max:(DD)D
+     242: dstore        20
+     244: aload_0
+     245: dload         8
+     247: dload         20
+     249: dload         10
+     251: invokevirtual #446                // Method net/minecraft/class_1309.method_5814:(DDD)V
+     254: iconst_1
+     255: ireturn
+
+  private static double[] clipCrossByHandrail(net.minecraft.class_1937, net.minecraft.class_1309, double, double);
+    Code:
+       0: aload_1
+       1: invokevirtual #464                // Method net/minecraft/class_1309.method_5829:()Lnet/minecraft/class_238;
+       4: astore        6
+       6: aload_0
+       7: aload         6
+       9: aload         6
+      11: dload_2
+      12: dconst_0
+      13: dload         4
+      15: invokevirtual #470                // Method net/minecraft/class_238.method_989:(DDD)Lnet/minecraft/class_238;
+      18: invokevirtual #474                // Method net/minecraft/class_238.method_991:(Lnet/minecraft/class_238;)Lnet/minecraft/class_238;
+      21: invokestatic  #478                // Method handrailPlates:(Lnet/minecraft/class_1937;Lnet/minecraft/class_238;)Ljava/util/List;
+      24: astore        7
+      26: aload         7
+      28: invokeinterface #483,  1          // InterfaceMethod java/util/List.isEmpty:()Z
+      33: ifeq          49
+      36: iconst_2
+      37: newarray       double
+      39: dup
+      40: iconst_0
+      41: dload_2
+      42: dastore
+      43: dup
+      44: iconst_1
+      45: dload         4
+      47: dastore
+      48: areturn
+      49: aload         7
+      51: aload         6
+      53: invokestatic  #487                // Method handrailPenetration:(Ljava/util/List;Lnet/minecraft/class_238;)D
+      56: dstore        8
+      58: dload_2
+      59: dload_2
+      60: dmul
+      61: dload         4
+      63: dload         4
+      65: dmul
+      66: dadd
+      67: invokestatic  #328                // Method java/lang/Math.sqrt:(D)D
+      70: dstore        10
+      72: bipush        16
+      74: iconst_1
+      75: dload         10
+      77: ldc2_w        #42                 // double 0.05d
+      80: ddiv
+      81: invokestatic  #490                // Method java/lang/Math.ceil:(D)D
+      84: d2i
+      85: invokestatic  #493                // Method java/lang/Math.max:(II)I
+      88: invokestatic  #495                // Method java/lang/Math.min:(II)I
+      91: istore        12
+      93: dconst_0
+      94: dstore        13
+      96: iconst_1
+      97: istore        15
+      99: iload         15
+     101: iload         12
+     103: if_icmpgt     162
+     106: iload         15
+     108: i2d
+     109: iload         12
+     111: i2d
+     112: ddiv
+     113: dstore        16
+     115: aload         7
+     117: aload         6
+     119: dload_2
+     120: dload         16
+     122: dmul
+     123: dconst_0
+     124: dload         4
+     126: dload         16
+     128: dmul
+     129: invokevirtual #470                // Method net/minecraft/class_238.method_989:(DDD)Lnet/minecraft/class_238;
+     132: invokestatic  #487                // Method handrailPenetration:(Ljava/util/List;Lnet/minecraft/class_238;)D
+     135: dstore        18
+     137: dload         18
+     139: dload         8
+     141: ldc2_w        #45                 // double 1.0E-7d
+     144: dadd
+     145: dcmpl
+     146: ifle          152
+     149: goto          162
+     152: dload         16
+     154: dstore        13
+     156: iinc          15, 1
+     159: goto          99
+     162: iconst_2
+     163: newarray       double
+     165: dup
+     166: iconst_0
+     167: dload_2
+     168: dload         13
+     170: dmul
+     171: dastore
+     172: dup
+     173: iconst_1
+     174: dload         4
+     176: dload         13
+     178: dmul
+     179: dastore
+     180: areturn
+
+  private static java.util.List<net.minecraft.class_238> handrailPlates(net.minecraft.class_1937, net.minecraft.class_238);
+    Code:
+       0: new           #509                // class java/util/ArrayList
+       3: dup
+       4: invokespecial #510                // Method java/util/ArrayList."<init>":()V
+       7: astore_2
+       8: aload_1
+       9: getfield      #513                // Field net/minecraft/class_238.field_1323:D
+      12: invokestatic  #517                // Method net/minecraft/class_3532.method_15357:(D)I
+      15: istore_3
+      16: aload_1
+      17: getfield      #520                // Field net/minecraft/class_238.field_1320:D
+      20: invokestatic  #517                // Method net/minecraft/class_3532.method_15357:(D)I
+      23: istore        4
+      25: aload_1
+      26: getfield      #523                // Field net/minecraft/class_238.field_1322:D
+      29: invokestatic  #517                // Method net/minecraft/class_3532.method_15357:(D)I
+      32: istore        5
+      34: aload_1
+      35: getfield      #526                // Field net/minecraft/class_238.field_1325:D
+      38: invokestatic  #517                // Method net/minecraft/class_3532.method_15357:(D)I
+      41: istore        6
+      43: aload_1
+      44: getfield      #529                // Field net/minecraft/class_238.field_1321:D
+      47: invokestatic  #517                // Method net/minecraft/class_3532.method_15357:(D)I
+      50: istore        7
+      52: aload_1
+      53: getfield      #532                // Field net/minecraft/class_238.field_1324:D
+      56: invokestatic  #517                // Method net/minecraft/class_3532.method_15357:(D)I
+      59: istore        8
+      61: iload_3
+      62: iload         5
+      64: iload         7
+      66: iload         4
+      68: iload         6
+      70: iload         8
+      72: invokestatic  #536                // Method net/minecraft/class_2338.method_10094:(IIIIII)Ljava/lang/Iterable;
+      75: invokeinterface #542,  1          // InterfaceMethod java/lang/Iterable.iterator:()Ljava/util/Iterator;
+      80: astore        9
+      82: aload         9
+      84: invokeinterface #547,  1          // InterfaceMethod java/util/Iterator.hasNext:()Z
+      89: ifeq          214
+      92: aload         9
+      94: invokeinterface #551,  1          // InterfaceMethod java/util/Iterator.next:()Ljava/lang/Object;
+      99: checkcast     #169                // class net/minecraft/class_2338
+     102: astore        10
+     104: aload_0
+     105: aload         10
+     107: invokevirtual #177                // Method net/minecraft/class_1937.method_8320:(Lnet/minecraft/class_2338;)Lnet/minecraft/class_2680;
+     110: astore        11
+     112: aload         11
+     114: invokestatic  #557                // Method smooth/lift/EscalatorUtil.isEscalatorSide:(Lnet/minecraft/class_2680;)Z
+     117: ifne          123
+     120: goto          82
+     123: aload         11
+     125: aload_0
+     126: aload         10
+     128: invokevirtual #561                // Method net/minecraft/class_2680.method_26220:(Lnet/minecraft/class_1922;Lnet/minecraft/class_2338;)Lnet/minecraft/class_265;
+     131: astore        12
+     133: aload         12
+     135: invokevirtual #566                // Method net/minecraft/class_265.method_1110:()Z
+     138: ifeq          144
+     141: goto          82
+     144: aload         12
+     146: invokevirtual #570                // Method net/minecraft/class_265.method_1090:()Ljava/util/List;
+     149: invokeinterface #571,  1          // InterfaceMethod java/util/List.iterator:()Ljava/util/Iterator;
+     154: astore        13
+     156: aload         13
+     158: invokeinterface #547,  1          // InterfaceMethod java/util/Iterator.hasNext:()Z
+     163: ifeq          211
+     166: aload         13
+     168: invokeinterface #551,  1          // InterfaceMethod java/util/Iterator.next:()Ljava/lang/Object;
+     173: checkcast     #466                // class net/minecraft/class_238
+     176: astore        14
+     178: aload_2
+     179: aload         14
+     181: aload         10
+     183: invokevirtual #236                // Method net/minecraft/class_2338.method_10263:()I
+     186: i2d
+     187: aload         10
+     189: invokevirtual #239                // Method net/minecraft/class_2338.method_10264:()I
+     192: i2d
+     193: aload         10
+     195: invokevirtual #242                // Method net/minecraft/class_2338.method_10260:()I
+     198: i2d
+     199: invokevirtual #470                // Method net/minecraft/class_238.method_989:(DDD)Lnet/minecraft/class_238;
+     202: invokeinterface #572,  2          // InterfaceMethod java/util/List.add:(Ljava/lang/Object;)Z
+     207: pop
+     208: goto          156
+     211: goto          82
+     214: aload_2
+     215: areturn
+
+  private static double handrailPenetration(java.util.List<net.minecraft.class_238>, net.minecraft.class_238);
+    Code:
+       0: dconst_0
+       1: dstore_2
+       2: aload_0
+       3: invokeinterface #571,  1          // InterfaceMethod java/util/List.iterator:()Ljava/util/Iterator;
+       8: astore        4
+      10: aload         4
+      12: invokeinterface #547,  1          // InterfaceMethod java/util/Iterator.hasNext:()Z
+      17: ifeq          148
+      20: aload         4
+      22: invokeinterface #551,  1          // InterfaceMethod java/util/Iterator.next:()Ljava/lang/Object;
+      27: checkcast     #466                // class net/minecraft/class_238
+      30: astore        5
+      32: aload         5
+      34: getfield      #520                // Field net/minecraft/class_238.field_1320:D
+      37: aload_1
+      38: getfield      #520                // Field net/minecraft/class_238.field_1320:D
+      41: invokestatic  #443                // Method java/lang/Math.min:(DD)D
+      44: aload         5
+      46: getfield      #513                // Field net/minecraft/class_238.field_1323:D
+      49: aload_1
+      50: getfield      #513                // Field net/minecraft/class_238.field_1323:D
+      53: invokestatic  #441                // Method java/lang/Math.max:(DD)D
+      56: dsub
+      57: dstore        6
+      59: aload         5
+      61: getfield      #526                // Field net/minecraft/class_238.field_1325:D
+      64: aload_1
+      65: getfield      #526                // Field net/minecraft/class_238.field_1325:D
+      68: invokestatic  #443                // Method java/lang/Math.min:(DD)D
+      71: aload         5
+      73: getfield      #523                // Field net/minecraft/class_238.field_1322:D
+      76: aload_1
+      77: getfield      #523                // Field net/minecraft/class_238.field_1322:D
+      80: invokestatic  #441                // Method java/lang/Math.max:(DD)D
+      83: dsub
+      84: dstore        8
+      86: aload         5
+      88: getfield      #532                // Field net/minecraft/class_238.field_1324:D
+      91: aload_1
+      92: getfield      #532                // Field net/minecraft/class_238.field_1324:D
+      95: invokestatic  #443                // Method java/lang/Math.min:(DD)D
+      98: aload         5
+     100: getfield      #529                // Field net/minecraft/class_238.field_1321:D
+     103: aload_1
+     104: getfield      #529                // Field net/minecraft/class_238.field_1321:D
+     107: invokestatic  #441                // Method java/lang/Math.max:(DD)D
+     110: dsub
+     111: dstore        10
+     113: dload         6
+     115: dconst_0
+     116: dcmpl
+     117: ifle          145
+     120: dload         8
+     122: dconst_0
+     123: dcmpl
+     124: ifle          145
+     127: dload         10
+     129: dconst_0
+     130: dcmpl
+     131: ifle          145
+     134: dload_2
+     135: dload         6
+     137: dload         8
+     139: dmul
+     140: dload         10
+     142: dmul
+     143: dadd
+     144: dstore_2
+     145: goto          10
+     148: dload_2
+     149: dreturn
+
+  private static double surfaceLineNear(net.minecraft.class_1937, double, double, double, boolean);
+    Code:
+       0: dload_3
+       1: invokestatic  #594                // Method java/lang/Math.floor:(D)D
+       4: d2i
+       5: istore        8
+       7: dload         5
+       9: invokestatic  #594                // Method java/lang/Math.floor:(D)D
+      12: d2i
+      13: istore        9
+      15: dload_1
+      16: invokestatic  #594                // Method java/lang/Math.floor:(D)D
+      19: d2i
+      20: istore        10
+      22: ldc2_w        #595                // double NaNd
+      25: dstore        11
+      27: iconst_0
+      28: istore        13
+      30: ldc2_w        #597                // double 1.7976931348623157E308d
+      33: dstore        14
+      35: bipush        -3
+      37: istore        16
+      39: iload         16
+      41: iconst_3
+      42: if_icmpgt     132
+      45: new           #169                // class net/minecraft/class_2338
+      48: dup
+      49: iload         8
+      51: iload         10
+      53: iload         16
+      55: iadd
+      56: iload         9
+      58: invokespecial #601                // Method net/minecraft/class_2338."<init>":(III)V
+      61: astore        17
+      63: aload_0
+      64: aload         17
+      66: invokevirtual #177                // Method net/minecraft/class_1937.method_8320:(Lnet/minecraft/class_2338;)Lnet/minecraft/class_2680;
+      69: astore        18
+      71: aload         18
+      73: invokestatic  #604                // Method smooth/lift/EscalatorUtil.isEscalatorStep:(Lnet/minecraft/class_2680;)Z
+      76: ifne          82
+      79: goto          126
+      82: aload         18
+      84: aload         17
+      86: dload_3
+      87: dload         5
+      89: invokestatic  #608                // Method surfaceLineOfBlock:(Lnet/minecraft/class_2680;Lnet/minecraft/class_2338;DD)D
+      92: dstore        19
+      94: dload         19
+      96: dload_1
+      97: dsub
+      98: invokestatic  #611                // Method java/lang/Math.abs:(D)D
+     101: dstore        21
+     103: dload         21
+     105: dload         14
+     107: dcmpg
+     108: ifge          126
+     111: dload         21
+     113: dstore        14
+     115: dload         19
+     117: dstore        11
+     119: aload         17
+     121: invokevirtual #239                // Method net/minecraft/class_2338.method_10264:()I
+     124: istore        13
+     126: iinc          16, 1
+     129: goto          39
+     132: dload         11
+     134: invokestatic  #435                // Method java/lang/Double.isNaN:(D)Z
+     137: ifne          145
+     140: iload         7
+     142: ifne          148
+     145: dload         11
+     147: dreturn
+     148: dload         11
+     150: iload         13
+     152: invokestatic  #615                // Method stairHeight:(DI)D
+     155: dreturn
+
+  private static double stairHeight(double, int);
+    Code:
+       0: iload_2
+       1: i2d
+       2: dload_0
+       3: iload_2
+       4: i2d
+       5: dsub
+       6: ldc2_w        #29                 // double 0.5d
+       9: ddiv
+      10: invokestatic  #629                // Method java/lang/Math.round:(D)J
+      13: l2d
+      14: ldc2_w        #29                 // double 0.5d
+      17: dmul
+      18: dadd
+      19: dreturn
+
+  private static double surfaceLineOfBlock(net.minecraft.class_2680, net.minecraft.class_2338, double, double);
+    Code:
+       0: aload_0
+       1: invokestatic  #633                // Method getOrientation:(Lnet/minecraft/class_2680;)Ljava/lang/String;
+       4: invokevirtual #637                // Method java/lang/String.toUpperCase:()Ljava/lang/String;
+       7: astore        6
+       9: aload_0
+      10: aload_1
+      11: dload_2
+      12: dload         4
+      14: invokestatic  #640                // Method progressAlongFacing:(Lnet/minecraft/class_2680;Lnet/minecraft/class_2338;DD)D
+      17: dstore        7
+      19: aload         6
+      21: astore        9
+      23: iconst_m1
+      24: istore        10
+      26: aload         9
+      28: invokevirtual #643                // Method java/lang/String.hashCode:()I
+      31: lookupswitch  { // 3
+            -483854251: 81
+              78994827: 64
+             111876939: 98
+               default: 112
+          }
+      64: aload         9
+      66: ldc_w         #645                // String SLOPE
+      69: invokevirtual #648                // Method java/lang/String.equals:(Ljava/lang/Object;)Z
+      72: ifeq          112
+      75: iconst_0
+      76: istore        10
+      78: goto          112
+      81: aload         9
+      83: ldc_w         #650                // String TRANSITION_BOTTOM
+      86: invokevirtual #648                // Method java/lang/String.equals:(Ljava/lang/Object;)Z
+      89: ifeq          112
+      92: iconst_1
+      93: istore        10
+      95: goto          112
+      98: aload         9
+     100: ldc_w         #652                // String TRANSITION_TOP
+     103: invokevirtual #648                // Method java/lang/String.equals:(Ljava/lang/Object;)Z
+     106: ifeq          112
+     109: iconst_2
+     110: istore        10
+     112: iload         10
+     114: tableswitch   { // 0 to 2
+                     0: 140
+                     1: 153
+                     2: 168
+               default: 185
+          }
+     140: aload_1
+     141: invokevirtual #239                // Method net/minecraft/class_2338.method_10264:()I
+     144: i2d
+     145: dload         7
+     147: dadd
+     148: ldc2_w        #29                 // double 0.5d
+     151: dadd
+     152: dreturn
+     153: aload_1
+     154: invokevirtual #239                // Method net/minecraft/class_2338.method_10264:()I
+     157: i2d
+     158: dconst_1
+     159: dadd
+     160: ldc2_w        #29                 // double 0.5d
+     163: dload         7
+     165: dmul
+     166: dadd
+     167: dreturn
+     168: aload_1
+     169: invokevirtual #239                // Method net/minecraft/class_2338.method_10264:()I
+     172: i2d
+     173: dload         7
+     175: ldc2_w        #29                 // double 0.5d
+     178: dadd
+     179: dconst_1
+     180: invokestatic  #443                // Method java/lang/Math.min:(DD)D
+     183: dadd
+     184: dreturn
+     185: aload_1
+     186: invokevirtual #239                // Method net/minecraft/class_2338.method_10264:()I
+     189: i2d
+     190: dconst_1
+     191: dadd
+     192: ldc2_w        #32                 // double 0.001d
+     195: dadd
+     196: dreturn
+
+  private static double progressAlongFacing(net.minecraft.class_2680, net.minecraft.class_2338, double, double);
+    Code:
+       0: aload_0
+       1: invokestatic  #181                // Method getFacingProperty:(Lnet/minecraft/class_2680;)Lnet/minecraft/class_2350;
+       4: astore        6
+       6: aload         6
+       8: ifnonnull     13
+      11: dconst_0
+      12: dreturn
+      13: getstatic     #658                // Field smooth/lift/mixin/LivingEntityMixin$1.$SwitchMap$net$minecraft$core$Direction:[I
+      16: aload         6
+      18: invokevirtual #661                // Method net/minecraft/class_2350.ordinal:()I
+      21: iaload
+      22: tableswitch   { // 1 to 4
+                     1: 52
+                     2: 67
+                     3: 80
+                     4: 92
+               default: 106
+          }
+      52: aload_1
+      53: invokevirtual #242                // Method net/minecraft/class_2338.method_10260:()I
+      56: iconst_1
+      57: iadd
+      58: i2d
+      59: dload         4
+      61: dsub
+      62: dstore        7
+      64: goto          108
+      67: dload         4
+      69: aload_1
+      70: invokevirtual #242                // Method net/minecraft/class_2338.method_10260:()I
+      73: i2d
+      74: dsub
+      75: dstore        7
+      77: goto          108
+      80: dload_2
+      81: aload_1
+      82: invokevirtual #236                // Method net/minecraft/class_2338.method_10263:()I
+      85: i2d
+      86: dsub
+      87: dstore        7
+      89: goto          108
+      92: aload_1
+      93: invokevirtual #236                // Method net/minecraft/class_2338.method_10263:()I
+      96: iconst_1
+      97: iadd
+      98: i2d
+      99: dload_2
+     100: dsub
+     101: dstore        7
+     103: goto          108
+     106: dconst_0
+     107: dreturn
+     108: dconst_0
+     109: dconst_1
+     110: dload         7
+     112: invokestatic  #443                // Method java/lang/Math.min:(DD)D
+     115: invokestatic  #441                // Method java/lang/Math.max:(DD)D
+     118: dreturn
+
+  private static net.minecraft.class_2350 getFacingProperty(net.minecraft.class_2680);
+    Code:
+       0: aload_0
+       1: invokevirtual #665                // Method net/minecraft/class_2680.method_28501:()Ljava/util/Collection;
+       4: invokeinterface #668,  1          // InterfaceMethod java/util/Collection.iterator:()Ljava/util/Iterator;
+       9: astore_1
+      10: aload_1
+      11: invokeinterface #547,  1          // InterfaceMethod java/util/Iterator.hasNext:()Z
+      16: ifeq          63
+      19: aload_1
+      20: invokeinterface #551,  1          // InterfaceMethod java/util/Iterator.next:()Ljava/lang/Object;
+      25: checkcast     #670                // class net/minecraft/class_2769
+      28: astore_2
+      29: ldc_w         #671                // String facing
+      32: aload_2
+      33: invokevirtual #674                // Method net/minecraft/class_2769.method_11899:()Ljava/lang/String;
+      36: invokevirtual #648                // Method java/lang/String.equals:(Ljava/lang/Object;)Z
+      39: ifeq          60
+      42: aload_2
+      43: invokevirtual #678                // Method net/minecraft/class_2769.method_11902:()Ljava/lang/Class;
+      46: ldc           #198                // class net/minecraft/class_2350
+      48: if_acmpne     60
+      51: aload_0
+      52: aload_2
+      53: invokevirtual #682                // Method net/minecraft/class_2680.method_11654:(Lnet/minecraft/class_2769;)Ljava/lang/Comparable;
+      56: checkcast     #198                // class net/minecraft/class_2350
+      59: areturn
+      60: goto          10
+      63: aconst_null
+      64: areturn
+
+  private static java.lang.Boolean escalatorProp(net.minecraft.class_1937, net.minecraft.class_2338, java.lang.String);
+    Code:
+       0: aload_0
+       1: aload_1
+       2: invokevirtual #177                // Method net/minecraft/class_1937.method_8320:(Lnet/minecraft/class_2338;)Lnet/minecraft/class_2680;
+       5: aload_2
+       6: invokestatic  #232                // Method getBooleanProperty:(Lnet/minecraft/class_2680;Ljava/lang/String;)Ljava/lang/Boolean;
+       9: astore_3
+      10: aload_3
+      11: ifnonnull     27
+      14: aload_0
+      15: aload_1
+      16: invokevirtual #690                // Method net/minecraft/class_2338.method_10074:()Lnet/minecraft/class_2338;
+      19: invokevirtual #177                // Method net/minecraft/class_1937.method_8320:(Lnet/minecraft/class_2338;)Lnet/minecraft/class_2680;
+      22: aload_2
+      23: invokestatic  #232                // Method getBooleanProperty:(Lnet/minecraft/class_2680;Ljava/lang/String;)Ljava/lang/Boolean;
+      26: astore_3
+      27: aload_3
+      28: areturn
+
+  private static net.minecraft.class_2338[] findEndpointsAlongAxis(net.minecraft.class_1937, net.minecraft.class_2338, net.minecraft.class_2350);
+    Code:
+       0: aload_0
+       1: aload_1
+       2: aload_2
+       3: invokevirtual #224                // Method net/minecraft/class_2350.method_10153:()Lnet/minecraft/class_2350;
+       6: ldc_w         #693                // String LANDING_BOTTOM
+       9: invokestatic  #697                // Method walkToEndpoint:(Lnet/minecraft/class_1937;Lnet/minecraft/class_2338;Lnet/minecraft/class_2350;Ljava/lang/String;)Lnet/minecraft/class_2338;
+      12: astore_3
+      13: aload_0
+      14: aload_1
+      15: aload_2
+      16: ldc_w         #699                // String LANDING_TOP
+      19: invokestatic  #697                // Method walkToEndpoint:(Lnet/minecraft/class_1937;Lnet/minecraft/class_2338;Lnet/minecraft/class_2350;Ljava/lang/String;)Lnet/minecraft/class_2338;
+      22: astore        4
+      24: iconst_2
+      25: anewarray     #169                // class net/minecraft/class_2338
+      28: dup
+      29: iconst_0
+      30: aload_3
+      31: aastore
+      32: dup
+      33: iconst_1
+      34: aload         4
+      36: aastore
+      37: areturn
+
+  private static net.minecraft.class_2338 walkToEndpoint(net.minecraft.class_1937, net.minecraft.class_2338, net.minecraft.class_2350, java.lang.String);
+    Code:
+       0: aload_1
+       1: astore        4
+       3: aconst_null
+       4: astore        5
+       6: iconst_0
+       7: istore        6
+       9: iload         6
+      11: sipush        512
+      14: if_icmpge     134
+      17: aload         4
+      19: aload_2
+      20: invokevirtual #707                // Method net/minecraft/class_2338.method_10093:(Lnet/minecraft/class_2350;)Lnet/minecraft/class_2338;
+      23: astore        7
+      25: aload_0
+      26: aload         7
+      28: invokevirtual #177                // Method net/minecraft/class_1937.method_8320:(Lnet/minecraft/class_2338;)Lnet/minecraft/class_2680;
+      31: invokestatic  #604                // Method smooth/lift/EscalatorUtil.isEscalatorStep:(Lnet/minecraft/class_2680;)Z
+      34: ifeq          44
+      37: aload         7
+      39: astore        8
+      41: goto          91
+      44: aload_0
+      45: aload         7
+      47: invokevirtual #710                // Method net/minecraft/class_2338.method_10084:()Lnet/minecraft/class_2338;
+      50: invokevirtual #177                // Method net/minecraft/class_1937.method_8320:(Lnet/minecraft/class_2338;)Lnet/minecraft/class_2680;
+      53: invokestatic  #604                // Method smooth/lift/EscalatorUtil.isEscalatorStep:(Lnet/minecraft/class_2680;)Z
+      56: ifeq          69
+      59: aload         7
+      61: invokevirtual #710                // Method net/minecraft/class_2338.method_10084:()Lnet/minecraft/class_2338;
+      64: astore        8
+      66: goto          91
+      69: aload_0
+      70: aload         7
+      72: invokevirtual #690                // Method net/minecraft/class_2338.method_10074:()Lnet/minecraft/class_2338;
+      75: invokevirtual #177                // Method net/minecraft/class_1937.method_8320:(Lnet/minecraft/class_2338;)Lnet/minecraft/class_2680;
+      78: invokestatic  #604                // Method smooth/lift/EscalatorUtil.isEscalatorStep:(Lnet/minecraft/class_2680;)Z
+      81: ifeq          134
+      84: aload         7
+      86: invokevirtual #690                // Method net/minecraft/class_2338.method_10074:()Lnet/minecraft/class_2338;
+      89: astore        8
+      91: aload         4
+      93: astore        5
+      95: aload         8
+      97: astore        4
+      99: aload_3
+     100: aload_0
+     101: aload         4
+     103: invokevirtual #177                // Method net/minecraft/class_1937.method_8320:(Lnet/minecraft/class_2338;)Lnet/minecraft/class_2680;
+     106: invokestatic  #633                // Method getOrientation:(Lnet/minecraft/class_2680;)Ljava/lang/String;
+     109: invokevirtual #648                // Method java/lang/String.equals:(Ljava/lang/Object;)Z
+     112: ifeq          128
+     115: aload         5
+     117: ifnull        125
+     120: aload         5
+     122: goto          127
+     125: aload         4
+     127: areturn
+     128: iinc          6, 1
+     131: goto          9
+     134: aload         4
+     136: areturn
+
+  private static boolean isStaticLanding(net.minecraft.class_1937, net.minecraft.class_2338);
+    Code:
+       0: aload_0
+       1: aload_1
+       2: invokevirtual #177                // Method net/minecraft/class_1937.method_8320:(Lnet/minecraft/class_2338;)Lnet/minecraft/class_2680;
+       5: invokestatic  #633                // Method getOrientation:(Lnet/minecraft/class_2680;)Ljava/lang/String;
+       8: ldc_w         #715                // String LANDING
+      11: invokevirtual #719                // Method java/lang/String.startsWith:(Ljava/lang/String;)Z
+      14: ireturn
+
+  private static java.lang.Boolean getBooleanProperty(net.minecraft.class_2680, java.lang.String);
+    Code:
+       0: aload_0
+       1: invokevirtual #665                // Method net/minecraft/class_2680.method_28501:()Ljava/util/Collection;
+       4: invokeinterface #668,  1          // InterfaceMethod java/util/Collection.iterator:()Ljava/util/Iterator;
+       9: astore_2
+      10: aload_2
+      11: invokeinterface #547,  1          // InterfaceMethod java/util/Iterator.hasNext:()Z
+      16: ifeq          61
+      19: aload_2
+      20: invokeinterface #551,  1          // InterfaceMethod java/util/Iterator.next:()Ljava/lang/Object;
+      25: checkcast     #670                // class net/minecraft/class_2769
+      28: astore_3
+      29: aload_3
+      30: invokevirtual #674                // Method net/minecraft/class_2769.method_11899:()Ljava/lang/String;
+      33: aload_1
+      34: invokevirtual #722                // Method java/lang/String.equalsIgnoreCase:(Ljava/lang/String;)Z
+      37: ifeq          58
+      40: aload_3
+      41: invokevirtual #678                // Method net/minecraft/class_2769.method_11902:()Ljava/lang/Class;
+      44: ldc           #189                // class java/lang/Boolean
+      46: if_acmpne     58
+      49: aload_0
+      50: aload_3
+      51: invokevirtual #682                // Method net/minecraft/class_2680.method_11654:(Lnet/minecraft/class_2769;)Ljava/lang/Comparable;
+      54: checkcast     #189                // class java/lang/Boolean
+      57: areturn
+      58: goto          10
+      61: aconst_null
+      62: areturn
+
+  private static double distanceSq(net.minecraft.class_1309, net.minecraft.class_2338);
+    Code:
+       0: aload_1
+       1: invokevirtual #236                // Method net/minecraft/class_2338.method_10263:()I
+       4: i2d
+       5: ldc2_w        #29                 // double 0.5d
+       8: dadd
+       9: aload_0
+      10: invokevirtual #419                // Method net/minecraft/class_1309.method_23317:()D
+      13: dsub
+      14: dstore_2
+      15: aload_1
+      16: invokevirtual #239                // Method net/minecraft/class_2338.method_10264:()I
+      19: i2d
+      20: ldc2_w        #29                 // double 0.5d
+      23: dadd
+      24: aload_0
+      25: invokevirtual #425                // Method net/minecraft/class_1309.method_23318:()D
+      28: dsub
+      29: dstore        4
+      31: aload_1
+      32: invokevirtual #242                // Method net/minecraft/class_2338.method_10260:()I
+      35: i2d
+      36: ldc2_w        #29                 // double 0.5d
+      39: dadd
+      40: aload_0
+      41: invokevirtual #422                // Method net/minecraft/class_1309.method_23321:()D
+      44: dsub
+      45: dstore        6
+      47: dload_2
+      48: dload_2
+      49: dmul
+      50: dload         4
+      52: dload         4
+      54: dmul
+      55: dadd
+      56: dload         6
+      58: dload         6
+      60: dmul
+      61: dadd
+      62: dreturn
+
+  private static net.minecraft.class_2338 findEscalatorBelow(net.minecraft.class_1937, net.minecraft.class_1309);
+    Code:
+       0: aload_1
+       1: invokevirtual #419                // Method net/minecraft/class_1309.method_23317:()D
+       4: invokestatic  #594                // Method java/lang/Math.floor:(D)D
+       7: d2i
+       8: istore_2
+       9: aload_1
+      10: invokevirtual #425                // Method net/minecraft/class_1309.method_23318:()D
+      13: ldc2_w        #725                // double 0.2d
+      16: dsub
+      17: invokestatic  #594                // Method java/lang/Math.floor:(D)D
+      20: d2i
+      21: istore_3
+      22: aload_1
+      23: invokevirtual #422                // Method net/minecraft/class_1309.method_23321:()D
+      26: invokestatic  #594                // Method java/lang/Math.floor:(D)D
+      29: d2i
+      30: istore        4
+      32: aload_1
+      33: invokevirtual #425                // Method net/minecraft/class_1309.method_23318:()D
+      36: dstore        5
+      38: aconst_null
+      39: astore        7
+      41: ldc2_w        #597                // double 1.7976931348623157E308d
+      44: dstore        8
+      46: bipush        -2
+      48: istore        10
+      50: iload         10
+      52: iconst_1
+      53: if_icmpgt     136
+      56: new           #169                // class net/minecraft/class_2338
+      59: dup
+      60: iload_2
+      61: iload_3
+      62: iload         10
+      64: iadd
+      65: iload         4
+      67: invokespecial #601                // Method net/minecraft/class_2338."<init>":(III)V
+      70: astore        11
+      72: aload_0
+      73: aload         11
+      75: invokevirtual #177                // Method net/minecraft/class_1937.method_8320:(Lnet/minecraft/class_2338;)Lnet/minecraft/class_2680;
+      78: astore        12
+      80: aload         12
+      82: invokestatic  #604                // Method smooth/lift/EscalatorUtil.isEscalatorStep:(Lnet/minecraft/class_2680;)Z
+      85: ifne          91
+      88: goto          130
+      91: aload         12
+      93: aload         11
+      95: aload_1
+      96: invokevirtual #419                // Method net/minecraft/class_1309.method_23317:()D
+      99: aload_1
+     100: invokevirtual #422                // Method net/minecraft/class_1309.method_23321:()D
+     103: invokestatic  #608                // Method surfaceLineOfBlock:(Lnet/minecraft/class_2680;Lnet/minecraft/class_2338;DD)D
+     106: dload         5
+     108: dsub
+     109: invokestatic  #611                // Method java/lang/Math.abs:(D)D
+     112: dstore        13
+     114: dload         13
+     116: dload         8
+     118: dcmpg
+     119: ifge          130
+     122: dload         13
+     124: dstore        8
+     126: aload         11
+     128: astore        7
+     130: iinc          10, 1
+     133: goto          50
+     136: aload         7
+     138: areturn
+
+  private static net.minecraft.class_2338[] findEscalatorEndpoints(net.minecraft.class_1937, net.minecraft.class_2338);
+    Code:
+       0: new           #734                // class java/util/HashSet
+       3: dup
+       4: invokespecial #735                // Method java/util/HashSet."<init>":()V
+       7: astore_2
+       8: new           #737                // class java/util/ArrayDeque
+      11: dup
+      12: invokespecial #738                // Method java/util/ArrayDeque."<init>":()V
+      15: astore_3
+      16: aload_3
+      17: aload_1
+      18: invokeinterface #741,  2          // InterfaceMethod java/util/Queue.add:(Ljava/lang/Object;)Z
+      23: pop
+      24: aload_2
+      25: aload_1
+      26: invokeinterface #404,  2          // InterfaceMethod java/util/Set.add:(Ljava/lang/Object;)Z
+      31: pop
+      32: aconst_null
+      33: astore        4
+      35: aconst_null
+      36: astore        5
+      38: aload_1
+      39: astore        6
+      41: aload_1
+      42: astore        7
+      44: aload_3
+      45: invokeinterface #742,  1          // InterfaceMethod java/util/Queue.isEmpty:()Z
+      50: ifne          232
+      53: aload_3
+      54: invokeinterface #745,  1          // InterfaceMethod java/util/Queue.poll:()Ljava/lang/Object;
+      59: checkcast     #169                // class net/minecraft/class_2338
+      62: astore        8
+      64: aload_0
+      65: aload         8
+      67: invokevirtual #177                // Method net/minecraft/class_1937.method_8320:(Lnet/minecraft/class_2338;)Lnet/minecraft/class_2680;
+      70: astore        9
+      72: aload         9
+      74: invokestatic  #633                // Method getOrientation:(Lnet/minecraft/class_2680;)Ljava/lang/String;
+      77: astore        10
+      79: ldc_w         #693                // String LANDING_BOTTOM
+      82: aload         10
+      84: invokevirtual #648                // Method java/lang/String.equals:(Ljava/lang/Object;)Z
+      87: ifeq          97
+      90: aload         8
+      92: astore        4
+      94: goto          112
+      97: ldc_w         #699                // String LANDING_TOP
+     100: aload         10
+     102: invokevirtual #648                // Method java/lang/String.equals:(Ljava/lang/Object;)Z
+     105: ifeq          112
+     108: aload         8
+     110: astore        5
+     112: aload         8
+     114: invokevirtual #239                // Method net/minecraft/class_2338.method_10264:()I
+     117: aload         6
+     119: invokevirtual #239                // Method net/minecraft/class_2338.method_10264:()I
+     122: if_icmpge     129
+     125: aload         8
+     127: astore        6
+     129: aload         8
+     131: invokevirtual #239                // Method net/minecraft/class_2338.method_10264:()I
+     134: aload         7
+     136: invokevirtual #239                // Method net/minecraft/class_2338.method_10264:()I
+     139: if_icmple     146
+     142: aload         8
+     144: astore        7
+     146: invokestatic  #749                // Method net/minecraft/class_2350.values:()[Lnet/minecraft/class_2350;
+     149: astore        11
+     151: aload         11
+     153: arraylength
+     154: istore        12
+     156: iconst_0
+     157: istore        13
+     159: iload         13
+     161: iload         12
+     163: if_icmpge     229
+     166: aload         11
+     168: iload         13
+     170: aaload
+     171: astore        14
+     173: aload         8
+     175: aload         14
+     177: invokevirtual #707                // Method net/minecraft/class_2338.method_10093:(Lnet/minecraft/class_2350;)Lnet/minecraft/class_2338;
+     180: astore        15
+     182: aload_2
+     183: aload         15
+     185: invokeinterface #754,  2          // InterfaceMethod java/util/Set.contains:(Ljava/lang/Object;)Z
+     190: ifne          223
+     193: aload_0
+     194: aload         15
+     196: invokevirtual #177                // Method net/minecraft/class_1937.method_8320:(Lnet/minecraft/class_2338;)Lnet/minecraft/class_2680;
+     199: invokestatic  #604                // Method smooth/lift/EscalatorUtil.isEscalatorStep:(Lnet/minecraft/class_2680;)Z
+     202: ifeq          223
+     205: aload_2
+     206: aload         15
+     208: invokeinterface #404,  2          // InterfaceMethod java/util/Set.add:(Ljava/lang/Object;)Z
+     213: pop
+     214: aload_3
+     215: aload         15
+     217: invokeinterface #741,  2          // InterfaceMethod java/util/Queue.add:(Ljava/lang/Object;)Z
+     222: pop
+     223: iinc          13, 1
+     226: goto          159
+     229: goto          44
+     232: aload         4
+     234: ifnull        241
+     237: aload         4
+     239: astore        6
+     241: aload         5
+     243: ifnull        250
+     246: aload         5
+     248: astore        7
+     250: iconst_2
+     251: anewarray     #169                // class net/minecraft/class_2338
+     254: dup
+     255: iconst_0
+     256: aload         6
+     258: aastore
+     259: dup
+     260: iconst_1
+     261: aload         7
+     263: aastore
+     264: areturn
+
+  private static java.lang.String getOrientation(net.minecraft.class_2680);
+    Code:
+       0: aload_0
+       1: invokevirtual #665                // Method net/minecraft/class_2680.method_28501:()Ljava/util/Collection;
+       4: invokeinterface #668,  1          // InterfaceMethod java/util/Collection.iterator:()Ljava/util/Iterator;
+       9: astore_1
+      10: aload_1
+      11: invokeinterface #547,  1          // InterfaceMethod java/util/Iterator.hasNext:()Z
+      16: ifeq          63
+      19: aload_1
+      20: invokeinterface #551,  1          // InterfaceMethod java/util/Iterator.next:()Ljava/lang/Object;
+      25: checkcast     #670                // class net/minecraft/class_2769
+      28: astore_2
+      29: ldc_w         #765                // String orientation
+      32: aload_2
+      33: invokevirtual #674                // Method net/minecraft/class_2769.method_11899:()Ljava/lang/String;
+      36: invokevirtual #648                // Method java/lang/String.equals:(Ljava/lang/Object;)Z
+      39: ifeq          60
+      42: aload_0
+      43: aload_2
+      44: invokevirtual #682                // Method net/minecraft/class_2680.method_11654:(Lnet/minecraft/class_2769;)Ljava/lang/Comparable;
+      47: astore_3
+      48: aload_3
+      49: ifnull        60
+      52: aload_3
+      53: invokevirtual #768                // Method java/lang/Object.toString:()Ljava/lang/String;
+      56: invokevirtual #637                // Method java/lang/String.toUpperCase:()Ljava/lang/String;
+      59: areturn
+      60: goto          10
+      63: ldc_w         #770                // String
+      66: areturn
+
+  static {};
+    Code:
+       0: new           #14                 // class java/util/concurrent/ConcurrentHashMap
+       3: dup
+       4: invokespecial #773                // Method java/util/concurrent/ConcurrentHashMap."<init>":()V
+       7: putstatic     #123                // Field PLAYER_DIRECTION:Ljava/util/Map;
+      10: invokestatic  #777                // Method java/util/concurrent/ConcurrentHashMap.newKeySet:()Ljava/util/concurrent/ConcurrentHashMap$KeySetView;
+      13: putstatic     #131                // Field MOD_EXEMPT:Ljava/util/Set;
+      16: return
+}

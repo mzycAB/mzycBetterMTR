@@ -1,0 +1,749 @@
+﻿Compiled from "VertexConsumer.java"
+public interface com.mojang.blaze3d.vertex.VertexConsumer {
+  public abstract com.mojang.blaze3d.vertex.VertexConsumer vertex(double, double, double);
+
+  public abstract com.mojang.blaze3d.vertex.VertexConsumer color(int, int, int, int);
+
+  public abstract com.mojang.blaze3d.vertex.VertexConsumer uv(float, float);
+
+  public abstract com.mojang.blaze3d.vertex.VertexConsumer overlayCoords(int, int);
+
+  public abstract com.mojang.blaze3d.vertex.VertexConsumer uv2(int, int);
+
+  public abstract com.mojang.blaze3d.vertex.VertexConsumer normal(float, float, float);
+
+  public abstract void endVertex();
+
+  public default void vertex(float, float, float, float, float, float, float, float, float, int, int, float, float, float);
+    Code:
+       0: aload_0
+       1: fload_1
+       2: f2d
+       3: fload_2
+       4: f2d
+       5: fload_3
+       6: f2d
+       7: invokeinterface #47,  7           // InterfaceMethod vertex:(DDD)Lcom/mojang/blaze3d/vertex/VertexConsumer;
+      12: pop
+      13: aload_0
+      14: fload         4
+      16: fload         5
+      18: fload         6
+      20: fload         7
+      22: invokeinterface #50,  5           // InterfaceMethod color:(FFFF)Lcom/mojang/blaze3d/vertex/VertexConsumer;
+      27: pop
+      28: aload_0
+      29: fload         8
+      31: fload         9
+      33: invokeinterface #52,  3           // InterfaceMethod uv:(FF)Lcom/mojang/blaze3d/vertex/VertexConsumer;
+      38: pop
+      39: aload_0
+      40: iload         10
+      42: invokeinterface #55,  2           // InterfaceMethod overlayCoords:(I)Lcom/mojang/blaze3d/vertex/VertexConsumer;
+      47: pop
+      48: aload_0
+      49: iload         11
+      51: invokeinterface #57,  2           // InterfaceMethod uv2:(I)Lcom/mojang/blaze3d/vertex/VertexConsumer;
+      56: pop
+      57: aload_0
+      58: fload         12
+      60: fload         13
+      62: fload         14
+      64: invokeinterface #59,  4           // InterfaceMethod normal:(FFF)Lcom/mojang/blaze3d/vertex/VertexConsumer;
+      69: pop
+      70: aload_0
+      71: invokeinterface #61,  1           // InterfaceMethod endVertex:()V
+      76: return
+
+  public abstract void defaultColor(int, int, int, int);
+
+  public abstract void unsetDefaultColor();
+
+  public default com.mojang.blaze3d.vertex.VertexConsumer color(float, float, float, float);
+    Code:
+       0: aload_0
+       1: fload_1
+       2: ldc           #69                 // float 255.0f
+       4: fmul
+       5: f2i
+       6: fload_2
+       7: ldc           #69                 // float 255.0f
+       9: fmul
+      10: f2i
+      11: fload_3
+      12: ldc           #69                 // float 255.0f
+      14: fmul
+      15: f2i
+      16: fload         4
+      18: ldc           #69                 // float 255.0f
+      20: fmul
+      21: f2i
+      22: invokeinterface #71,  5           // InterfaceMethod color:(IIII)Lcom/mojang/blaze3d/vertex/VertexConsumer;
+      27: areturn
+
+  public default com.mojang.blaze3d.vertex.VertexConsumer color(int);
+    Code:
+       0: aload_0
+       1: iload_1
+       2: invokestatic  #75                 // Method net/minecraft/util/FastColor$ARGB32.red:(I)I
+       5: iload_1
+       6: invokestatic  #78                 // Method net/minecraft/util/FastColor$ARGB32.green:(I)I
+       9: iload_1
+      10: invokestatic  #81                 // Method net/minecraft/util/FastColor$ARGB32.blue:(I)I
+      13: iload_1
+      14: invokestatic  #84                 // Method net/minecraft/util/FastColor$ARGB32.alpha:(I)I
+      17: invokeinterface #71,  5           // InterfaceMethod color:(IIII)Lcom/mojang/blaze3d/vertex/VertexConsumer;
+      22: areturn
+
+  public default com.mojang.blaze3d.vertex.VertexConsumer uv2(int);
+    Code:
+       0: aload_0
+       1: iload_1
+       2: ldc           #85                 // int 65535
+       4: iand
+       5: iload_1
+       6: bipush        16
+       8: ishr
+       9: ldc           #85                 // int 65535
+      11: iand
+      12: invokeinterface #87,  3           // InterfaceMethod uv2:(II)Lcom/mojang/blaze3d/vertex/VertexConsumer;
+      17: areturn
+
+  public default com.mojang.blaze3d.vertex.VertexConsumer overlayCoords(int);
+    Code:
+       0: aload_0
+       1: iload_1
+       2: ldc           #85                 // int 65535
+       4: iand
+       5: iload_1
+       6: bipush        16
+       8: ishr
+       9: ldc           #85                 // int 65535
+      11: iand
+      12: invokeinterface #89,  3           // InterfaceMethod overlayCoords:(II)Lcom/mojang/blaze3d/vertex/VertexConsumer;
+      17: areturn
+
+  public default void putBulkData(com.mojang.blaze3d.vertex.PoseStack$Pose, net.minecraft.client.renderer.block.model.BakedQuad, float, float, float, int, int);
+    Code:
+       0: aload_0
+       1: aload_1
+       2: aload_2
+       3: iconst_4
+       4: newarray       float
+       6: dup
+       7: iconst_0
+       8: fconst_1
+       9: fastore
+      10: dup
+      11: iconst_1
+      12: fconst_1
+      13: fastore
+      14: dup
+      15: iconst_2
+      16: fconst_1
+      17: fastore
+      18: dup
+      19: iconst_3
+      20: fconst_1
+      21: fastore
+      22: fload_3
+      23: fload         4
+      25: fload         5
+      27: iconst_4
+      28: newarray       int
+      30: dup
+      31: iconst_0
+      32: iload         6
+      34: iastore
+      35: dup
+      36: iconst_1
+      37: iload         6
+      39: iastore
+      40: dup
+      41: iconst_2
+      42: iload         6
+      44: iastore
+      45: dup
+      46: iconst_3
+      47: iload         6
+      49: iastore
+      50: iload         7
+      52: iconst_0
+      53: invokeinterface #96,  10          // InterfaceMethod putBulkData:(Lcom/mojang/blaze3d/vertex/PoseStack$Pose;Lnet/minecraft/client/renderer/block/model/BakedQuad;[FFFF[IIZ)V
+      58: return
+
+  public default void putBulkData(com.mojang.blaze3d.vertex.PoseStack$Pose, net.minecraft.client.renderer.block.model.BakedQuad, float[], float, float, float, int[], int, boolean);
+    Code:
+       0: iconst_4
+       1: newarray       float
+       3: dup
+       4: iconst_0
+       5: aload_3
+       6: iconst_0
+       7: faload
+       8: fastore
+       9: dup
+      10: iconst_1
+      11: aload_3
+      12: iconst_1
+      13: faload
+      14: fastore
+      15: dup
+      16: iconst_2
+      17: aload_3
+      18: iconst_2
+      19: faload
+      20: fastore
+      21: dup
+      22: iconst_3
+      23: aload_3
+      24: iconst_3
+      25: faload
+      26: fastore
+      27: astore        10
+      29: iconst_4
+      30: newarray       int
+      32: dup
+      33: iconst_0
+      34: aload         7
+      36: iconst_0
+      37: iaload
+      38: iastore
+      39: dup
+      40: iconst_1
+      41: aload         7
+      43: iconst_1
+      44: iaload
+      45: iastore
+      46: dup
+      47: iconst_2
+      48: aload         7
+      50: iconst_2
+      51: iaload
+      52: iastore
+      53: dup
+      54: iconst_3
+      55: aload         7
+      57: iconst_3
+      58: iaload
+      59: iastore
+      60: astore        11
+      62: aload_2
+      63: invokevirtual #109                // Method net/minecraft/client/renderer/block/model/BakedQuad.getVertices:()[I
+      66: astore        12
+      68: aload_2
+      69: invokevirtual #113                // Method net/minecraft/client/renderer/block/model/BakedQuad.getDirection:()Lnet/minecraft/core/Direction;
+      72: invokevirtual #119                // Method net/minecraft/core/Direction.getNormal:()Lnet/minecraft/core/Vec3i;
+      75: astore        13
+      77: aload_1
+      78: invokevirtual #122                // Method com/mojang/blaze3d/vertex/PoseStack$Pose.pose:()Lorg/joml/Matrix4f;
+      81: astore        14
+      83: aload_1
+      84: invokevirtual #125                // Method com/mojang/blaze3d/vertex/PoseStack$Pose.normal:()Lorg/joml/Matrix3f;
+      87: new           #127                // class org/joml/Vector3f
+      90: dup
+      91: aload         13
+      93: invokevirtual #133                // Method net/minecraft/core/Vec3i.getX:()I
+      96: i2f
+      97: aload         13
+      99: invokevirtual #136                // Method net/minecraft/core/Vec3i.getY:()I
+     102: i2f
+     103: aload         13
+     105: invokevirtual #139                // Method net/minecraft/core/Vec3i.getZ:()I
+     108: i2f
+     109: invokespecial #143                // Method org/joml/Vector3f."<init>":(FFF)V
+     112: invokevirtual #149                // Method org/joml/Matrix3f.transform:(Lorg/joml/Vector3f;)Lorg/joml/Vector3f;
+     115: astore        15
+     117: bipush        8
+     119: istore        16
+     121: aload         12
+     123: arraylength
+     124: bipush        8
+     126: idiv
+     127: istore        17
+     129: invokestatic  #155                // Method org/lwjgl/system/MemoryStack.stackPush:()Lorg/lwjgl/system/MemoryStack;
+     132: astore        18
+     134: aload         18
+     136: getstatic     #161                // Field com/mojang/blaze3d/vertex/DefaultVertexFormat.BLOCK:Lcom/mojang/blaze3d/vertex/VertexFormat;
+     139: invokevirtual #166                // Method com/mojang/blaze3d/vertex/VertexFormat.getVertexSize:()I
+     142: invokevirtual #170                // Method org/lwjgl/system/MemoryStack.malloc:(I)Ljava/nio/ByteBuffer;
+     145: astore        19
+     147: aload         19
+     149: invokevirtual #176                // Method java/nio/ByteBuffer.asIntBuffer:()Ljava/nio/IntBuffer;
+     152: astore        20
+     154: iconst_0
+     155: istore        21
+     157: iload         21
+     159: iload         17
+     161: if_icmpge     441
+     164: aload         20
+     166: invokevirtual #187                // Method java/nio/IntBuffer.clear:()Ljava/nio/IntBuffer;
+     169: pop
+     170: aload         20
+     172: aload         12
+     174: iload         21
+     176: bipush        8
+     178: imul
+     179: bipush        8
+     181: invokevirtual #191                // Method java/nio/IntBuffer.put:([III)Ljava/nio/IntBuffer;
+     184: pop
+     185: aload         19
+     187: iconst_0
+     188: invokevirtual #195                // Method java/nio/ByteBuffer.getFloat:(I)F
+     191: fstore        22
+     193: aload         19
+     195: iconst_4
+     196: invokevirtual #195                // Method java/nio/ByteBuffer.getFloat:(I)F
+     199: fstore        23
+     201: aload         19
+     203: bipush        8
+     205: invokevirtual #195                // Method java/nio/ByteBuffer.getFloat:(I)F
+     208: fstore        24
+     210: iload         9
+     212: ifeq          308
+     215: aload         19
+     217: bipush        12
+     219: invokevirtual #199                // Method java/nio/ByteBuffer.get:(I)B
+     222: sipush        255
+     225: iand
+     226: i2f
+     227: ldc           #69                 // float 255.0f
+     229: fdiv
+     230: fstore        28
+     232: aload         19
+     234: bipush        13
+     236: invokevirtual #199                // Method java/nio/ByteBuffer.get:(I)B
+     239: sipush        255
+     242: iand
+     243: i2f
+     244: ldc           #69                 // float 255.0f
+     246: fdiv
+     247: fstore        29
+     249: aload         19
+     251: bipush        14
+     253: invokevirtual #199                // Method java/nio/ByteBuffer.get:(I)B
+     256: sipush        255
+     259: iand
+     260: i2f
+     261: ldc           #69                 // float 255.0f
+     263: fdiv
+     264: fstore        30
+     266: fload         28
+     268: aload         10
+     270: iload         21
+     272: faload
+     273: fmul
+     274: fload         4
+     276: fmul
+     277: fstore        25
+     279: fload         29
+     281: aload         10
+     283: iload         21
+     285: faload
+     286: fmul
+     287: fload         5
+     289: fmul
+     290: fstore        26
+     292: fload         30
+     294: aload         10
+     296: iload         21
+     298: faload
+     299: fmul
+     300: fload         6
+     302: fmul
+     303: fstore        27
+     305: goto          338
+     308: aload         10
+     310: iload         21
+     312: faload
+     313: fload         4
+     315: fmul
+     316: fstore        25
+     318: aload         10
+     320: iload         21
+     322: faload
+     323: fload         5
+     325: fmul
+     326: fstore        26
+     328: aload         10
+     330: iload         21
+     332: faload
+     333: fload         6
+     335: fmul
+     336: fstore        27
+     338: aload         11
+     340: iload         21
+     342: iaload
+     343: istore        28
+     345: aload         19
+     347: bipush        16
+     349: invokevirtual #195                // Method java/nio/ByteBuffer.getFloat:(I)F
+     352: fstore        29
+     354: aload         19
+     356: bipush        20
+     358: invokevirtual #195                // Method java/nio/ByteBuffer.getFloat:(I)F
+     361: fstore        30
+     363: aload         14
+     365: new           #201                // class org/joml/Vector4f
+     368: dup
+     369: fload         22
+     371: fload         23
+     373: fload         24
+     375: fconst_1
+     376: invokespecial #204                // Method org/joml/Vector4f."<init>":(FFFF)V
+     379: invokevirtual #207                // Method org/joml/Matrix4f.transform:(Lorg/joml/Vector4f;)Lorg/joml/Vector4f;
+     382: astore        31
+     384: aload_0
+     385: aload         31
+     387: invokevirtual #211                // Method org/joml/Vector4f.x:()F
+     390: aload         31
+     392: invokevirtual #214                // Method org/joml/Vector4f.y:()F
+     395: aload         31
+     397: invokevirtual #217                // Method org/joml/Vector4f.z:()F
+     400: fload         25
+     402: fload         26
+     404: fload         27
+     406: fconst_1
+     407: fload         29
+     409: fload         30
+     411: iload         8
+     413: iload         28
+     415: aload         15
+     417: invokevirtual #218                // Method org/joml/Vector3f.x:()F
+     420: aload         15
+     422: invokevirtual #219                // Method org/joml/Vector3f.y:()F
+     425: aload         15
+     427: invokevirtual #220                // Method org/joml/Vector3f.z:()F
+     430: invokeinterface #222,  15         // InterfaceMethod vertex:(FFFFFFFFFIIFFF)V
+     435: iinc          21, 1
+     438: goto          157
+     441: aload         18
+     443: ifnull        481
+     446: aload         18
+     448: invokevirtual #225                // Method org/lwjgl/system/MemoryStack.close:()V
+     451: goto          481
+     454: astore        19
+     456: aload         18
+     458: ifnull        478
+     461: aload         18
+     463: invokevirtual #225                // Method org/lwjgl/system/MemoryStack.close:()V
+     466: goto          478
+     469: astore        20
+     471: aload         19
+     473: aload         20
+     475: invokevirtual #229                // Method java/lang/Throwable.addSuppressed:(Ljava/lang/Throwable;)V
+     478: aload         19
+     480: athrow
+     481: return
+    Exception table:
+       from    to  target type
+         134   441   454   Class java/lang/Throwable
+         461   466   469   Class java/lang/Throwable
+
+  public default com.mojang.blaze3d.vertex.VertexConsumer vertex(org.joml.Matrix4f, float, float, float);
+    Code:
+       0: aload_1
+       1: new           #201                // class org/joml/Vector4f
+       4: dup
+       5: fload_2
+       6: fload_3
+       7: fload         4
+       9: fconst_1
+      10: invokespecial #204                // Method org/joml/Vector4f."<init>":(FFFF)V
+      13: invokevirtual #207                // Method org/joml/Matrix4f.transform:(Lorg/joml/Vector4f;)Lorg/joml/Vector4f;
+      16: astore        5
+      18: aload_0
+      19: aload         5
+      21: invokevirtual #211                // Method org/joml/Vector4f.x:()F
+      24: f2d
+      25: aload         5
+      27: invokevirtual #214                // Method org/joml/Vector4f.y:()F
+      30: f2d
+      31: aload         5
+      33: invokevirtual #217                // Method org/joml/Vector4f.z:()F
+      36: f2d
+      37: invokeinterface #47,  7           // InterfaceMethod vertex:(DDD)Lcom/mojang/blaze3d/vertex/VertexConsumer;
+      42: areturn
+
+  public default com.mojang.blaze3d.vertex.VertexConsumer normal(org.joml.Matrix3f, float, float, float);
+    Code:
+       0: aload_1
+       1: new           #127                // class org/joml/Vector3f
+       4: dup
+       5: fload_2
+       6: fload_3
+       7: fload         4
+       9: invokespecial #143                // Method org/joml/Vector3f."<init>":(FFF)V
+      12: invokevirtual #149                // Method org/joml/Matrix3f.transform:(Lorg/joml/Vector3f;)Lorg/joml/Vector3f;
+      15: astore        5
+      17: aload_0
+      18: aload         5
+      20: invokevirtual #218                // Method org/joml/Vector3f.x:()F
+      23: aload         5
+      25: invokevirtual #219                // Method org/joml/Vector3f.y:()F
+      28: aload         5
+      30: invokevirtual #220                // Method org/joml/Vector3f.z:()F
+      33: invokeinterface #59,  4           // InterfaceMethod normal:(FFF)Lcom/mojang/blaze3d/vertex/VertexConsumer;
+      38: areturn
+}
+Compiled from "BufferVertexConsumer.java"
+public interface com.mojang.blaze3d.vertex.BufferVertexConsumer extends com.mojang.blaze3d.vertex.VertexConsumer {
+  public abstract com.mojang.blaze3d.vertex.VertexFormatElement currentElement();
+
+  public abstract void nextElement();
+
+  public abstract void putByte(int, byte);
+
+  public abstract void putShort(int, short);
+
+  public abstract void putFloat(int, float);
+
+  public default com.mojang.blaze3d.vertex.VertexConsumer vertex(double, double, double);
+    Code:
+       0: aload_0
+       1: invokeinterface #35,  1           // InterfaceMethod currentElement:()Lcom/mojang/blaze3d/vertex/VertexFormatElement;
+       6: invokevirtual #39                 // Method com/mojang/blaze3d/vertex/VertexFormatElement.getUsage:()Lcom/mojang/blaze3d/vertex/VertexFormatElement$Usage;
+       9: getstatic     #43                 // Field com/mojang/blaze3d/vertex/VertexFormatElement$Usage.POSITION:Lcom/mojang/blaze3d/vertex/VertexFormatElement$Usage;
+      12: if_acmpeq     17
+      15: aload_0
+      16: areturn
+      17: aload_0
+      18: invokeinterface #35,  1           // InterfaceMethod currentElement:()Lcom/mojang/blaze3d/vertex/VertexFormatElement;
+      23: invokevirtual #47                 // Method com/mojang/blaze3d/vertex/VertexFormatElement.getType:()Lcom/mojang/blaze3d/vertex/VertexFormatElement$Type;
+      26: getstatic     #51                 // Field com/mojang/blaze3d/vertex/VertexFormatElement$Type.FLOAT:Lcom/mojang/blaze3d/vertex/VertexFormatElement$Type;
+      29: if_acmpne     45
+      32: aload_0
+      33: invokeinterface #35,  1           // InterfaceMethod currentElement:()Lcom/mojang/blaze3d/vertex/VertexFormatElement;
+      38: invokevirtual #55                 // Method com/mojang/blaze3d/vertex/VertexFormatElement.getCount:()I
+      41: iconst_3
+      42: if_icmpeq     53
+      45: new           #57                 // class java/lang/IllegalStateException
+      48: dup
+      49: invokespecial #60                 // Method java/lang/IllegalStateException."<init>":()V
+      52: athrow
+      53: aload_0
+      54: iconst_0
+      55: dload_1
+      56: d2f
+      57: invokeinterface #62,  3           // InterfaceMethod putFloat:(IF)V
+      62: aload_0
+      63: iconst_4
+      64: dload_3
+      65: d2f
+      66: invokeinterface #62,  3           // InterfaceMethod putFloat:(IF)V
+      71: aload_0
+      72: bipush        8
+      74: dload         5
+      76: d2f
+      77: invokeinterface #62,  3           // InterfaceMethod putFloat:(IF)V
+      82: aload_0
+      83: invokeinterface #64,  1           // InterfaceMethod nextElement:()V
+      88: aload_0
+      89: areturn
+
+  public default com.mojang.blaze3d.vertex.VertexConsumer color(int, int, int, int);
+    Code:
+       0: aload_0
+       1: invokeinterface #35,  1           // InterfaceMethod currentElement:()Lcom/mojang/blaze3d/vertex/VertexFormatElement;
+       6: astore        5
+       8: aload         5
+      10: invokevirtual #39                 // Method com/mojang/blaze3d/vertex/VertexFormatElement.getUsage:()Lcom/mojang/blaze3d/vertex/VertexFormatElement$Usage;
+      13: getstatic     #75                 // Field com/mojang/blaze3d/vertex/VertexFormatElement$Usage.COLOR:Lcom/mojang/blaze3d/vertex/VertexFormatElement$Usage;
+      16: if_acmpeq     21
+      19: aload_0
+      20: areturn
+      21: aload         5
+      23: invokevirtual #47                 // Method com/mojang/blaze3d/vertex/VertexFormatElement.getType:()Lcom/mojang/blaze3d/vertex/VertexFormatElement$Type;
+      26: getstatic     #78                 // Field com/mojang/blaze3d/vertex/VertexFormatElement$Type.UBYTE:Lcom/mojang/blaze3d/vertex/VertexFormatElement$Type;
+      29: if_acmpne     41
+      32: aload         5
+      34: invokevirtual #55                 // Method com/mojang/blaze3d/vertex/VertexFormatElement.getCount:()I
+      37: iconst_4
+      38: if_icmpeq     49
+      41: new           #57                 // class java/lang/IllegalStateException
+      44: dup
+      45: invokespecial #60                 // Method java/lang/IllegalStateException."<init>":()V
+      48: athrow
+      49: aload_0
+      50: iconst_0
+      51: iload_1
+      52: i2b
+      53: invokeinterface #80,  3           // InterfaceMethod putByte:(IB)V
+      58: aload_0
+      59: iconst_1
+      60: iload_2
+      61: i2b
+      62: invokeinterface #80,  3           // InterfaceMethod putByte:(IB)V
+      67: aload_0
+      68: iconst_2
+      69: iload_3
+      70: i2b
+      71: invokeinterface #80,  3           // InterfaceMethod putByte:(IB)V
+      76: aload_0
+      77: iconst_3
+      78: iload         4
+      80: i2b
+      81: invokeinterface #80,  3           // InterfaceMethod putByte:(IB)V
+      86: aload_0
+      87: invokeinterface #64,  1           // InterfaceMethod nextElement:()V
+      92: aload_0
+      93: areturn
+
+  public default com.mojang.blaze3d.vertex.VertexConsumer uv(float, float);
+    Code:
+       0: aload_0
+       1: invokeinterface #35,  1           // InterfaceMethod currentElement:()Lcom/mojang/blaze3d/vertex/VertexFormatElement;
+       6: astore_3
+       7: aload_3
+       8: invokevirtual #39                 // Method com/mojang/blaze3d/vertex/VertexFormatElement.getUsage:()Lcom/mojang/blaze3d/vertex/VertexFormatElement$Usage;
+      11: getstatic     #89                 // Field com/mojang/blaze3d/vertex/VertexFormatElement$Usage.UV:Lcom/mojang/blaze3d/vertex/VertexFormatElement$Usage;
+      14: if_acmpne     24
+      17: aload_3
+      18: invokevirtual #92                 // Method com/mojang/blaze3d/vertex/VertexFormatElement.getIndex:()I
+      21: ifeq          26
+      24: aload_0
+      25: areturn
+      26: aload_3
+      27: invokevirtual #47                 // Method com/mojang/blaze3d/vertex/VertexFormatElement.getType:()Lcom/mojang/blaze3d/vertex/VertexFormatElement$Type;
+      30: getstatic     #51                 // Field com/mojang/blaze3d/vertex/VertexFormatElement$Type.FLOAT:Lcom/mojang/blaze3d/vertex/VertexFormatElement$Type;
+      33: if_acmpne     44
+      36: aload_3
+      37: invokevirtual #55                 // Method com/mojang/blaze3d/vertex/VertexFormatElement.getCount:()I
+      40: iconst_2
+      41: if_icmpeq     52
+      44: new           #57                 // class java/lang/IllegalStateException
+      47: dup
+      48: invokespecial #60                 // Method java/lang/IllegalStateException."<init>":()V
+      51: athrow
+      52: aload_0
+      53: iconst_0
+      54: fload_1
+      55: invokeinterface #62,  3           // InterfaceMethod putFloat:(IF)V
+      60: aload_0
+      61: iconst_4
+      62: fload_2
+      63: invokeinterface #62,  3           // InterfaceMethod putFloat:(IF)V
+      68: aload_0
+      69: invokeinterface #64,  1           // InterfaceMethod nextElement:()V
+      74: aload_0
+      75: areturn
+
+  public default com.mojang.blaze3d.vertex.VertexConsumer overlayCoords(int, int);
+    Code:
+       0: aload_0
+       1: iload_1
+       2: i2s
+       3: iload_2
+       4: i2s
+       5: iconst_1
+       6: invokeinterface #99,  4           // InterfaceMethod uvShort:(SSI)Lcom/mojang/blaze3d/vertex/VertexConsumer;
+      11: areturn
+
+  public default com.mojang.blaze3d.vertex.VertexConsumer uv2(int, int);
+    Code:
+       0: aload_0
+       1: iload_1
+       2: i2s
+       3: iload_2
+       4: i2s
+       5: iconst_2
+       6: invokeinterface #99,  4           // InterfaceMethod uvShort:(SSI)Lcom/mojang/blaze3d/vertex/VertexConsumer;
+      11: areturn
+
+  public default com.mojang.blaze3d.vertex.VertexConsumer uvShort(short, short, int);
+    Code:
+       0: aload_0
+       1: invokeinterface #35,  1           // InterfaceMethod currentElement:()Lcom/mojang/blaze3d/vertex/VertexFormatElement;
+       6: astore        4
+       8: aload         4
+      10: invokevirtual #39                 // Method com/mojang/blaze3d/vertex/VertexFormatElement.getUsage:()Lcom/mojang/blaze3d/vertex/VertexFormatElement$Usage;
+      13: getstatic     #89                 // Field com/mojang/blaze3d/vertex/VertexFormatElement$Usage.UV:Lcom/mojang/blaze3d/vertex/VertexFormatElement$Usage;
+      16: if_acmpne     28
+      19: aload         4
+      21: invokevirtual #92                 // Method com/mojang/blaze3d/vertex/VertexFormatElement.getIndex:()I
+      24: iload_3
+      25: if_icmpeq     30
+      28: aload_0
+      29: areturn
+      30: aload         4
+      32: invokevirtual #47                 // Method com/mojang/blaze3d/vertex/VertexFormatElement.getType:()Lcom/mojang/blaze3d/vertex/VertexFormatElement$Type;
+      35: getstatic     #104                // Field com/mojang/blaze3d/vertex/VertexFormatElement$Type.SHORT:Lcom/mojang/blaze3d/vertex/VertexFormatElement$Type;
+      38: if_acmpne     50
+      41: aload         4
+      43: invokevirtual #55                 // Method com/mojang/blaze3d/vertex/VertexFormatElement.getCount:()I
+      46: iconst_2
+      47: if_icmpeq     58
+      50: new           #57                 // class java/lang/IllegalStateException
+      53: dup
+      54: invokespecial #60                 // Method java/lang/IllegalStateException."<init>":()V
+      57: athrow
+      58: aload_0
+      59: iconst_0
+      60: iload_1
+      61: invokeinterface #106,  3          // InterfaceMethod putShort:(IS)V
+      66: aload_0
+      67: iconst_2
+      68: iload_2
+      69: invokeinterface #106,  3          // InterfaceMethod putShort:(IS)V
+      74: aload_0
+      75: invokeinterface #64,  1           // InterfaceMethod nextElement:()V
+      80: aload_0
+      81: areturn
+
+  public default com.mojang.blaze3d.vertex.VertexConsumer normal(float, float, float);
+    Code:
+       0: aload_0
+       1: invokeinterface #35,  1           // InterfaceMethod currentElement:()Lcom/mojang/blaze3d/vertex/VertexFormatElement;
+       6: astore        4
+       8: aload         4
+      10: invokevirtual #39                 // Method com/mojang/blaze3d/vertex/VertexFormatElement.getUsage:()Lcom/mojang/blaze3d/vertex/VertexFormatElement$Usage;
+      13: getstatic     #113                // Field com/mojang/blaze3d/vertex/VertexFormatElement$Usage.NORMAL:Lcom/mojang/blaze3d/vertex/VertexFormatElement$Usage;
+      16: if_acmpeq     21
+      19: aload_0
+      20: areturn
+      21: aload         4
+      23: invokevirtual #47                 // Method com/mojang/blaze3d/vertex/VertexFormatElement.getType:()Lcom/mojang/blaze3d/vertex/VertexFormatElement$Type;
+      26: getstatic     #116                // Field com/mojang/blaze3d/vertex/VertexFormatElement$Type.BYTE:Lcom/mojang/blaze3d/vertex/VertexFormatElement$Type;
+      29: if_acmpne     41
+      32: aload         4
+      34: invokevirtual #55                 // Method com/mojang/blaze3d/vertex/VertexFormatElement.getCount:()I
+      37: iconst_3
+      38: if_icmpeq     49
+      41: new           #57                 // class java/lang/IllegalStateException
+      44: dup
+      45: invokespecial #60                 // Method java/lang/IllegalStateException."<init>":()V
+      48: athrow
+      49: aload_0
+      50: iconst_0
+      51: fload_1
+      52: invokestatic  #120                // InterfaceMethod normalIntValue:(F)B
+      55: invokeinterface #80,  3           // InterfaceMethod putByte:(IB)V
+      60: aload_0
+      61: iconst_1
+      62: fload_2
+      63: invokestatic  #120                // InterfaceMethod normalIntValue:(F)B
+      66: invokeinterface #80,  3           // InterfaceMethod putByte:(IB)V
+      71: aload_0
+      72: iconst_2
+      73: fload_3
+      74: invokestatic  #120                // InterfaceMethod normalIntValue:(F)B
+      77: invokeinterface #80,  3           // InterfaceMethod putByte:(IB)V
+      82: aload_0
+      83: invokeinterface #64,  1           // InterfaceMethod nextElement:()V
+      88: aload_0
+      89: areturn
+
+  public static byte normalIntValue(float);
+    Code:
+       0: fload_0
+       1: ldc           #121                // float -1.0f
+       3: fconst_1
+       4: invokestatic  #127                // Method net/minecraft/util/Mth.clamp:(FFF)F
+       7: ldc           #128                // float 127.0f
+       9: fmul
+      10: f2i
+      11: sipush        255
+      14: iand
+      15: i2b
+      16: ireturn
+}

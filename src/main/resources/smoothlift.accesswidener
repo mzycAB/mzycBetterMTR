@@ -1,0 +1,79 @@
+accessWidener	v2	named
+
+# ---------------------------------------------------------------------------
+# 【1.24】在模型烘烤前给 MTR 扶梯阶梯模型注入透明标记贴图（EscalatorModelOverride 替代
+# 18 个资源覆盖 JSON）：需要直接改写 BlockModel.textureMap（protected final）。
+# ---------------------------------------------------------------------------
+accessible	field	net/minecraft/client/renderer/block/model/BlockModel	textureMap	Ljava/util/Map;
+
+# ---------------------------------------------------------------------------
+# 逐条扶梯独立的阶梯动画需要「方块顶点格式 + 自定义贴图」的渲染类型：SmoothLift 把 MTR 的
+# 16 帧阶梯贴图作为一张普通贴图（320x5120）加载，然后按每条扶梯自己的速度选择帧号。
+# 但 1.20.4 里 RenderType.CompositeState 和 RenderStateShard 的各种状态片段是 protected，
+# 外部无法构造，所以这里放开可见性。
+# ---------------------------------------------------------------------------
+accessible	class	net/minecraft/client/renderer/RenderType$CompositeState
+accessible	class	net/minecraft/client/renderer/RenderStateShard$EmptyTextureStateShard
+accessible	class	net/minecraft/client/renderer/RenderStateShard$TextureStateShard
+accessible	class	net/minecraft/client/renderer/RenderStateShard$ShaderStateShard
+accessible	class	net/minecraft/client/renderer/RenderStateShard$TransparencyStateShard
+accessible	class	net/minecraft/client/renderer/RenderStateShard$CullStateShard
+accessible	class	net/minecraft/client/renderer/RenderStateShard$LightmapStateShard
+accessible	class	net/minecraft/client/renderer/RenderStateShard$OverlayStateShard
+
+# ---------------------------------------------------------------------------
+# 自定义扶梯声音：客户端播放器需要把玩家选择的 OGG 音频直接注入声音引擎，
+# 因此要访问 SoundManager -> SoundEngine -> SoundBufferLibrary 这条链上的三个
+# 私有字段（本项目用 mojmap 官方映射，1.20.4 对应：
+#   Minecraft.getSoundManager()（公开）-> SoundManager.soundEngine
+#   -> SoundEngine.soundBuffers -> SoundBufferLibrary.cache（缓存 Map）
+# 注入后 SoundEngine.play() 经 getCompleteBuffer(computeIfAbsent) 命中缓存，
+# 直接用本地字节音频播放，不再读资源包。
+#
+# instanceToChannel（SoundInstance -> ChannelHandle）用于播放成功后对底层
+# Channel 调 setLooping(true)：静态 Sound 默认播完一遍就停，扶梯声音需要循环。
+# ---------------------------------------------------------------------------
+accessible	field	net/minecraft/client/sounds/SoundManager	soundEngine	Lnet/minecraft/client/sounds/SoundEngine;
+accessible	field	net/minecraft/client/sounds/SoundEngine	soundBuffers	Lnet/minecraft/client/sounds/SoundBufferLibrary;
+accessible	field	net/minecraft/client/sounds/SoundBufferLibrary	cache	Ljava/util/Map;
+accessible	field	net/minecraft/client/sounds/SoundEngine	instanceToChannel	Ljava/util/Map;
+
+# ---------------------------------------------------------------------------
+# 【1.12】音量放大到 >100%（最大 10×）需要拿到 OpenAL 的 source 句柄：
+# Channel.source（private final int）就是 alGenSources 出来的 AL source id。
+#
+# 为什么要它：OpenAL 会把「源增益」夹到 AL_MAX_GAIN，而 AL_MAX_GAIN 默认 = 1.0。
+# 也就是说，即使 Minecraft 侧（SoundEngine.calculateVolume）已经不夹了、
+# Channel.setVolume(2.0) 也照发了，OpenAL 仍会把有效增益压回 1.0 —— 表现就是
+# 「音量调到 100 以上完全没变化」。把 AL_MAX_GAIN 抬到 10 才能真正放大
+# （实测：OpenAL Soft 1.23 支持 AL_SOFT_gain_clamp_ex，AL_GAIN_LIMIT_SOFT = 1000）。
+# ---------------------------------------------------------------------------
+accessible	field	com/mojang/blaze3d/audio/Channel	source	I
+
+# ---------------------------------------------------------------------------
+# 【1.28】「玩家看不见的扶梯不渲染」的最后一块：**遮挡剔除**（被墙 / 地形挡住，
+# 但仍在视锥内、仍在视距内的那些段）。
+#
+# 为什么必须借原版这个字段：[`LevelRenderer.renderSectionLayer`] **就是遍历
+# `visibleSections` 来画地形的** —— 换句话说这个列表的定义正好是
+# 「原版这一帧真的要画的段」。直接用它做判据，等于让我们的阶梯渲染和地形渲染
+# 服从同一个可见性判决，不会出现「地形被剔掉、台阶还画着」这种自相矛盾的画面。
+#
+# 而它是 `private final`，且 `LevelRenderer` 没有任何公开方法能回答
+# 「某个世界分段当前是否被遮挡」（公开的只有 `countRenderedSections()` 这类总数），
+# 遮挡状态锁在 `SectionOcclusionGraph` 的 private `currentGraph` 里、`update()`
+# 返回 void。所以只能把这个字段放开可见性（Fabric 的 access widener 就是干这个的）。
+#
+# 只读不写：渲染端只 `get(i).getOrigin()` 取原点换算段键，绝不改动这个列表。
+# ---------------------------------------------------------------------------
+accessible	field	net/minecraft/client/renderer/LevelRenderer	visibleSections	Lit/unimi/dsi/fastutil/objects/ObjectArrayList;
+
+# ---------------------------------------------------------------------------
+# 【1.18.1204】地图图片方块：运行时更新图集里 sprite 的像素。
+# 把 MBM_Picture 文件夹里的图片切成 4 块、缩放到 1024x1024、加 64px 灰色外边框后，
+# 客户端要把它塞进方块图集（block atlas）里 shsubwaypicture:block/pic_* 对应的
+# SpriteContents。SpriteContents 的构造器是 public 的，但像素数组 byMipLevel
+# 是 package-private，这里放开它：新建 SpriteContents 后替换掉原 sprite 的
+# byMipLevel[0]，再 bind 图集并调 sprite.uploadFirstFrame() 完成上传。
+# ---------------------------------------------------------------------------
+accessible	field	net/minecraft/client/renderer/texture/SpriteContents	byMipLevel	[Lcom/mojang/blaze3d/platform/NativeImage;

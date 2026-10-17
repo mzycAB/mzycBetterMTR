@@ -1,0 +1,1112 @@
+﻿Compiled from "ModelBlockRenderer.java"
+public class net.minecraft.client.renderer.block.ModelBlockRenderer {
+  private static final int FACE_CUBIC;
+
+  private static final int FACE_PARTIAL;
+
+  static final net.minecraft.core.Direction[] DIRECTIONS;
+
+  private final net.minecraft.client.color.block.BlockColors blockColors;
+
+  private static final int CACHE_SIZE;
+
+  static final java.lang.ThreadLocal<net.minecraft.client.renderer.block.ModelBlockRenderer$Cache> CACHE;
+
+  public net.minecraft.client.renderer.block.ModelBlockRenderer(net.minecraft.client.color.block.BlockColors);
+    Code:
+       0: aload_0
+       1: invokespecial #64                 // Method java/lang/Object."<init>":()V
+       4: aload_0
+       5: aload_1
+       6: putfield      #66                 // Field blockColors:Lnet/minecraft/client/color/block/BlockColors;
+       9: return
+
+  public void tesselateBlock(net.minecraft.world.level.BlockAndTintGetter, net.minecraft.client.resources.model.BakedModel, net.minecraft.world.level.block.state.BlockState, net.minecraft.core.BlockPos, com.mojang.blaze3d.vertex.PoseStack, com.mojang.blaze3d.vertex.VertexConsumer, boolean, net.minecraft.util.RandomSource, long, int);
+    Code:
+       0: invokestatic  #88                 // Method net/minecraft/client/Minecraft.useAmbientOcclusion:()Z
+       3: ifeq          26
+       6: aload_3
+       7: invokevirtual #94                 // Method net/minecraft/world/level/block/state/BlockState.getLightEmission:()I
+      10: ifne          26
+      13: aload_2
+      14: invokeinterface #97,  1           // InterfaceMethod net/minecraft/client/resources/model/BakedModel.useAmbientOcclusion:()Z
+      19: ifeq          26
+      22: iconst_1
+      23: goto          27
+      26: iconst_0
+      27: istore        12
+      29: aload_3
+      30: aload_1
+      31: aload         4
+      33: invokevirtual #101                // Method net/minecraft/world/level/block/state/BlockState.getOffset:(Lnet/minecraft/world/level/BlockGetter;Lnet/minecraft/core/BlockPos;)Lnet/minecraft/world/phys/Vec3;
+      36: astore        13
+      38: aload         5
+      40: aload         13
+      42: getfield      #107                // Field net/minecraft/world/phys/Vec3.x:D
+      45: aload         13
+      47: getfield      #110                // Field net/minecraft/world/phys/Vec3.y:D
+      50: aload         13
+      52: getfield      #113                // Field net/minecraft/world/phys/Vec3.z:D
+      55: invokevirtual #117                // Method com/mojang/blaze3d/vertex/PoseStack.translate:(DDD)V
+      58: iload         12
+      60: ifeq          87
+      63: aload_0
+      64: aload_1
+      65: aload_2
+      66: aload_3
+      67: aload         4
+      69: aload         5
+      71: aload         6
+      73: iload         7
+      75: aload         8
+      77: lload         9
+      79: iload         11
+      81: invokevirtual #120                // Method tesselateWithAO:(Lnet/minecraft/world/level/BlockAndTintGetter;Lnet/minecraft/client/resources/model/BakedModel;Lnet/minecraft/world/level/block/state/BlockState;Lnet/minecraft/core/BlockPos;Lcom/mojang/blaze3d/vertex/PoseStack;Lcom/mojang/blaze3d/vertex/VertexConsumer;ZLnet/minecraft/util/RandomSource;JI)V
+      84: goto          108
+      87: aload_0
+      88: aload_1
+      89: aload_2
+      90: aload_3
+      91: aload         4
+      93: aload         5
+      95: aload         6
+      97: iload         7
+      99: aload         8
+     101: lload         9
+     103: iload         11
+     105: invokevirtual #123                // Method tesselateWithoutAO:(Lnet/minecraft/world/level/BlockAndTintGetter;Lnet/minecraft/client/resources/model/BakedModel;Lnet/minecraft/world/level/block/state/BlockState;Lnet/minecraft/core/BlockPos;Lcom/mojang/blaze3d/vertex/PoseStack;Lcom/mojang/blaze3d/vertex/VertexConsumer;ZLnet/minecraft/util/RandomSource;JI)V
+     108: goto          163
+     111: astore        14
+     113: aload         14
+     115: ldc           #127                // String Tesselating block model
+     117: invokestatic  #133                // Method net/minecraft/CrashReport.forThrowable:(Ljava/lang/Throwable;Ljava/lang/String;)Lnet/minecraft/CrashReport;
+     120: astore        15
+     122: aload         15
+     124: ldc           #135                // String Block model being tesselated
+     126: invokevirtual #139                // Method net/minecraft/CrashReport.addCategory:(Ljava/lang/String;)Lnet/minecraft/CrashReportCategory;
+     129: astore        16
+     131: aload         16
+     133: aload_1
+     134: aload         4
+     136: aload_3
+     137: invokestatic  #145                // Method net/minecraft/CrashReportCategory.populateBlockDetails:(Lnet/minecraft/CrashReportCategory;Lnet/minecraft/world/level/LevelHeightAccessor;Lnet/minecraft/core/BlockPos;Lnet/minecraft/world/level/block/state/BlockState;)V
+     140: aload         16
+     142: ldc           #147                // String Using AO
+     144: iload         12
+     146: invokestatic  #153                // Method java/lang/Boolean.valueOf:(Z)Ljava/lang/Boolean;
+     149: invokevirtual #157                // Method net/minecraft/CrashReportCategory.setDetail:(Ljava/lang/String;Ljava/lang/Object;)Lnet/minecraft/CrashReportCategory;
+     152: pop
+     153: new           #159                // class net/minecraft/ReportedException
+     156: dup
+     157: aload         15
+     159: invokespecial #162                // Method net/minecraft/ReportedException."<init>":(Lnet/minecraft/CrashReport;)V
+     162: athrow
+     163: return
+    Exception table:
+       from    to  target type
+          58   108   111   Class java/lang/Throwable
+
+  public void tesselateWithAO(net.minecraft.world.level.BlockAndTintGetter, net.minecraft.client.resources.model.BakedModel, net.minecraft.world.level.block.state.BlockState, net.minecraft.core.BlockPos, com.mojang.blaze3d.vertex.PoseStack, com.mojang.blaze3d.vertex.VertexConsumer, boolean, net.minecraft.util.RandomSource, long, int);
+    Code:
+       0: getstatic     #182                // Field DIRECTIONS:[Lnet/minecraft/core/Direction;
+       3: arraylength
+       4: iconst_2
+       5: imul
+       6: newarray       float
+       8: astore        12
+      10: new           #184                // class java/util/BitSet
+      13: dup
+      14: iconst_3
+      15: invokespecial #187                // Method java/util/BitSet."<init>":(I)V
+      18: astore        13
+      20: new           #17                 // class net/minecraft/client/renderer/block/ModelBlockRenderer$AmbientOcclusionFace
+      23: dup
+      24: invokespecial #188                // Method net/minecraft/client/renderer/block/ModelBlockRenderer$AmbientOcclusionFace."<init>":()V
+      27: astore        14
+      29: aload         4
+      31: invokevirtual #192                // Method net/minecraft/core/BlockPos.mutable:()Lnet/minecraft/core/BlockPos$MutableBlockPos;
+      34: astore        15
+      36: getstatic     #182                // Field DIRECTIONS:[Lnet/minecraft/core/Direction;
+      39: astore        16
+      41: aload         16
+      43: arraylength
+      44: istore        17
+      46: iconst_0
+      47: istore        18
+      49: iload         18
+      51: iload         17
+      53: if_icmpge     155
+      56: aload         16
+      58: iload         18
+      60: aaload
+      61: astore        19
+      63: aload         8
+      65: lload         9
+      67: invokeinterface #203,  3          // InterfaceMethod net/minecraft/util/RandomSource.setSeed:(J)V
+      72: aload_2
+      73: aload_3
+      74: aload         19
+      76: aload         8
+      78: invokeinterface #207,  4          // InterfaceMethod net/minecraft/client/resources/model/BakedModel.getQuads:(Lnet/minecraft/world/level/block/state/BlockState;Lnet/minecraft/core/Direction;Lnet/minecraft/util/RandomSource;)Ljava/util/List;
+      83: astore        20
+      85: aload         20
+      87: invokeinterface #212,  1          // InterfaceMethod java/util/List.isEmpty:()Z
+      92: ifeq          98
+      95: goto          149
+      98: aload         15
+     100: aload         4
+     102: aload         19
+     104: invokevirtual #218                // Method net/minecraft/core/BlockPos$MutableBlockPos.setWithOffset:(Lnet/minecraft/core/Vec3i;Lnet/minecraft/core/Direction;)Lnet/minecraft/core/BlockPos$MutableBlockPos;
+     107: pop
+     108: iload         7
+     110: ifeq          127
+     113: aload_3
+     114: aload_1
+     115: aload         4
+     117: aload         19
+     119: aload         15
+     121: invokestatic  #224                // Method net/minecraft/world/level/block/Block.shouldRenderFace:(Lnet/minecraft/world/level/block/state/BlockState;Lnet/minecraft/world/level/BlockGetter;Lnet/minecraft/core/BlockPos;Lnet/minecraft/core/Direction;Lnet/minecraft/core/BlockPos;)Z
+     124: ifeq          149
+     127: aload_0
+     128: aload_1
+     129: aload_3
+     130: aload         4
+     132: aload         5
+     134: aload         6
+     136: aload         20
+     138: aload         12
+     140: aload         13
+     142: aload         14
+     144: iload         11
+     146: invokevirtual #228                // Method renderModelFaceAO:(Lnet/minecraft/world/level/BlockAndTintGetter;Lnet/minecraft/world/level/block/state/BlockState;Lnet/minecraft/core/BlockPos;Lcom/mojang/blaze3d/vertex/PoseStack;Lcom/mojang/blaze3d/vertex/VertexConsumer;Ljava/util/List;[FLjava/util/BitSet;Lnet/minecraft/client/renderer/block/ModelBlockRenderer$AmbientOcclusionFace;I)V
+     149: iinc          18, 1
+     152: goto          49
+     155: aload         8
+     157: lload         9
+     159: invokeinterface #203,  3          // InterfaceMethod net/minecraft/util/RandomSource.setSeed:(J)V
+     164: aload_2
+     165: aload_3
+     166: aconst_null
+     167: aload         8
+     169: invokeinterface #207,  4          // InterfaceMethod net/minecraft/client/resources/model/BakedModel.getQuads:(Lnet/minecraft/world/level/block/state/BlockState;Lnet/minecraft/core/Direction;Lnet/minecraft/util/RandomSource;)Ljava/util/List;
+     174: astore        16
+     176: aload         16
+     178: invokeinterface #212,  1          // InterfaceMethod java/util/List.isEmpty:()Z
+     183: ifne          208
+     186: aload_0
+     187: aload_1
+     188: aload_3
+     189: aload         4
+     191: aload         5
+     193: aload         6
+     195: aload         16
+     197: aload         12
+     199: aload         13
+     201: aload         14
+     203: iload         11
+     205: invokevirtual #228                // Method renderModelFaceAO:(Lnet/minecraft/world/level/BlockAndTintGetter;Lnet/minecraft/world/level/block/state/BlockState;Lnet/minecraft/core/BlockPos;Lcom/mojang/blaze3d/vertex/PoseStack;Lcom/mojang/blaze3d/vertex/VertexConsumer;Ljava/util/List;[FLjava/util/BitSet;Lnet/minecraft/client/renderer/block/ModelBlockRenderer$AmbientOcclusionFace;I)V
+     208: return
+
+  public void tesselateWithoutAO(net.minecraft.world.level.BlockAndTintGetter, net.minecraft.client.resources.model.BakedModel, net.minecraft.world.level.block.state.BlockState, net.minecraft.core.BlockPos, com.mojang.blaze3d.vertex.PoseStack, com.mojang.blaze3d.vertex.VertexConsumer, boolean, net.minecraft.util.RandomSource, long, int);
+    Code:
+       0: new           #184                // class java/util/BitSet
+       3: dup
+       4: iconst_3
+       5: invokespecial #187                // Method java/util/BitSet."<init>":(I)V
+       8: astore        12
+      10: aload         4
+      12: invokevirtual #192                // Method net/minecraft/core/BlockPos.mutable:()Lnet/minecraft/core/BlockPos$MutableBlockPos;
+      15: astore        13
+      17: getstatic     #182                // Field DIRECTIONS:[Lnet/minecraft/core/Direction;
+      20: astore        14
+      22: aload         14
+      24: arraylength
+      25: istore        15
+      27: iconst_0
+      28: istore        16
+      30: iload         16
+      32: iload         15
+      34: if_icmpge     147
+      37: aload         14
+      39: iload         16
+      41: aaload
+      42: astore        17
+      44: aload         8
+      46: lload         9
+      48: invokeinterface #203,  3          // InterfaceMethod net/minecraft/util/RandomSource.setSeed:(J)V
+      53: aload_2
+      54: aload_3
+      55: aload         17
+      57: aload         8
+      59: invokeinterface #207,  4          // InterfaceMethod net/minecraft/client/resources/model/BakedModel.getQuads:(Lnet/minecraft/world/level/block/state/BlockState;Lnet/minecraft/core/Direction;Lnet/minecraft/util/RandomSource;)Ljava/util/List;
+      64: astore        18
+      66: aload         18
+      68: invokeinterface #212,  1          // InterfaceMethod java/util/List.isEmpty:()Z
+      73: ifeq          79
+      76: goto          141
+      79: aload         13
+      81: aload         4
+      83: aload         17
+      85: invokevirtual #218                // Method net/minecraft/core/BlockPos$MutableBlockPos.setWithOffset:(Lnet/minecraft/core/Vec3i;Lnet/minecraft/core/Direction;)Lnet/minecraft/core/BlockPos$MutableBlockPos;
+      88: pop
+      89: iload         7
+      91: ifeq          111
+      94: aload_3
+      95: aload_1
+      96: aload         4
+      98: aload         17
+     100: aload         13
+     102: invokestatic  #224                // Method net/minecraft/world/level/block/Block.shouldRenderFace:(Lnet/minecraft/world/level/block/state/BlockState;Lnet/minecraft/world/level/BlockGetter;Lnet/minecraft/core/BlockPos;Lnet/minecraft/core/Direction;Lnet/minecraft/core/BlockPos;)Z
+     105: ifne          111
+     108: goto          141
+     111: aload_1
+     112: aload_3
+     113: aload         13
+     115: invokestatic  #247                // Method net/minecraft/client/renderer/LevelRenderer.getLightColor:(Lnet/minecraft/world/level/BlockAndTintGetter;Lnet/minecraft/world/level/block/state/BlockState;Lnet/minecraft/core/BlockPos;)I
+     118: istore        19
+     120: aload_0
+     121: aload_1
+     122: aload_3
+     123: aload         4
+     125: iload         19
+     127: iload         11
+     129: iconst_0
+     130: aload         5
+     132: aload         6
+     134: aload         18
+     136: aload         12
+     138: invokevirtual #251                // Method renderModelFaceFlat:(Lnet/minecraft/world/level/BlockAndTintGetter;Lnet/minecraft/world/level/block/state/BlockState;Lnet/minecraft/core/BlockPos;IIZLcom/mojang/blaze3d/vertex/PoseStack;Lcom/mojang/blaze3d/vertex/VertexConsumer;Ljava/util/List;Ljava/util/BitSet;)V
+     141: iinc          16, 1
+     144: goto          30
+     147: aload         8
+     149: lload         9
+     151: invokeinterface #203,  3          // InterfaceMethod net/minecraft/util/RandomSource.setSeed:(J)V
+     156: aload_2
+     157: aload_3
+     158: aconst_null
+     159: aload         8
+     161: invokeinterface #207,  4          // InterfaceMethod net/minecraft/client/resources/model/BakedModel.getQuads:(Lnet/minecraft/world/level/block/state/BlockState;Lnet/minecraft/core/Direction;Lnet/minecraft/util/RandomSource;)Ljava/util/List;
+     166: astore        14
+     168: aload         14
+     170: invokeinterface #212,  1          // InterfaceMethod java/util/List.isEmpty:()Z
+     175: ifne          198
+     178: aload_0
+     179: aload_1
+     180: aload_3
+     181: aload         4
+     183: iconst_m1
+     184: iload         11
+     186: iconst_1
+     187: aload         5
+     189: aload         6
+     191: aload         14
+     193: aload         12
+     195: invokevirtual #251                // Method renderModelFaceFlat:(Lnet/minecraft/world/level/BlockAndTintGetter;Lnet/minecraft/world/level/block/state/BlockState;Lnet/minecraft/core/BlockPos;IIZLcom/mojang/blaze3d/vertex/PoseStack;Lcom/mojang/blaze3d/vertex/VertexConsumer;Ljava/util/List;Ljava/util/BitSet;)V
+     198: return
+
+  private void renderModelFaceAO(net.minecraft.world.level.BlockAndTintGetter, net.minecraft.world.level.block.state.BlockState, net.minecraft.core.BlockPos, com.mojang.blaze3d.vertex.PoseStack, com.mojang.blaze3d.vertex.VertexConsumer, java.util.List<net.minecraft.client.renderer.block.model.BakedQuad>, float[], java.util.BitSet, net.minecraft.client.renderer.block.ModelBlockRenderer$AmbientOcclusionFace, int);
+    Code:
+       0: aload         6
+       2: invokeinterface #257,  1          // InterfaceMethod java/util/List.iterator:()Ljava/util/Iterator;
+       7: astore        11
+       9: aload         11
+      11: invokeinterface #262,  1          // InterfaceMethod java/util/Iterator.hasNext:()Z
+      16: ifeq          151
+      19: aload         11
+      21: invokeinterface #266,  1          // InterfaceMethod java/util/Iterator.next:()Ljava/lang/Object;
+      26: checkcast     #268                // class net/minecraft/client/renderer/block/model/BakedQuad
+      29: astore        12
+      31: aload_0
+      32: aload_1
+      33: aload_2
+      34: aload_3
+      35: aload         12
+      37: invokevirtual #272                // Method net/minecraft/client/renderer/block/model/BakedQuad.getVertices:()[I
+      40: aload         12
+      42: invokevirtual #276                // Method net/minecraft/client/renderer/block/model/BakedQuad.getDirection:()Lnet/minecraft/core/Direction;
+      45: aload         7
+      47: aload         8
+      49: invokevirtual #280                // Method calculateShape:(Lnet/minecraft/world/level/BlockAndTintGetter;Lnet/minecraft/world/level/block/state/BlockState;Lnet/minecraft/core/BlockPos;[ILnet/minecraft/core/Direction;[FLjava/util/BitSet;)V
+      52: aload         9
+      54: aload_1
+      55: aload_2
+      56: aload_3
+      57: aload         12
+      59: invokevirtual #276                // Method net/minecraft/client/renderer/block/model/BakedQuad.getDirection:()Lnet/minecraft/core/Direction;
+      62: aload         7
+      64: aload         8
+      66: aload         12
+      68: invokevirtual #283                // Method net/minecraft/client/renderer/block/model/BakedQuad.isShade:()Z
+      71: invokevirtual #287                // Method net/minecraft/client/renderer/block/ModelBlockRenderer$AmbientOcclusionFace.calculate:(Lnet/minecraft/world/level/BlockAndTintGetter;Lnet/minecraft/world/level/block/state/BlockState;Lnet/minecraft/core/BlockPos;Lnet/minecraft/core/Direction;[FLjava/util/BitSet;Z)V
+      74: aload_0
+      75: aload_1
+      76: aload_2
+      77: aload_3
+      78: aload         5
+      80: aload         4
+      82: invokevirtual #291                // Method com/mojang/blaze3d/vertex/PoseStack.last:()Lcom/mojang/blaze3d/vertex/PoseStack$Pose;
+      85: aload         12
+      87: aload         9
+      89: getfield      #294                // Field net/minecraft/client/renderer/block/ModelBlockRenderer$AmbientOcclusionFace.brightness:[F
+      92: iconst_0
+      93: faload
+      94: aload         9
+      96: getfield      #294                // Field net/minecraft/client/renderer/block/ModelBlockRenderer$AmbientOcclusionFace.brightness:[F
+      99: iconst_1
+     100: faload
+     101: aload         9
+     103: getfield      #294                // Field net/minecraft/client/renderer/block/ModelBlockRenderer$AmbientOcclusionFace.brightness:[F
+     106: iconst_2
+     107: faload
+     108: aload         9
+     110: getfield      #294                // Field net/minecraft/client/renderer/block/ModelBlockRenderer$AmbientOcclusionFace.brightness:[F
+     113: iconst_3
+     114: faload
+     115: aload         9
+     117: getfield      #298                // Field net/minecraft/client/renderer/block/ModelBlockRenderer$AmbientOcclusionFace.lightmap:[I
+     120: iconst_0
+     121: iaload
+     122: aload         9
+     124: getfield      #298                // Field net/minecraft/client/renderer/block/ModelBlockRenderer$AmbientOcclusionFace.lightmap:[I
+     127: iconst_1
+     128: iaload
+     129: aload         9
+     131: getfield      #298                // Field net/minecraft/client/renderer/block/ModelBlockRenderer$AmbientOcclusionFace.lightmap:[I
+     134: iconst_2
+     135: iaload
+     136: aload         9
+     138: getfield      #298                // Field net/minecraft/client/renderer/block/ModelBlockRenderer$AmbientOcclusionFace.lightmap:[I
+     141: iconst_3
+     142: iaload
+     143: iload         10
+     145: invokevirtual #302                // Method putQuadData:(Lnet/minecraft/world/level/BlockAndTintGetter;Lnet/minecraft/world/level/block/state/BlockState;Lnet/minecraft/core/BlockPos;Lcom/mojang/blaze3d/vertex/VertexConsumer;Lcom/mojang/blaze3d/vertex/PoseStack$Pose;Lnet/minecraft/client/renderer/block/model/BakedQuad;FFFFIIIII)V
+     148: goto          9
+     151: return
+
+  private void putQuadData(net.minecraft.world.level.BlockAndTintGetter, net.minecraft.world.level.block.state.BlockState, net.minecraft.core.BlockPos, com.mojang.blaze3d.vertex.VertexConsumer, com.mojang.blaze3d.vertex.PoseStack$Pose, net.minecraft.client.renderer.block.model.BakedQuad, float, float, float, float, int, int, int, int, int);
+    Code:
+       0: aload         6
+       2: invokevirtual #314                // Method net/minecraft/client/renderer/block/model/BakedQuad.isTinted:()Z
+       5: ifeq          73
+       8: aload_0
+       9: getfield      #66                 // Field blockColors:Lnet/minecraft/client/color/block/BlockColors;
+      12: aload_2
+      13: aload_1
+      14: aload_3
+      15: aload         6
+      17: invokevirtual #317                // Method net/minecraft/client/renderer/block/model/BakedQuad.getTintIndex:()I
+      20: invokevirtual #323                // Method net/minecraft/client/color/block/BlockColors.getColor:(Lnet/minecraft/world/level/block/state/BlockState;Lnet/minecraft/world/level/BlockAndTintGetter;Lnet/minecraft/core/BlockPos;I)I
+      23: istore        19
+      25: iload         19
+      27: bipush        16
+      29: ishr
+      30: sipush        255
+      33: iand
+      34: i2f
+      35: ldc_w         #324                // float 255.0f
+      38: fdiv
+      39: fstore        16
+      41: iload         19
+      43: bipush        8
+      45: ishr
+      46: sipush        255
+      49: iand
+      50: i2f
+      51: ldc_w         #324                // float 255.0f
+      54: fdiv
+      55: fstore        17
+      57: iload         19
+      59: sipush        255
+      62: iand
+      63: i2f
+      64: ldc_w         #324                // float 255.0f
+      67: fdiv
+      68: fstore        18
+      70: goto          82
+      73: fconst_1
+      74: fstore        16
+      76: fconst_1
+      77: fstore        17
+      79: fconst_1
+      80: fstore        18
+      82: aload         4
+      84: aload         5
+      86: aload         6
+      88: iconst_4
+      89: newarray       float
+      91: dup
+      92: iconst_0
+      93: fload         7
+      95: fastore
+      96: dup
+      97: iconst_1
+      98: fload         8
+     100: fastore
+     101: dup
+     102: iconst_2
+     103: fload         9
+     105: fastore
+     106: dup
+     107: iconst_3
+     108: fload         10
+     110: fastore
+     111: fload         16
+     113: fload         17
+     115: fload         18
+     117: iconst_4
+     118: newarray       int
+     120: dup
+     121: iconst_0
+     122: iload         11
+     124: iastore
+     125: dup
+     126: iconst_1
+     127: iload         12
+     129: iastore
+     130: dup
+     131: iconst_2
+     132: iload         13
+     134: iastore
+     135: dup
+     136: iconst_3
+     137: iload         14
+     139: iastore
+     140: iload         15
+     142: iconst_1
+     143: invokeinterface #328,  10         // InterfaceMethod com/mojang/blaze3d/vertex/VertexConsumer.putBulkData:(Lcom/mojang/blaze3d/vertex/PoseStack$Pose;Lnet/minecraft/client/renderer/block/model/BakedQuad;[FFFF[IIZ)V
+     148: return
+
+  private void calculateShape(net.minecraft.world.level.BlockAndTintGetter, net.minecraft.world.level.block.state.BlockState, net.minecraft.core.BlockPos, int[], net.minecraft.core.Direction, float[], java.util.BitSet);
+    Code:
+       0: ldc_w         #337                // float 32.0f
+       3: fstore        8
+       5: ldc_w         #337                // float 32.0f
+       8: fstore        9
+      10: ldc_w         #337                // float 32.0f
+      13: fstore        10
+      15: ldc_w         #338                // float -32.0f
+      18: fstore        11
+      20: ldc_w         #338                // float -32.0f
+      23: fstore        12
+      25: ldc_w         #338                // float -32.0f
+      28: fstore        13
+      30: iconst_0
+      31: istore        14
+      33: iload         14
+      35: iconst_4
+      36: if_icmpge     142
+      39: aload         4
+      41: iload         14
+      43: bipush        8
+      45: imul
+      46: iaload
+      47: invokestatic  #345                // Method java/lang/Float.intBitsToFloat:(I)F
+      50: fstore        15
+      52: aload         4
+      54: iload         14
+      56: bipush        8
+      58: imul
+      59: iconst_1
+      60: iadd
+      61: iaload
+      62: invokestatic  #345                // Method java/lang/Float.intBitsToFloat:(I)F
+      65: fstore        16
+      67: aload         4
+      69: iload         14
+      71: bipush        8
+      73: imul
+      74: iconst_2
+      75: iadd
+      76: iaload
+      77: invokestatic  #345                // Method java/lang/Float.intBitsToFloat:(I)F
+      80: fstore        17
+      82: fload         8
+      84: fload         15
+      86: invokestatic  #351                // Method java/lang/Math.min:(FF)F
+      89: fstore        8
+      91: fload         9
+      93: fload         16
+      95: invokestatic  #351                // Method java/lang/Math.min:(FF)F
+      98: fstore        9
+     100: fload         10
+     102: fload         17
+     104: invokestatic  #351                // Method java/lang/Math.min:(FF)F
+     107: fstore        10
+     109: fload         11
+     111: fload         15
+     113: invokestatic  #354                // Method java/lang/Math.max:(FF)F
+     116: fstore        11
+     118: fload         12
+     120: fload         16
+     122: invokestatic  #354                // Method java/lang/Math.max:(FF)F
+     125: fstore        12
+     127: fload         13
+     129: fload         17
+     131: invokestatic  #354                // Method java/lang/Math.max:(FF)F
+     134: fstore        13
+     136: iinc          14, 1
+     139: goto          33
+     142: aload         6
+     144: ifnull        315
+     147: aload         6
+     149: getstatic     #357                // Field net/minecraft/core/Direction.WEST:Lnet/minecraft/core/Direction;
+     152: invokevirtual #360                // Method net/minecraft/core/Direction.get3DDataValue:()I
+     155: fload         8
+     157: fastore
+     158: aload         6
+     160: getstatic     #363                // Field net/minecraft/core/Direction.EAST:Lnet/minecraft/core/Direction;
+     163: invokevirtual #360                // Method net/minecraft/core/Direction.get3DDataValue:()I
+     166: fload         11
+     168: fastore
+     169: aload         6
+     171: getstatic     #366                // Field net/minecraft/core/Direction.DOWN:Lnet/minecraft/core/Direction;
+     174: invokevirtual #360                // Method net/minecraft/core/Direction.get3DDataValue:()I
+     177: fload         9
+     179: fastore
+     180: aload         6
+     182: getstatic     #369                // Field net/minecraft/core/Direction.UP:Lnet/minecraft/core/Direction;
+     185: invokevirtual #360                // Method net/minecraft/core/Direction.get3DDataValue:()I
+     188: fload         12
+     190: fastore
+     191: aload         6
+     193: getstatic     #372                // Field net/minecraft/core/Direction.NORTH:Lnet/minecraft/core/Direction;
+     196: invokevirtual #360                // Method net/minecraft/core/Direction.get3DDataValue:()I
+     199: fload         10
+     201: fastore
+     202: aload         6
+     204: getstatic     #375                // Field net/minecraft/core/Direction.SOUTH:Lnet/minecraft/core/Direction;
+     207: invokevirtual #360                // Method net/minecraft/core/Direction.get3DDataValue:()I
+     210: fload         13
+     212: fastore
+     213: getstatic     #182                // Field DIRECTIONS:[Lnet/minecraft/core/Direction;
+     216: arraylength
+     217: istore        14
+     219: aload         6
+     221: getstatic     #357                // Field net/minecraft/core/Direction.WEST:Lnet/minecraft/core/Direction;
+     224: invokevirtual #360                // Method net/minecraft/core/Direction.get3DDataValue:()I
+     227: iload         14
+     229: iadd
+     230: fconst_1
+     231: fload         8
+     233: fsub
+     234: fastore
+     235: aload         6
+     237: getstatic     #363                // Field net/minecraft/core/Direction.EAST:Lnet/minecraft/core/Direction;
+     240: invokevirtual #360                // Method net/minecraft/core/Direction.get3DDataValue:()I
+     243: iload         14
+     245: iadd
+     246: fconst_1
+     247: fload         11
+     249: fsub
+     250: fastore
+     251: aload         6
+     253: getstatic     #366                // Field net/minecraft/core/Direction.DOWN:Lnet/minecraft/core/Direction;
+     256: invokevirtual #360                // Method net/minecraft/core/Direction.get3DDataValue:()I
+     259: iload         14
+     261: iadd
+     262: fconst_1
+     263: fload         9
+     265: fsub
+     266: fastore
+     267: aload         6
+     269: getstatic     #369                // Field net/minecraft/core/Direction.UP:Lnet/minecraft/core/Direction;
+     272: invokevirtual #360                // Method net/minecraft/core/Direction.get3DDataValue:()I
+     275: iload         14
+     277: iadd
+     278: fconst_1
+     279: fload         12
+     281: fsub
+     282: fastore
+     283: aload         6
+     285: getstatic     #372                // Field net/minecraft/core/Direction.NORTH:Lnet/minecraft/core/Direction;
+     288: invokevirtual #360                // Method net/minecraft/core/Direction.get3DDataValue:()I
+     291: iload         14
+     293: iadd
+     294: fconst_1
+     295: fload         10
+     297: fsub
+     298: fastore
+     299: aload         6
+     301: getstatic     #375                // Field net/minecraft/core/Direction.SOUTH:Lnet/minecraft/core/Direction;
+     304: invokevirtual #360                // Method net/minecraft/core/Direction.get3DDataValue:()I
+     307: iload         14
+     309: iadd
+     310: fconst_1
+     311: fload         13
+     313: fsub
+     314: fastore
+     315: ldc_w         #376                // float 1.0E-4f
+     318: fstore        14
+     320: ldc_w         #377                // float 0.9999f
+     323: fstore        15
+     325: getstatic     #380                // Field net/minecraft/client/renderer/block/ModelBlockRenderer$1.$SwitchMap$net$minecraft$core$Direction:[I
+     328: aload         5
+     330: invokevirtual #383                // Method net/minecraft/core/Direction.ordinal:()I
+     333: iaload
+     334: tableswitch   { // 1 to 6
+
+                     1: 372
+
+                     2: 459
+
+                     3: 546
+
+                     4: 633
+
+                     5: 720
+
+                     6: 807
+               default: 891
+          }
+     372: aload         7
+     374: iconst_1
+     375: fload         8
+     377: ldc_w         #376                // float 1.0E-4f
+     380: fcmpl
+     381: ifge          411
+     384: fload         10
+     386: ldc_w         #376                // float 1.0E-4f
+     389: fcmpl
+     390: ifge          411
+     393: fload         11
+     395: ldc_w         #377                // float 0.9999f
+     398: fcmpg
+     399: ifle          411
+     402: fload         13
+     404: ldc_w         #377                // float 0.9999f
+     407: fcmpg
+     408: ifgt          415
+     411: iconst_1
+     412: goto          416
+     415: iconst_0
+     416: invokevirtual #387                // Method java/util/BitSet.set:(IZ)V
+     419: aload         7
+     421: iconst_0
+     422: fload         9
+     424: fload         12
+     426: fcmpl
+     427: ifne          452
+     430: fload         9
+     432: ldc_w         #376                // float 1.0E-4f
+     435: fcmpg
+     436: iflt          448
+     439: aload_2
+     440: aload_1
+     441: aload_3
+     442: invokevirtual #391                // Method net/minecraft/world/level/block/state/BlockState.isCollisionShapeFullBlock:(Lnet/minecraft/world/level/BlockGetter;Lnet/minecraft/core/BlockPos;)Z
+     445: ifeq          452
+     448: iconst_1
+     449: goto          453
+     452: iconst_0
+     453: invokevirtual #387                // Method java/util/BitSet.set:(IZ)V
+     456: goto          891
+     459: aload         7
+     461: iconst_1
+     462: fload         8
+     464: ldc_w         #376                // float 1.0E-4f
+     467: fcmpl
+     468: ifge          498
+     471: fload         10
+     473: ldc_w         #376                // float 1.0E-4f
+     476: fcmpl
+     477: ifge          498
+     480: fload         11
+     482: ldc_w         #377                // float 0.9999f
+     485: fcmpg
+     486: ifle          498
+     489: fload         13
+     491: ldc_w         #377                // float 0.9999f
+     494: fcmpg
+     495: ifgt          502
+     498: iconst_1
+     499: goto          503
+     502: iconst_0
+     503: invokevirtual #387                // Method java/util/BitSet.set:(IZ)V
+     506: aload         7
+     508: iconst_0
+     509: fload         9
+     511: fload         12
+     513: fcmpl
+     514: ifne          539
+     517: fload         12
+     519: ldc_w         #377                // float 0.9999f
+     522: fcmpl
+     523: ifgt          535
+     526: aload_2
+     527: aload_1
+     528: aload_3
+     529: invokevirtual #391                // Method net/minecraft/world/level/block/state/BlockState.isCollisionShapeFullBlock:(Lnet/minecraft/world/level/BlockGetter;Lnet/minecraft/core/BlockPos;)Z
+     532: ifeq          539
+     535: iconst_1
+     536: goto          540
+     539: iconst_0
+     540: invokevirtual #387                // Method java/util/BitSet.set:(IZ)V
+     543: goto          891
+     546: aload         7
+     548: iconst_1
+     549: fload         8
+     551: ldc_w         #376                // float 1.0E-4f
+     554: fcmpl
+     555: ifge          585
+     558: fload         9
+     560: ldc_w         #376                // float 1.0E-4f
+     563: fcmpl
+     564: ifge          585
+     567: fload         11
+     569: ldc_w         #377                // float 0.9999f
+     572: fcmpg
+     573: ifle          585
+     576: fload         12
+     578: ldc_w         #377                // float 0.9999f
+     581: fcmpg
+     582: ifgt          589
+     585: iconst_1
+     586: goto          590
+     589: iconst_0
+     590: invokevirtual #387                // Method java/util/BitSet.set:(IZ)V
+     593: aload         7
+     595: iconst_0
+     596: fload         10
+     598: fload         13
+     600: fcmpl
+     601: ifne          626
+     604: fload         10
+     606: ldc_w         #376                // float 1.0E-4f
+     609: fcmpg
+     610: iflt          622
+     613: aload_2
+     614: aload_1
+     615: aload_3
+     616: invokevirtual #391                // Method net/minecraft/world/level/block/state/BlockState.isCollisionShapeFullBlock:(Lnet/minecraft/world/level/BlockGetter;Lnet/minecraft/core/BlockPos;)Z
+     619: ifeq          626
+     622: iconst_1
+     623: goto          627
+     626: iconst_0
+     627: invokevirtual #387                // Method java/util/BitSet.set:(IZ)V
+     630: goto          891
+     633: aload         7
+     635: iconst_1
+     636: fload         8
+     638: ldc_w         #376                // float 1.0E-4f
+     641: fcmpl
+     642: ifge          672
+     645: fload         9
+     647: ldc_w         #376                // float 1.0E-4f
+     650: fcmpl
+     651: ifge          672
+     654: fload         11
+     656: ldc_w         #377                // float 0.9999f
+     659: fcmpg
+     660: ifle          672
+     663: fload         12
+     665: ldc_w         #377                // float 0.9999f
+     668: fcmpg
+     669: ifgt          676
+     672: iconst_1
+     673: goto          677
+     676: iconst_0
+     677: invokevirtual #387                // Method java/util/BitSet.set:(IZ)V
+     680: aload         7
+     682: iconst_0
+     683: fload         10
+     685: fload         13
+     687: fcmpl
+     688: ifne          713
+     691: fload         13
+     693: ldc_w         #377                // float 0.9999f
+     696: fcmpl
+     697: ifgt          709
+     700: aload_2
+     701: aload_1
+     702: aload_3
+     703: invokevirtual #391                // Method net/minecraft/world/level/block/state/BlockState.isCollisionShapeFullBlock:(Lnet/minecraft/world/level/BlockGetter;Lnet/minecraft/core/BlockPos;)Z
+     706: ifeq          713
+     709: iconst_1
+     710: goto          714
+     713: iconst_0
+     714: invokevirtual #387                // Method java/util/BitSet.set:(IZ)V
+     717: goto          891
+     720: aload         7
+     722: iconst_1
+     723: fload         9
+     725: ldc_w         #376                // float 1.0E-4f
+     728: fcmpl
+     729: ifge          759
+     732: fload         10
+     734: ldc_w         #376                // float 1.0E-4f
+     737: fcmpl
+     738: ifge          759
+     741: fload         12
+     743: ldc_w         #377                // float 0.9999f
+     746: fcmpg
+     747: ifle          759
+     750: fload         13
+     752: ldc_w         #377                // float 0.9999f
+     755: fcmpg
+     756: ifgt          763
+     759: iconst_1
+     760: goto          764
+     763: iconst_0
+     764: invokevirtual #387                // Method java/util/BitSet.set:(IZ)V
+     767: aload         7
+     769: iconst_0
+     770: fload         8
+     772: fload         11
+     774: fcmpl
+     775: ifne          800
+     778: fload         8
+     780: ldc_w         #376                // float 1.0E-4f
+     783: fcmpg
+     784: iflt          796
+     787: aload_2
+     788: aload_1
+     789: aload_3
+     790: invokevirtual #391                // Method net/minecraft/world/level/block/state/BlockState.isCollisionShapeFullBlock:(Lnet/minecraft/world/level/BlockGetter;Lnet/minecraft/core/BlockPos;)Z
+     793: ifeq          800
+     796: iconst_1
+     797: goto          801
+     800: iconst_0
+     801: invokevirtual #387                // Method java/util/BitSet.set:(IZ)V
+     804: goto          891
+     807: aload         7
+     809: iconst_1
+     810: fload         9
+     812: ldc_w         #376                // float 1.0E-4f
+     815: fcmpl
+     816: ifge          846
+     819: fload         10
+     821: ldc_w         #376                // float 1.0E-4f
+     824: fcmpl
+     825: ifge          846
+     828: fload         12
+     830: ldc_w         #377                // float 0.9999f
+     833: fcmpg
+     834: ifle          846
+     837: fload         13
+     839: ldc_w         #377                // float 0.9999f
+     842: fcmpg
+     843: ifgt          850
+     846: iconst_1
+     847: goto          851
+     850: iconst_0
+     851: invokevirtual #387                // Method java/util/BitSet.set:(IZ)V
+     854: aload         7
+     856: iconst_0
+     857: fload         8
+     859: fload         11
+     861: fcmpl
+     862: ifne          887
+     865: fload         11
+     867: ldc_w         #377                // float 0.9999f
+     870: fcmpl
+     871: ifgt          883
+     874: aload_2
+     875: aload_1
+     876: aload_3
+     877: invokevirtual #391                // Method net/minecraft/world/level/block/state/BlockState.isCollisionShapeFullBlock:(Lnet/minecraft/world/level/BlockGetter;Lnet/minecraft/core/BlockPos;)Z
+     880: ifeq          887
+     883: iconst_1
+     884: goto          888
+     887: iconst_0
+     888: invokevirtual #387                // Method java/util/BitSet.set:(IZ)V
+     891: return
+
+  private void renderModelFaceFlat(net.minecraft.world.level.BlockAndTintGetter, net.minecraft.world.level.block.state.BlockState, net.minecraft.core.BlockPos, int, int, boolean, com.mojang.blaze3d.vertex.PoseStack, com.mojang.blaze3d.vertex.VertexConsumer, java.util.List<net.minecraft.client.renderer.block.model.BakedQuad>, java.util.BitSet);
+    Code:
+       0: aload         9
+       2: invokeinterface #257,  1          // InterfaceMethod java/util/List.iterator:()Ljava/util/Iterator;
+       7: astore        11
+       9: aload         11
+      11: invokeinterface #262,  1          // InterfaceMethod java/util/Iterator.hasNext:()Z
+      16: ifeq          144
+      19: aload         11
+      21: invokeinterface #266,  1          // InterfaceMethod java/util/Iterator.next:()Ljava/lang/Object;
+      26: checkcast     #268                // class net/minecraft/client/renderer/block/model/BakedQuad
+      29: astore        12
+      31: iload         6
+      33: ifeq          89
+      36: aload_0
+      37: aload_1
+      38: aload_2
+      39: aload_3
+      40: aload         12
+      42: invokevirtual #272                // Method net/minecraft/client/renderer/block/model/BakedQuad.getVertices:()[I
+      45: aload         12
+      47: invokevirtual #276                // Method net/minecraft/client/renderer/block/model/BakedQuad.getDirection:()Lnet/minecraft/core/Direction;
+      50: aconst_null
+      51: aload         10
+      53: invokevirtual #280                // Method calculateShape:(Lnet/minecraft/world/level/BlockAndTintGetter;Lnet/minecraft/world/level/block/state/BlockState;Lnet/minecraft/core/BlockPos;[ILnet/minecraft/core/Direction;[FLjava/util/BitSet;)V
+      56: aload         10
+      58: iconst_0
+      59: invokevirtual #396                // Method java/util/BitSet.get:(I)Z
+      62: ifeq          77
+      65: aload_3
+      66: aload         12
+      68: invokevirtual #276                // Method net/minecraft/client/renderer/block/model/BakedQuad.getDirection:()Lnet/minecraft/core/Direction;
+      71: invokevirtual #400                // Method net/minecraft/core/BlockPos.relative:(Lnet/minecraft/core/Direction;)Lnet/minecraft/core/BlockPos;
+      74: goto          78
+      77: aload_3
+      78: astore        13
+      80: aload_1
+      81: aload_2
+      82: aload         13
+      84: invokestatic  #247                // Method net/minecraft/client/renderer/LevelRenderer.getLightColor:(Lnet/minecraft/world/level/BlockAndTintGetter;Lnet/minecraft/world/level/block/state/BlockState;Lnet/minecraft/core/BlockPos;)I
+      87: istore        4
+      89: aload_1
+      90: aload         12
+      92: invokevirtual #276                // Method net/minecraft/client/renderer/block/model/BakedQuad.getDirection:()Lnet/minecraft/core/Direction;
+      95: aload         12
+      97: invokevirtual #283                // Method net/minecraft/client/renderer/block/model/BakedQuad.isShade:()Z
+     100: invokeinterface #404,  3          // InterfaceMethod net/minecraft/world/level/BlockAndTintGetter.getShade:(Lnet/minecraft/core/Direction;Z)F
+     105: fstore        13
+     107: aload_0
+     108: aload_1
+     109: aload_2
+     110: aload_3
+     111: aload         8
+     113: aload         7
+     115: invokevirtual #291                // Method com/mojang/blaze3d/vertex/PoseStack.last:()Lcom/mojang/blaze3d/vertex/PoseStack$Pose;
+     118: aload         12
+     120: fload         13
+     122: fload         13
+     124: fload         13
+     126: fload         13
+     128: iload         4
+     130: iload         4
+     132: iload         4
+     134: iload         4
+     136: iload         5
+     138: invokevirtual #302                // Method putQuadData:(Lnet/minecraft/world/level/BlockAndTintGetter;Lnet/minecraft/world/level/block/state/BlockState;Lnet/minecraft/core/BlockPos;Lcom/mojang/blaze3d/vertex/VertexConsumer;Lcom/mojang/blaze3d/vertex/PoseStack$Pose;Lnet/minecraft/client/renderer/block/model/BakedQuad;FFFFIIIII)V
+     141: goto          9
+     144: return
+
+  public void renderModel(com.mojang.blaze3d.vertex.PoseStack$Pose, com.mojang.blaze3d.vertex.VertexConsumer, net.minecraft.world.level.block.state.BlockState, net.minecraft.client.resources.model.BakedModel, float, float, float, int, int);
+    Code:
+       0: invokestatic  #411                // InterfaceMethod net/minecraft/util/RandomSource.create:()Lnet/minecraft/util/RandomSource;
+       3: astore        10
+       5: ldc2_w        #412                // long 42l
+       8: lstore        11
+      10: getstatic     #182                // Field DIRECTIONS:[Lnet/minecraft/core/Direction;
+      13: astore        13
+      15: aload         13
+      17: arraylength
+      18: istore        14
+      20: iconst_0
+      21: istore        15
+      23: iload         15
+      25: iload         14
+      27: if_icmpge     80
+      30: aload         13
+      32: iload         15
+      34: aaload
+      35: astore        16
+      37: aload         10
+      39: ldc2_w        #412                // long 42l
+      42: invokeinterface #203,  3          // InterfaceMethod net/minecraft/util/RandomSource.setSeed:(J)V
+      47: aload_1
+      48: aload_2
+      49: fload         5
+      51: fload         6
+      53: fload         7
+      55: aload         4
+      57: aload_3
+      58: aload         16
+      60: aload         10
+      62: invokeinterface #207,  4          // InterfaceMethod net/minecraft/client/resources/model/BakedModel.getQuads:(Lnet/minecraft/world/level/block/state/BlockState;Lnet/minecraft/core/Direction;Lnet/minecraft/util/RandomSource;)Ljava/util/List;
+      67: iload         8
+      69: iload         9
+      71: invokestatic  #417                // Method renderQuadList:(Lcom/mojang/blaze3d/vertex/PoseStack$Pose;Lcom/mojang/blaze3d/vertex/VertexConsumer;FFFLjava/util/List;II)V
+      74: iinc          15, 1
+      77: goto          23
+      80: aload         10
+      82: ldc2_w        #412                // long 42l
+      85: invokeinterface #203,  3          // InterfaceMethod net/minecraft/util/RandomSource.setSeed:(J)V
+      90: aload_1
+      91: aload_2
+      92: fload         5
+      94: fload         6
+      96: fload         7
+      98: aload         4
+     100: aload_3
+     101: aconst_null
+     102: aload         10
+     104: invokeinterface #207,  4          // InterfaceMethod net/minecraft/client/resources/model/BakedModel.getQuads:(Lnet/minecraft/world/level/block/state/BlockState;Lnet/minecraft/core/Direction;Lnet/minecraft/util/RandomSource;)Ljava/util/List;
+     109: iload         8
+     111: iload         9
+     113: invokestatic  #417                // Method renderQuadList:(Lcom/mojang/blaze3d/vertex/PoseStack$Pose;Lcom/mojang/blaze3d/vertex/VertexConsumer;FFFLjava/util/List;II)V
+     116: return
+
+  private static void renderQuadList(com.mojang.blaze3d.vertex.PoseStack$Pose, com.mojang.blaze3d.vertex.VertexConsumer, float, float, float, java.util.List<net.minecraft.client.renderer.block.model.BakedQuad>, int, int);
+    Code:
+       0: aload         5
+       2: invokeinterface #257,  1          // InterfaceMethod java/util/List.iterator:()Ljava/util/Iterator;
+       7: astore        8
+       9: aload         8
+      11: invokeinterface #262,  1          // InterfaceMethod java/util/Iterator.hasNext:()Z
+      16: ifeq          98
+      19: aload         8
+      21: invokeinterface #266,  1          // InterfaceMethod java/util/Iterator.next:()Ljava/lang/Object;
+      26: checkcast     #268                // class net/minecraft/client/renderer/block/model/BakedQuad
+      29: astore        9
+      31: aload         9
+      33: invokevirtual #314                // Method net/minecraft/client/renderer/block/model/BakedQuad.isTinted:()Z
+      36: ifeq          67
+      39: fload_2
+      40: fconst_0
+      41: fconst_1
+      42: invokestatic  #424                // Method net/minecraft/util/Mth.clamp:(FFF)F
+      45: fstore        10
+      47: fload_3
+      48: fconst_0
+      49: fconst_1
+      50: invokestatic  #424                // Method net/minecraft/util/Mth.clamp:(FFF)F
+      53: fstore        11
+      55: fload         4
+      57: fconst_0
+      58: fconst_1
+      59: invokestatic  #424                // Method net/minecraft/util/Mth.clamp:(FFF)F
+      62: fstore        12
+      64: goto          76
+      67: fconst_1
+      68: fstore        10
+      70: fconst_1
+      71: fstore        11
+      73: fconst_1
+      74: fstore        12
+      76: aload_1
+      77: aload_0
+      78: aload         9
+      80: fload         10
+      82: fload         11
+      84: fload         12
+      86: iload         6
+      88: iload         7
+      90: invokeinterface #427,  8          // InterfaceMethod com/mojang/blaze3d/vertex/VertexConsumer.putBulkData:(Lcom/mojang/blaze3d/vertex/PoseStack$Pose;Lnet/minecraft/client/renderer/block/model/BakedQuad;FFFII)V
+      95: goto          9
+      98: return
+
+  public static void enableCaching();
+    Code:
+       0: getstatic     #430                // Field CACHE:Ljava/lang/ThreadLocal;
+       3: invokevirtual #434                // Method java/lang/ThreadLocal.get:()Ljava/lang/Object;
+       6: checkcast     #19                 // class net/minecraft/client/renderer/block/ModelBlockRenderer$Cache
+       9: invokevirtual #437                // Method net/minecraft/client/renderer/block/ModelBlockRenderer$Cache.enable:()V
+      12: return
+
+  public static void clearCache();
+    Code:
+       0: getstatic     #430                // Field CACHE:Ljava/lang/ThreadLocal;
+       3: invokevirtual #434                // Method java/lang/ThreadLocal.get:()Ljava/lang/Object;
+       6: checkcast     #19                 // class net/minecraft/client/renderer/block/ModelBlockRenderer$Cache
+       9: invokevirtual #441                // Method net/minecraft/client/renderer/block/ModelBlockRenderer$Cache.disable:()V
+      12: return
+
+  static {};
+    Code:
+       0: invokestatic  #446                // Method net/minecraft/core/Direction.values:()[Lnet/minecraft/core/Direction;
+       3: putstatic     #182                // Field DIRECTIONS:[Lnet/minecraft/core/Direction;
+       6: invokedynamic #461,  0            // InvokeDynamic #0:get:()Ljava/util/function/Supplier;
+      11: invokestatic  #465                // Method java/lang/ThreadLocal.withInitial:(Ljava/util/function/Supplier;)Ljava/lang/ThreadLocal;
+      14: putstatic     #430                // Field CACHE:Ljava/lang/ThreadLocal;
+      17: return
+}

@@ -1,0 +1,1518 @@
+﻿Compiled from "BufferBuilder.java"
+public class com.mojang.blaze3d.vertex.BufferBuilder extends com.mojang.blaze3d.vertex.DefaultedVertexConsumer implements com.mojang.blaze3d.vertex.BufferVertexConsumer {
+  private static final int MAX_GROWTH_SIZE;
+
+  private static final org.slf4j.Logger LOGGER;
+
+  private java.nio.ByteBuffer buffer;
+
+  private boolean closed;
+
+  private int renderedBufferCount;
+
+  private int renderedBufferPointer;
+
+  private int nextElementByte;
+
+  private int vertices;
+
+  private com.mojang.blaze3d.vertex.VertexFormatElement currentElement;
+
+  private int elementIndex;
+
+  private com.mojang.blaze3d.vertex.VertexFormat format;
+
+  private com.mojang.blaze3d.vertex.VertexFormat$Mode mode;
+
+  private boolean fastFormat;
+
+  private boolean fullFormat;
+
+  private boolean building;
+
+  private org.joml.Vector3f[] sortingPoints;
+
+  private com.mojang.blaze3d.vertex.VertexSorting sorting;
+
+  private boolean indexOnly;
+
+  public com.mojang.blaze3d.vertex.BufferBuilder(int);
+    Code:
+       0: aload_0
+       1: invokespecial #71                 // Method com/mojang/blaze3d/vertex/DefaultedVertexConsumer."<init>":()V
+       4: aload_0
+       5: iload_1
+       6: invokestatic  #77                 // Method com/mojang/blaze3d/platform/MemoryTracker.create:(I)Ljava/nio/ByteBuffer;
+       9: putfield      #79                 // Field buffer:Ljava/nio/ByteBuffer;
+      12: return
+
+  private void ensureVertexCapacity();
+    Code:
+       0: aload_0
+       1: aload_0
+       2: getfield      #84                 // Field format:Lcom/mojang/blaze3d/vertex/VertexFormat;
+       5: invokevirtual #88                 // Method com/mojang/blaze3d/vertex/VertexFormat.getVertexSize:()I
+       8: invokevirtual #91                 // Method ensureCapacity:(I)V
+      11: return
+
+  private void ensureCapacity(int);
+    Code:
+       0: aload_0
+       1: getfield      #93                 // Field nextElementByte:I
+       4: iload_1
+       5: iadd
+       6: aload_0
+       7: getfield      #79                 // Field buffer:Ljava/nio/ByteBuffer;
+      10: invokevirtual #98                 // Method java/nio/ByteBuffer.capacity:()I
+      13: if_icmpgt     17
+      16: return
+      17: aload_0
+      18: getfield      #79                 // Field buffer:Ljava/nio/ByteBuffer;
+      21: invokevirtual #98                 // Method java/nio/ByteBuffer.capacity:()I
+      24: istore_2
+      25: iload_2
+      26: ldc           #39                 // int 2097152
+      28: invokestatic  #104                // Method java/lang/Math.min:(II)I
+      31: istore_3
+      32: iload_2
+      33: iload_1
+      34: iadd
+      35: istore        4
+      37: iload_2
+      38: iload_3
+      39: iadd
+      40: iload         4
+      42: invokestatic  #107                // Method java/lang/Math.max:(II)I
+      45: istore        5
+      47: getstatic     #109                // Field LOGGER:Lorg/slf4j/Logger;
+      50: ldc           #111                // String Needed to grow BufferBuilder buffer: Old size {} bytes, new size {} bytes.
+      52: iload_2
+      53: invokestatic  #117                // Method java/lang/Integer.valueOf:(I)Ljava/lang/Integer;
+      56: iload         5
+      58: invokestatic  #117                // Method java/lang/Integer.valueOf:(I)Ljava/lang/Integer;
+      61: invokeinterface #123,  4          // InterfaceMethod org/slf4j/Logger.debug:(Ljava/lang/String;Ljava/lang/Object;Ljava/lang/Object;)V
+      66: aload_0
+      67: getfield      #79                 // Field buffer:Ljava/nio/ByteBuffer;
+      70: iload         5
+      72: invokestatic  #127                // Method com/mojang/blaze3d/platform/MemoryTracker.resize:(Ljava/nio/ByteBuffer;I)Ljava/nio/ByteBuffer;
+      75: astore        6
+      77: aload         6
+      79: invokevirtual #131                // Method java/nio/ByteBuffer.rewind:()Ljava/nio/ByteBuffer;
+      82: pop
+      83: aload_0
+      84: aload         6
+      86: putfield      #79                 // Field buffer:Ljava/nio/ByteBuffer;
+      89: return
+
+  public void setQuadSorting(com.mojang.blaze3d.vertex.VertexSorting);
+    Code:
+       0: aload_0
+       1: getfield      #141                // Field mode:Lcom/mojang/blaze3d/vertex/VertexFormat$Mode;
+       4: getstatic     #144                // Field com/mojang/blaze3d/vertex/VertexFormat$Mode.QUADS:Lcom/mojang/blaze3d/vertex/VertexFormat$Mode;
+       7: if_acmpeq     11
+      10: return
+      11: aload_0
+      12: aload_1
+      13: putfield      #146                // Field sorting:Lcom/mojang/blaze3d/vertex/VertexSorting;
+      16: aload_0
+      17: getfield      #148                // Field sortingPoints:[Lorg/joml/Vector3f;
+      20: ifnonnull     31
+      23: aload_0
+      24: aload_0
+      25: invokevirtual #152                // Method makeQuadSortingPoints:()[Lorg/joml/Vector3f;
+      28: putfield      #148                // Field sortingPoints:[Lorg/joml/Vector3f;
+      31: return
+
+  public com.mojang.blaze3d.vertex.BufferBuilder$SortState getSortState();
+    Code:
+       0: new           #15                 // class com/mojang/blaze3d/vertex/BufferBuilder$SortState
+       3: dup
+       4: aload_0
+       5: getfield      #141                // Field mode:Lcom/mojang/blaze3d/vertex/VertexFormat$Mode;
+       8: aload_0
+       9: getfield      #156                // Field vertices:I
+      12: aload_0
+      13: getfield      #148                // Field sortingPoints:[Lorg/joml/Vector3f;
+      16: aload_0
+      17: getfield      #146                // Field sorting:Lcom/mojang/blaze3d/vertex/VertexSorting;
+      20: invokespecial #159                // Method com/mojang/blaze3d/vertex/BufferBuilder$SortState."<init>":(Lcom/mojang/blaze3d/vertex/VertexFormat$Mode;I[Lorg/joml/Vector3f;Lcom/mojang/blaze3d/vertex/VertexSorting;)V
+      23: areturn
+
+  private void checkOpen();
+    Code:
+       0: aload_0
+       1: getfield      #162                // Field closed:Z
+       4: ifeq          17
+       7: new           #164                // class java/lang/IllegalStateException
+      10: dup
+      11: ldc           #166                // String This BufferBuilder has been closed
+      13: invokespecial #169                // Method java/lang/IllegalStateException."<init>":(Ljava/lang/String;)V
+      16: athrow
+      17: return
+
+  public void restoreSortState(com.mojang.blaze3d.vertex.BufferBuilder$SortState);
+    Code:
+       0: aload_0
+       1: invokevirtual #174                // Method checkOpen:()V
+       4: aload_0
+       5: getfield      #79                 // Field buffer:Ljava/nio/ByteBuffer;
+       8: invokevirtual #131                // Method java/nio/ByteBuffer.rewind:()Ljava/nio/ByteBuffer;
+      11: pop
+      12: aload_0
+      13: aload_1
+      14: getfield      #175                // Field com/mojang/blaze3d/vertex/BufferBuilder$SortState.mode:Lcom/mojang/blaze3d/vertex/VertexFormat$Mode;
+      17: putfield      #141                // Field mode:Lcom/mojang/blaze3d/vertex/VertexFormat$Mode;
+      20: aload_0
+      21: aload_1
+      22: getfield      #176                // Field com/mojang/blaze3d/vertex/BufferBuilder$SortState.vertices:I
+      25: putfield      #156                // Field vertices:I
+      28: aload_0
+      29: aload_0
+      30: getfield      #178                // Field renderedBufferPointer:I
+      33: putfield      #93                 // Field nextElementByte:I
+      36: aload_0
+      37: aload_1
+      38: getfield      #179                // Field com/mojang/blaze3d/vertex/BufferBuilder$SortState.sortingPoints:[Lorg/joml/Vector3f;
+      41: putfield      #148                // Field sortingPoints:[Lorg/joml/Vector3f;
+      44: aload_0
+      45: aload_1
+      46: getfield      #180                // Field com/mojang/blaze3d/vertex/BufferBuilder$SortState.sorting:Lcom/mojang/blaze3d/vertex/VertexSorting;
+      49: putfield      #146                // Field sorting:Lcom/mojang/blaze3d/vertex/VertexSorting;
+      52: aload_0
+      53: iconst_1
+      54: putfield      #182                // Field indexOnly:Z
+      57: return
+
+  public void begin(com.mojang.blaze3d.vertex.VertexFormat$Mode, com.mojang.blaze3d.vertex.VertexFormat);
+    Code:
+       0: aload_0
+       1: getfield      #188                // Field building:Z
+       4: ifeq          17
+       7: new           #164                // class java/lang/IllegalStateException
+      10: dup
+      11: ldc           #190                // String Already building!
+      13: invokespecial #169                // Method java/lang/IllegalStateException."<init>":(Ljava/lang/String;)V
+      16: athrow
+      17: aload_0
+      18: invokevirtual #174                // Method checkOpen:()V
+      21: aload_0
+      22: iconst_1
+      23: putfield      #188                // Field building:Z
+      26: aload_0
+      27: aload_1
+      28: putfield      #141                // Field mode:Lcom/mojang/blaze3d/vertex/VertexFormat$Mode;
+      31: aload_0
+      32: aload_2
+      33: invokevirtual #194                // Method switchFormat:(Lcom/mojang/blaze3d/vertex/VertexFormat;)V
+      36: aload_0
+      37: aload_2
+      38: invokevirtual #198                // Method com/mojang/blaze3d/vertex/VertexFormat.getElements:()Lcom/google/common/collect/ImmutableList;
+      41: iconst_0
+      42: invokevirtual #204                // Method com/google/common/collect/ImmutableList.get:(I)Ljava/lang/Object;
+      45: checkcast     #30                 // class com/mojang/blaze3d/vertex/VertexFormatElement
+      48: putfield      #206                // Field currentElement:Lcom/mojang/blaze3d/vertex/VertexFormatElement;
+      51: aload_0
+      52: iconst_0
+      53: putfield      #208                // Field elementIndex:I
+      56: aload_0
+      57: getfield      #79                 // Field buffer:Ljava/nio/ByteBuffer;
+      60: invokevirtual #131                // Method java/nio/ByteBuffer.rewind:()Ljava/nio/ByteBuffer;
+      63: pop
+      64: return
+
+  private void switchFormat(com.mojang.blaze3d.vertex.VertexFormat);
+    Code:
+       0: aload_0
+       1: getfield      #84                 // Field format:Lcom/mojang/blaze3d/vertex/VertexFormat;
+       4: aload_1
+       5: if_acmpne     9
+       8: return
+       9: aload_0
+      10: aload_1
+      11: putfield      #84                 // Field format:Lcom/mojang/blaze3d/vertex/VertexFormat;
+      14: aload_1
+      15: getstatic     #213                // Field com/mojang/blaze3d/vertex/DefaultVertexFormat.NEW_ENTITY:Lcom/mojang/blaze3d/vertex/VertexFormat;
+      18: if_acmpne     25
+      21: iconst_1
+      22: goto          26
+      25: iconst_0
+      26: istore_2
+      27: aload_1
+      28: getstatic     #216                // Field com/mojang/blaze3d/vertex/DefaultVertexFormat.BLOCK:Lcom/mojang/blaze3d/vertex/VertexFormat;
+      31: if_acmpne     38
+      34: iconst_1
+      35: goto          39
+      38: iconst_0
+      39: istore_3
+      40: aload_0
+      41: iload_2
+      42: ifne          49
+      45: iload_3
+      46: ifeq          53
+      49: iconst_1
+      50: goto          54
+      53: iconst_0
+      54: putfield      #218                // Field fastFormat:Z
+      57: aload_0
+      58: iload_2
+      59: putfield      #220                // Field fullFormat:Z
+      62: return
+
+  private it.unimi.dsi.fastutil.ints.IntConsumer intConsumer(int, com.mojang.blaze3d.vertex.VertexFormat$IndexType);
+    Code:
+       0: new           #227                // class org/apache/commons/lang3/mutable/MutableInt
+       3: dup
+       4: iload_1
+       5: invokespecial #229                // Method org/apache/commons/lang3/mutable/MutableInt."<init>":(I)V
+       8: astore_3
+       9: getstatic     #233                // Field com/mojang/blaze3d/vertex/BufferBuilder$1.$SwitchMap$com$mojang$blaze3d$vertex$VertexFormat$IndexType:[I
+      12: aload_2
+      13: invokevirtual #236                // Method com/mojang/blaze3d/vertex/VertexFormat$IndexType.ordinal:()I
+      16: iaload
+      17: lookupswitch  { // 2
+
+                     1: 52
+
+                     2: 62
+               default: 44
+          }
+      44: new           #238                // class java/lang/IncompatibleClassChangeError
+      47: dup
+      48: invokespecial #239                // Method java/lang/IncompatibleClassChangeError."<init>":()V
+      51: athrow
+      52: aload_0
+      53: aload_3
+      54: invokedynamic #256,  0            // InvokeDynamic #0:accept:(Lcom/mojang/blaze3d/vertex/BufferBuilder;Lorg/apache/commons/lang3/mutable/MutableInt;)Lit/unimi/dsi/fastutil/ints/IntConsumer;
+      59: goto          69
+      62: aload_0
+      63: aload_3
+      64: invokedynamic #261,  0            // InvokeDynamic #1:accept:(Lcom/mojang/blaze3d/vertex/BufferBuilder;Lorg/apache/commons/lang3/mutable/MutableInt;)Lit/unimi/dsi/fastutil/ints/IntConsumer;
+      69: areturn
+
+  private org.joml.Vector3f[] makeQuadSortingPoints();
+    Code:
+       0: aload_0
+       1: getfield      #79                 // Field buffer:Ljava/nio/ByteBuffer;
+       4: invokevirtual #270                // Method java/nio/ByteBuffer.asFloatBuffer:()Ljava/nio/FloatBuffer;
+       7: astore_1
+       8: aload_0
+       9: getfield      #178                // Field renderedBufferPointer:I
+      12: iconst_4
+      13: idiv
+      14: istore_2
+      15: aload_0
+      16: getfield      #84                 // Field format:Lcom/mojang/blaze3d/vertex/VertexFormat;
+      19: invokevirtual #273                // Method com/mojang/blaze3d/vertex/VertexFormat.getIntegerSize:()I
+      22: istore_3
+      23: iload_3
+      24: aload_0
+      25: getfield      #141                // Field mode:Lcom/mojang/blaze3d/vertex/VertexFormat$Mode;
+      28: getfield      #276                // Field com/mojang/blaze3d/vertex/VertexFormat$Mode.primitiveStride:I
+      31: imul
+      32: istore        4
+      34: aload_0
+      35: getfield      #156                // Field vertices:I
+      38: aload_0
+      39: getfield      #141                // Field mode:Lcom/mojang/blaze3d/vertex/VertexFormat$Mode;
+      42: getfield      #276                // Field com/mojang/blaze3d/vertex/VertexFormat$Mode.primitiveStride:I
+      45: idiv
+      46: istore        5
+      48: iload         5
+      50: anewarray     #278                // class org/joml/Vector3f
+      53: astore        6
+      55: iconst_0
+      56: istore        7
+      58: iload         7
+      60: iload         5
+      62: if_icmpge     218
+      65: aload_1
+      66: iload_2
+      67: iload         7
+      69: iload         4
+      71: imul
+      72: iadd
+      73: iconst_0
+      74: iadd
+      75: invokevirtual #284                // Method java/nio/FloatBuffer.get:(I)F
+      78: fstore        8
+      80: aload_1
+      81: iload_2
+      82: iload         7
+      84: iload         4
+      86: imul
+      87: iadd
+      88: iconst_1
+      89: iadd
+      90: invokevirtual #284                // Method java/nio/FloatBuffer.get:(I)F
+      93: fstore        9
+      95: aload_1
+      96: iload_2
+      97: iload         7
+      99: iload         4
+     101: imul
+     102: iadd
+     103: iconst_2
+     104: iadd
+     105: invokevirtual #284                // Method java/nio/FloatBuffer.get:(I)F
+     108: fstore        10
+     110: aload_1
+     111: iload_2
+     112: iload         7
+     114: iload         4
+     116: imul
+     117: iadd
+     118: iload_3
+     119: iconst_2
+     120: imul
+     121: iadd
+     122: iconst_0
+     123: iadd
+     124: invokevirtual #284                // Method java/nio/FloatBuffer.get:(I)F
+     127: fstore        11
+     129: aload_1
+     130: iload_2
+     131: iload         7
+     133: iload         4
+     135: imul
+     136: iadd
+     137: iload_3
+     138: iconst_2
+     139: imul
+     140: iadd
+     141: iconst_1
+     142: iadd
+     143: invokevirtual #284                // Method java/nio/FloatBuffer.get:(I)F
+     146: fstore        12
+     148: aload_1
+     149: iload_2
+     150: iload         7
+     152: iload         4
+     154: imul
+     155: iadd
+     156: iload_3
+     157: iconst_2
+     158: imul
+     159: iadd
+     160: iconst_2
+     161: iadd
+     162: invokevirtual #284                // Method java/nio/FloatBuffer.get:(I)F
+     165: fstore        13
+     167: fload         8
+     169: fload         11
+     171: fadd
+     172: fconst_2
+     173: fdiv
+     174: fstore        14
+     176: fload         9
+     178: fload         12
+     180: fadd
+     181: fconst_2
+     182: fdiv
+     183: fstore        15
+     185: fload         10
+     187: fload         13
+     189: fadd
+     190: fconst_2
+     191: fdiv
+     192: fstore        16
+     194: aload         6
+     196: iload         7
+     198: new           #278                // class org/joml/Vector3f
+     201: dup
+     202: fload         14
+     204: fload         15
+     206: fload         16
+     208: invokespecial #287                // Method org/joml/Vector3f."<init>":(FFF)V
+     211: aastore
+     212: iinc          7, 1
+     215: goto          58
+     218: aload         6
+     220: areturn
+
+  private void putSortedQuadIndices(com.mojang.blaze3d.vertex.VertexFormat$IndexType);
+    Code:
+       0: aload_0
+       1: getfield      #148                // Field sortingPoints:[Lorg/joml/Vector3f;
+       4: ifnull        14
+       7: aload_0
+       8: getfield      #146                // Field sorting:Lcom/mojang/blaze3d/vertex/VertexSorting;
+      11: ifnonnull     25
+      14: new           #164                // class java/lang/IllegalStateException
+      17: dup
+      18: ldc_w         #304                // String Sorting state uninitialized
+      21: invokespecial #169                // Method java/lang/IllegalStateException."<init>":(Ljava/lang/String;)V
+      24: athrow
+      25: aload_0
+      26: getfield      #146                // Field sorting:Lcom/mojang/blaze3d/vertex/VertexSorting;
+      29: aload_0
+      30: getfield      #148                // Field sortingPoints:[Lorg/joml/Vector3f;
+      33: invokeinterface #310,  2          // InterfaceMethod com/mojang/blaze3d/vertex/VertexSorting.sort:([Lorg/joml/Vector3f;)[I
+      38: astore_2
+      39: aload_0
+      40: aload_0
+      41: getfield      #93                 // Field nextElementByte:I
+      44: aload_1
+      45: invokevirtual #312                // Method intConsumer:(ILcom/mojang/blaze3d/vertex/VertexFormat$IndexType;)Lit/unimi/dsi/fastutil/ints/IntConsumer;
+      48: astore_3
+      49: aload_2
+      50: astore        4
+      52: aload         4
+      54: arraylength
+      55: istore        5
+      57: iconst_0
+      58: istore        6
+      60: iload         6
+      62: iload         5
+      64: if_icmpge     188
+      67: aload         4
+      69: iload         6
+      71: iaload
+      72: istore        7
+      74: aload_3
+      75: iload         7
+      77: aload_0
+      78: getfield      #141                // Field mode:Lcom/mojang/blaze3d/vertex/VertexFormat$Mode;
+      81: getfield      #276                // Field com/mojang/blaze3d/vertex/VertexFormat$Mode.primitiveStride:I
+      84: imul
+      85: iconst_0
+      86: iadd
+      87: invokeinterface #315,  2          // InterfaceMethod it/unimi/dsi/fastutil/ints/IntConsumer.accept:(I)V
+      92: aload_3
+      93: iload         7
+      95: aload_0
+      96: getfield      #141                // Field mode:Lcom/mojang/blaze3d/vertex/VertexFormat$Mode;
+      99: getfield      #276                // Field com/mojang/blaze3d/vertex/VertexFormat$Mode.primitiveStride:I
+     102: imul
+     103: iconst_1
+     104: iadd
+     105: invokeinterface #315,  2          // InterfaceMethod it/unimi/dsi/fastutil/ints/IntConsumer.accept:(I)V
+     110: aload_3
+     111: iload         7
+     113: aload_0
+     114: getfield      #141                // Field mode:Lcom/mojang/blaze3d/vertex/VertexFormat$Mode;
+     117: getfield      #276                // Field com/mojang/blaze3d/vertex/VertexFormat$Mode.primitiveStride:I
+     120: imul
+     121: iconst_2
+     122: iadd
+     123: invokeinterface #315,  2          // InterfaceMethod it/unimi/dsi/fastutil/ints/IntConsumer.accept:(I)V
+     128: aload_3
+     129: iload         7
+     131: aload_0
+     132: getfield      #141                // Field mode:Lcom/mojang/blaze3d/vertex/VertexFormat$Mode;
+     135: getfield      #276                // Field com/mojang/blaze3d/vertex/VertexFormat$Mode.primitiveStride:I
+     138: imul
+     139: iconst_2
+     140: iadd
+     141: invokeinterface #315,  2          // InterfaceMethod it/unimi/dsi/fastutil/ints/IntConsumer.accept:(I)V
+     146: aload_3
+     147: iload         7
+     149: aload_0
+     150: getfield      #141                // Field mode:Lcom/mojang/blaze3d/vertex/VertexFormat$Mode;
+     153: getfield      #276                // Field com/mojang/blaze3d/vertex/VertexFormat$Mode.primitiveStride:I
+     156: imul
+     157: iconst_3
+     158: iadd
+     159: invokeinterface #315,  2          // InterfaceMethod it/unimi/dsi/fastutil/ints/IntConsumer.accept:(I)V
+     164: aload_3
+     165: iload         7
+     167: aload_0
+     168: getfield      #141                // Field mode:Lcom/mojang/blaze3d/vertex/VertexFormat$Mode;
+     171: getfield      #276                // Field com/mojang/blaze3d/vertex/VertexFormat$Mode.primitiveStride:I
+     174: imul
+     175: iconst_0
+     176: iadd
+     177: invokeinterface #315,  2          // InterfaceMethod it/unimi/dsi/fastutil/ints/IntConsumer.accept:(I)V
+     182: iinc          6, 1
+     185: goto          60
+     188: return
+
+  public boolean isCurrentBatchEmpty();
+    Code:
+       0: aload_0
+       1: getfield      #156                // Field vertices:I
+       4: ifne          11
+       7: iconst_1
+       8: goto          12
+      11: iconst_0
+      12: ireturn
+
+  public com.mojang.blaze3d.vertex.BufferBuilder$RenderedBuffer endOrDiscardIfEmpty();
+    Code:
+       0: aload_0
+       1: invokevirtual #324                // Method ensureDrawing:()V
+       4: aload_0
+       5: invokevirtual #326                // Method isCurrentBatchEmpty:()Z
+       8: ifeq          17
+      11: aload_0
+      12: invokevirtual #329                // Method reset:()V
+      15: aconst_null
+      16: areturn
+      17: aload_0
+      18: invokevirtual #332                // Method storeRenderedBuffer:()Lcom/mojang/blaze3d/vertex/BufferBuilder$RenderedBuffer;
+      21: astore_1
+      22: aload_0
+      23: invokevirtual #329                // Method reset:()V
+      26: aload_1
+      27: areturn
+
+  public com.mojang.blaze3d.vertex.BufferBuilder$RenderedBuffer end();
+    Code:
+       0: aload_0
+       1: invokevirtual #324                // Method ensureDrawing:()V
+       4: aload_0
+       5: invokevirtual #332                // Method storeRenderedBuffer:()Lcom/mojang/blaze3d/vertex/BufferBuilder$RenderedBuffer;
+       8: astore_1
+       9: aload_0
+      10: invokevirtual #329                // Method reset:()V
+      13: aload_1
+      14: areturn
+
+  private void ensureDrawing();
+    Code:
+       0: aload_0
+       1: getfield      #188                // Field building:Z
+       4: ifne          18
+       7: new           #164                // class java/lang/IllegalStateException
+      10: dup
+      11: ldc_w         #337                // String Not building!
+      14: invokespecial #169                // Method java/lang/IllegalStateException."<init>":(Ljava/lang/String;)V
+      17: athrow
+      18: return
+
+  private com.mojang.blaze3d.vertex.BufferBuilder$RenderedBuffer storeRenderedBuffer();
+    Code:
+       0: aload_0
+       1: getfield      #141                // Field mode:Lcom/mojang/blaze3d/vertex/VertexFormat$Mode;
+       4: aload_0
+       5: getfield      #156                // Field vertices:I
+       8: invokevirtual #341                // Method com/mojang/blaze3d/vertex/VertexFormat$Mode.indexCount:(I)I
+      11: istore_1
+      12: aload_0
+      13: getfield      #182                // Field indexOnly:Z
+      16: ifne          34
+      19: aload_0
+      20: getfield      #156                // Field vertices:I
+      23: aload_0
+      24: getfield      #84                 // Field format:Lcom/mojang/blaze3d/vertex/VertexFormat;
+      27: invokevirtual #88                 // Method com/mojang/blaze3d/vertex/VertexFormat.getVertexSize:()I
+      30: imul
+      31: goto          35
+      34: iconst_0
+      35: istore_2
+      36: aload_0
+      37: getfield      #156                // Field vertices:I
+      40: invokestatic  #345                // Method com/mojang/blaze3d/vertex/VertexFormat$IndexType.least:(I)Lcom/mojang/blaze3d/vertex/VertexFormat$IndexType;
+      43: astore_3
+      44: aload_0
+      45: getfield      #148                // Field sortingPoints:[Lorg/joml/Vector3f;
+      48: ifnull        97
+      51: iload_1
+      52: aload_3
+      53: getfield      #348                // Field com/mojang/blaze3d/vertex/VertexFormat$IndexType.bytes:I
+      56: imul
+      57: iconst_4
+      58: invokestatic  #353                // Method net/minecraft/util/Mth.roundToward:(II)I
+      61: istore        6
+      63: aload_0
+      64: iload         6
+      66: invokevirtual #91                 // Method ensureCapacity:(I)V
+      69: aload_0
+      70: aload_3
+      71: invokevirtual #355                // Method putSortedQuadIndices:(Lcom/mojang/blaze3d/vertex/VertexFormat$IndexType;)V
+      74: iconst_0
+      75: istore        4
+      77: aload_0
+      78: dup
+      79: getfield      #93                 // Field nextElementByte:I
+      82: iload         6
+      84: iadd
+      85: putfield      #93                 // Field nextElementByte:I
+      88: iload_2
+      89: iload         6
+      91: iadd
+      92: istore        5
+      94: goto          103
+      97: iconst_1
+      98: istore        4
+     100: iload_2
+     101: istore        5
+     103: aload_0
+     104: getfield      #178                // Field renderedBufferPointer:I
+     107: istore        6
+     109: aload_0
+     110: dup
+     111: getfield      #178                // Field renderedBufferPointer:I
+     114: iload         5
+     116: iadd
+     117: putfield      #178                // Field renderedBufferPointer:I
+     120: aload_0
+     121: dup
+     122: getfield      #357                // Field renderedBufferCount:I
+     125: iconst_1
+     126: iadd
+     127: putfield      #357                // Field renderedBufferCount:I
+     130: new           #11                 // class com/mojang/blaze3d/vertex/BufferBuilder$DrawState
+     133: dup
+     134: aload_0
+     135: getfield      #84                 // Field format:Lcom/mojang/blaze3d/vertex/VertexFormat;
+     138: aload_0
+     139: getfield      #156                // Field vertices:I
+     142: iload_1
+     143: aload_0
+     144: getfield      #141                // Field mode:Lcom/mojang/blaze3d/vertex/VertexFormat$Mode;
+     147: aload_3
+     148: aload_0
+     149: getfield      #182                // Field indexOnly:Z
+     152: iload         4
+     154: invokespecial #360                // Method com/mojang/blaze3d/vertex/BufferBuilder$DrawState."<init>":(Lcom/mojang/blaze3d/vertex/VertexFormat;IILcom/mojang/blaze3d/vertex/VertexFormat$Mode;Lcom/mojang/blaze3d/vertex/VertexFormat$IndexType;ZZ)V
+     157: astore        7
+     159: new           #13                 // class com/mojang/blaze3d/vertex/BufferBuilder$RenderedBuffer
+     162: dup
+     163: aload_0
+     164: iload         6
+     166: aload         7
+     168: invokespecial #363                // Method com/mojang/blaze3d/vertex/BufferBuilder$RenderedBuffer."<init>":(Lcom/mojang/blaze3d/vertex/BufferBuilder;ILcom/mojang/blaze3d/vertex/BufferBuilder$DrawState;)V
+     171: areturn
+
+  private void reset();
+    Code:
+       0: aload_0
+       1: iconst_0
+       2: putfield      #188                // Field building:Z
+       5: aload_0
+       6: iconst_0
+       7: putfield      #156                // Field vertices:I
+      10: aload_0
+      11: aconst_null
+      12: putfield      #206                // Field currentElement:Lcom/mojang/blaze3d/vertex/VertexFormatElement;
+      15: aload_0
+      16: iconst_0
+      17: putfield      #208                // Field elementIndex:I
+      20: aload_0
+      21: aconst_null
+      22: putfield      #148                // Field sortingPoints:[Lorg/joml/Vector3f;
+      25: aload_0
+      26: aconst_null
+      27: putfield      #146                // Field sorting:Lcom/mojang/blaze3d/vertex/VertexSorting;
+      30: aload_0
+      31: iconst_0
+      32: putfield      #182                // Field indexOnly:Z
+      35: return
+
+  public void putByte(int, byte);
+    Code:
+       0: aload_0
+       1: getfield      #79                 // Field buffer:Ljava/nio/ByteBuffer;
+       4: aload_0
+       5: getfield      #93                 // Field nextElementByte:I
+       8: iload_1
+       9: iadd
+      10: iload_2
+      11: invokevirtual #372                // Method java/nio/ByteBuffer.put:(IB)Ljava/nio/ByteBuffer;
+      14: pop
+      15: return
+
+  public void putShort(int, short);
+    Code:
+       0: aload_0
+       1: getfield      #79                 // Field buffer:Ljava/nio/ByteBuffer;
+       4: aload_0
+       5: getfield      #93                 // Field nextElementByte:I
+       8: iload_1
+       9: iadd
+      10: iload_2
+      11: invokevirtual #378                // Method java/nio/ByteBuffer.putShort:(IS)Ljava/nio/ByteBuffer;
+      14: pop
+      15: return
+
+  public void putFloat(int, float);
+    Code:
+       0: aload_0
+       1: getfield      #79                 // Field buffer:Ljava/nio/ByteBuffer;
+       4: aload_0
+       5: getfield      #93                 // Field nextElementByte:I
+       8: iload_1
+       9: iadd
+      10: fload_2
+      11: invokevirtual #384                // Method java/nio/ByteBuffer.putFloat:(IF)Ljava/nio/ByteBuffer;
+      14: pop
+      15: return
+
+  public void endVertex();
+    Code:
+       0: aload_0
+       1: getfield      #208                // Field elementIndex:I
+       4: ifeq          18
+       7: new           #164                // class java/lang/IllegalStateException
+      10: dup
+      11: ldc_w         #387                // String Not filled all elements of the vertex
+      14: invokespecial #169                // Method java/lang/IllegalStateException."<init>":(Ljava/lang/String;)V
+      17: athrow
+      18: aload_0
+      19: dup
+      20: getfield      #156                // Field vertices:I
+      23: iconst_1
+      24: iadd
+      25: putfield      #156                // Field vertices:I
+      28: aload_0
+      29: invokevirtual #389                // Method ensureVertexCapacity:()V
+      32: aload_0
+      33: getfield      #141                // Field mode:Lcom/mojang/blaze3d/vertex/VertexFormat$Mode;
+      36: getstatic     #392                // Field com/mojang/blaze3d/vertex/VertexFormat$Mode.LINES:Lcom/mojang/blaze3d/vertex/VertexFormat$Mode;
+      39: if_acmpeq     52
+      42: aload_0
+      43: getfield      #141                // Field mode:Lcom/mojang/blaze3d/vertex/VertexFormat$Mode;
+      46: getstatic     #395                // Field com/mojang/blaze3d/vertex/VertexFormat$Mode.LINE_STRIP:Lcom/mojang/blaze3d/vertex/VertexFormat$Mode;
+      49: if_acmpne     107
+      52: aload_0
+      53: getfield      #84                 // Field format:Lcom/mojang/blaze3d/vertex/VertexFormat;
+      56: invokevirtual #88                 // Method com/mojang/blaze3d/vertex/VertexFormat.getVertexSize:()I
+      59: istore_1
+      60: aload_0
+      61: getfield      #79                 // Field buffer:Ljava/nio/ByteBuffer;
+      64: aload_0
+      65: getfield      #93                 // Field nextElementByte:I
+      68: aload_0
+      69: getfield      #79                 // Field buffer:Ljava/nio/ByteBuffer;
+      72: aload_0
+      73: getfield      #93                 // Field nextElementByte:I
+      76: iload_1
+      77: isub
+      78: iload_1
+      79: invokevirtual #398                // Method java/nio/ByteBuffer.put:(ILjava/nio/ByteBuffer;II)Ljava/nio/ByteBuffer;
+      82: pop
+      83: aload_0
+      84: dup
+      85: getfield      #93                 // Field nextElementByte:I
+      88: iload_1
+      89: iadd
+      90: putfield      #93                 // Field nextElementByte:I
+      93: aload_0
+      94: dup
+      95: getfield      #156                // Field vertices:I
+      98: iconst_1
+      99: iadd
+     100: putfield      #156                // Field vertices:I
+     103: aload_0
+     104: invokevirtual #389                // Method ensureVertexCapacity:()V
+     107: return
+
+  public void nextElement();
+    Code:
+       0: aload_0
+       1: getfield      #84                 // Field format:Lcom/mojang/blaze3d/vertex/VertexFormat;
+       4: invokevirtual #198                // Method com/mojang/blaze3d/vertex/VertexFormat.getElements:()Lcom/google/common/collect/ImmutableList;
+       7: astore_1
+       8: aload_0
+       9: aload_0
+      10: getfield      #208                // Field elementIndex:I
+      13: iconst_1
+      14: iadd
+      15: aload_1
+      16: invokevirtual #402                // Method com/google/common/collect/ImmutableList.size:()I
+      19: irem
+      20: putfield      #208                // Field elementIndex:I
+      23: aload_0
+      24: dup
+      25: getfield      #93                 // Field nextElementByte:I
+      28: aload_0
+      29: getfield      #206                // Field currentElement:Lcom/mojang/blaze3d/vertex/VertexFormatElement;
+      32: invokevirtual #405                // Method com/mojang/blaze3d/vertex/VertexFormatElement.getByteSize:()I
+      35: iadd
+      36: putfield      #93                 // Field nextElementByte:I
+      39: aload_1
+      40: aload_0
+      41: getfield      #208                // Field elementIndex:I
+      44: invokevirtual #204                // Method com/google/common/collect/ImmutableList.get:(I)Ljava/lang/Object;
+      47: checkcast     #30                 // class com/mojang/blaze3d/vertex/VertexFormatElement
+      50: astore_2
+      51: aload_0
+      52: aload_2
+      53: putfield      #206                // Field currentElement:Lcom/mojang/blaze3d/vertex/VertexFormatElement;
+      56: aload_2
+      57: invokevirtual #409                // Method com/mojang/blaze3d/vertex/VertexFormatElement.getUsage:()Lcom/mojang/blaze3d/vertex/VertexFormatElement$Usage;
+      60: getstatic     #413                // Field com/mojang/blaze3d/vertex/VertexFormatElement$Usage.PADDING:Lcom/mojang/blaze3d/vertex/VertexFormatElement$Usage;
+      63: if_acmpne     70
+      66: aload_0
+      67: invokevirtual #415                // Method nextElement:()V
+      70: aload_0
+      71: getfield      #418                // Field defaultColorSet:Z
+      74: ifeq          111
+      77: aload_0
+      78: getfield      #206                // Field currentElement:Lcom/mojang/blaze3d/vertex/VertexFormatElement;
+      81: invokevirtual #409                // Method com/mojang/blaze3d/vertex/VertexFormatElement.getUsage:()Lcom/mojang/blaze3d/vertex/VertexFormatElement$Usage;
+      84: getstatic     #421                // Field com/mojang/blaze3d/vertex/VertexFormatElement$Usage.COLOR:Lcom/mojang/blaze3d/vertex/VertexFormatElement$Usage;
+      87: if_acmpne     111
+      90: aload_0
+      91: aload_0
+      92: getfield      #424                // Field defaultR:I
+      95: aload_0
+      96: getfield      #427                // Field defaultG:I
+      99: aload_0
+     100: getfield      #430                // Field defaultB:I
+     103: aload_0
+     104: getfield      #433                // Field defaultA:I
+     107: invokespecial #437                // InterfaceMethod com/mojang/blaze3d/vertex/BufferVertexConsumer.color:(IIII)Lcom/mojang/blaze3d/vertex/VertexConsumer;
+     110: pop
+     111: return
+
+  public com.mojang.blaze3d.vertex.VertexConsumer color(int, int, int, int);
+    Code:
+       0: aload_0
+       1: getfield      #418                // Field defaultColorSet:Z
+       4: ifeq          15
+       7: new           #164                // class java/lang/IllegalStateException
+      10: dup
+      11: invokespecial #442                // Method java/lang/IllegalStateException."<init>":()V
+      14: athrow
+      15: aload_0
+      16: iload_1
+      17: iload_2
+      18: iload_3
+      19: iload         4
+      21: invokespecial #437                // InterfaceMethod com/mojang/blaze3d/vertex/BufferVertexConsumer.color:(IIII)Lcom/mojang/blaze3d/vertex/VertexConsumer;
+      24: areturn
+
+  public void vertex(float, float, float, float, float, float, float, float, float, int, int, float, float, float);
+    Code:
+       0: aload_0
+       1: getfield      #418                // Field defaultColorSet:Z
+       4: ifeq          15
+       7: new           #164                // class java/lang/IllegalStateException
+      10: dup
+      11: invokespecial #442                // Method java/lang/IllegalStateException."<init>":()V
+      14: athrow
+      15: aload_0
+      16: getfield      #218                // Field fastFormat:Z
+      19: ifeq          252
+      22: aload_0
+      23: iconst_0
+      24: fload_1
+      25: invokevirtual #446                // Method putFloat:(IF)V
+      28: aload_0
+      29: iconst_4
+      30: fload_2
+      31: invokevirtual #446                // Method putFloat:(IF)V
+      34: aload_0
+      35: bipush        8
+      37: fload_3
+      38: invokevirtual #446                // Method putFloat:(IF)V
+      41: aload_0
+      42: bipush        12
+      44: fload         4
+      46: ldc_w         #447                // float 255.0f
+      49: fmul
+      50: f2i
+      51: i2b
+      52: invokevirtual #449                // Method putByte:(IB)V
+      55: aload_0
+      56: bipush        13
+      58: fload         5
+      60: ldc_w         #447                // float 255.0f
+      63: fmul
+      64: f2i
+      65: i2b
+      66: invokevirtual #449                // Method putByte:(IB)V
+      69: aload_0
+      70: bipush        14
+      72: fload         6
+      74: ldc_w         #447                // float 255.0f
+      77: fmul
+      78: f2i
+      79: i2b
+      80: invokevirtual #449                // Method putByte:(IB)V
+      83: aload_0
+      84: bipush        15
+      86: fload         7
+      88: ldc_w         #447                // float 255.0f
+      91: fmul
+      92: f2i
+      93: i2b
+      94: invokevirtual #449                // Method putByte:(IB)V
+      97: aload_0
+      98: bipush        16
+     100: fload         8
+     102: invokevirtual #446                // Method putFloat:(IF)V
+     105: aload_0
+     106: bipush        20
+     108: fload         9
+     110: invokevirtual #446                // Method putFloat:(IF)V
+     113: aload_0
+     114: getfield      #220                // Field fullFormat:Z
+     117: ifeq          156
+     120: aload_0
+     121: bipush        24
+     123: iload         10
+     125: ldc_w         #450                // int 65535
+     128: iand
+     129: i2s
+     130: invokevirtual #452                // Method putShort:(IS)V
+     133: aload_0
+     134: bipush        26
+     136: iload         10
+     138: bipush        16
+     140: ishr
+     141: ldc_w         #450                // int 65535
+     144: iand
+     145: i2s
+     146: invokevirtual #452                // Method putShort:(IS)V
+     149: bipush        28
+     151: istore        15
+     153: goto          160
+     156: bipush        24
+     158: istore        15
+     160: aload_0
+     161: iload         15
+     163: iconst_0
+     164: iadd
+     165: iload         11
+     167: ldc_w         #450                // int 65535
+     170: iand
+     171: i2s
+     172: invokevirtual #452                // Method putShort:(IS)V
+     175: aload_0
+     176: iload         15
+     178: iconst_2
+     179: iadd
+     180: iload         11
+     182: bipush        16
+     184: ishr
+     185: ldc_w         #450                // int 65535
+     188: iand
+     189: i2s
+     190: invokevirtual #452                // Method putShort:(IS)V
+     193: aload_0
+     194: iload         15
+     196: iconst_4
+     197: iadd
+     198: fload         12
+     200: invokestatic  #456                // InterfaceMethod com/mojang/blaze3d/vertex/BufferVertexConsumer.normalIntValue:(F)B
+     203: invokevirtual #449                // Method putByte:(IB)V
+     206: aload_0
+     207: iload         15
+     209: iconst_5
+     210: iadd
+     211: fload         13
+     213: invokestatic  #456                // InterfaceMethod com/mojang/blaze3d/vertex/BufferVertexConsumer.normalIntValue:(F)B
+     216: invokevirtual #449                // Method putByte:(IB)V
+     219: aload_0
+     220: iload         15
+     222: bipush        6
+     224: iadd
+     225: fload         14
+     227: invokestatic  #456                // InterfaceMethod com/mojang/blaze3d/vertex/BufferVertexConsumer.normalIntValue:(F)B
+     230: invokevirtual #449                // Method putByte:(IB)V
+     233: aload_0
+     234: dup
+     235: getfield      #93                 // Field nextElementByte:I
+     238: iload         15
+     240: bipush        8
+     242: iadd
+     243: iadd
+     244: putfield      #93                 // Field nextElementByte:I
+     247: aload_0
+     248: invokevirtual #458                // Method endVertex:()V
+     251: return
+     252: aload_0
+     253: fload_1
+     254: fload_2
+     255: fload_3
+     256: fload         4
+     258: fload         5
+     260: fload         6
+     262: fload         7
+     264: fload         8
+     266: fload         9
+     268: iload         10
+     270: iload         11
+     272: fload         12
+     274: fload         13
+     276: fload         14
+     278: invokespecial #460                // Method com/mojang/blaze3d/vertex/DefaultedVertexConsumer.vertex:(FFFFFFFFFIIFFF)V
+     281: return
+
+  void releaseRenderedBuffer();
+    Code:
+       0: aload_0
+       1: getfield      #357                // Field renderedBufferCount:I
+       4: ifle          25
+       7: aload_0
+       8: dup
+       9: getfield      #357                // Field renderedBufferCount:I
+      12: iconst_1
+      13: isub
+      14: dup_x1
+      15: putfield      #357                // Field renderedBufferCount:I
+      18: ifne          25
+      21: aload_0
+      22: invokevirtual #465                // Method clear:()V
+      25: return
+
+  public void clear();
+    Code:
+       0: aload_0
+       1: getfield      #357                // Field renderedBufferCount:I
+       4: ifle          18
+       7: getstatic     #109                // Field LOGGER:Lorg/slf4j/Logger;
+      10: ldc_w         #467                // String Clearing BufferBuilder with unused batches
+      13: invokeinterface #470,  2          // InterfaceMethod org/slf4j/Logger.warn:(Ljava/lang/String;)V
+      18: aload_0
+      19: invokevirtual #473                // Method discard:()V
+      22: return
+
+  public void discard();
+    Code:
+       0: aload_0
+       1: iconst_0
+       2: putfield      #357                // Field renderedBufferCount:I
+       5: aload_0
+       6: iconst_0
+       7: putfield      #178                // Field renderedBufferPointer:I
+      10: aload_0
+      11: iconst_0
+      12: putfield      #93                 // Field nextElementByte:I
+      15: return
+
+  public void release();
+    Code:
+       0: aload_0
+       1: getfield      #357                // Field renderedBufferCount:I
+       4: ifle          18
+       7: new           #164                // class java/lang/IllegalStateException
+      10: dup
+      11: ldc_w         #476                // String BufferBuilder closed with unused batches
+      14: invokespecial #169                // Method java/lang/IllegalStateException."<init>":(Ljava/lang/String;)V
+      17: athrow
+      18: aload_0
+      19: getfield      #188                // Field building:Z
+      22: ifeq          36
+      25: new           #164                // class java/lang/IllegalStateException
+      28: dup
+      29: ldc_w         #478                // String Cannot close BufferBuilder while it is building
+      32: invokespecial #169                // Method java/lang/IllegalStateException."<init>":(Ljava/lang/String;)V
+      35: athrow
+      36: aload_0
+      37: getfield      #162                // Field closed:Z
+      40: ifeq          44
+      43: return
+      44: aload_0
+      45: iconst_1
+      46: putfield      #162                // Field closed:Z
+      49: aload_0
+      50: getfield      #79                 // Field buffer:Ljava/nio/ByteBuffer;
+      53: invokestatic  #482                // Method com/mojang/blaze3d/platform/MemoryTracker.free:(Ljava/nio/ByteBuffer;)V
+      56: return
+
+  public com.mojang.blaze3d.vertex.VertexFormatElement currentElement();
+    Code:
+       0: aload_0
+       1: getfield      #206                // Field currentElement:Lcom/mojang/blaze3d/vertex/VertexFormatElement;
+       4: ifnonnull     18
+       7: new           #164                // class java/lang/IllegalStateException
+      10: dup
+      11: ldc_w         #485                // String BufferBuilder not started
+      14: invokespecial #169                // Method java/lang/IllegalStateException."<init>":(Ljava/lang/String;)V
+      17: athrow
+      18: aload_0
+      19: getfield      #206                // Field currentElement:Lcom/mojang/blaze3d/vertex/VertexFormatElement;
+      22: areturn
+
+  public boolean building();
+    Code:
+       0: aload_0
+       1: getfield      #188                // Field building:Z
+       4: ireturn
+
+  java.nio.ByteBuffer bufferSlice(int, int);
+    Code:
+       0: aload_0
+       1: getfield      #79                 // Field buffer:Ljava/nio/ByteBuffer;
+       4: iload_1
+       5: iload_2
+       6: iload_1
+       7: isub
+       8: invokestatic  #493                // Method org/lwjgl/system/MemoryUtil.memSlice:(Ljava/nio/ByteBuffer;II)Ljava/nio/ByteBuffer;
+      11: areturn
+
+  private void method_49905(org.apache.commons.lang3.mutable.MutableInt, int);
+    Code:
+       0: aload_0
+       1: getfield      #79                 // Field buffer:Ljava/nio/ByteBuffer;
+       4: aload_1
+       5: iconst_4
+       6: invokevirtual #496                // Method org/apache/commons/lang3/mutable/MutableInt.getAndAdd:(I)I
+       9: iload_2
+      10: invokevirtual #499                // Method java/nio/ByteBuffer.putInt:(II)Ljava/nio/ByteBuffer;
+      13: pop
+      14: return
+
+  private void method_31953(org.apache.commons.lang3.mutable.MutableInt, int);
+    Code:
+       0: aload_0
+       1: getfield      #79                 // Field buffer:Ljava/nio/ByteBuffer;
+       4: aload_1
+       5: iconst_2
+       6: invokevirtual #496                // Method org/apache/commons/lang3/mutable/MutableInt.getAndAdd:(I)I
+       9: iload_2
+      10: i2s
+      11: invokevirtual #378                // Method java/nio/ByteBuffer.putShort:(IS)Ljava/nio/ByteBuffer;
+      14: pop
+      15: return
+
+  static {};
+    Code:
+       0: invokestatic  #506                // Method com/mojang/logging/LogUtils.getLogger:()Lorg/slf4j/Logger;
+       3: putstatic     #109                // Field LOGGER:Lorg/slf4j/Logger;
+       6: return
+}
+Compiled from "DefaultVertexFormat.java"
+public class com.mojang.blaze3d.vertex.DefaultVertexFormat {
+  public static final com.mojang.blaze3d.vertex.VertexFormatElement ELEMENT_POSITION;
+
+  public static final com.mojang.blaze3d.vertex.VertexFormatElement ELEMENT_COLOR;
+
+  public static final com.mojang.blaze3d.vertex.VertexFormatElement ELEMENT_UV0;
+
+  public static final com.mojang.blaze3d.vertex.VertexFormatElement ELEMENT_UV1;
+
+  public static final com.mojang.blaze3d.vertex.VertexFormatElement ELEMENT_UV2;
+
+  public static final com.mojang.blaze3d.vertex.VertexFormatElement ELEMENT_NORMAL;
+
+  public static final com.mojang.blaze3d.vertex.VertexFormatElement ELEMENT_PADDING;
+
+  public static final com.mojang.blaze3d.vertex.VertexFormatElement ELEMENT_UV;
+
+  public static final com.mojang.blaze3d.vertex.VertexFormat BLIT_SCREEN;
+
+  public static final com.mojang.blaze3d.vertex.VertexFormat BLOCK;
+
+  public static final com.mojang.blaze3d.vertex.VertexFormat NEW_ENTITY;
+
+  public static final com.mojang.blaze3d.vertex.VertexFormat PARTICLE;
+
+  public static final com.mojang.blaze3d.vertex.VertexFormat POSITION;
+
+  public static final com.mojang.blaze3d.vertex.VertexFormat POSITION_COLOR;
+
+  public static final com.mojang.blaze3d.vertex.VertexFormat POSITION_COLOR_NORMAL;
+
+  public static final com.mojang.blaze3d.vertex.VertexFormat POSITION_COLOR_LIGHTMAP;
+
+  public static final com.mojang.blaze3d.vertex.VertexFormat POSITION_TEX;
+
+  public static final com.mojang.blaze3d.vertex.VertexFormat POSITION_COLOR_TEX;
+
+  public static final com.mojang.blaze3d.vertex.VertexFormat POSITION_TEX_COLOR;
+
+  public static final com.mojang.blaze3d.vertex.VertexFormat POSITION_COLOR_TEX_LIGHTMAP;
+
+  public static final com.mojang.blaze3d.vertex.VertexFormat POSITION_TEX_LIGHTMAP_COLOR;
+
+  public static final com.mojang.blaze3d.vertex.VertexFormat POSITION_TEX_COLOR_NORMAL;
+
+  public com.mojang.blaze3d.vertex.DefaultVertexFormat();
+    Code:
+       0: aload_0
+       1: invokespecial #46                 // Method java/lang/Object."<init>":()V
+       4: return
+
+  static {};
+    Code:
+       0: new           #9                  // class com/mojang/blaze3d/vertex/VertexFormatElement
+       3: dup
+       4: iconst_0
+       5: getstatic     #53                 // Field com/mojang/blaze3d/vertex/VertexFormatElement$Type.FLOAT:Lcom/mojang/blaze3d/vertex/VertexFormatElement$Type;
+       8: getstatic     #56                 // Field com/mojang/blaze3d/vertex/VertexFormatElement$Usage.POSITION:Lcom/mojang/blaze3d/vertex/VertexFormatElement$Usage;
+      11: iconst_3
+      12: invokespecial #59                 // Method com/mojang/blaze3d/vertex/VertexFormatElement."<init>":(ILcom/mojang/blaze3d/vertex/VertexFormatElement$Type;Lcom/mojang/blaze3d/vertex/VertexFormatElement$Usage;I)V
+      15: putstatic     #61                 // Field ELEMENT_POSITION:Lcom/mojang/blaze3d/vertex/VertexFormatElement;
+      18: new           #9                  // class com/mojang/blaze3d/vertex/VertexFormatElement
+      21: dup
+      22: iconst_0
+      23: getstatic     #64                 // Field com/mojang/blaze3d/vertex/VertexFormatElement$Type.UBYTE:Lcom/mojang/blaze3d/vertex/VertexFormatElement$Type;
+      26: getstatic     #67                 // Field com/mojang/blaze3d/vertex/VertexFormatElement$Usage.COLOR:Lcom/mojang/blaze3d/vertex/VertexFormatElement$Usage;
+      29: iconst_4
+      30: invokespecial #59                 // Method com/mojang/blaze3d/vertex/VertexFormatElement."<init>":(ILcom/mojang/blaze3d/vertex/VertexFormatElement$Type;Lcom/mojang/blaze3d/vertex/VertexFormatElement$Usage;I)V
+      33: putstatic     #69                 // Field ELEMENT_COLOR:Lcom/mojang/blaze3d/vertex/VertexFormatElement;
+      36: new           #9                  // class com/mojang/blaze3d/vertex/VertexFormatElement
+      39: dup
+      40: iconst_0
+      41: getstatic     #53                 // Field com/mojang/blaze3d/vertex/VertexFormatElement$Type.FLOAT:Lcom/mojang/blaze3d/vertex/VertexFormatElement$Type;
+      44: getstatic     #72                 // Field com/mojang/blaze3d/vertex/VertexFormatElement$Usage.UV:Lcom/mojang/blaze3d/vertex/VertexFormatElement$Usage;
+      47: iconst_2
+      48: invokespecial #59                 // Method com/mojang/blaze3d/vertex/VertexFormatElement."<init>":(ILcom/mojang/blaze3d/vertex/VertexFormatElement$Type;Lcom/mojang/blaze3d/vertex/VertexFormatElement$Usage;I)V
+      51: putstatic     #74                 // Field ELEMENT_UV0:Lcom/mojang/blaze3d/vertex/VertexFormatElement;
+      54: new           #9                  // class com/mojang/blaze3d/vertex/VertexFormatElement
+      57: dup
+      58: iconst_1
+      59: getstatic     #77                 // Field com/mojang/blaze3d/vertex/VertexFormatElement$Type.SHORT:Lcom/mojang/blaze3d/vertex/VertexFormatElement$Type;
+      62: getstatic     #72                 // Field com/mojang/blaze3d/vertex/VertexFormatElement$Usage.UV:Lcom/mojang/blaze3d/vertex/VertexFormatElement$Usage;
+      65: iconst_2
+      66: invokespecial #59                 // Method com/mojang/blaze3d/vertex/VertexFormatElement."<init>":(ILcom/mojang/blaze3d/vertex/VertexFormatElement$Type;Lcom/mojang/blaze3d/vertex/VertexFormatElement$Usage;I)V
+      69: putstatic     #79                 // Field ELEMENT_UV1:Lcom/mojang/blaze3d/vertex/VertexFormatElement;
+      72: new           #9                  // class com/mojang/blaze3d/vertex/VertexFormatElement
+      75: dup
+      76: iconst_2
+      77: getstatic     #77                 // Field com/mojang/blaze3d/vertex/VertexFormatElement$Type.SHORT:Lcom/mojang/blaze3d/vertex/VertexFormatElement$Type;
+      80: getstatic     #72                 // Field com/mojang/blaze3d/vertex/VertexFormatElement$Usage.UV:Lcom/mojang/blaze3d/vertex/VertexFormatElement$Usage;
+      83: iconst_2
+      84: invokespecial #59                 // Method com/mojang/blaze3d/vertex/VertexFormatElement."<init>":(ILcom/mojang/blaze3d/vertex/VertexFormatElement$Type;Lcom/mojang/blaze3d/vertex/VertexFormatElement$Usage;I)V
+      87: putstatic     #81                 // Field ELEMENT_UV2:Lcom/mojang/blaze3d/vertex/VertexFormatElement;
+      90: new           #9                  // class com/mojang/blaze3d/vertex/VertexFormatElement
+      93: dup
+      94: iconst_0
+      95: getstatic     #84                 // Field com/mojang/blaze3d/vertex/VertexFormatElement$Type.BYTE:Lcom/mojang/blaze3d/vertex/VertexFormatElement$Type;
+      98: getstatic     #87                 // Field com/mojang/blaze3d/vertex/VertexFormatElement$Usage.NORMAL:Lcom/mojang/blaze3d/vertex/VertexFormatElement$Usage;
+     101: iconst_3
+     102: invokespecial #59                 // Method com/mojang/blaze3d/vertex/VertexFormatElement."<init>":(ILcom/mojang/blaze3d/vertex/VertexFormatElement$Type;Lcom/mojang/blaze3d/vertex/VertexFormatElement$Usage;I)V
+     105: putstatic     #89                 // Field ELEMENT_NORMAL:Lcom/mojang/blaze3d/vertex/VertexFormatElement;
+     108: new           #9                  // class com/mojang/blaze3d/vertex/VertexFormatElement
+     111: dup
+     112: iconst_0
+     113: getstatic     #84                 // Field com/mojang/blaze3d/vertex/VertexFormatElement$Type.BYTE:Lcom/mojang/blaze3d/vertex/VertexFormatElement$Type;
+     116: getstatic     #92                 // Field com/mojang/blaze3d/vertex/VertexFormatElement$Usage.PADDING:Lcom/mojang/blaze3d/vertex/VertexFormatElement$Usage;
+     119: iconst_1
+     120: invokespecial #59                 // Method com/mojang/blaze3d/vertex/VertexFormatElement."<init>":(ILcom/mojang/blaze3d/vertex/VertexFormatElement$Type;Lcom/mojang/blaze3d/vertex/VertexFormatElement$Usage;I)V
+     123: putstatic     #94                 // Field ELEMENT_PADDING:Lcom/mojang/blaze3d/vertex/VertexFormatElement;
+     126: getstatic     #74                 // Field ELEMENT_UV0:Lcom/mojang/blaze3d/vertex/VertexFormatElement;
+     129: putstatic     #96                 // Field ELEMENT_UV:Lcom/mojang/blaze3d/vertex/VertexFormatElement;
+     132: new           #98                 // class com/mojang/blaze3d/vertex/VertexFormat
+     135: dup
+     136: invokestatic  #102                // Method com/google/common/collect/ImmutableMap.builder:()Lcom/google/common/collect/ImmutableMap$Builder;
+     139: ldc           #104                // String Position
+     141: getstatic     #61                 // Field ELEMENT_POSITION:Lcom/mojang/blaze3d/vertex/VertexFormatElement;
+     144: invokevirtual #108                // Method com/google/common/collect/ImmutableMap$Builder.put:(Ljava/lang/Object;Ljava/lang/Object;)Lcom/google/common/collect/ImmutableMap$Builder;
+     147: ldc           #109                // String UV
+     149: getstatic     #96                 // Field ELEMENT_UV:Lcom/mojang/blaze3d/vertex/VertexFormatElement;
+     152: invokevirtual #108                // Method com/google/common/collect/ImmutableMap$Builder.put:(Ljava/lang/Object;Ljava/lang/Object;)Lcom/google/common/collect/ImmutableMap$Builder;
+     155: ldc           #111                // String Color
+     157: getstatic     #69                 // Field ELEMENT_COLOR:Lcom/mojang/blaze3d/vertex/VertexFormatElement;
+     160: invokevirtual #108                // Method com/google/common/collect/ImmutableMap$Builder.put:(Ljava/lang/Object;Ljava/lang/Object;)Lcom/google/common/collect/ImmutableMap$Builder;
+     163: invokevirtual #115                // Method com/google/common/collect/ImmutableMap$Builder.build:()Lcom/google/common/collect/ImmutableMap;
+     166: invokespecial #118                // Method com/mojang/blaze3d/vertex/VertexFormat."<init>":(Lcom/google/common/collect/ImmutableMap;)V
+     169: putstatic     #120                // Field BLIT_SCREEN:Lcom/mojang/blaze3d/vertex/VertexFormat;
+     172: new           #98                 // class com/mojang/blaze3d/vertex/VertexFormat
+     175: dup
+     176: invokestatic  #102                // Method com/google/common/collect/ImmutableMap.builder:()Lcom/google/common/collect/ImmutableMap$Builder;
+     179: ldc           #104                // String Position
+     181: getstatic     #61                 // Field ELEMENT_POSITION:Lcom/mojang/blaze3d/vertex/VertexFormatElement;
+     184: invokevirtual #108                // Method com/google/common/collect/ImmutableMap$Builder.put:(Ljava/lang/Object;Ljava/lang/Object;)Lcom/google/common/collect/ImmutableMap$Builder;
+     187: ldc           #111                // String Color
+     189: getstatic     #69                 // Field ELEMENT_COLOR:Lcom/mojang/blaze3d/vertex/VertexFormatElement;
+     192: invokevirtual #108                // Method com/google/common/collect/ImmutableMap$Builder.put:(Ljava/lang/Object;Ljava/lang/Object;)Lcom/google/common/collect/ImmutableMap$Builder;
+     195: ldc           #122                // String UV0
+     197: getstatic     #74                 // Field ELEMENT_UV0:Lcom/mojang/blaze3d/vertex/VertexFormatElement;
+     200: invokevirtual #108                // Method com/google/common/collect/ImmutableMap$Builder.put:(Ljava/lang/Object;Ljava/lang/Object;)Lcom/google/common/collect/ImmutableMap$Builder;
+     203: ldc           #124                // String UV2
+     205: getstatic     #81                 // Field ELEMENT_UV2:Lcom/mojang/blaze3d/vertex/VertexFormatElement;
+     208: invokevirtual #108                // Method com/google/common/collect/ImmutableMap$Builder.put:(Ljava/lang/Object;Ljava/lang/Object;)Lcom/google/common/collect/ImmutableMap$Builder;
+     211: ldc           #126                // String Normal
+     213: getstatic     #89                 // Field ELEMENT_NORMAL:Lcom/mojang/blaze3d/vertex/VertexFormatElement;
+     216: invokevirtual #108                // Method com/google/common/collect/ImmutableMap$Builder.put:(Ljava/lang/Object;Ljava/lang/Object;)Lcom/google/common/collect/ImmutableMap$Builder;
+     219: ldc           #128                // String Padding
+     221: getstatic     #94                 // Field ELEMENT_PADDING:Lcom/mojang/blaze3d/vertex/VertexFormatElement;
+     224: invokevirtual #108                // Method com/google/common/collect/ImmutableMap$Builder.put:(Ljava/lang/Object;Ljava/lang/Object;)Lcom/google/common/collect/ImmutableMap$Builder;
+     227: invokevirtual #115                // Method com/google/common/collect/ImmutableMap$Builder.build:()Lcom/google/common/collect/ImmutableMap;
+     230: invokespecial #118                // Method com/mojang/blaze3d/vertex/VertexFormat."<init>":(Lcom/google/common/collect/ImmutableMap;)V
+     233: putstatic     #130                // Field BLOCK:Lcom/mojang/blaze3d/vertex/VertexFormat;
+     236: new           #98                 // class com/mojang/blaze3d/vertex/VertexFormat
+     239: dup
+     240: invokestatic  #102                // Method com/google/common/collect/ImmutableMap.builder:()Lcom/google/common/collect/ImmutableMap$Builder;
+     243: ldc           #104                // String Position
+     245: getstatic     #61                 // Field ELEMENT_POSITION:Lcom/mojang/blaze3d/vertex/VertexFormatElement;
+     248: invokevirtual #108                // Method com/google/common/collect/ImmutableMap$Builder.put:(Ljava/lang/Object;Ljava/lang/Object;)Lcom/google/common/collect/ImmutableMap$Builder;
+     251: ldc           #111                // String Color
+     253: getstatic     #69                 // Field ELEMENT_COLOR:Lcom/mojang/blaze3d/vertex/VertexFormatElement;
+     256: invokevirtual #108                // Method com/google/common/collect/ImmutableMap$Builder.put:(Ljava/lang/Object;Ljava/lang/Object;)Lcom/google/common/collect/ImmutableMap$Builder;
+     259: ldc           #122                // String UV0
+     261: getstatic     #74                 // Field ELEMENT_UV0:Lcom/mojang/blaze3d/vertex/VertexFormatElement;
+     264: invokevirtual #108                // Method com/google/common/collect/ImmutableMap$Builder.put:(Ljava/lang/Object;Ljava/lang/Object;)Lcom/google/common/collect/ImmutableMap$Builder;
+     267: ldc           #132                // String UV1
+     269: getstatic     #79                 // Field ELEMENT_UV1:Lcom/mojang/blaze3d/vertex/VertexFormatElement;
+     272: invokevirtual #108                // Method com/google/common/collect/ImmutableMap$Builder.put:(Ljava/lang/Object;Ljava/lang/Object;)Lcom/google/common/collect/ImmutableMap$Builder;
+     275: ldc           #124                // String UV2
+     277: getstatic     #81                 // Field ELEMENT_UV2:Lcom/mojang/blaze3d/vertex/VertexFormatElement;
+     280: invokevirtual #108                // Method com/google/common/collect/ImmutableMap$Builder.put:(Ljava/lang/Object;Ljava/lang/Object;)Lcom/google/common/collect/ImmutableMap$Builder;
+     283: ldc           #126                // String Normal
+     285: getstatic     #89                 // Field ELEMENT_NORMAL:Lcom/mojang/blaze3d/vertex/VertexFormatElement;
+     288: invokevirtual #108                // Method com/google/common/collect/ImmutableMap$Builder.put:(Ljava/lang/Object;Ljava/lang/Object;)Lcom/google/common/collect/ImmutableMap$Builder;
+     291: ldc           #128                // String Padding
+     293: getstatic     #94                 // Field ELEMENT_PADDING:Lcom/mojang/blaze3d/vertex/VertexFormatElement;
+     296: invokevirtual #108                // Method com/google/common/collect/ImmutableMap$Builder.put:(Ljava/lang/Object;Ljava/lang/Object;)Lcom/google/common/collect/ImmutableMap$Builder;
+     299: invokevirtual #115                // Method com/google/common/collect/ImmutableMap$Builder.build:()Lcom/google/common/collect/ImmutableMap;
+     302: invokespecial #118                // Method com/mojang/blaze3d/vertex/VertexFormat."<init>":(Lcom/google/common/collect/ImmutableMap;)V
+     305: putstatic     #134                // Field NEW_ENTITY:Lcom/mojang/blaze3d/vertex/VertexFormat;
+     308: new           #98                 // class com/mojang/blaze3d/vertex/VertexFormat
+     311: dup
+     312: invokestatic  #102                // Method com/google/common/collect/ImmutableMap.builder:()Lcom/google/common/collect/ImmutableMap$Builder;
+     315: ldc           #104                // String Position
+     317: getstatic     #61                 // Field ELEMENT_POSITION:Lcom/mojang/blaze3d/vertex/VertexFormatElement;
+     320: invokevirtual #108                // Method com/google/common/collect/ImmutableMap$Builder.put:(Ljava/lang/Object;Ljava/lang/Object;)Lcom/google/common/collect/ImmutableMap$Builder;
+     323: ldc           #122                // String UV0
+     325: getstatic     #74                 // Field ELEMENT_UV0:Lcom/mojang/blaze3d/vertex/VertexFormatElement;
+     328: invokevirtual #108                // Method com/google/common/collect/ImmutableMap$Builder.put:(Ljava/lang/Object;Ljava/lang/Object;)Lcom/google/common/collect/ImmutableMap$Builder;
+     331: ldc           #111                // String Color
+     333: getstatic     #69                 // Field ELEMENT_COLOR:Lcom/mojang/blaze3d/vertex/VertexFormatElement;
+     336: invokevirtual #108                // Method com/google/common/collect/ImmutableMap$Builder.put:(Ljava/lang/Object;Ljava/lang/Object;)Lcom/google/common/collect/ImmutableMap$Builder;
+     339: ldc           #124                // String UV2
+     341: getstatic     #81                 // Field ELEMENT_UV2:Lcom/mojang/blaze3d/vertex/VertexFormatElement;
+     344: invokevirtual #108                // Method com/google/common/collect/ImmutableMap$Builder.put:(Ljava/lang/Object;Ljava/lang/Object;)Lcom/google/common/collect/ImmutableMap$Builder;
+     347: invokevirtual #115                // Method com/google/common/collect/ImmutableMap$Builder.build:()Lcom/google/common/collect/ImmutableMap;
+     350: invokespecial #118                // Method com/mojang/blaze3d/vertex/VertexFormat."<init>":(Lcom/google/common/collect/ImmutableMap;)V
+     353: putstatic     #136                // Field PARTICLE:Lcom/mojang/blaze3d/vertex/VertexFormat;
+     356: new           #98                 // class com/mojang/blaze3d/vertex/VertexFormat
+     359: dup
+     360: invokestatic  #102                // Method com/google/common/collect/ImmutableMap.builder:()Lcom/google/common/collect/ImmutableMap$Builder;
+     363: ldc           #104                // String Position
+     365: getstatic     #61                 // Field ELEMENT_POSITION:Lcom/mojang/blaze3d/vertex/VertexFormatElement;
+     368: invokevirtual #108                // Method com/google/common/collect/ImmutableMap$Builder.put:(Ljava/lang/Object;Ljava/lang/Object;)Lcom/google/common/collect/ImmutableMap$Builder;
+     371: invokevirtual #115                // Method com/google/common/collect/ImmutableMap$Builder.build:()Lcom/google/common/collect/ImmutableMap;
+     374: invokespecial #118                // Method com/mojang/blaze3d/vertex/VertexFormat."<init>":(Lcom/google/common/collect/ImmutableMap;)V
+     377: putstatic     #138                // Field POSITION:Lcom/mojang/blaze3d/vertex/VertexFormat;
+     380: new           #98                 // class com/mojang/blaze3d/vertex/VertexFormat
+     383: dup
+     384: invokestatic  #102                // Method com/google/common/collect/ImmutableMap.builder:()Lcom/google/common/collect/ImmutableMap$Builder;
+     387: ldc           #104                // String Position
+     389: getstatic     #61                 // Field ELEMENT_POSITION:Lcom/mojang/blaze3d/vertex/VertexFormatElement;
+     392: invokevirtual #108                // Method com/google/common/collect/ImmutableMap$Builder.put:(Ljava/lang/Object;Ljava/lang/Object;)Lcom/google/common/collect/ImmutableMap$Builder;
+     395: ldc           #111                // String Color
+     397: getstatic     #69                 // Field ELEMENT_COLOR:Lcom/mojang/blaze3d/vertex/VertexFormatElement;
+     400: invokevirtual #108                // Method com/google/common/collect/ImmutableMap$Builder.put:(Ljava/lang/Object;Ljava/lang/Object;)Lcom/google/common/collect/ImmutableMap$Builder;
+     403: invokevirtual #115                // Method com/google/common/collect/ImmutableMap$Builder.build:()Lcom/google/common/collect/ImmutableMap;
+     406: invokespecial #118                // Method com/mojang/blaze3d/vertex/VertexFormat."<init>":(Lcom/google/common/collect/ImmutableMap;)V
+     409: putstatic     #140                // Field POSITION_COLOR:Lcom/mojang/blaze3d/vertex/VertexFormat;
+     412: new           #98                 // class com/mojang/blaze3d/vertex/VertexFormat
+     415: dup
+     416: invokestatic  #102                // Method com/google/common/collect/ImmutableMap.builder:()Lcom/google/common/collect/ImmutableMap$Builder;
+     419: ldc           #104                // String Position
+     421: getstatic     #61                 // Field ELEMENT_POSITION:Lcom/mojang/blaze3d/vertex/VertexFormatElement;
+     424: invokevirtual #108                // Method com/google/common/collect/ImmutableMap$Builder.put:(Ljava/lang/Object;Ljava/lang/Object;)Lcom/google/common/collect/ImmutableMap$Builder;
+     427: ldc           #111                // String Color
+     429: getstatic     #69                 // Field ELEMENT_COLOR:Lcom/mojang/blaze3d/vertex/VertexFormatElement;
+     432: invokevirtual #108                // Method com/google/common/collect/ImmutableMap$Builder.put:(Ljava/lang/Object;Ljava/lang/Object;)Lcom/google/common/collect/ImmutableMap$Builder;
+     435: ldc           #126                // String Normal
+     437: getstatic     #89                 // Field ELEMENT_NORMAL:Lcom/mojang/blaze3d/vertex/VertexFormatElement;
+     440: invokevirtual #108                // Method com/google/common/collect/ImmutableMap$Builder.put:(Ljava/lang/Object;Ljava/lang/Object;)Lcom/google/common/collect/ImmutableMap$Builder;
+     443: ldc           #128                // String Padding
+     445: getstatic     #94                 // Field ELEMENT_PADDING:Lcom/mojang/blaze3d/vertex/VertexFormatElement;
+     448: invokevirtual #108                // Method com/google/common/collect/ImmutableMap$Builder.put:(Ljava/lang/Object;Ljava/lang/Object;)Lcom/google/common/collect/ImmutableMap$Builder;
+     451: invokevirtual #115                // Method com/google/common/collect/ImmutableMap$Builder.build:()Lcom/google/common/collect/ImmutableMap;
+     454: invokespecial #118                // Method com/mojang/blaze3d/vertex/VertexFormat."<init>":(Lcom/google/common/collect/ImmutableMap;)V
+     457: putstatic     #142                // Field POSITION_COLOR_NORMAL:Lcom/mojang/blaze3d/vertex/VertexFormat;
+     460: new           #98                 // class com/mojang/blaze3d/vertex/VertexFormat
+     463: dup
+     464: invokestatic  #102                // Method com/google/common/collect/ImmutableMap.builder:()Lcom/google/common/collect/ImmutableMap$Builder;
+     467: ldc           #104                // String Position
+     469: getstatic     #61                 // Field ELEMENT_POSITION:Lcom/mojang/blaze3d/vertex/VertexFormatElement;
+     472: invokevirtual #108                // Method com/google/common/collect/ImmutableMap$Builder.put:(Ljava/lang/Object;Ljava/lang/Object;)Lcom/google/common/collect/ImmutableMap$Builder;
+     475: ldc           #111                // String Color
+     477: getstatic     #69                 // Field ELEMENT_COLOR:Lcom/mojang/blaze3d/vertex/VertexFormatElement;
+     480: invokevirtual #108                // Method com/google/common/collect/ImmutableMap$Builder.put:(Ljava/lang/Object;Ljava/lang/Object;)Lcom/google/common/collect/ImmutableMap$Builder;
+     483: ldc           #124                // String UV2
+     485: getstatic     #81                 // Field ELEMENT_UV2:Lcom/mojang/blaze3d/vertex/VertexFormatElement;
+     488: invokevirtual #108                // Method com/google/common/collect/ImmutableMap$Builder.put:(Ljava/lang/Object;Ljava/lang/Object;)Lcom/google/common/collect/ImmutableMap$Builder;
+     491: invokevirtual #115                // Method com/google/common/collect/ImmutableMap$Builder.build:()Lcom/google/common/collect/ImmutableMap;
+     494: invokespecial #118                // Method com/mojang/blaze3d/vertex/VertexFormat."<init>":(Lcom/google/common/collect/ImmutableMap;)V
+     497: putstatic     #144                // Field POSITION_COLOR_LIGHTMAP:Lcom/mojang/blaze3d/vertex/VertexFormat;
+     500: new           #98                 // class com/mojang/blaze3d/vertex/VertexFormat
+     503: dup
+     504: invokestatic  #102                // Method com/google/common/collect/ImmutableMap.builder:()Lcom/google/common/collect/ImmutableMap$Builder;
+     507: ldc           #104                // String Position
+     509: getstatic     #61                 // Field ELEMENT_POSITION:Lcom/mojang/blaze3d/vertex/VertexFormatElement;
+     512: invokevirtual #108                // Method com/google/common/collect/ImmutableMap$Builder.put:(Ljava/lang/Object;Ljava/lang/Object;)Lcom/google/common/collect/ImmutableMap$Builder;
+     515: ldc           #122                // String UV0
+     517: getstatic     #74                 // Field ELEMENT_UV0:Lcom/mojang/blaze3d/vertex/VertexFormatElement;
+     520: invokevirtual #108                // Method com/google/common/collect/ImmutableMap$Builder.put:(Ljava/lang/Object;Ljava/lang/Object;)Lcom/google/common/collect/ImmutableMap$Builder;
+     523: invokevirtual #115                // Method com/google/common/collect/ImmutableMap$Builder.build:()Lcom/google/common/collect/ImmutableMap;
+     526: invokespecial #118                // Method com/mojang/blaze3d/vertex/VertexFormat."<init>":(Lcom/google/common/collect/ImmutableMap;)V
+     529: putstatic     #146                // Field POSITION_TEX:Lcom/mojang/blaze3d/vertex/VertexFormat;
+     532: new           #98                 // class com/mojang/blaze3d/vertex/VertexFormat
+     535: dup
+     536: invokestatic  #102                // Method com/google/common/collect/ImmutableMap.builder:()Lcom/google/common/collect/ImmutableMap$Builder;
+     539: ldc           #104                // String Position
+     541: getstatic     #61                 // Field ELEMENT_POSITION:Lcom/mojang/blaze3d/vertex/VertexFormatElement;
+     544: invokevirtual #108                // Method com/google/common/collect/ImmutableMap$Builder.put:(Ljava/lang/Object;Ljava/lang/Object;)Lcom/google/common/collect/ImmutableMap$Builder;
+     547: ldc           #111                // String Color
+     549: getstatic     #69                 // Field ELEMENT_COLOR:Lcom/mojang/blaze3d/vertex/VertexFormatElement;
+     552: invokevirtual #108                // Method com/google/common/collect/ImmutableMap$Builder.put:(Ljava/lang/Object;Ljava/lang/Object;)Lcom/google/common/collect/ImmutableMap$Builder;
+     555: ldc           #122                // String UV0
+     557: getstatic     #74                 // Field ELEMENT_UV0:Lcom/mojang/blaze3d/vertex/VertexFormatElement;
+     560: invokevirtual #108                // Method com/google/common/collect/ImmutableMap$Builder.put:(Ljava/lang/Object;Ljava/lang/Object;)Lcom/google/common/collect/ImmutableMap$Builder;
+     563: invokevirtual #115                // Method com/google/common/collect/ImmutableMap$Builder.build:()Lcom/google/common/collect/ImmutableMap;
+     566: invokespecial #118                // Method com/mojang/blaze3d/vertex/VertexFormat."<init>":(Lcom/google/common/collect/ImmutableMap;)V
+     569: putstatic     #148                // Field POSITION_COLOR_TEX:Lcom/mojang/blaze3d/vertex/VertexFormat;
+     572: new           #98                 // class com/mojang/blaze3d/vertex/VertexFormat
+     575: dup
+     576: invokestatic  #102                // Method com/google/common/collect/ImmutableMap.builder:()Lcom/google/common/collect/ImmutableMap$Builder;
+     579: ldc           #104                // String Position
+     581: getstatic     #61                 // Field ELEMENT_POSITION:Lcom/mojang/blaze3d/vertex/VertexFormatElement;
+     584: invokevirtual #108                // Method com/google/common/collect/ImmutableMap$Builder.put:(Ljava/lang/Object;Ljava/lang/Object;)Lcom/google/common/collect/ImmutableMap$Builder;
+     587: ldc           #122                // String UV0
+     589: getstatic     #74                 // Field ELEMENT_UV0:Lcom/mojang/blaze3d/vertex/VertexFormatElement;
+     592: invokevirtual #108                // Method com/google/common/collect/ImmutableMap$Builder.put:(Ljava/lang/Object;Ljava/lang/Object;)Lcom/google/common/collect/ImmutableMap$Builder;
+     595: ldc           #111                // String Color
+     597: getstatic     #69                 // Field ELEMENT_COLOR:Lcom/mojang/blaze3d/vertex/VertexFormatElement;
+     600: invokevirtual #108                // Method com/google/common/collect/ImmutableMap$Builder.put:(Ljava/lang/Object;Ljava/lang/Object;)Lcom/google/common/collect/ImmutableMap$Builder;
+     603: invokevirtual #115                // Method com/google/common/collect/ImmutableMap$Builder.build:()Lcom/google/common/collect/ImmutableMap;
+     606: invokespecial #118                // Method com/mojang/blaze3d/vertex/VertexFormat."<init>":(Lcom/google/common/collect/ImmutableMap;)V
+     609: putstatic     #150                // Field POSITION_TEX_COLOR:Lcom/mojang/blaze3d/vertex/VertexFormat;
+     612: new           #98                 // class com/mojang/blaze3d/vertex/VertexFormat
+     615: dup
+     616: invokestatic  #102                // Method com/google/common/collect/ImmutableMap.builder:()Lcom/google/common/collect/ImmutableMap$Builder;
+     619: ldc           #104                // String Position
+     621: getstatic     #61                 // Field ELEMENT_POSITION:Lcom/mojang/blaze3d/vertex/VertexFormatElement;
+     624: invokevirtual #108                // Method com/google/common/collect/ImmutableMap$Builder.put:(Ljava/lang/Object;Ljava/lang/Object;)Lcom/google/common/collect/ImmutableMap$Builder;
+     627: ldc           #111                // String Color
+     629: getstatic     #69                 // Field ELEMENT_COLOR:Lcom/mojang/blaze3d/vertex/VertexFormatElement;
+     632: invokevirtual #108                // Method com/google/common/collect/ImmutableMap$Builder.put:(Ljava/lang/Object;Ljava/lang/Object;)Lcom/google/common/collect/ImmutableMap$Builder;
+     635: ldc           #122                // String UV0
+     637: getstatic     #74                 // Field ELEMENT_UV0:Lcom/mojang/blaze3d/vertex/VertexFormatElement;
+     640: invokevirtual #108                // Method com/google/common/collect/ImmutableMap$Builder.put:(Ljava/lang/Object;Ljava/lang/Object;)Lcom/google/common/collect/ImmutableMap$Builder;
+     643: ldc           #124                // String UV2
+     645: getstatic     #81                 // Field ELEMENT_UV2:Lcom/mojang/blaze3d/vertex/VertexFormatElement;
+     648: invokevirtual #108                // Method com/google/common/collect/ImmutableMap$Builder.put:(Ljava/lang/Object;Ljava/lang/Object;)Lcom/google/common/collect/ImmutableMap$Builder;
+     651: invokevirtual #115                // Method com/google/common/collect/ImmutableMap$Builder.build:()Lcom/google/common/collect/ImmutableMap;
+     654: invokespecial #118                // Method com/mojang/blaze3d/vertex/VertexFormat."<init>":(Lcom/google/common/collect/ImmutableMap;)V
+     657: putstatic     #152                // Field POSITION_COLOR_TEX_LIGHTMAP:Lcom/mojang/blaze3d/vertex/VertexFormat;
+     660: new           #98                 // class com/mojang/blaze3d/vertex/VertexFormat
+     663: dup
+     664: invokestatic  #102                // Method com/google/common/collect/ImmutableMap.builder:()Lcom/google/common/collect/ImmutableMap$Builder;
+     667: ldc           #104                // String Position
+     669: getstatic     #61                 // Field ELEMENT_POSITION:Lcom/mojang/blaze3d/vertex/VertexFormatElement;
+     672: invokevirtual #108                // Method com/google/common/collect/ImmutableMap$Builder.put:(Ljava/lang/Object;Ljava/lang/Object;)Lcom/google/common/collect/ImmutableMap$Builder;
+     675: ldc           #122                // String UV0
+     677: getstatic     #74                 // Field ELEMENT_UV0:Lcom/mojang/blaze3d/vertex/VertexFormatElement;
+     680: invokevirtual #108                // Method com/google/common/collect/ImmutableMap$Builder.put:(Ljava/lang/Object;Ljava/lang/Object;)Lcom/google/common/collect/ImmutableMap$Builder;
+     683: ldc           #124                // String UV2
+     685: getstatic     #81                 // Field ELEMENT_UV2:Lcom/mojang/blaze3d/vertex/VertexFormatElement;
+     688: invokevirtual #108                // Method com/google/common/collect/ImmutableMap$Builder.put:(Ljava/lang/Object;Ljava/lang/Object;)Lcom/google/common/collect/ImmutableMap$Builder;
+     691: ldc           #111                // String Color
+     693: getstatic     #69                 // Field ELEMENT_COLOR:Lcom/mojang/blaze3d/vertex/VertexFormatElement;
+     696: invokevirtual #108                // Method com/google/common/collect/ImmutableMap$Builder.put:(Ljava/lang/Object;Ljava/lang/Object;)Lcom/google/common/collect/ImmutableMap$Builder;
+     699: invokevirtual #115                // Method com/google/common/collect/ImmutableMap$Builder.build:()Lcom/google/common/collect/ImmutableMap;
+     702: invokespecial #118                // Method com/mojang/blaze3d/vertex/VertexFormat."<init>":(Lcom/google/common/collect/ImmutableMap;)V
+     705: putstatic     #154                // Field POSITION_TEX_LIGHTMAP_COLOR:Lcom/mojang/blaze3d/vertex/VertexFormat;
+     708: new           #98                 // class com/mojang/blaze3d/vertex/VertexFormat
+     711: dup
+     712: invokestatic  #102                // Method com/google/common/collect/ImmutableMap.builder:()Lcom/google/common/collect/ImmutableMap$Builder;
+     715: ldc           #104                // String Position
+     717: getstatic     #61                 // Field ELEMENT_POSITION:Lcom/mojang/blaze3d/vertex/VertexFormatElement;
+     720: invokevirtual #108                // Method com/google/common/collect/ImmutableMap$Builder.put:(Ljava/lang/Object;Ljava/lang/Object;)Lcom/google/common/collect/ImmutableMap$Builder;
+     723: ldc           #122                // String UV0
+     725: getstatic     #74                 // Field ELEMENT_UV0:Lcom/mojang/blaze3d/vertex/VertexFormatElement;
+     728: invokevirtual #108                // Method com/google/common/collect/ImmutableMap$Builder.put:(Ljava/lang/Object;Ljava/lang/Object;)Lcom/google/common/collect/ImmutableMap$Builder;
+     731: ldc           #111                // String Color
+     733: getstatic     #69                 // Field ELEMENT_COLOR:Lcom/mojang/blaze3d/vertex/VertexFormatElement;
+     736: invokevirtual #108                // Method com/google/common/collect/ImmutableMap$Builder.put:(Ljava/lang/Object;Ljava/lang/Object;)Lcom/google/common/collect/ImmutableMap$Builder;
+     739: ldc           #126                // String Normal
+     741: getstatic     #89                 // Field ELEMENT_NORMAL:Lcom/mojang/blaze3d/vertex/VertexFormatElement;
+     744: invokevirtual #108                // Method com/google/common/collect/ImmutableMap$Builder.put:(Ljava/lang/Object;Ljava/lang/Object;)Lcom/google/common/collect/ImmutableMap$Builder;
+     747: ldc           #128                // String Padding
+     749: getstatic     #94                 // Field ELEMENT_PADDING:Lcom/mojang/blaze3d/vertex/VertexFormatElement;
+     752: invokevirtual #108                // Method com/google/common/collect/ImmutableMap$Builder.put:(Ljava/lang/Object;Ljava/lang/Object;)Lcom/google/common/collect/ImmutableMap$Builder;
+     755: invokevirtual #115                // Method com/google/common/collect/ImmutableMap$Builder.build:()Lcom/google/common/collect/ImmutableMap;
+     758: invokespecial #118                // Method com/mojang/blaze3d/vertex/VertexFormat."<init>":(Lcom/google/common/collect/ImmutableMap;)V
+     761: putstatic     #156                // Field POSITION_TEX_COLOR_NORMAL:Lcom/mojang/blaze3d/vertex/VertexFormat;
+     764: return
+}

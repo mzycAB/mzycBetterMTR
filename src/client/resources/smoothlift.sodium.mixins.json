@@ -1,0 +1,17 @@
+{
+	"required": false,
+	"package": "smooth.lift.client.mixin.sodium",
+	"compatibilityLevel": "JAVA_17",
+	"plugin": "smooth.lift.client.mixin.sodium.SodiumLightMixinPlugin",
+	"client": [
+		"LightDataAccessJellyMixin",
+		"LightDataAccessCafMixin"
+	],
+	"injectors": {
+		"defaultRequire": 0
+	},
+	"overwrites": {
+		"requireAnnotations": true
+	},
+	"refmap": "client-mzycBetterMTR-refmap.json"
+}
