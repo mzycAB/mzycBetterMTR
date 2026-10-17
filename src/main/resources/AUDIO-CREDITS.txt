@@ -1,0 +1,107 @@
+SmoothLift 内置音频 · 出处与许可
+Bundled audio — source and license
+=========================================================
+
+【2026-10-15】本模组随 jar 分发的音频**除 1 段 CC0 扶梯底噪外，全部是自己合成的**
+（合成脚本 `_tools/gen_replace_audio.py`：numpy 纯合成 → 用 `imageio_ffmpeg` 自带的静态
+ffmpeg + libvorbis 编码成 Ogg Vorbis）。
+没有一段来自其它模组、商业音源或第三方录音。唯一的外部素材是下面 1.1 那段 CC0 录音。
+
+--------------------------------------------------------------------
+一、随 jar 分发的素材一览
+
+复现脚本：`_tools/gen_replace_audio.py`（合成）＋ `_tools/apply_replace_audio.py`（铺进各工程）。
+量测脚本：`_tools/_measure_src_audio.py`。
+
+文件 / file                             时长      峰值      RMS       说明
+--------------------------------------  --------  --------  --------  --------------------------------------------
+audio/subway_escalator.ogg              19.780s   0.0642    0.0088    ← 唯一一段外部素材，CC0（见 1.1）
+audio/escalator_chime_board.ogg         2.000s    0.3303    0.0237    ← 港铁式「咔」敲击，自合成（单声道）
+audio/escalator_chime_alight.ogg        2.000s    0.3153    0.0059    ← 同上（离开端，单声道）
+audio/escalator_chime_rate4.ogg         2.000s    0.3215    0.0134    ← 同上（4 Hz 档，单声道）
+audio/escalator_chime_rate25.ogg        2.000s    0.3396    0.0342    ← 同上（2.5 Hz 档，单声道）
+audio/escalator_chime_rate50.ogg        2.000s    0.3308    0.0364    ← 同上（5 Hz 档，单声道）
+audio/liftmusic.ogg                     0.859s    0.1267    0.0491    ← 直梯开关门提示音，自合成谐波长音
+audio/dooropen.ogg                      2.283s    0.4026    0.1309    ← 屏蔽门**开门**提示音：两声同音高的「叮-叮」
+audio/doorclose.ogg                     4.000s    0.4006    0.1373    ← 屏蔽门关门（显式素材档）：纯嘀嘀串
+audio/mdoorclose.ogg                    4.000s    0.4006    0.1373    ← 屏蔽门关门（默认档）：同上一段
+
+★ **响度对齐的口径 = RMS，不是峰值**。游戏里「音量 100 = 原始音量」是一条**响度**约定；
+  两类素材的波峰因数不同（旧 liftmusic 实测 RMS/峰值 = 0.261，纯合成版本 ≈ 0.39），
+  按峰值对齐会让新素材听起来明显更响/更轻。所以合成脚本最后一步按 RMS 对齐（`normalize_rms`）。
+  ★ 唯一例外是 `dooropen.ogg`：它与关门嘀嘀的波峰因数几乎相同（0.325 vs 0.343），
+    按峰值对齐与按 RMS 对齐结果一致；取峰值是为了让「开门 / 关门」两段在游戏里响度同级。
+
+★ 合成音的详细配方（都在 `gen_replace_audio.py` 里，逐条有注释）：
+
+  · liftmusic.ogg —— 基频 801.882Hz 的第 5/6/7/8/9 次谐波按实测相对高度叠（各带不同相位），
+    包络 = 8ms 起振 → 平段 → 末 18% 收尾，长 0.859s（开关门连播的节奏是按它定的）。
+  · dooropen.ogg —— **两声同音高的「叮-叮」**：880Hz；两声间隔 700ms；每一声 =
+    主频 + 2/3 次谐波（与关门嘀嘀同一套谐波配方）× 2ms 起振 × 指数衰减 4.2/s；
+    经 tanh 软限幅后归一化到 0.3835（与关门嘀嘀同一档）。
+    ★ **长度固定 2.283s**（播放端的提前量算式按素材长度算），且两声的间隔远小于
+    分界点检测的下限 400ms ⇒ 播放端仍按「整段播」处理，**播放端代码一行未改**。
+  · doorclose.ogg / mdoorclose.ogg —— **纯嘀嘀串**：20 响、严格 200ms 等间隔、主频 516.7Hz，
+    单响时长 113ms、强度逐步略降；同样经 tanh 软限幅对齐波峰因数。
+    ★ **长度为什么取 4.000s**：MTR4 的门程正好 80 tick = 4000ms（字节码直算，见
+    `_tools/check-psd-align.py` 第 1 节）。播放端的对齐算式是
+    `start = 量化(素材时长 − 门还在走的毫秒数)` ⇒ 素材时长 == 门程时 `start ≈ 0`，
+    于是**整串嘀嘀完整播完、结尾正好落在门关上那一刻**（这正是这个功能的老需求）。
+    若素材比门程短，算式会退化成「从头整段播」⇒ 结尾提前收声。
+
+### 1.1 subway_escalator.ogg（唯一一段外部素材 · CC0）
+
+它由作者转换为 Ogg Vorbis 并做剪辑，玩家直接装模组即可使用，无需任何转码工具。
+
+作者对原始录音做的剪辑（因为要循环播放）：
+  1. 原始录音是「11.8 秒声音 + 2.2 秒完全静音 + 9.4 秒声音」，
+     剪掉中间 2.2 秒空白与首尾静音（共约 2.8 秒），两段声音拼接；
+  2. 拼接处 0.40 秒等功率交叉淡化（crossfade），避免爆音；
+  3. 首尾做 0.70 秒等功率交叉淡化（循环点在淡化区内），循环播放无接缝、无停顿；
+  4. 未做任何电平（音量）处理，峰值仍为 -23.8 dBFS，与原始录音一致。
+
+原始素材 / original source
+  Freesound 标题 : 4_Escalator.wav
+  Freesound 页面 : https://freesound.org/people/14G_Panska_Hoskovcova_Eliska/sounds/419482/
+  作者 / author  : 14G_Panska_Hoskovcova_Eliska
+  说明 / about   : "Two recordings of different moving stairs."
+                   （地铁站里两段不同的自动扶梯录音 / Praha, Prague, Czech Republic）
+  发布 / posted  : 2018-02-26
+  原始规格       : 0:23.637, WAV, 6.5 MB, 48 kHz, 24 bit, Stereo
+  镜像页         : 淘声网 toSound「地铁 " 4 自动扶梯」（sound-wrp7aq1d）
+
+许可 / LICENSE
+  ★ Creative Commons 0 (CC0 1.0 Universal, Public Domain Dedication)
+  ★ https://creativecommons.org/publicdomain/zero/1.0/
+
+  Freesound 页面上的许可字段原文（逐字引用）：
+      Creative Commons 0
+      You can copy, modify, distribute and perform the sound, even for
+      commercial purposes, all without the need of asking permission
+      to the author.
+
+  即：属于公共领域奉献（Public Domain Dedication）。
+  - 可以自由复制、修改、分发、公开表演（含商业用途）；
+  - **不需要署名**，也不需要事先征得作者同意；
+  - 无 NonCommercial 限制，无 ShareAlike 传染性。
+
+  校验信息 / verification: 由于分发的是剪辑+循环化后的版本，其哈希与原始转码件**不同**，
+  两者都记录如下（CC0 允许修改，此处仅为可溯源）。
+    jar 内 / shipped  subway_escalator.ogg : e1f619c1118de732ef383066baf97e1a0b9e1d757d99a8c2d328d40066347a1d
+    剪辑前 / source   sound-wrp7aq1d.ogg   : f036b0d4c951e18d4c3cc7863b2bae62d475899e4de53251fcc612c7c08cf0dc
+
+--------------------------------------------------------------------
+二、本模组不改动、也不分发 MTR 的任何音频
+
+SmoothLift 只在**运行期**通过反射 / Mixin 调用 MTR 的类，并在少数界面上读取 MTR 的数据
+（车站、时刻表、轿厢尺寸…）。这些都不构成对 MTR 素材的再分发。
+`assets/mtr/models/block/lift_track_floor_1.json` 是**手写**的楼层轨道模型覆盖
+（用的是原版 `block/smooth_stone` 贴图），不是从 MTR 复制出来的文件。
+
+--------------------------------------------------------------------
+三、玩家自己导入的音频
+
+  · 玩家可以在游戏内界面（`/MBM help` 右上角，以及拿石斧右键各类方块打开的声音设置页）
+    导入自己的 `.ogg` 文件；
+  · 这些文件只写进**存档**（SavedData），不随 jar 分发，也不修改 jar 内的任何内容；
+  · 本模组不联网、不下载任何东西。
