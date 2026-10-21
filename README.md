@@ -195,6 +195,55 @@
 
 音频素材的出处与许可（CC0 1.0，无署名义务）见 jar 内的 `AUDIO-CREDITS.txt`。
 
+## 补丁提示（1.37）
+
+每次进游戏（= 每次启动游戏进入这个存档）时，模组会检查这个存档**有没有导入过补丁**。
+没导入就弹一个提示窗，三行字：
+
+```
+未导入补丁！
+某些功能可能被限制！
+补丁下载网站:mzyc.pages.dev
+```
+
+窗下方三只按钮：
+
+| 按钮 | 做什么 | 改了 `Repair_Check` 吗 |
+| --- | --- | --- |
+| **不再显示** | 把存档根目录的 `MBM_settings.txt` 写成 `Repair_Check=0`，然后关窗 | **是**（改 0） |
+| **打开网站** | 在本机浏览器打开 `mzyc.pages.dev`，**不关窗** | 否 |
+| **确定** | 只关窗 | 否（下次进游戏还弹） |
+
+ESC 与「确定」同义（关窗、不改文件）。
+
+### `MBM_settings.txt`
+
+存档根目录里一个**纯文本**文件（和 `MBM_Audio` / `MBM_Picture` / `MBM_Repair` 三个文件夹平级），
+双击即可用记事本修改：
+
+```
+Repair_Check=1
+```
+
+★ 文件里**只有这一行，没有注释**（用户点名：「mbmsettings 里的 # … 删掉不要注释」）。
+模组新建它的时候也只写这一行。
+
+★ 为什么是 `.txt`：内容本来就只有一行，纯文本已经是最轻的格式
+（比 JSON 少一次解析、比 NBT/gzip 少一次解压；实测三种格式的读取差异只有约 10 微秒，
+全在文件系统 `open()` 上）。加 `.txt` 只是让 Windows 双击能直接用记事本打开，不增加任何开销。
+
+★ 旧版（1.37 最初那一版）用的是**无扩展名**的 `MBM_settings`：模组启动时会自动把它改名成
+`MBM_settings.txt`（一次原子改名，内容不动）。万一改名失败（跨卷 / 没权限），
+读的时候仍然认旧名字，所以「上次点了不再显示」的设置不会丢。
+
+- `Repair_Check=1`（默认）：进游戏时检查有没有补丁，没有就弹窗；
+- `Repair_Check=0`：**连检查都不做**，一律不弹；
+- 文件不存在 / 没有这一行 / 值写坏了：一律按 `1` 处理（= 还弹窗，宁可多提示一次）；
+- 模组只改这一行，文件里其它行（注释、以后加的配置项）原样保留；
+- 存档里**已经导入过补丁**（任何一个维度有补丁素材）就默认不弹，与 `Repair_Check` 无关。
+
+★ 多人（专用服务器）时判定与写文件都在**服务端**（存档在服务端那台机器上），
+客户端只负责弹窗 —— 所以服务器上装的模组也得是 1.37 及以上。
 ## Introduction
 This mod makes the escalators in MTR run more smoothly. Use /futispeed X to change the escalator speed (in blocks per second). Use a stone axe to right‑click the left and right ends at the very bottom of an escalator to adjust its speed individually. Use /futimusic to set/swap escalator audio (including the mod's bundled sound), and /futiloud to set the volume for every escalator at once (1~1000, 100 = original volume).
 
