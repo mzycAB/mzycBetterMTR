@@ -134,6 +134,13 @@ public class SmoothLiftClientEvents {
     @SubscribeEvent
     public static void onLoggingIn(ClientPlayerNetworkEvent.LoggingIn event) {
         Packets.CHANNEL.sendToServer(new RequestSyncPacket());
+        // 【1.37】再问一次「要不要弹补丁提示」（服务端 JOIN 推送的兜底：那只包可能早于客户端频道就绪）。
+        try {
+            Packets.CHANNEL.sendToServer(new smooth.lift.network.MbmRepairNoticeRequestPacket());
+        } catch (RuntimeException e) {
+            // 服务端没装本模组 / 还没握手完：静默跳过（问了也没人答）。
+            LOGGER.debug("[SmoothLift/Repair] 频道不可用，跳过补丁提示判定请求：{}", e.toString());
+        }
     }
 
     /**
@@ -267,6 +274,8 @@ public class SmoothLiftClientEvents {
         TrainAnnounceNarrator.onDisconnect();
         // 【1.31.1204】视角随列车倾斜的基线与帧号复位（换存档后是另一辆车）。
         TrainTiltView.onDisconnect();
+        // 【1.37】补丁提示的待办 / 本会话「不再显示」标记复位（换世界要重新判定一次）。
+        RepairNoticeClient.onDisconnect();
     }
 
     /** 每客户端刻尾推进动画时钟与阶梯索引（含周期重扫），并更新扶梯声音。 */
@@ -290,6 +299,8 @@ public class SmoothLiftClientEvents {
         PictureTextures.onClientTick(mc);
         // 【1.31.1204】玩家视角随列车倾斜：每 tick 认「下车」/ 打诊断心跳。
         TrainTiltView.onClientTick(mc);
+        // 【1.37】「未导入补丁」提示窗：待办倒计时到点且没有别的界面时弹窗。
+        RepairNoticeClient.onClientTick(mc);
     }
 
     /** 世界渲染到 AFTER_ENTITIES 阶段时逐条绘制阶梯面。 */

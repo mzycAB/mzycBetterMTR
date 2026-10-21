@@ -278,6 +278,22 @@ public final class Packets {
                 .decoder(MbmRepairDeletePacket::decode)
                 .consumerMainThread(MbmRepairDeletePacket::handle)
                 .add();
+        // 【1.37】补丁提示：服务端 -> 客户端「要不要弹」；客户端 -> 服务端「进世界问一次」/「不再显示」
+        CHANNEL.messageBuilder(MbmRepairNoticePacket.class, nextId++, NetworkDirection.PLAY_TO_CLIENT)
+                .encoder(MbmRepairNoticePacket::encode)
+                .decoder(MbmRepairNoticePacket::decode)
+                .consumerMainThread(MbmRepairNoticePacket::handle)
+                .add();
+        CHANNEL.messageBuilder(MbmRepairNoticeRequestPacket.class, nextId++, NetworkDirection.PLAY_TO_SERVER)
+                .encoder(MbmRepairNoticeRequestPacket::encode)
+                .decoder(MbmRepairNoticeRequestPacket::decode)
+                .consumerMainThread(MbmRepairNoticeRequestPacket::handle)
+                .add();
+        CHANNEL.messageBuilder(MbmRepairDismissPacket.class, nextId++, NetworkDirection.PLAY_TO_SERVER)
+                .encoder(MbmRepairDismissPacket::encode)
+                .decoder(MbmRepairDismissPacket::decode)
+                .consumerMainThread(MbmRepairDismissPacket::handle)
+                .add();
         // 【1.55】「同步所有」弹窗：客户端 -> 服务端
         CHANNEL.messageBuilder(SyncSettingsPacket.class, nextId++, NetworkDirection.PLAY_TO_SERVER)
                 .encoder(SyncSettingsPacket::encode)

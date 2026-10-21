@@ -5970,6 +5970,31 @@ public class SmoothLift {
             EscalatorSpeedManager.syncZhajiToAll(player.getServer());
             // 【1.18.1204】地图图片库:进世界时若不推送,客户端图片库为空,重进存档就要重新导入
             EscalatorSpeedManager.syncPictureToAll(player.getServer());
+            // 【1.37】补丁提示「要不要弹」：判定在服务端，这里在 JOIN 时推一次
+            //   （客户端随后还会主动请求一次，盖住 JOIN 时序导致推送丢失的情况）。
+            sendRepairNoticeTo(player);
+        }
+    }
+
+    /**
+     * 【1.37】把「要不要弹补丁提示」的判定结果发给这个玩家。
+     *
+     * <p>判定本身只有一份（{@link RepairNotice#evaluate}），这里只负责把结论装进
+     * {@code MbmRepairNoticePacket}（Forge 一包一类，字段显式）。
+     *
+     * <p>★ 用 {@code PacketDistributor.PLAYER} 定向发，且套 try —— JOIN 那一刻玩家对象
+     * 可能还没完全挂好，这只提示包**绝不能**把玩家进世界搞崩；客户端随后还会主动问一次。
+     */
+    private static void sendRepairNoticeTo(ServerPlayer player) {
+        try {
+            RepairNotice.Status status = RepairNotice.evaluate(player.serverLevel());
+            Packets.CHANNEL.send(PacketDistributor.PLAYER.with(() -> player),
+                    new smooth.lift.network.MbmRepairNoticePacket(status.show(), status.checkEnabled(),
+                            status.hasPatch(), status.hasZip()));
+            LOGGER.info("[SmoothLift/Repair] 补丁提示判定：弹窗={}（Repair_Check={}、已有补丁={}、文件夹里有 zip={}）",
+                    status.show(), status.checkEnabled() ? "1" : "0", status.hasPatch(), status.hasZip());
+        } catch (Throwable t) {
+            LOGGER.warn("[SmoothLift/Repair] 发送补丁提示判定失败（下次请求会重试）：{}", t.toString());
         }
     }
 
@@ -5986,6 +6011,8 @@ public class SmoothLift {
     public void onServerStarted(ServerStartedEvent event) {
         EscalatorSpeedManager.ensureAudioFolder(event.getServer().overworld());
         EscalatorSpeedManager.ensurePictureFolder(event.getServer().overworld());
+        // 【1.37】存档设置文件 MBM_settings.txt：没有就新建 / 被清空就补回 Repair_Check=1。
+        smooth.lift.RepairNotice.ensureSettingsFile(event.getServer());
         // 【10-03 五改】把服务端实例交给「关门后等待 X 秒发车」那一条：
         //   MTR 的列车模拟要按 runKey 查本模组的存档设置，而它可能跑在 MTR 自己的线程上
         //   ⇒ 那边**不在**注入体里碰任何存档 API，只从这里拿一个实例、每站查一次。
