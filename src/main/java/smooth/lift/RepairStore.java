@@ -141,6 +141,36 @@ public final class RepairStore {
         return level != null && !EscalatorSpeedManager.getServerData(level).repairAssets.isEmpty();
     }
 
+    /**
+     * 【1.37】**整个存档**里有没有补丁素材 —— 任何一个维度有就算「导入过补丁」。
+     *
+     * <p>★ 为什么不能只看当前维度：「补丁提示弹窗」的判据是「这个存档导入过补丁没有」，
+     * 而补丁素材是按维度存的（{@link EscalatorSpeedData#repairAssets} 每个维度一份）。
+     * 只看当前维度的话，玩家在主世界导入了补丁、走进下界那一刻当前维度是空的 ⇒
+     * 会**误弹**一次「未导入补丁」（而且下界往往玩家根本不建线）。
+     *
+     * <p>★ 与「导入」的关系：{@link #importFromSave} 只写**当前维度**那一份
+     * （原有行为，不动它），所以玩家在下界又点了一次导入也不会把主世界那份弄丢。
+     *
+     * @param server 服务端实例；为空返回 false
+     */
+    public static boolean hasAnywhere(net.minecraft.server.MinecraftServer server) {
+        if (server == null) {
+            return false;
+        }
+        try {
+            for (ServerLevel level : server.getAllLevels()) {
+                if (has(level)) {
+                    return true;
+                }
+            }
+        } catch (Throwable t) {
+            // 世界正在卸载 / 没有维度时不要炸：按「没有补丁」处理（= 弹提示，宁可多提示一次）。
+            LOGGER.warn("[SmoothLift/Repair] 遍历维度查补丁失败：{}", t.toString());
+        }
+        return false;
+    }
+
     /** 存档里有哪些补丁素材键（日志/诊断用）。 */
     public static java.util.Set<String> keys(ServerLevel level) {
         return has(level) ? java.util.Set.copyOf(EscalatorSpeedManager.getServerData(level).repairAssets.keySet())

@@ -448,6 +448,45 @@ public class SmoothLift implements ModInitializer {
     public static final ResourceLocation MBM_REPAIR_DELETE_CHANNEL =
             new ResourceLocation("smoothlift", "mbm_repair_delete");
 
+    /**
+     * 【1.37】服务端 -&gt; 客户端：**要不要弹「未导入补丁」那个窗**
+     * （buf：show(boolean) · checkEnabled(boolean) · hasPatch(boolean) · hasZip(boolean)）。
+     *
+     * <p>判定在服务端（存档文件夹在服务端那台机器上，见 {@link RepairSettings}）：
+     * <ul>
+     *   <li>{@code show=true} ⇒ 客户端在进世界之后弹窗；</li>
+     *   <li>{@code show=false} ⇒ 客户端**什么都不做**（不弹、也不清屏）。</li>
+     * </ul>
+     * 后面三个布尔只是给日志 / 排障用的（{@code Repair_Check} 的口径、有没有补丁、
+     * 补丁文件夹里有没有待导入的 zip），客户端**不用**它们做判定 —— 判定只有服务端一份，
+     * 免得两边各算一套、出现「服务端说弹、客户端说不用」这种分叉。
+     */
+    public static final ResourceLocation MBM_REPAIR_NOTICE_CHANNEL =
+            new ResourceLocation("smoothlift", "mbm_repair_notice");
+
+    /**
+     * 【1.37】客户端 -&gt; 服务端：「我进世界了，把『要不要弹补丁提示』再算一遍告诉我」
+     * （无数据）。
+     *
+     * <p>为什么除了 JOIN 推送还要这一只请求包：JOIN 时序下服务端推送可能早于客户端频道就绪
+     * （本项目的音频同步就踩过这个坑，见 {@link #REQUEST_SYNC_CHANNEL}）。
+     * 客户端在 JOIN 之后主动问一次，两边的时序问题就都盖住了。
+     */
+    public static final ResourceLocation MBM_REPAIR_NOTICE_REQUEST_CHANNEL =
+            new ResourceLocation("smoothlift", "mbm_repair_notice_request");
+
+    /**
+     * 【1.37】客户端 -&gt; 服务端：玩家在弹窗里点了「**不再显示**」（无数据）。
+     *
+     * <p>服务端收到后把存档里的 {@code MBM_settings.txt} 写成 {@code Repair_Check=0}
+     * （见 {@link RepairSettings#setRepairCheck}）⇒ 之后每次进这个存档都不再检测、不再弹。
+     *
+     * <p>★ 另外两个按钮**不发包**：「打开网站」纯客户端（开浏览器）、
+     * 「确定」也只是本地关窗 —— 用户点名「确定…不更改 Repair_Check 的值，下次启动游戏还弹窗」。
+     */
+    public static final ResourceLocation MBM_REPAIR_DISMISS_CHANNEL =
+            new ResourceLocation("smoothlift", "mbm_repair_dismiss");
+
     // ------------------------------------------------------------------
     // 【1.57】「列车音效」界面（**石斧右键侧线铁轨**打开，不再是指令）
     //
@@ -1404,6 +1443,10 @@ public class SmoothLift implements ModInitializer {
             EscalatorSpeedManager.syncZhajiToAll(server);
             // 【1.18.1204】地图图片库：进世界时若不推送，客户端图片库为空，重进存档就要重新导入
             EscalatorSpeedManager.syncPictureToAll(server);
+            // 【1.37】补丁提示「要不要弹」：判定在服务端，这里在 JOIN 时推一次
+            //   （客户端随后还会主动请求一次，盖住 JOIN 时序导致推送丢失的情况）。
+            //   ★ 只对**刚进来的这个玩家**发：别人早就收到过自己的结论了。
+            RepairNotice.sendTo(handler.player);
         });
 
         // 【10-05】玩家退出时清掉「最近门串」待办队列（免得 Map 越攒越大）。
@@ -1414,6 +1457,10 @@ public class SmoothLift implements ModInitializer {
         ServerLifecycleEvents.SERVER_STARTED.register(server -> {
             EscalatorSpeedManager.ensureAudioFolder(server.overworld());
             EscalatorSpeedManager.ensurePictureFolder(server.overworld());
+            // 【1.37】存档设置文件 MBM_settings.txt：没有就新建一份（Repair_Check=1）。
+            //   用户点名「需要模组新建这个文件如果存档文件夹里面没有」——玩家能在资源管理器里看到它、
+            //   想手改也有得改，不必等到自己点一次「不再显示」它才出现。
+            RepairNotice.ensureSettingsFile(server);
             // 【10-03 五改】把服务端实例交给「关门后等待 X 秒发车」那一条：
             //   MTR 的列车模拟要按 runKey 查本模组的存档设置，而它可能跑在 MTR 自己的线程上
             //   ⇒ 那边**不在**注入体里碰任何存档 API，只从这里拿一个实例、每站查一次。
@@ -1555,6 +1602,18 @@ public class SmoothLift implements ModInitializer {
         ServerPlayNetworking.registerGlobalReceiver(MBM_REPAIR_DELETE_CHANNEL, (server, player, handler, buf, responseSender) -> {
             server.execute(() -> serverDeleteRepair(player));
         });
+
+        // 【1.37】客户端进世界后主动问一次「要不要弹补丁提示」（JOIN 推送的兜底，见频道注释）。
+        ServerPlayNetworking.registerGlobalReceiver(MBM_REPAIR_NOTICE_REQUEST_CHANNEL,
+                (server, player, handler, buf, responseSender) ->
+                        server.execute(() -> RepairNotice.sendTo(player)));
+
+        // 【1.37】玩家在弹窗里点了「不再显示」：把存档的 MBM_settings.txt 写成 Repair_Check=0。
+        //   ★ 用主线程执行（要读写存档目录），并且**不回包** —— 客户端那边点完就关窗，
+        //     失败也只进日志（下一次进世界还会照常弹，比弹一个假的「已不再提示」诚实）。
+        ServerPlayNetworking.registerGlobalReceiver(MBM_REPAIR_DISMISS_CHANNEL,
+                (server, player, handler, buf, responseSender) ->
+                        server.execute(() -> RepairNotice.dismiss(player)));
 
         // 扶梯方块被破坏时清除对应记录
         PlayerBlockBreakEvents.AFTER.register((world, player, pos, state, blockEntity) -> {

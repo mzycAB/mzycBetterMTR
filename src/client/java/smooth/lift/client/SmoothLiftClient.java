@@ -323,11 +323,18 @@ public class SmoothLiftClient implements ClientModInitializer {
             return InteractionResult.FAIL;
         });
 
+        // 【1.37】「未导入补丁」提示窗的收包 + tick（判定在服务端，这里只管弹）。
+        //   用户点名：每一次启动游戏时、存档未导入补丁包 ⇒ 弹窗；点「不再显示」写
+        //   <存档>/MBM_settings.txt 的 Repair_Check=0，之后不再检测。
+        RepairNoticeClient.register();
+
         // 客户端完全进世界后主动向服务端请求速度数据。
         // 服务端侧的 ServerPlayConnectionEvents.JOIN 推送发生在玩家连接建立过程中
         // （早于频道握手完成），此时发的包可能被客户端丢弃，导致进游戏后速度显示为默认。
         ClientPlayConnectionEvents.JOIN.register((handler, sender, client) -> {
             ClientPlayNetworking.send(SmoothLift.REQUEST_SYNC_CHANNEL, PacketByteBufs.empty());
+            // 【1.37】再问一次「要不要弹补丁提示」（JOIN 推送的兜底，见 RepairNoticeClient）。
+            RepairNoticeClient.requestOnJoin();
         });
 
         // 断开连接时清空客户端镜像，避免残留上一个世界的速度数据
@@ -347,6 +354,8 @@ public class SmoothLiftClient implements ClientModInitializer {
             TrainAnnounceNarrator.onDisconnect();
             // 【1.31.1204】玩家视角随列车倾斜：帧号 / 基线 / 「已经加过多少俯仰」全部作废。
             TrainTiltView.onDisconnect();
+            // 【1.37】补丁提示的待办 / 本会话「不再显示」标记复位（换世界要重新判定一次）。
+            RepairNoticeClient.onDisconnect();
         });
 
         // 【10-05】服务端问「离玩家最近的那一串屏蔽门」：算 runKey 再回包。
