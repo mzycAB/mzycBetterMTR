@@ -141,6 +141,30 @@ public final class RepairStore {
         return level != null && !EscalatorSpeedManager.getServerData(level).repairAssets.isEmpty();
     }
 
+    /**
+     * 【1.37】**整个存档**里有没有补丁素材 —— 任何一个维度有就算「导入过补丁」。
+     *
+     * <p>★ 为什么不能只看当前维度：补丁素材是按维度存的
+     * （{@link EscalatorSpeedData#repairAssets} 每个维度一份）。只看当前维度的话，
+     * 玩家在主世界导入了补丁、走进下界那一刻当前维度是空的 ⇒ 会**误弹**一次「未导入补丁」。
+     *
+     * @param server 服务端实例；为空返回 false
+     */
+    public static boolean hasAnywhere(net.minecraft.server.MinecraftServer server) {
+        if (server == null) {
+            return false;
+        }
+        try {
+            for (ServerLevel level : server.getAllLevels()) {
+                if (has(level)) {
+                    return true;
+                }
+            }
+        } catch (Throwable t) {
+            LOGGER.warn("[SmoothLift/Repair] 遍历维度查补丁失败：{}", t.toString());
+        }
+        return false;
+    }
     /** 存档里有哪些补丁素材键（日志/诊断用）。 */
     public static java.util.Set<String> keys(ServerLevel level) {
         return has(level) ? java.util.Set.copyOf(EscalatorSpeedManager.getServerData(level).repairAssets.keySet())

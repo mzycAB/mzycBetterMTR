@@ -210,6 +210,8 @@ public class SmoothLiftClient implements ClientModInitializer {
 
         // 【1.31.1204】玩家视角随列车倾斜：每 tick 认「下车」/ 打诊断心跳
         ClientTickEvents.END_CLIENT_TICK.register(TrainTiltView::onClientTick);
+        // 【1.37】「未导入补丁」提示窗：待办倒计时到点且没有别的界面时弹窗。
+        ClientTickEvents.END_CLIENT_TICK.register(RepairNoticeClient::onClientTick);
 
         // 拿着石斧右键扶梯 -> 打开速度输入界面
         UseBlockCallback.EVENT.register((player, world, hand, hitResult) -> {
@@ -329,8 +331,13 @@ public class SmoothLiftClient implements ClientModInitializer {
         // 客户端完全进世界后主动向服务端请求速度数据。
         // 服务端侧的 ServerPlayConnectionEvents.JOIN 推送发生在玩家连接建立过程中
         // （早于频道握手完成），此时发的包可能被客户端丢弃，导致进游戏后速度显示为默认。
+        // 【1.37】「未导入补丁」提示窗：把收包注册进 SLNet 派发表（客户端侧，见 RepairNoticeClient）。
+        RepairNoticeClient.registerClients();
+
         ClientPlayConnectionEvents.JOIN.register((handler, sender, client) -> {
             SLNet.sendToServer(SmoothLift.REQUEST_SYNC_CHANNEL, SLNet.emptyBuf());
+            // 【1.37】再问一次「要不要弹补丁提示」（JOIN 推送的兜底）。
+            RepairNoticeClient.requestOnJoin();
         });
 
         // 断开连接时清空客户端镜像，避免残留上一个世界的速度数据
@@ -350,6 +357,8 @@ public class SmoothLiftClient implements ClientModInitializer {
             TrainAnnounceNarrator.onDisconnect();
             // 【1.31.1204】视角随列车倾斜的基线与帧号复位（换存档后是另一辆车）。
             TrainTiltView.onDisconnect();
+            // 【1.37】补丁提示的待办 / 本会话「不再显示」标记复位。
+            RepairNoticeClient.onDisconnect();
         });
 
         // 【10-05】服务端问「离玩家最近的那一串屏蔽门」→ 客户端算完回包（pbm* 不带 -f 的落点）。
