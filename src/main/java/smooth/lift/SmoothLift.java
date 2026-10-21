@@ -448,6 +448,29 @@ public class SmoothLift implements ModInitializer {
     public static final ResourceLocation MBM_REPAIR_DELETE_CHANNEL =
             ResourceLocation.fromNamespaceAndPath("smoothlift", "mbm_repair_delete");
 
+    /**
+     * 【1.37】服务端 -&gt; 客户端：**要不要弹「未导入补丁」那个窗**
+     * （buf：show(boolean) · checkEnabled(boolean) · hasPatch(boolean) · hasZip(boolean)）。
+     *
+     * <p>判定在服务端（存档文件夹在服务端那台机器上，见 {@link RepairSettings}）：
+     * show=true ⇒ 客户端在进世界之后弹窗；show=false ⇒ 客户端**什么都不做**。
+     * 后面三个布尔只是给日志 / 排障用的，客户端**不用**它们做判定。
+     */
+    public static final ResourceLocation MBM_REPAIR_NOTICE_CHANNEL =
+            ResourceLocation.fromNamespaceAndPath("smoothlift", "mbm_repair_notice");
+
+    /** 【1.37】客户端 -&gt; 服务端：进世界后主动问一次「要不要弹补丁提示」（无数据）。 */
+    public static final ResourceLocation MBM_REPAIR_NOTICE_REQUEST_CHANNEL =
+            ResourceLocation.fromNamespaceAndPath("smoothlift", "mbm_repair_notice_request");
+
+    /**
+     * 【1.37】客户端 -&gt; 服务端：玩家在弹窗里点了「**不再显示**」（无数据）。
+     * 服务端收到后把 {@code MBM_settings.txt} 写成 {@code Repair_Check=0}。
+     */
+    public static final ResourceLocation MBM_REPAIR_DISMISS_CHANNEL =
+            ResourceLocation.fromNamespaceAndPath("smoothlift", "mbm_repair_dismiss");
+
+
     // ------------------------------------------------------------------
     // 【1.57】「列车音效」界面（**石斧右键侧线铁轨**打开，不再是指令）
     //
@@ -1520,6 +1543,8 @@ public class SmoothLift implements ModInitializer {
             EscalatorSpeedManager.syncZhajiToAll(server);
             // 【1.18.1204】地图图片库：进世界时若不推送，客户端图片库为空，重进存档就要重新导入
             EscalatorSpeedManager.syncPictureToAll(server);
+            // 【1.37】补丁提示「要不要弹」：判定在服务端，这里在 JOIN 时推一次
+            RepairNotice.sendTo(handler.player);
         });
 
         // 【10-05】玩家退出时清掉「最近门串」待办队列（免得 Map 越攒越大）。
@@ -1530,6 +1555,8 @@ public class SmoothLift implements ModInitializer {
         ServerLifecycleEvents.SERVER_STARTED.register(server -> {
             EscalatorSpeedManager.ensureAudioFolder(server.overworld());
             EscalatorSpeedManager.ensurePictureFolder(server.overworld());
+            // 【1.37】存档设置文件 MBM_settings.txt：没有就新建 / 被清空就补回 Repair_Check=1。
+            RepairNotice.ensureSettingsFile(server);
             // 【10-03 五改】把服务端实例交给「关门后等待 X 秒发车」那一条：
             //   MTR 的列车模拟要按 runKey 查本模组的存档设置，而它可能跑在 MTR 自己的线程上
             //   ⇒ 那边**不在**注入体里碰任何存档 API，只从这里拿一个实例、每站查一次。
@@ -1673,6 +1700,23 @@ public class SmoothLift implements ModInitializer {
             ServerPlayer player = context.player();
             server.execute(() -> serverDeleteRepair(player));
         });
+
+        // 【1.37】客户端进世界后主动问一次「要不要弹补丁提示」（JOIN 推送的兜底）。
+        ServerPlayNetworking.registerGlobalReceiver(RawNet.type(MBM_REPAIR_NOTICE_REQUEST_CHANNEL),
+                (payload, context) -> {
+                    MinecraftServer server = context.server();
+                    ServerPlayer player = context.player();
+                    server.execute(() -> RepairNotice.sendTo(player));
+                });
+
+        // 【1.37】玩家在弹窗里点了「不再显示」：把存档的 MBM_settings.txt 写成 Repair_Check=0。
+        //   ★ 主线程执行（要读写存档目录），不回包 —— 失败也只进日志。
+        ServerPlayNetworking.registerGlobalReceiver(RawNet.type(MBM_REPAIR_DISMISS_CHANNEL),
+                (payload, context) -> {
+                    MinecraftServer server = context.server();
+                    ServerPlayer player = context.player();
+                    server.execute(() -> RepairNotice.dismiss(player));
+                });
 
         // 【1.55】三个界面右上角「同步所有」按钮 -> 弹窗里的「同步所有 / 强制同步」。
         //   buf：domain(utf16) · scope(varInt) · force(boolean) · key(long)，语义见 SYNC_SETTINGS_CHANNEL。
