@@ -4,34 +4,37 @@ import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 
 /**
- * 【10-03 五改】名字里的 {@code %} = <b>本名 / 别名的分隔符</b>（原来那一版是「成对 toggle 隐藏」）。
+ * 【1.37.hotfix-3】名字里的 {@code %} = <b>成对开关</b>：<b>两个 {@code %} 之间的字符不显示，后面的照常显示</b>。
  *
- * <h2>需求（用户点名）</h2>
- * MTR 的名字里可以用 {@code %} 把「本名」与「别名」分开，例：{@code 香港|HongKong%市区|CityCenter}。
- * <ul>
- *   <li><b>本名</b> = 第一个 {@code %} <b>之前</b>的那一段（{@code 香港|HongKong}）；
- *   <li><b>别名</b> = 第一个 {@code %} <b>之后</b>的那一段（{@code 市区|CityCenter}）；
- *   <li>世界里画出来的一律用<b>本名</b>：屏蔽门玻璃上的**线路图圆圈**、站名标志牌、PIDS 乘客资讯屏、
- *       报站讲述人、聊天框字幕、Web 地图、地铁线路图，全都用本名；
- *   <li><b>唯一例外</b> = 屏蔽门（PSD / APG 玻璃）上那个**终点站方向箭头**的「往X / to X」：
- *       那一个用**别名** —— 用户原话「往香港 toHongKong 就变成 往市区 toCityCenter」；
- *   <li>只有 MTR 自己那套**设置界面**里照原样显示（{@code 本名%别名} 两段一起看得见），
- *       否则一保存就把标记弄丢（那些界面的 {@code saveData()} 是无条件写回输入框文字的）。
- * </ul>
- *
- * <h2>★ 语义：只有第一个 {@code %} 是分隔符（【10-03】用户点名）</h2>
+ * <h2>需求（用户点名，2026-10-30 第三次订正）</h2>
  * <pre>
- *   香港|HongKong%市区|CityCenter  → 本名「香港|HongKong」  别名「市区|CityCenter」
- *   A%B%C                          → 本名「A」              别名「B%C」   （后面的 % 当普通字符）
- *   A                              → 「A」（不含 % ⇒ 原样返回**同一个实例**，零分配）
- *   null/""                        → 原样
+ *   C%A%        → C        （两个 % 之间的 A 藏掉，后面的……没有后面）
+ *   C%A%B       → CB       ★ 第二个 % 之后照常显示（这正是本次订正要修的）
+ *   %A%BC       → BC
+ *   a%b%c%d%e   → ace      （成对翻转，可以写多组）
+ *   C%A         → C        （只有一个 % ⇒ 它后面全算「未闭合的隐藏段」）
+ *   C           → C        （不含 % ⇒ 原样返回**同一个实例**，零分配）
+ *   null / ""   → 原样
  * </pre>
- * ★ <b>与旧版（成对 toggle）的差别</b>：旧版 {@code 5%A%AB → 5AB}、{@code AB%C%DE → ABDE}
- * （每遇到一个 {@code %} 就翻转「隐藏中」）。现在**只有第一个 {@code %} 起作用**，
- * 它后面的一切（含还写着的 {@code %}）都只属于别名 —— 这正是用户点名的
- * 「只有第一个 % 是分隔符，后面的当站名处理」。
- * 两种写法在**最常见的一对**（{@code A%B}）上结果完全一样，所以老存档的显示不会变；
- * 只有「一条名字里写了 2 个以上 {@code %}」的名字显示会变。
+ *
+ * <h2>★ 与上一版（10-03 五改）的差别</h2>
+ * 上一版把**第一个** {@code %} 当「本名 / 别名」的分隔符，它后面的一切（含还写着的 {@code %}）
+ * 全部不显示 ⇒ {@code C%A%B} 会变成 {@code C}，把 {@code B} 一起吃掉。
+ * 用户点名要的是**成对开关**（{@code %…%} 包住的那一段才藏），所以本版恢复 toggle 语义：
+ * 遇到 {@code %} 就翻转「隐藏中」，只有隐藏中的字符被丢掉，其余**全部照原样保留**。
+ *
+ * <h2>本名 / 别名怎么来（屏蔽门玻璃上「往X」那一处要用别名）</h2>
+ * <ul>
+ *   <li><b>本名</b> = {@link #mask} 的输出（藏掉 {@code %…%} 之后剩下的那串）——
+ *       线路图圆圈、站名标志牌、PIDS、报站讲述人、聊天字幕全都用它；</li>
+ *   <li><b>别名</b> = <b>第一段被藏起来的内容</b>（第一个 {@code %} 到与它配对的 {@code %} 之间；
+ *       没有配对的 {@code %} 就一直到串尾）。{@code 香港|HongKong%市区|CityCenter} 的别名是
+ *       {@code 市区|CityCenter} —— 与上一版结果一致，老存档显示不变；</li>
+ *   <li>唯一用别名的地方仍是屏蔽门（PSD / APG 玻璃）上那个终点站方向箭头的「往X / to X」
+ *       （{@code Mtr4RouteArrowAliasMixin}）；</li>
+ *   <li>只有 MTR 自己那套**设置界面**里照原样显示（{@code 本名%别名} 两段一起看得见），
+ *       否则一保存就把标记弄丢（那些界面的 {@code saveData()} 是无条件写回输入框文字的）。</li>
+ * </ul>
  *
  * <h2>★ 别名怎么送到屏蔽门那一处（为什么要一张「显示名 → 别名」表）</h2>
  * 屏蔽门玻璃上那句「往X」的 X 来自 {@code org.mtr.core.data.SimplifiedRoutePlatform.getDestination()}，
@@ -42,7 +45,7 @@ import java.util.concurrent.ConcurrentHashMap;
  * （名字的数量级是几十~几百条，表很小）；箭头那边用 {@link #aliasOrSame} 查。
  * <p>
  * 两条路都覆盖：字符串里**还带** {@code %}（服务端没装本模组 / 用户自定义目的地）⇒ 直接按
- * 第一个 {@code %} 切；已经掩过（单机、或本模组装在同一 JVM）⇒ 查表。两条路都推不出 ⇒ 原样返回
+ * 成对规则取第一段隐藏内容；已经掩过（单机、或本模组装在同一 JVM）⇒ 查表。两条路都推不出 ⇒ 原样返回
  * （行为与加这个功能之前**完全一样**）。
  *
  * <h2>★ 幂等</h2>
@@ -52,13 +55,18 @@ import java.util.concurrent.ConcurrentHashMap;
  * <h2>原样窗口（设置界面）</h2>
  * {@link #enterRawWindow()} 开一个 500ms 的「原样窗口」：MTR 自己的设置界面里每帧 / 每刻都会调它，
  * 所以界面开着时窗口一直开着；界面一关最长 500ms 后自动过期 ⇒ 崩溃 / 断线 / 换世界都不会漏成常开。
+ * <p>
+ * 【1.30.1211 移植】MTR 4.1.0 的编辑界面（Elementa 重写）没有 per-tick / per-frame 钩子可以续这个
+ * 短窗口，所以另有一个**常驻**开关 {@link #enterRawWindowSticky()} / {@link #exitRawWindowSticky()}
+ * （界面构造时开、{@code onScreenClose} 关；幂等布尔，两只 mixin 同时命中也不会打架，
+ * 换世界 / 断线走 {@link #clear()} 一并复位）。
  */
 public final class PlatformNameMask {
 
     private PlatformNameMask() {
     }
 
-    /** 分隔符：**只有第一个**起作用，它前面是本名、后面是别名。 */
+    /** 开关标记：每遇到一个就翻转一次「隐藏中」（成对使用）。 */
     private static final char MARK = '%';
 
     /**
@@ -124,14 +132,17 @@ public final class PlatformNameMask {
         }
         if (System.currentTimeMillis() >= until) {
             rawUntilMillis = 0L;
-        stickyRawWindow = false;
             return false;
         }
         return true;
     }
 
     /**
-     * 把 {@code %} 之后（含别名）的那一段切掉，只留**本名**（见类注释的语义表）。
+     * 把 {@code %} <b>成对包住</b>的那几段切掉，其余照原样保留（见类注释的语义表）。
+     *
+     * <p>实现就是一次线性扫描 + 一个「隐藏中」开关：遇到 {@code %} 翻转并跳过它本身，
+     * 隐藏中的字符丢掉，其它字符原样抄进结果。所以
+     * {@code C%A%} → {@code C}、{@code C%A%B} → {@code CB}、{@code a%b%c%d%e} → {@code ace}。
      *
      * @param name MTR 给的名字（站台 / 车站 / 线路 / 车厂 / 侧线共用这一个入口）；
      *             {@code null} / 空串 / 不含 {@code %} 时**原样返回入参**
@@ -146,28 +157,68 @@ public final class PlatformNameMask {
         if (name == null || name.isEmpty()) {
             return name;
         }
-        int mark = name.indexOf(MARK);
-        if (mark < 0) {
+        if (name.indexOf(MARK) < 0) {
             return name;
         }
-        String shown = name.substring(0, mark);
-        String alias = name.substring(mark + 1);
+
+        final StringBuilder shown = new StringBuilder(name.length());
+        boolean hidden = false;
+        for (int i = 0; i < name.length(); i++) {
+            final char c = name.charAt(i);
+            if (c == MARK) {
+                hidden = !hidden;
+                continue;
+            }
+            if (!hidden) {
+                shown.append(c);
+            }
+        }
+        final String result = shown.toString();
+
+        final String alias = firstHiddenSegment(name);
         if (!alias.isEmpty()) {
             if (ALIAS_BY_SHOWN.size() >= ALIAS_TABLE_MAX) {
                 ALIAS_BY_SHOWN.clear();
             }
-            ALIAS_BY_SHOWN.put(shown, alias);
+            ALIAS_BY_SHOWN.put(result, alias);
         }
-        return shown;
+        return result;
     }
 
     /**
-     * 【10-03 五改】把一个「经过名字 getter 的字串」换成它的**别名**；推不出来就原样返回。
+     * 第一段被 {@code %} 藏起来的内容（= 别名）；没有就返回空串。
+     *
+     * <p>与 {@link #mask} 共用同一套成对规则：从第一个 {@code %} 开始收集，遇到下一个 {@code %}
+     * 就收工；只有一个 {@code %} 时一直收到串尾。{@code mask} 与 {@link #aliasOrSame} 都走这里，
+     * 两边口径才不会错位。
+     */
+    private static String firstHiddenSegment(String name) {
+        boolean hidden = false;
+        boolean closed = false;
+        StringBuilder sb = new StringBuilder();
+        for (int i = 0; i < name.length(); i++) {
+            final char c = name.charAt(i);
+            if (c == MARK) {
+                if (hidden) {
+                    closed = true;
+                }
+                hidden = !hidden;
+                continue;
+            }
+            if (hidden && !closed) {
+                sb.append(c);
+            }
+        }
+        return sb.toString();
+    }
+
+    /**
+     * 把一个「经过名字 getter 的字串」换成它的**别名**（第一段被藏起来的内容）；推不出来就原样返回。
      *
      * <p>唯一调用方 = 屏蔽门（PSD / APG 玻璃）上那句「往X / to X」的目的地
      * （{@code Mtr4RouteArrowAliasMixin}）。判据两条（见类注释）：
      * <ol>
-     *   <li>字串里**还带** {@code %} ⇒ 取第一个 {@code %} 之后的那一段
+     *   <li>字串里**还带** {@code %} ⇒ 直接取第一段隐藏内容
      *       （服务端没装本模组时目的地是原样名字，走这一条）；</li>
      *   <li>否则查 {@link #ALIAS_BY_SHOWN}（名字 getter 已经被掩过，走这一条）。</li>
      * </ol>
@@ -180,12 +231,11 @@ public final class PlatformNameMask {
         if (name == null || name.isEmpty()) {
             return name;
         }
-        int mark = name.indexOf(MARK);
-        if (mark >= 0) {
-            String alias = name.substring(mark + 1);
+        if (name.indexOf(MARK) >= 0) {
+            final String alias = firstHiddenSegment(name);
             return alias.isEmpty() ? name : alias;
         }
-        String alias = ALIAS_BY_SHOWN.get(name);
+        final String alias = ALIAS_BY_SHOWN.get(name);
         return alias != null ? alias : name;
     }
 
