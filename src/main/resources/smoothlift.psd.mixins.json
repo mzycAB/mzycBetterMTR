@@ -9,6 +9,8 @@
     "Mtr3PsdDoorMixin",
     "Mtr4PsdDoorMixin",
     "Mtr3PidsNameMixin",
+    "Mtr3TextNameMaskMixin",
+    "Mtr3RouteMapNameMaskMixin",
     "Mtr4PidsNameMixin",
     "Mtr4NameMaskMixin",
     "Mtr4SavedRailRawMixin",
