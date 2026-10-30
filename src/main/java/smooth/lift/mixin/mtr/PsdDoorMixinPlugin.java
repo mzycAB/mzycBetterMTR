@@ -95,6 +95,20 @@ public class PsdDoorMixinPlugin implements IMixinConfigPlugin {
                     mtr3Present() ? "目标类在，已放行" : "目标类不在，跳过");
             return mtr3Present();
         }
+        // 【1.37.hotfix】MTR3 没有名字 getter（NameColorDataBase.name 是 public 字段），
+        //   所以「% 之后不显示」只能掩在**画出来的那一刻**：ClientCache.getTextPixels（所有贴图文字的
+        //   公共栅格化入口，屏蔽门箭头上的站台名 / 终点站名 / 线路图站名都在这里）+ 
+        //   getFormattedRouteDestination（每条线路的终点站，先掩再合并，避免多条线路被一起截断）。
+        if (mixinClassName.endsWith("Mtr3TextNameMaskMixin")) {
+            return maskTargetPresent("mtr.client.ClientCache",
+                    "MTR3 屏蔽门名字掩码·终点站（ClientCache.getFormattedRouteDestination）");
+        }
+        // 【1.37.hotfix-2】屏蔽门玻璃上真正画出来的那两处名字（箭头圆圈里的站台名 / 线路图圆圈旁的站名）：
+        //   目标类是 RouteMapGenerator（MTR3 独有），判据同样只读资源、绝不 load 类。
+        if (mixinClassName.endsWith("Mtr3RouteMapNameMaskMixin")) {
+            return maskTargetPresent("mtr.client.RouteMapGenerator",
+                    "MTR3 屏蔽门名字掩码·画面（generateDirectionArrow / lambda$generateRouteMap$5）");
+        }
         // 【10-01 二次订正】名字掩码改成「在源头掩 + 设置界面开原样窗口」：
         //   判据各自取「那个 mixin 自己的目标类在不在」——仍然只读资源，绝不 load 类
         //   （铁律见本类注释：一旦 load 进类加载器，别的模组的 mixin 准备阶段就会崩）。
@@ -233,6 +247,14 @@ public class PsdDoorMixinPlugin implements IMixinConfigPlugin {
                 || mixinClassName.endsWith("RideTiltPlayerRenderMixin")
                 || mixinClassName.endsWith("RideTiltCameraRollMixin")) {
             LOGGER.info("[SmoothLift/TiltView] mixin 已注入：{} → {}",
+                    mixinClassName.substring(mixinClassName.lastIndexOf('.') + 1), targetClassName);
+        }
+        // 【1.37.hotfix】MTR3 名字掩码那两条注入点都是 require = 0（怕 MTR3 改名就把启动带崩），
+        //   所以同样需要一行「已注入」的正面证据：日志里只有「已放行」没有「已注入」
+        //   ⇒ 掩码其实没生效，用户会看到 % 原样显示。
+        if (mixinClassName.endsWith("Mtr3TextNameMaskMixin")
+                || mixinClassName.endsWith("Mtr3RouteMapNameMaskMixin")) {
+            LOGGER.info("[SmoothLift/PidsName] mixin 已注入：{} → {}",
                     mixinClassName.substring(mixinClassName.lastIndexOf('.') + 1), targetClassName);
         }
     }
