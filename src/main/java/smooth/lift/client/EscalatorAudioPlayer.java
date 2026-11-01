@@ -363,10 +363,11 @@ public final class EscalatorAudioPlayer {
         double dxz = horizontalDistanceToBlock(playerPos, bestNear);
         double dy = verticalDistanceToBlock(playerPos, bestNear);
         if (!(dxz < rangeXz) || !(dy < rangeY)) {
+            // 【日志】这里**不打日志**：离开整条扶梯是常态（玩家绝大多数时间都不在扶梯旁），
+            // 而原来那句 reason 里带着**实时距离**，走两步就变一次 —— note() 的「同一条只打一次」
+            // 永远命中不了，于是每 tick 刷一行，把真正有用的「不播 / 没同步 / 解码失败」全冲掉。
+            // 其余分支各自都有日志，「为什么没声音」照样能查（/futiround 调的是范围，不是日志）。
             stopAll(mc);
-            note("最近的扶梯整条都在 水平 " + String.format("%.1f", dxz) + " / 垂直 " + String.format("%.1f", dy)
-                    + " 格外（离开整条扶梯 水平 " + String.format("%.0f", rangeXz) + "、垂直 "
-                    + String.format("%.0f", rangeY) + " 格内才发声，可用 /futiround 调整）");
             return;
         }
         // 【1.8】内置音频走原版资源包加载（sounds.json 已注册 smoothlift:audio/<key>），
