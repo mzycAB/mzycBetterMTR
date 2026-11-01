@@ -10,6 +10,9 @@
 # 覆盖：
 #   check-mixin-plugin-safety.py  Mixin 准备阶段不得加载类（会崩别的模组的 mixin）
 #   check-mixin-package-refs.py   mixin 包里只许放 @Mixin 类与插件类
+#   check-mixin-env-split.py      ★ 2026-11-01 真事故：客户端专属 mixin 配置挂成双端 ⇒
+#                                 专用服务器实例化 @Environment(CLIENT) 的 plugin ⇒
+#                                 `Cannot load class … in environment type SERVER` 启动即崩。
 #                                 ★ 2026-10-01 真事故：普通工具类住进 mixin 包 ⇒
 #                                   目标类（mtr.data.LiftServer）的注入处理器一引用它就
 #                                   IllegalClassLoadError ⇒ MTR3 世界一加载就崩
@@ -208,6 +211,7 @@ run() {
 
 run "mixin 插件安全"        "$PY" _tools/check-mixin-plugin-safety.py
 run "mixin 包守卫(类)"      "$PY" _tools/check-mixin-package-refs.py
+run "mixin 客户端/双端分流" "$PY" _tools/check-mixin-env-split.py
 run "屏蔽门锚点与跳变"      "$PY" _tools/check-psd-anchor.py
 run "屏蔽门存档字段"        "$PY" _tools/check-psd-nbt.py
 run "屏蔽门提示音素材"      "$PY" _tools/check-psd-tone.py
