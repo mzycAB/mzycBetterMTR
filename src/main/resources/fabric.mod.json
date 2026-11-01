@@ -21,10 +21,19 @@
   },
   "mixins": [
     "smooth_escalator.mixins.json",
-    "smoothlift.client.mixins.json",
     "smoothlift.mtr.mixins.json",
-    "smoothlift.psd.mixins.json",
-    "smoothlift.sodium.mixins.json"
+    {
+      "config": "smoothlift.client.mixins.json",
+      "environment": "client"
+    },
+    {
+      "config": "smoothlift.psd.mixins.json",
+      "environment": "client"
+    },
+    {
+      "config": "smoothlift.sodium.mixins.json",
+      "environment": "client"
+    }
   ],
   "depends": {
     "fabricloader": ">=0.15.0",
