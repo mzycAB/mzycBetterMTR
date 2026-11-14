@@ -1,6 +1,5 @@
 package smooth.lift.client;
 
-import net.minecraft.network.FriendlyByteBuf;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.client.gui.components.Button;

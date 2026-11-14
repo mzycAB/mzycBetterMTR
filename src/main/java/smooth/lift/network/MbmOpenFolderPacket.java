@@ -1,7 +1,6 @@
 package smooth.lift.network;
 
 import net.minecraft.network.FriendlyByteBuf;
-import net.minecraft.client.Minecraft;
 import net.minecraftforge.network.NetworkDirection;
 import net.minecraftforge.network.NetworkEvent;
 import smooth.lift.client.FolderOpenButton;

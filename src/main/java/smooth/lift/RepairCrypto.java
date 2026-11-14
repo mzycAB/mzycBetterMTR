@@ -3,13 +3,11 @@ package smooth.lift;
 import javax.crypto.Cipher;
 import javax.crypto.Mac;
 import javax.crypto.SecretKeyFactory;
-import javax.crypto.spec.GCMParameterSpec;
 import javax.crypto.spec.PBEKeySpec;
 import javax.crypto.spec.SecretKeySpec;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
-import java.security.SecureRandom;
 import java.util.Arrays;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
@@ -331,34 +329,12 @@ public final class RepairCrypto {
 
     // ------------------------------------------------------------------ 小工具
 
-    private static void writeU16(ByteArrayOutputStream out, int v) {
-        out.write((v >>> 8) & 0xFF);
-        out.write(v & 0xFF);
-    }
-
-    private static void writeU32(ByteArrayOutputStream out, int v) {
-        out.write((v >>> 24) & 0xFF);
-        out.write((v >>> 16) & 0xFF);
-        out.write((v >>> 8) & 0xFF);
-        out.write(v & 0xFF);
-    }
-
-    private static int readU16(byte[] b, int p) {
-        return ((b[p] & 0xFF) << 8) | (b[p + 1] & 0xFF);
-    }
-
-    private static int readU32(byte[] b, int p) {
-        return ((b[p] & 0xFF) << 24) | ((b[p + 1] & 0xFF) << 16)
-                | ((b[p + 2] & 0xFF) << 8) | (b[p + 3] & 0xFF);
-    }
-
     /**
-     * ★★ 读 zip 结构**必须**用这两个小端版本。
+     * ★★ 读 zip 结构**必须**用这个小端版本。
      *
      * <p>踩过的坑：zip 的多字节字段（签名、长度、偏移）**全是小端**。用大端读
      * 连 EOCD 签名 `50 4B 05 06` 都找不到（会被读成 `0x504B0506`，而常量写的是 `0x06054B50`），
      * 报出来的是「不是 zip（找不到中央目录结尾记录）」—— 看起来像文件坏了，其实是读法错了。
-     * 上面那两个大端版是给**本模组自己的落盘格式**（`MBMRP1`，契约里就是大端）用的。
      */
     private static int readU16LE(byte[] b, int p) {
         return (b[p] & 0xFF) | ((b[p + 1] & 0xFF) << 8);

@@ -6,7 +6,6 @@ import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraftforge.network.NetworkDirection;
 import net.minecraftforge.network.NetworkEvent;
-import smooth.lift.EscalatorSpeedManager;
 import smooth.lift.SmoothLift;
 
 import java.util.function.Supplier;

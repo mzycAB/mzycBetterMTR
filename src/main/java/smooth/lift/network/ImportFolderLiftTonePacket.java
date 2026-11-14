@@ -50,6 +50,22 @@ public class ImportFolderLiftTonePacket {
                 return;
             }
             ServerLevel level = player.serverLevel();
+            // 【1.39.11201】电梯 BGM 复用同一条「选中即导入」通道：
+            //   which = "bgm" 时 key 不参与（BGM 是按维度一份，不是按竖井列），
+            //   导入到 MBM_Audio/lift/liftbgm 后直接设为这一维度的 BGM。
+            if ("bgm".equals(pkt.which)) {
+                String bgmProblem = EscalatorSpeedManager.importAudioToStore(
+                        level, EscalatorSpeedManager.CAT_LIFT_BGM, pkt.fileName);
+                if (bgmProblem == null && EscalatorSpeedManager.setLiftBgmAudio(level, pkt.fileName)) {
+                    SmoothLift.noteUiResult(player, true);
+                    EscalatorSpeedManager.syncAudioToAll(player.server);
+                    EscalatorSpeedManager.syncLiftBgmToAll(player.server);
+                } else {
+                    SmoothLift.noteUiResult(player, false);
+                    EscalatorSpeedManager.syncAudioToAll(player.server);
+                }
+                return;
+            }
             String problem = EscalatorSpeedManager.importAudioToStore(
                     level, EscalatorSpeedManager.liftToneCategory(pkt.which), pkt.fileName);
             if (problem == null) {

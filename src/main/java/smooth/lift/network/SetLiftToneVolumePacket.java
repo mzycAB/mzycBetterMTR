@@ -7,6 +7,7 @@ import net.minecraft.server.level.ServerPlayer;
 import net.minecraftforge.network.NetworkDirection;
 import net.minecraftforge.network.NetworkEvent;
 import smooth.lift.EscalatorSpeedManager;
+import smooth.lift.SmoothLift;
 
 import java.util.function.Supplier;
 
@@ -45,16 +46,26 @@ public class SetLiftToneVolumePacket {
             if (player == null) {
                 return;
             }
-            if (!"up".equals(pkt.which) && !"down".equals(pkt.which) && !"chime".equals(pkt.which)) {
+            if (!"up".equals(pkt.which) && !"down".equals(pkt.which) && !"chime".equals(pkt.which)
+                    && !"open".equals(pkt.which) && !"close".equals(pkt.which)
+                    && !"bgm".equals(pkt.which)) {
                 return;
             }
             ServerLevel level = player.serverLevel();
-            EscalatorSpeedManager.setDefaultLiftToneVolume(level, pkt.which, pkt.volume);
-            int applied = EscalatorSpeedManager.getLiftToneVolume(level, pkt.which);
-            player.displayClientMessage(Component.literal(
-                    "本维度直梯" + EscalatorSpeedManager.liftToneEnabledLabel(pkt.which) + "音量已设为 "
-                            + applied + "（100 = 原始音量）"), true);
-            EscalatorSpeedManager.syncLiftChimeToAll(player.server);
+            // 【1.39.11201】电梯 BGM 音量：只记 UI 会话结果，退出界面统一回「UI执行成功/失败」，
+            //   同步走 BGM 自己的包（与音频同一份）；其余各项保持原有回执与同步。
+            if ("bgm".equals(pkt.which)) {
+                EscalatorSpeedManager.setDefaultLiftToneVolume(level, pkt.which, pkt.volume);
+                SmoothLift.noteUiResult(player, true);
+                EscalatorSpeedManager.syncLiftBgmToAll(player.server);
+            } else {
+                EscalatorSpeedManager.setDefaultLiftToneVolume(level, pkt.which, pkt.volume);
+                int applied = EscalatorSpeedManager.getLiftToneVolume(level, pkt.which);
+                player.displayClientMessage(Component.literal(
+                        "本维度直梯" + EscalatorSpeedManager.liftToneEnabledLabel(pkt.which) + "音量已设为 "
+                                + applied + "（100 = 原始音量）"), true);
+                EscalatorSpeedManager.syncLiftChimeToAll(player.server);
+            }
         });
         context.setPacketHandled(true);
     }

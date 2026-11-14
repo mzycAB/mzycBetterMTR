@@ -7,7 +7,6 @@ import net.minecraft.network.chat.Component;
 import net.minecraftforge.network.NetworkDirection;
 import net.minecraftforge.network.NetworkEvent;
 
-import smooth.lift.EscalatorSpeedData;
 import smooth.lift.EscalatorSpeedManager;
 import smooth.lift.SmoothLift;
 import java.util.function.Supplier;

@@ -195,6 +195,18 @@ public final class Packets {
                 .decoder(ImportFolderLiftTonePacket::decode)
                 .consumerMainThread(ImportFolderLiftTonePacket::handle)
                 .add();
+        // 【1.39.11201】电梯 BGM：客户端 -> 服务端（选用 / 不播）
+        CHANNEL.messageBuilder(SetLiftBgmPacket.class, nextId++, NetworkDirection.PLAY_TO_SERVER)
+                .encoder(SetLiftBgmPacket::encode)
+                .decoder(SetLiftBgmPacket::decode)
+                .consumerMainThread(SetLiftBgmPacket::handle)
+                .add();
+        // 【1.39.11201】电梯 BGM：服务端 -> 客户端（dimId + audioId）
+        CHANNEL.messageBuilder(LiftBgmSyncPacket.class, nextId++, NetworkDirection.PLAY_TO_CLIENT)
+                .encoder(LiftBgmSyncPacket::encode)
+                .decoder(LiftBgmSyncPacket::decode)
+                .consumerMainThread(LiftBgmSyncPacket::handle)
+                .add();
         // 【1.50~1.58】屏蔽门（PSD / APG）提示音：客户端 -> 服务端
         CHANNEL.messageBuilder(SetPsdTonePacket.class, nextId++, NetworkDirection.PLAY_TO_SERVER)
                 .encoder(SetPsdTonePacket::encode)

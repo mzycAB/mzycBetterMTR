@@ -62,6 +62,9 @@ public class DeleteAudioPacket {
                 if (EscalatorSpeedManager.clearPsdArriveIfRemoved(player.server, pkt.audioId) > 0) {
                     SmoothLift.noteUiResult(player, true);
                 }
+                // 【1.39.11201】电梯 BGM 也可能正指着这一段：removeAudio 已在服务端把它回落成「不播」，
+                //   这里把权威值推给客户端（否则界面还打着旧 ✓、播放器还抱着旧 id）。
+                EscalatorSpeedManager.syncLiftBgmToAll(player.server);
                 EscalatorSpeedManager.syncPsdChimeToAll(player.server);
             }
         });

@@ -7,7 +7,6 @@ import net.minecraft.resources.ResourceKey;
 import net.minecraft.world.level.Level;
 import net.minecraftforge.network.NetworkDirection;
 import net.minecraftforge.network.NetworkEvent;
-import smooth.lift.EscalatorSpeedData;
 import smooth.lift.EscalatorSpeedManager;
 
 import java.util.HashMap;

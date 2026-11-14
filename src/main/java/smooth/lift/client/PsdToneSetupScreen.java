@@ -1,6 +1,5 @@
 package smooth.lift.client;
 
-import net.minecraft.network.FriendlyByteBuf;
 import net.minecraft.network.chat.Component;
 import smooth.lift.SmoothLift;
 import net.minecraft.client.Minecraft;

@@ -711,6 +711,15 @@ public final class PsdChimePlayer {
     private static final int PLAN_GRACE_TICKS = 40;
 
     /**
+     * 【1.39.11201】素材时长**量不出来**时，给播放实例的退场上限（ms）。
+     *
+     * <p>只影响 {@code durationMs <= 0} 的兜底分支：正常 ogg 都能量出实长，用的是真时长。
+     * 取 5 分钟远超任何玩家会导入的提示音，宁可让这条 ticking 记录多留一会儿，
+     * 也不能像旧写法那样按 {@code playableMs = 0} 在 1 秒处把 ogg 掐断。
+     */
+    private static final long UNKNOWN_DURATION_BUDGET_MS = 5L * 60L * 1000L;
+
+    /**
      * 【1.15】一次「要播的提示音」的全部材料：事件 / 素材来源 / 素材时长。
      *
      * <p>单独算出来是为了让**两条路**（立刻播 / 先量门速下一 tick 再播）共用同一份判断 ——
@@ -737,6 +746,10 @@ public final class PsdChimePlayer {
      */
     private record Tone(ResourceLocation event, String customId, String builtinKey, int durationMs,
                         int splitMs, boolean announce) {
+        /** 玩家自己导入的 ogg（不是模组内置档）。 */
+        boolean custom() {
+            return customId != null;
+        }
     }
 
     /**
@@ -882,6 +895,30 @@ public final class PsdChimePlayer {
 
     /** 【1.21】串锚点 → 这一串的进站报站状态。 */
     private static final Map<Long, Arrive> arriveVoice = new HashMap<>();
+
+    /**
+     * 【1.39.11201】★ 进站播报「只认触发那一刻」用的**进区时刻**表。
+     *
+     * <p>用户点名：「列车进站播报时间 = -20 秒，玩家在 -10 秒时进了站台，那么就不要播报进站播报了；
+     * 只有玩家在 -20 秒甚至更久（例如 -30 秒）就已经进入播报区才会播报」。
+     *
+     * <p>⇒ 不能只看「此刻在不在范围内」：那样玩家晚到时窗口还开着，就会把过期的播报补出来
+     * （旧版 ③-A 那句「站在范围外不标记播过，走近了还能补上这一段」正是这个 bug）。
+     * 这里每 tick 记下玩家**连续待在播报区里是从哪个墙钟时刻开始**的；触发点
+     * {@code 到站时刻 − |X| 秒} 早于这个进区时刻 ⇒ 这一班永久作废。
+     *
+     * <p>自定义广播（{@code /pbmarriveround}）与讲述人（{@code /jsr round}）各有一份范围，
+     * 所以两张表分开记；表项在玩家出区 / 该串离开快照时立刻清掉。
+     */
+    private static final Map<Long, Long> arriveCustomZoneSince = new HashMap<>();
+    /** 见 {@link #arriveCustomZoneSince}：讲述人那一条自己的进区时刻。 */
+    private static final Map<Long, Long> arriveNarrateZoneSince = new HashMap<>();
+
+    /**
+     * 【1.39.11201】进区时刻与「触发点」比较时允许的余量（ms）：覆盖 10 tick 的时刻表轮询
+     * 与一帧执行延迟，不让正常站在站台上的玩家因为半秒误差被误判成「晚到」。
+     */
+    private static final long ARRIVE_ZONE_GRACE_MS = 750L;
 
     // 【09-30 续 9】原「串锚点 → 认到的站台 id」缓存（arrivePlatform）已删：
     //   runKey 升到车站级后，两侧门串共用一个 runKey，按 runKey 缓存站台 id 会把
@@ -1202,6 +1239,13 @@ public final class PsdChimePlayer {
     private static void planClose(Minecraft mc, PsdDoorTracker.DoorView door, Playable playable,
                                   Playable openPlayable) {
         Tone tone = playable.tone();
+        // 【1.39.11201】玩家导入的 ogg **不排提前量、不排兜底人声**：
+        //   那两条路都是围着「内置 10.8s 人声 + 嘀嘀」设计的，会把整段提前播出去、
+        //   再在门关上时 stop()/掐断（用户报「10 秒自定义 ogg 只响 2 秒」的第二个来源）。
+        //   自定义素材只在「门开始关」那一刻整段从头播一次，之后绝不掐断。
+        if (tone.custom()) {
+            return;
+        }
         int duration = tone.durationMs();
         long now = mc.level.getGameTime();
         // ★ 只有「带人声、且要人声」那一档需要提前量：它长（10.8 秒 >> 门程 4 秒），不提前必然晚；
@@ -1423,6 +1467,15 @@ public final class PsdChimePlayer {
             double distance = p.distanceTo(new Vec3(door.x(), door.y(), door.z()));
             Playable playable = resolvePlayable(mc, door, "close", distance);
             if (playable == null) {
+                continue;
+            }
+            // 【1.39.11201】排计划时是内置素材、到点前被换成玩家导入的 ogg ⇒ 整段从头播，
+            //   且**不留** wholePlaying / plannedCloseFired 句柄（那两个是给「拖过门全关就掐断」用的，
+            //   自定义素材不许被掐断）。
+            if (playable.tone().custom()) {
+                play(mc, playable.tone(), door, playable.volume(), 0);
+                LOGGER.info("[SmoothLift/PsdChime] 门 @{} 提前量到点 → 自定义素材 {} 整段从头播"
+                                + "（不登记句柄、不掐断）", posText(door), toneLabel(playable.tone()));
                 continue;
             }
             PsdMusicInstance instance = play(mc, playable.tone(), door, playable.volume(), 0);
@@ -1711,6 +1764,10 @@ public final class PsdChimePlayer {
      */
     private static void tickArriveAnnounce(Minecraft mc, List<PsdDoorTracker.DoorView> doors) {
         if (mc.level == null || doors.isEmpty()) {
+            // 【1.39.11201】门快照空了 = 人已经不在这片站台：进区时刻作废，
+            //   否则下一次回来还会拿「很久以前进过区」当资格，把迟到的播报补出来。
+            arriveCustomZoneSince.clear();
+            arriveNarrateZoneSince.clear();
             return;
         }
         // 【1.28.1204】/jsr 总开关。
@@ -1777,6 +1834,24 @@ public final class PsdChimePlayer {
                 }
             }
         }
+        // 【1.39.11201】★ 每 tick 维护「玩家从什么时候起连续待在播报区内」（不是只在轮询那一 tick 看）。
+        //   自定义广播 / 讲述人的范围是两份配置，所以进区时刻也各记一份。
+        //   出区立刻清掉 ⇒ 再进来就是「新的进区时刻」，追不上已经过去的触发点。
+        long wallNow = System.currentTimeMillis();
+        for (Map.Entry<Long, PsdDoorTracker.DoorView> run : nearestPerRun.entrySet()) {
+            long rk = run.getKey();
+            PsdDoorTracker.DoorView d = run.getValue();
+            boolean customInZone = player != null
+                    && gain(Math.hypot(player.x() - d.x(), player.z() - d.z()),
+                            Math.abs(player.y() - d.y()), ROUND_ARRIVE) > 0.0f;
+            boolean narrateInZone = narrateGlobal && player != null
+                    && !TrainAnnounceSwitch.isOutsideNarrateRange(rk, d.x(), d.y(), d.z(), player);
+            updateZoneSince(arriveCustomZoneSince, rk, customInZone, wallNow);
+            updateZoneSince(arriveNarrateZoneSince, rk, narrateInZone, wallNow);
+        }
+        arriveCustomZoneSince.keySet().retainAll(nearestPerRun.keySet());
+        arriveNarrateZoneSince.keySet().retainAll(nearestPerRun.keySet());
+
         for (Map.Entry<Long, PsdDoorTracker.DoorView> run : nearestPerRun.entrySet()) {
             long runKey = run.getKey();
             PsdDoorTracker.DoorView door = run.getValue();
@@ -1878,6 +1953,23 @@ public final class PsdChimePlayer {
             boolean customTodo = customInWindow && !sameTrainAs(state.firedArrival, arrivalMs);
             /** 讲述人那条还要为这一班车念？（【09-30】在列车上时 narrateGlobal=false ⇒ 永远 false。） */
             boolean narrateTodo = narrateInWindow && !sameTrainAs(state.firedArrivalNarrate, arrivalMs);
+            // 【1.39.11201】★ 进站播报「只认触发那一刻」：玩家在触发点之后才进区 ⇒ 这一条作废。
+            //   用户原话：「列车进站播报时间 = -20 秒，玩家在 -10 秒时进了站台，就不要播报了；
+            //   只有玩家在 -20 秒甚至更久（-30 秒）已经进入播报区才会播报」。
+            //   触发点的墙钟 = 到站时刻 − |阈值| 秒（到站时刻往前推阈值秒就是窗口打开的那一刻）。
+            //   进区时刻 > 触发点 + grace ⇒ 玩家晚到。晚到判定用**独立变量**承接（不直接
+            //   以 customTodo / narrateTodo 为 if 条件 —— ③-A / ③-B 分支的锚点保持原样），
+            //   晚到就把对应那条折成 false（不记账：下次进区还能按新窗口播）。
+            boolean customLateToZone = customTodo && zoneSinceAfter(arriveCustomZoneSince, runKey,
+                    arrivalMs + (long) customThresholdSeconds * 1000L);
+            boolean narrateLateToZone = narrateTodo && zoneSinceAfter(arriveNarrateZoneSince, runKey,
+                    arrivalMs + (long) narrateThresholdSeconds * 1000L);
+            if (customLateToZone) {
+                customTodo = false;
+            }
+            if (narrateLateToZone) {
+                narrateTodo = false;
+            }
             if (!customTodo && !narrateTodo) {
                 continue; // 进窗口的那几条都已经为这一班车播过了
             }
@@ -2022,6 +2114,32 @@ public final class PsdChimePlayer {
      */
     private static boolean sameTrainAs(long recorded, long arrivalMs) {
         return recorded != Long.MIN_VALUE && Math.abs(arrivalMs - recorded) <= ARRIVE_SAME_TRAIN_MS;
+    }
+
+    /**
+     * 【1.39.11201】每 tick 维护「玩家从哪个墙钟时刻起连续待在播报区里」。
+     *
+     * <p>在区内 → 记下第一次进区的时刻（已有则不动）；出区 → 移除。
+     * 下次再进区时重新计时，这样「触发点已过才进区」的玩家就拿不到旧资格。
+     */
+    private static void updateZoneSince(Map<Long, Long> map, long runKey, boolean inZone, long wallNow) {
+        if (inZone) {
+            map.putIfAbsent(runKey, wallNow);
+        } else {
+            map.remove(runKey);
+        }
+    }
+
+    /**
+     * 【1.39.11201】玩家「晚到」判定：进区时刻晚于触发点（+余量）⇒ true。
+     *
+     * <p>进区时刻未知（表里没有 = 玩家此刻在区外，或快照刚清空）⇒ 不算晚到，
+     * 交给 ③-A / ③-B 各自的 inRange 判据决定（宁可往「不拦」方向偏，
+     * 也不在玩家分明站在区内时因为表没跟上而静默）。
+     */
+    private static boolean zoneSinceAfter(Map<Long, Long> map, long runKey, long triggerWall) {
+        Long since = map.get(runKey);
+        return since != null && since > triggerWall + ARRIVE_ZONE_GRACE_MS;
     }
 
     // ------------------------------------------------------------------
@@ -2595,6 +2713,26 @@ public final class PsdChimePlayer {
         }
         Tone tone = playable.tone();
         long now = mc.level.getGameTime();
+        // 【1.39.11201】★ 玩家导入的 ogg：**整段从头播、播到完，绝不因门关上而截断**。
+        //   根因：旧的「剪头对齐结尾」用 startMs = 素材时长 − 门程，把 10 秒素材按 2 秒门程
+        //   剪成只剩最后 2 秒（用户原话「ogg 只会播放 2 秒就被截断」）；
+        //   「整段提前播 / 兜底人声」那两条路也会在门一动时 stop()。
+        //   自定义素材不参与任何对齐：门一开始关就从 0ms 起播，之后不挂 pending、不留句柄，
+        //   结构上就没有「谁能停它」。内置档（人声 + 嘀嘀）的「结尾落在门上」保持原样。
+        if (tone.custom()) {
+            closeStartTick.put(door.key(), now);
+            plannedCloseStart.remove(door.key());
+            plannedCloseFired.remove(door.key());
+            wholePlaying.remove(door.key());
+            pendingClose.remove(door.key());
+            boolean customPlayed = play(mc, tone, door, playable.volume(), 0) != null;
+            LOGGER.info("[SmoothLift/PsdChime] 门 @{} 开始关门 → {} 自定义素材 {} 整段从头播"
+                            + "（门值 {}；不按门程剪头、播完前不掐断；距玩家 {} 格）",
+                    posText(door), customPlayed ? "播放" : "播不出（素材缺失 / 解码失败）",
+                    toneLabel(tone), String.format("%.2f", door.fraction()),
+                    String.format("%.1f", distance));
+            return;
+        }
         // 【1.15 · 第六轮】门一开始关，这一刻就是「门程」的起点（全关那一刻要用它算门程）。
         closeStartTick.put(door.key(), now);
         // 【1.15 · 第六轮】同时把这一轮的提前量计划摘掉：它的前提是「门还全开着就起播」，
@@ -2790,6 +2928,16 @@ public final class PsdChimePlayer {
         while (it.hasNext()) {
             Map.Entry<Long, Pending> entry = it.next();
             Pending pending = entry.getValue();
+            // 【1.39.11201】自定义素材：绝不走「剪头对齐」、也绝不 stop() 正在响的整段。
+            //   detect 已经不再为自定义挂 pending，这一支是给「配置刚从内置切成自定义」时
+            //   残留的旧请求兜底：整段从头补一次，之后没有任何句柄能掐断它。
+            if (pending.tone().custom()) {
+                it.remove();
+                if (pending.whole() == null) {
+                    play(mc, pending.tone(), pending.door(), pending.volume(), 0);
+                }
+                continue;
+            }
             long elapsed = now - pending.tick();
             if (elapsed <= 0) {
                 continue; // 同一 tick 内不会被调两次；留着当保险
@@ -3210,7 +3358,14 @@ public final class PsdChimePlayer {
         //  引擎的 tickingSounds 里退场（一次性声音没有别的退场信号）。
         // 【1.26】再多一份「按哪一串算距离」（站台广播 / 开关门提示音都按**串**算）。
         // 【09-30 续 10】再多一份「串距离按单维还是双维换算」（提示音单维、播报双维）。
-        long playableMs = Math.max(0L, tone.durationMs() - Math.max(0, startMs));
+        // 【1.39.11201】★ **类似的截断 bug（开门音 / 到站播报也会中招）**：
+        //   durationMs 量不出来（-1）时，旧写法把 playableMs 算成 0 ⇒ remainingTicks = 20 tick
+        //   ≈ 1 秒 ⇒ 引擎 1 秒后就按 isStopped() 把这段声音停掉。玩家听到的是「自定义 ogg 只响一下」。
+        //   量不出来就给一个宽松的退场上限，让素材自己播完（宁可多留一个 ticking 记录，
+        //   也不能把玩家导入的音频掐短）。
+        long playableMs = tone.durationMs() > 0
+                ? Math.max(0L, tone.durationMs() - Math.max(0, startMs))
+                : UNKNOWN_DURATION_BUDGET_MS;
         PsdMusicInstance inst = new PsdMusicInstance(tone.event(),
                 playbackId != null ? playbackId : tone.customId(),
                 pos, volume, trainAttenuated, roundKind, chainRunKey, chainDoubleDim,
@@ -3427,6 +3582,9 @@ public final class PsdChimePlayer {
         arriveVoice.clear();
         arriveLastPoll.clear();
         arriveFailNextLog.clear();
+        // 【1.39.11201】进区时刻也跟着作废（换了世界，墙钟与位置都不再可比）。
+        arriveCustomZoneSince.clear();
+        arriveNarrateZoneSince.clear();
         PsdDoorTracker.clear();
         // 【10-03 五改】「显示名 → 别名」表也跟着作废：换了世界，同名的车站可能是另一座
         //   （沿用旧表只会让屏蔽门那一句「往X」印出上一个世界的别名）。

@@ -1,18 +1,14 @@
 package smooth.lift.network;
 
 import io.netty.buffer.Unpooled;
-import net.minecraft.core.BlockPos;
 import net.minecraft.network.FriendlyByteBuf;
 import net.minecraft.resources.ResourceKey;
 import net.minecraft.world.level.Level;
 import net.minecraftforge.network.NetworkDirection;
 import net.minecraftforge.network.NetworkEvent;
-import smooth.lift.EscalatorSpeedData;
 import smooth.lift.EscalatorSpeedManager;
 import smooth.lift.client.TrainAnnounceSwitch;
 
-import java.util.HashMap;
-import java.util.Map;
 import java.util.function.Supplier;
 
 /**

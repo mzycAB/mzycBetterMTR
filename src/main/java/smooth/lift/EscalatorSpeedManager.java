@@ -6,13 +6,9 @@ import net.minecraft.network.FriendlyByteBuf;
 import net.minecraft.resources.ResourceKey;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.server.MinecraftServer;
-import net.minecraft.server.level.ChunkHolder;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
-import net.minecraft.server.level.ServerChunkCache;
-import net.minecraft.world.level.ChunkPos;
 import net.minecraft.world.level.Level;
-import net.minecraft.world.level.chunk.LevelChunk;
 import net.minecraft.world.level.storage.LevelResource;
 import net.minecraft.world.phys.BlockHitResult;
 import net.minecraft.world.phys.HitResult;
@@ -25,6 +21,7 @@ import smooth.lift.network.HelpRoundSyncPacket;
 import smooth.lift.network.HelpSpeedSyncPacket;
 import smooth.lift.network.HelpSyncPacket;
 import smooth.lift.network.HelpVolumeSyncPacket;
+import smooth.lift.network.LiftBgmSyncPacket;
 import smooth.lift.network.LiftChimeSyncPacket;
 import smooth.lift.network.LiftToneSyncPacket;
 import smooth.lift.network.Packets;
@@ -37,7 +34,6 @@ import smooth.lift.network.VolumeSyncPacket;
 import smooth.lift.network.ZhajiToneSyncPacket;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import smooth.lift.mixin.ChunkMapAccessor;
 
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
@@ -159,6 +155,8 @@ public final class EscalatorSpeedManager {
         public int liftToneVolumeDown = EscalatorSpeedData.LIFT_TONE_VOLUME_UNSET;
         public int liftToneVolumeOpen = EscalatorSpeedData.LIFT_TONE_VOLUME_UNSET;
         public int liftToneVolumeClose = EscalatorSpeedData.LIFT_TONE_VOLUME_UNSET;
+        /** 【1.39.11201】电梯 BGM 的独立音量（-1 = 跟随共用默认）。 */
+        public int liftBgmVolume = EscalatorSpeedData.LIFT_TONE_VOLUME_UNSET;
         /** 【1.47】直梯提示音（四项共用）**水平**淡入淡出范围（{@code /lifthelpround}，镜像）。 */
         public int liftHelpRound = EscalatorSpeedData.DEFAULT_LIFT_HELP_ROUND;
         /** ★【10-03】直梯提示音**垂直（y 轴）**范围镜像（初始 5）。 */
@@ -177,6 +175,8 @@ public final class EscalatorSpeedManager {
         public String liftToneAudioDown = EscalatorSpeedData.LIFT_TONE_DEFAULT;
         public String liftToneAudioOpen = EscalatorSpeedData.LIFT_TONE_DEFAULT;
         public String liftToneAudioClose = EscalatorSpeedData.LIFT_TONE_DEFAULT;
+        /** 【1.39.11201】电梯 BGM（{@code /liftbgm}）的客户端镜像；默认「不播」= 没有默认音频。 */
+        public String liftBgmAudio = EscalatorSpeedData.LIFT_BGM_OFF;
         /**
          * 【1.28】分类 → 该分类子文件夹里的 OGG 文件名（服务端扫描同步过来的镜像，待导入来源）。
          * 取代旧版平铺的 {@code folderAudio}。
@@ -1849,6 +1849,8 @@ public final class EscalatorSpeedManager {
         clientHelpAudioGeneration++;
         // 【1.42】直梯提示音设置也同理：不断代的话，断线重连后会沿用上一个世界的开关/倍速。
         clientLiftChimeGeneration++;
+        // 【1.39.11201】电梯 BGM：镜像被清空也要断代，否则播放器会抱着上一个世界的 BGM 不放。
+        clientLiftBgmGeneration++;
     }
 
     // ------------------------------------------------------------------
@@ -1972,6 +1974,8 @@ public final class EscalatorSpeedManager {
     public static final String CAT_LIFT_DOWN = "lift/down";
     public static final String CAT_LIFT_OPEN = "lift/open";
     public static final String CAT_LIFT_CLOSE = "lift/close";
+    /** 【1.39.11201】电梯 BGM：{@code <存档>/MBM_Audio/lift/liftbgm}（用户点名的导入文件夹）。 */
+    public static final String CAT_LIFT_BGM = "lift/liftbgm";
     // 【09-30】闸机（MTR Ticket Barrier）两类：进站 / 出站各一个子文件夹。
     //   用户点名的自定义素材位置就是 MBM_Audio\zhaji\in 与 MBM_Audio\zhaji\out。
     public static final String CAT_ZHAJI_IN = "zhaji/in";
@@ -2002,6 +2006,8 @@ public final class EscalatorSpeedManager {
             CAT_PSD_OPEN, CAT_PSD_CLOSE, CAT_PSD_MIDIUM, CAT_PSD_ARRIVE,
             CAT_LIFT_UP, CAT_LIFT_DOWN, CAT_LIFT_OPEN, CAT_LIFT_CLOSE,
             CAT_ZHAJI_IN, CAT_ZHAJI_OUT,
+            // 【1.39.11201】电梯 BGM 追加在末尾：分类顺序 = 同步包书写顺序，不许插在中间改乱旧档。
+            CAT_LIFT_BGM,
     };
 
     /**
@@ -2851,43 +2857,6 @@ public final class EscalatorSpeedManager {
             data.setDirty();
         }
         return changed;
-    }
-
-    /** 枚举一个已加载区块里的所有扶梯方块。 */
-    private static List<BlockPos> escalatorBlocksIn(LevelChunk chunk, Level level) {
-        List<BlockPos> out = new ArrayList<>();
-        ChunkPos cp = chunk.getPos();
-        int baseX = cp.getMinBlockX();
-        int baseZ = cp.getMinBlockZ();
-        int minY = chunk.getMinBuildHeight();
-        int maxY = minY + chunk.getHeight();
-        for (int x = 0; x < 16; x++) {
-            for (int z = 0; z < 16; z++) {
-                for (int y = minY; y < maxY; y++) {
-                    BlockPos pos = new BlockPos(baseX + x, y, baseZ + z);
-                    if (EscalatorUtil.isEscalator(chunk.getBlockState(pos))) {
-                        out.add(pos);
-                    }
-                }
-            }
-        }
-        return out;
-    }
-
-    /** 通过访问器拿到服务端已加载区块。 */
-    private static List<LevelChunk> lastChunks(ServerLevel level) {
-        List<LevelChunk> out = new ArrayList<>();
-        ServerChunkCache cache = (ServerChunkCache) level.getChunkSource();
-        if (cache.chunkMap == null) {
-            return out;
-        }
-        for (ChunkHolder holder : ((ChunkMapAccessor) (Object) cache.chunkMap).smoothlift_getChunks()) {
-            LevelChunk chunk = holder.getFullChunk();
-            if (chunk != null) {
-                out.add(chunk);
-            }
-        }
-        return out;
     }
 
     /**
@@ -4500,6 +4469,7 @@ public final class EscalatorSpeedManager {
             case "down" -> data.defaultLiftToneVolumeDown;
             case "open" -> data.defaultLiftToneVolumeOpen;
             case "close" -> data.defaultLiftToneVolumeClose;
+            case "bgm" -> data.defaultLiftBgmVolume;
             default -> EscalatorSpeedData.LIFT_TONE_VOLUME_UNSET;
         };
     }
@@ -4510,6 +4480,7 @@ public final class EscalatorSpeedManager {
             case "down" -> data.defaultLiftToneVolumeDown = EscalatorSpeedData.clampLiftToneVolume(volume);
             case "open" -> data.defaultLiftToneVolumeOpen = EscalatorSpeedData.clampLiftToneVolume(volume);
             case "close" -> data.defaultLiftToneVolumeClose = EscalatorSpeedData.clampLiftToneVolume(volume);
+            case "bgm" -> data.defaultLiftBgmVolume = EscalatorSpeedData.clampLiftToneVolume(volume);
             default -> {
             }
         }
@@ -4525,6 +4496,7 @@ public final class EscalatorSpeedManager {
                 case "down" -> data == null ? EscalatorSpeedData.LIFT_TONE_VOLUME_UNSET : data.liftToneVolumeDown;
                 case "open" -> data == null ? EscalatorSpeedData.LIFT_TONE_VOLUME_UNSET : data.liftToneVolumeOpen;
                 case "close" -> data == null ? EscalatorSpeedData.LIFT_TONE_VOLUME_UNSET : data.liftToneVolumeClose;
+                case "bgm" -> data == null ? EscalatorSpeedData.LIFT_TONE_VOLUME_UNSET : data.liftBgmVolume;
                 default -> EscalatorSpeedData.LIFT_TONE_VOLUME_UNSET;
             };
         } else {
@@ -4545,6 +4517,7 @@ public final class EscalatorSpeedManager {
                 case "down" -> data != null && data.liftToneVolumeDown != EscalatorSpeedData.LIFT_TONE_VOLUME_UNSET;
                 case "open" -> data != null && data.liftToneVolumeOpen != EscalatorSpeedData.LIFT_TONE_VOLUME_UNSET;
                 case "close" -> data != null && data.liftToneVolumeClose != EscalatorSpeedData.LIFT_TONE_VOLUME_UNSET;
+                case "bgm" -> data != null && data.liftBgmVolume != EscalatorSpeedData.LIFT_TONE_VOLUME_UNSET;
                 default -> false;
             };
         }
@@ -4939,6 +4912,143 @@ public final class EscalatorSpeedManager {
         }
     }
 
+    // ==================================================================
+    // 【1.39.11201】电梯 BGM（/liftbgm）：按维度一份素材，电梯移动时循环播放
+    //
+    //   ★ 与四项直梯提示音**刻意分开存**：BGM 没有「默认 / 内置」这一层（用户点名
+    //     「没有默认音频，要用户自己导入」），只有「不播」与玩家导入的文件名两种取值。
+    //     所以不复用 LIFT_TONE_DEFAULT 那套两层回落，也不占 liftToneAudio 那张按竖井列的表。
+    //   ★ 分类 = MBM_Audio/lift/liftbgm（CAT_LIFT_BGM），导入 / 删除走既有音频库通道。
+    // ==================================================================
+
+    /** 这个维度**生效**的电梯 BGM（客户端读镜像，服务端读 SavedData）。 */
+    public static String getLiftBgmAudio(Level level) {
+        if (level.isClientSide()) {
+            ClientDimensionData data = CLIENT_DATA.get(level.dimension());
+            return EscalatorSpeedData.normalizeLiftBgmAudio(data == null ? null : data.liftBgmAudio);
+        }
+        return EscalatorSpeedData.normalizeLiftBgmAudio(
+                getServerData((ServerLevel) level).defaultLiftBgmAudio);
+    }
+
+    /** 【1.39.11201】这个维度**生效**的电梯 BGM 音量（独立音量 -1 → 跟随共用默认）。客户端读镜像，服务端读 SavedData。 */
+    public static int getLiftBgmVolume(Level level) {
+        if (level.isClientSide()) {
+            ClientDimensionData data = CLIENT_DATA.get(level.dimension());
+            if (data != null && data.liftBgmVolume != EscalatorSpeedData.LIFT_TONE_VOLUME_UNSET) {
+                return EscalatorSpeedData.clampLiftToneVolume(data.liftBgmVolume);
+            }
+        } else {
+            EscalatorSpeedData data = getServerData((ServerLevel) level);
+            if (data.defaultLiftBgmVolume != EscalatorSpeedData.LIFT_TONE_VOLUME_UNSET) {
+                return EscalatorSpeedData.clampLiftToneVolume(data.defaultLiftBgmVolume);
+            }
+        }
+        return getLiftHelpVolume(level); // 跟随共用默认（/lifthelploud）
+    }
+
+    /**
+     * 服务端：这个名字能不能选。「不播」恒可；其它必须是
+     * {@link #CAT_LIFT_BGM} 分类里**已导入存档**的音频（不接受 default、不接受别的分类的名字）。
+     */
+    public static boolean isValidLiftBgmAudio(ServerLevel level, String audioId) {
+        String id = EscalatorSpeedData.normalizeLiftBgmAudio(audioId);
+        if (EscalatorSpeedData.LIFT_BGM_OFF.equals(id)) {
+            return true;
+        }
+        // 「default」不是本功能的合法取值（没有默认音频）
+        if (EscalatorSpeedData.LIFT_TONE_DEFAULT.equals(id)) {
+            return false;
+        }
+        return getServerAudioLibraryKeys(level, CAT_LIFT_BGM).contains(id);
+    }
+
+    /** 服务端：设置本维度电梯 BGM；名字非法返回 false（一个字都不写）。 */
+    public static boolean setLiftBgmAudio(ServerLevel level, String audioId) {
+        String id = EscalatorSpeedData.normalizeLiftBgmAudio(audioId);
+        if (!isValidLiftBgmAudio(level, id)) {
+            return false;
+        }
+        EscalatorSpeedData data = getServerData(level);
+        data.defaultLiftBgmAudio = id;
+        data.setDirty();
+        return true;
+    }
+
+    /** 服务端：{@code /liftbgm -f <名字>} —— 所有维度一起设（合法性由调用方在本维度验过）。 */
+    public static int setLiftBgmAudioAll(MinecraftServer server, String audioId) {
+        String id = EscalatorSpeedData.normalizeLiftBgmAudio(audioId);
+        int count = 0;
+        for (ServerLevel level : server.getAllLevels()) {
+            EscalatorSpeedData data = getServerData(level);
+            data.defaultLiftBgmAudio = id;
+            data.setDirty();
+            count++;
+        }
+        return count;
+    }
+
+    /** 【1.39.11201】构建「电梯 BGM」同步包：dimId → audioId。 */
+    /** 【1.39.11201】构建「电梯 BGM」同步包：dimId → audioId + volume（-1 = 跟随共用默认）。 */
+    private static FriendlyByteBuf buildLiftBgmPacket(ServerLevel level) {
+        FriendlyByteBuf buf = new FriendlyByteBuf(Unpooled.buffer());
+        buf.writeUtf(level.dimension().location().toString(), 256);
+        EscalatorSpeedData data = getServerData(level);
+        buf.writeUtf(EscalatorSpeedData.normalizeLiftBgmAudio(data.defaultLiftBgmAudio), 128);
+        buf.writeVarInt(data.defaultLiftBgmVolume);
+        return buf;
+    }
+
+    /** 把一个维度的电梯 BGM 发给单个玩家。 */
+    public static void sendLiftBgmSyncTo(ServerPlayer player, ServerLevel level) {
+        Packets.CHANNEL.send(PacketDistributor.PLAYER.with(() -> player),
+                new LiftBgmSyncPacket(bytes(buildLiftBgmPacket(level))));
+    }
+
+    /** 把所有维度的电梯 BGM 同步给所有在线玩家。 */
+    public static void syncLiftBgmToAll(MinecraftServer server) {
+        for (ServerPlayer player : server.getPlayerList().getPlayers()) {
+            for (ServerLevel level : server.getAllLevels()) {
+                sendLiftBgmSyncTo(player, level);
+            }
+        }
+    }
+
+    /** 客户端：应用服务端同步过来的电梯 BGM（代次 +1 让播放器下一 tick 就换新素材）。 */
+    public static void applyClientLiftBgm(ResourceKey<Level> dimension, String audioId, int volume) {
+        ClientDimensionData data = CLIENT_DATA.computeIfAbsent(dimension, k -> new ClientDimensionData());
+        data.liftBgmAudio = EscalatorSpeedData.normalizeLiftBgmAudio(audioId);
+        data.liftBgmVolume = EscalatorSpeedData.clampLiftToneVolume(volume);
+        clientLiftBgmGeneration++;
+    }
+
+    /** 客户端：UI 里点完「选用」的乐观镜像（服务端随后会用权威值覆盖）。 */
+    public static void applyClientLiftBgmLocal(ResourceKey<Level> dimension, String audioId) {
+        applyClientLiftBgm(dimension, audioId, clientLiftBgmVolume(dimension));
+    }
+
+    /** 客户端：BGM 音量本地乐观镜像（音量框输入时用）。 */
+    public static void applyClientLiftBgmVolumeLocal(ResourceKey<Level> dimension, int volume) {
+        ClientDimensionData data = CLIENT_DATA.computeIfAbsent(dimension, k -> new ClientDimensionData());
+        data.liftBgmVolume = EscalatorSpeedData.clampLiftToneVolume(volume);
+        clientLiftBgmGeneration++;
+    }
+
+    /** 客户端：当前维度的 BGM 音量乐观值（无镜像 → 跟随共用默认）。 */
+    public static int clientLiftBgmVolume(ResourceKey<Level> dimension) {
+        ClientDimensionData data = CLIENT_DATA.get(dimension);
+        return data == null ? EscalatorSpeedData.DEFAULT_LIFT_HELP_VOLUME
+                : (data.liftBgmVolume == EscalatorSpeedData.LIFT_TONE_VOLUME_UNSET
+                ? EscalatorSpeedData.DEFAULT_LIFT_HELP_VOLUME : data.liftBgmVolume);
+    }
+
+    /** 见 {@link #applyClientLiftBgm}。只在客户端线程读写。 */
+    public static long clientLiftBgmGeneration() {
+        return clientLiftBgmGeneration;
+    }
+
+    private static long clientLiftBgmGeneration;
+
     // ------------------------------------------------------------------
     // 【1.45】直梯楼层轨道提示音（石斧右键楼层轨道设置：up / down / chime 三列表）
     // ------------------------------------------------------------------
@@ -5034,6 +5144,7 @@ public final class EscalatorSpeedManager {
             case "down" -> CAT_LIFT_DOWN;
             case "open" -> CAT_LIFT_OPEN;
             case "close" -> CAT_LIFT_CLOSE;
+            case "bgm" -> CAT_LIFT_BGM;
             default -> CAT_LIFT_OPEN;
         };
     }
@@ -5130,6 +5241,7 @@ public final class EscalatorSpeedManager {
             case "down" -> data.liftToneVolumeDown = v;
             case "open" -> data.liftToneVolumeOpen = v;
             case "close" -> data.liftToneVolumeClose = v;
+            case "bgm" -> data.liftBgmVolume = v;
             default -> {
             }
         }

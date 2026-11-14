@@ -12,7 +12,6 @@ import net.minecraft.commands.CommandSourceStack;
 import net.minecraft.commands.Commands;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.registries.BuiltInRegistries;
-import net.minecraft.network.FriendlyByteBuf;
 import net.minecraft.network.chat.Component;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.server.MinecraftServer;
@@ -212,6 +211,11 @@ public class SmoothLift {
     public static final ResourceLocation IMPORT_FOLDER_LIFT_TONE_CHANNEL = new ResourceLocation("smoothlift", "import_folder_lift_tone");
     /** 【1.45】服务端 -> 客户端：同步「竖井列 → 直梯提示音」表（小包，不含音频字节）。 */
     public static final ResourceLocation LIFT_TONE_SYNC_CHANNEL = new ResourceLocation("smoothlift", "lift_tone_sync");
+
+    /** 【1.39.11201】客户端 -> 服务端：设置本维度的电梯 BGM（= /liftbgm <名字>）。 */
+    public static final ResourceLocation SET_LIFT_BGM_CHANNEL = new ResourceLocation("smoothlift", "set_lift_bgm");
+    /** 【1.39.11201】服务端 -> 客户端：同步本维度的电梯 BGM（dimId + audioId）。 */
+    public static final ResourceLocation LIFT_BGM_SYNC_CHANNEL = new ResourceLocation("smoothlift", "lift_bgm_sync");
 
     // ------------------------------------------------------------------
     // 【09-30】闸机（MTR Ticket Barrier）提示音的频道
@@ -496,7 +500,6 @@ public class SmoothLift {
      */
     public static final ResourceLocation SYNC_SETTINGS_CHANNEL =
             new ResourceLocation("smoothlift", "sync_settings");
-
 
 
     /** 手里拿的是不是 MTR 的扶梯物品（按类名判断，避免编译期依赖 MTR）。 */
@@ -1134,15 +1137,6 @@ public class SmoothLift {
         }
         source.sendSuccess(() -> Component.literal("指令执行成功"), false);
         return 1;
-    }
-
-    // ------------------------------------------------------------------
-    // /futihelp （无障碍提示音开关，数据模型与 /futispeed、/futiloud 完全对称）
-    // ------------------------------------------------------------------
-
-    /** 开关在指令反馈里的显示名。 */
-    private static String helpLabel(boolean enabled) {
-        return enabled ? "开" : "关";
     }
 
     /**
@@ -1840,36 +1834,6 @@ public class SmoothLift {
         return 1;
     }
 
-    // ==================================================================
-    // 【1.42】直梯（Lift）开关门提示音 liftmusic.ogg
-    //
-    //   /lifthelp                     显示 / on|off / on to off / -f on|off / -f on to off
-    //   /lifthelp up|down|door        三提示音子命令（子开关 + 默认素材），详见下面那一段
-    //   /lifthelploud                 音量（共用默认 + up|down|door 单项）
-    //   /lifthelpround                淡入淡出范围（三项共用）
-    //
-    //   ★ 为什么是 lifthelp 而不是需求原文里的 futihelp：
-    //     那条指令**早就存在**、管的是**扶梯**的无障碍提示音（进/出口「咔啪」声），
-    //     直接复用会把扶梯那套设置顶掉。直梯提示音是完全另一件事，所以另开一条指令，
-    //     扶梯的 futihelp / futihelpspeed 一个字节都不动。
-    //
-    //   ★ 直梯提示音的「开关 / 音量 / 范围」只有「维度默认」一层数据（没有单条直梯的
-    //     单独设置），所以那几条的 `-f` 取「**对所有维度**强制」的含义 ——
-    //     见 EscalatorSpeedManager 里那一段的说明。
-    //
-    //   ★【1.15】`/lifthelpspeed` 已按用户要求**删除**：倍速数据（defaultLiftHelpSpeed）
-    //     与播放端的 pitch 逻辑都留着（旧存档里可能存着非 1.0 的值），只是不再提供改它的
-    //     入口（石斧界面本来也没有）。显示里仍会报出当前倍速，那是**实际生效的值**。
-    // ==================================================================
-
-    /** 倍速在指令反馈里的显示（两位小数就够，1.0 显示成 1）。 */
-    private static String liftSpeedLabel(float speed) {
-        if (speed == Math.round(speed)) {
-            return String.valueOf((int) Math.round(speed));
-        }
-        return String.format(Locale.ROOT, "%.2f", speed);
-    }
-
     /** /lifthelp（不带参数）—— 显示当前维度生效的直梯提示音开关。 */
     private static int liftHelpShow(CommandContext<CommandSourceStack> context) {
         CommandSourceStack source = context.getSource();
@@ -1992,16 +1956,6 @@ public class SmoothLift {
         return 1;
     }
 
-    /** 注册 `/lifthelploud` 的 `-f` 分支：`-f <音量>` 与 `-f <X> to <Y>`。 */
-    private static LiteralArgumentBuilder<CommandSourceStack> liftHelpLoudForce(String literal) {
-        return Commands.literal(literal)
-                .then(Commands.argument("volume", volumeArg())
-                        .executes(SmoothLift::liftHelpLoudForceAll)
-                        .then(Commands.literal("to")
-                                .then(Commands.argument("target", volumeArg())
-                                        .executes(SmoothLift::liftHelpLoudForceFromTo))));
-    }
-
     // ------------------------------------------------------------------
     // 【1.48】/lifthelploud up|down|open|close：四提示音**各自的**音量
     //   up = 上楼 / down = 下楼 / open = 开门 / close = 关门。
@@ -2084,11 +2038,6 @@ public class SmoothLift {
         int applied = EscalatorSpeedData.clampLiftToneVolume(to);
         source.sendSuccess(() -> Component.literal("指令执行成功"), false);
         return 1;
-    }
-
-    /** 【1.48】数据用名 → 指令里的字面名。【1.28】up/down/open/close 全部同名，不再有 door → chime 别名。 */
-    private static String literalName(String which) {
-        return which;
     }
 
     // ------------------------------------------------------------------
@@ -2255,6 +2204,70 @@ public class SmoothLift {
         return "「" + audioId + "」";
     }
 
+    // ==================================================================
+    // 【1.39.11201】/liftbgm —— 电梯 BGM（电梯移动时循环播放的 ogg）
+    //
+    //   ★ 没有默认音频：补全里只有「本分类已导入的文件名 + off」，没有 default。
+    //   ★ 成败一律只回一条「指令执行成功 / 指令执行失败」（用户点名「不要加一堆没用的小字」）。
+    //   ★ source 可能为 null（_tools/CmdTreeCheck 脱离游戏环境建指令树），补全里要挡住。
+    // ==================================================================
+
+    /** /liftbgm（不带参数）：查当前设置；当前值只写日志，回执仍是一条统一回执。 */
+    private static int liftBgmShow(CommandContext<CommandSourceStack> context) {
+        CommandSourceStack source = context.getSource();
+        if (source == null) {
+            return 1;
+        }
+        ServerLevel level = source.getLevel();
+        LOGGER.info("[SmoothLift/LiftBgm] 当前电梯 BGM（{}）：{}",
+                level.dimension().location(), EscalatorSpeedManager.getLiftBgmAudio(level));
+        source.sendSuccess(() -> Component.literal("指令执行成功"), false);
+        return 1;
+    }
+
+    /** /liftbgm 的 <名字> 补全：MBM_Audio/lift/liftbgm 里已导入的素材 + off。 */
+    private static CompletableFuture<Suggestions> liftBgmNameSuggestions(
+            CommandContext<CommandSourceStack> context, SuggestionsBuilder builder) {
+        CommandSourceStack source = context.getSource();
+        if (source == null) {
+            return builder.buildFuture();
+        }
+        String typed = builder.getRemainingLowerCase();
+        for (String candidate : EscalatorSpeedManager.getServerAudioLibraryKeys(
+                source.getLevel(), EscalatorSpeedManager.CAT_LIFT_BGM)) {
+            if (candidate.toLowerCase(Locale.ROOT).startsWith(typed)) {
+                builder.suggest(candidate);
+            }
+        }
+        if ("off".startsWith(typed)) {
+            builder.suggest("off");
+        }
+        return builder.buildFuture();
+    }
+
+    /** /liftbgm <名字>（本维度）/ -f <名字>（所有维度）：校验 → 落地 → 同步 → 统一回执。 */
+    private static int liftBgmApply(CommandContext<CommandSourceStack> context, boolean forceAll) {
+        CommandSourceStack source = context.getSource();
+        if (source == null) {
+            return 1;
+        }
+        ServerLevel level = source.getLevel();
+        String name = StringArgumentType.getString(context, "name");
+        if (!EscalatorSpeedManager.isValidLiftBgmAudio(level, name)) {
+            source.sendFailure(Component.literal("指令执行失败"));
+            return 0;
+        }
+        if (forceAll) {
+            EscalatorSpeedManager.setLiftBgmAudioAll(source.getServer(), name);
+        } else if (!EscalatorSpeedManager.setLiftBgmAudio(level, name)) {
+            source.sendFailure(Component.literal("指令执行失败"));
+            return 0;
+        }
+        EscalatorSpeedManager.syncLiftBgmToAll(source.getServer());
+        source.sendSuccess(() -> Component.literal("指令执行成功"), false);
+        return 1;
+    }
+
     /**
      * 音频名字参数的 Tab 补全：**default / none + 玩家导入的每一个 .ogg 文件名**（字典序）。
      * 服务端算好发给客户端（指令树与补全都在服务端算）。
@@ -2324,15 +2337,6 @@ public class SmoothLift {
     private static int healLiftToneOffAudioAll(MinecraftServer server, String which) {
         return EscalatorSpeedManager.replaceDefaultLiftToneAudioAll(
                 server, which, EscalatorSpeedData.LIFT_TONE_OFF, EscalatorSpeedData.LIFT_TONE_DEFAULT);
-    }
-
-    /** 回执后缀：不做静默魔法，清过素材就写出来。 */
-    private static String healNote(boolean healed) {
-        return healed ? "（这一项的素材本来是「不播」，已一并换回内置素材）" : "";
-    }
-
-    private static String healNoteAll(int healed) {
-        return healed > 0 ? "（素材是「不播」的那 " + healed + " 个维度已一并换回内置素材）" : "";
     }
 
     /** /lifthelp up|down|door &lt;on|off&gt; —— 设置**本维度**这项子开关。 */
@@ -3003,21 +3007,6 @@ public class SmoothLift {
         return 1;
     }
 
-    // ------------------------------------------------------------------
-    // 【1.50】/pbmloud：屏蔽门提示音音量（1~1000，100 = 原始音量，1000 = 10×）
-    //   形状与 /lifthelploud 完全一致，只是「三项」变「两项」。
-    // ------------------------------------------------------------------
-
-    /** 注册 `/pbmloud` 的 `-f` 分支：`-f <音量>` 与 `-f <X> to <Y>`。 */
-    private static LiteralArgumentBuilder<CommandSourceStack> pbmLoudForce(String literal) {
-        return Commands.literal(literal)
-                .then(Commands.argument("volume", volumeArg())
-                        .executes(SmoothLift::pbmLoudForceAll)
-                        .then(Commands.literal("to")
-                                .then(Commands.argument("target", volumeArg())
-                                        .executes(SmoothLift::pbmLoudForceFromTo))));
-    }
-
     /** `/pbmloud open|close` 的音量子树（不带 -f）：`<音量>` 与 `<X> to <Y>`。 */
     private static LiteralArgumentBuilder<CommandSourceStack> pbmLoudItemCommand(String literal, String which) {
         return Commands.literal(literal)
@@ -3187,21 +3176,6 @@ public class SmoothLift {
         int applied = EscalatorSpeedData.clampPsdToneVolume(to);
         source.sendSuccess(() -> Component.literal("指令执行成功"), false);
         return 1;
-    }
-
-    // ------------------------------------------------------------------
-    // 【1.22】/pbmmidiumloud / /pbmarriveloud：到站播报 / 进站报站
-    //   **各自那一项**的音量。形状与 /pbmloud 完全一致。
-    // ------------------------------------------------------------------
-
-    /** 这一项的中文名（反馈文案用）。 */
-    private static String pbmItemLabel(String which) {
-        return "midium".equals(which) ? "到站播报" : "进站报站";
-    }
-
-    /** 这一项音量指令的名字（反馈里提示 -f 用哪个指令）。 */
-    private static String pbmItemCommand(String which) {
-        return "midium".equals(which) ? "/pbmmidiumloud" : "/pbmarriveloud";
     }
 
     /** 注册 `-f` 分支：`-f <音量>` 与 `-f <X> to <Y>`。 */
@@ -5249,6 +5223,22 @@ public class SmoothLift {
             .then(futiHelpMusicForce("-f"))
         );
 
+        // 【1.39.11201】/liftbgm：**电梯 BGM** —— 电梯移动时循环播放的那一段 ogg。
+        //   ★ 没有默认音频（用户点名）：名字必须是 MBM_Audio/lift/liftbgm 里导入过的素材；
+        //     off / none = 不播；default 不是本功能的合法取值。
+        //   （无参数）   -> 显示当前设置   <名字> -> 本维度   -f <名字> -> 所有维度
+        //   ★ 反馈与其它指令同一口径：只回「指令执行成功 / 指令执行失败」，不多写一个字。
+        dispatcher.register(Commands.literal("liftbgm")
+            .executes(SmoothLift::liftBgmShow)
+            .then(Commands.argument("name", StringArgumentType.string())
+                .suggests((ctx, builder) -> SmoothLift.liftBgmNameSuggestions(ctx, builder))
+                .executes(context -> liftBgmApply(context, false)))
+            .then(Commands.literal("-f")
+                .then(Commands.argument("name", StringArgumentType.string())
+                    .suggests((ctx, builder) -> SmoothLift.liftBgmNameSuggestions(ctx, builder))
+                    .executes(context -> liftBgmApply(context, true))))
+        );
+
         // 【1.42】/lifthelp：**直梯（Lift）**开关门提示音（liftmusic.ogg）开关。
         //   （无参数）       -> 显示当前维度的开关
         //   on | off         -> 本维度开关 = on/off
@@ -5963,6 +5953,8 @@ public class SmoothLift {
             EscalatorSpeedManager.syncLiftChimeToAll(player.getServer());
             // 【1.45】直梯楼层轨道提示音(石斧右键设置的三列表)
             EscalatorSpeedManager.syncLiftToneToAll(player.getServer());
+            // 【1.39.11201】电梯 BGM(按维度一份,进世界就要推,否则客户端镜像停在「不播」)
+            EscalatorSpeedManager.syncLiftBgmToAll(player.getServer());
             // 【1.50】屏蔽门开关门提示音(开关 + 每扇门单独素材)
             EscalatorSpeedManager.syncPsdChimeToAll(player.getServer());
             EscalatorSpeedManager.syncPsdToneToAll(player.getServer());

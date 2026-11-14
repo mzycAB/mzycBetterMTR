@@ -54,6 +54,24 @@ public class RequestSyncPacket {
             for (net.minecraft.server.level.ServerLevel level : player.server.getAllLevels()) {
                 EscalatorSpeedManager.sendLiftToneSyncTo(player, level);
             }
+            // 【1.39.11201】电梯 BGM：同样每个维度一份，逐个维度发。
+            for (net.minecraft.server.level.ServerLevel level : player.server.getAllLevels()) {
+                EscalatorSpeedManager.sendLiftBgmSyncTo(player, level);
+            }
+            // 【1.39.11201 补漏】屏蔽门提示音（维度默认设置 + 每扇门单独素材）每维度一份。
+            //   ★ 之前这一组漏发 ⇒ 进服后客户端镜像 psdNarrateSeconds 一直是默认 0 ⇒
+            //     进站讲述人的窗口退化成 remainMs<=0（列车到站那一刻才播，忽略设定的提前秒数），
+            //     且按门存的所有屏蔽门设置在玩家手动改一次之前都不生效。与 1.20.4 基准对齐。
+            for (net.minecraft.server.level.ServerLevel level : player.server.getAllLevels()) {
+                EscalatorSpeedManager.sendPsdChimeSyncTo(player, level);
+                EscalatorSpeedManager.sendPsdToneSyncTo(player, level);
+            }
+            // 【1.39.11201 补漏】闸机提示音（进站 / 出站）同理每维度一份。
+            for (net.minecraft.server.level.ServerLevel level : player.server.getAllLevels()) {
+                EscalatorSpeedManager.sendZhajiSyncTo(player, level);
+            }
+            // 【1.39.11201 补漏】地图图片库：负载已合并全部维度，发一轮即可。
+            EscalatorSpeedManager.sendPictureSyncTo(player, player.serverLevel());
         });
         context.setPacketHandled(true);
     }

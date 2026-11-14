@@ -867,7 +867,42 @@ public final class MtrDwellAccess {
 
     /** 【MTR3】站台 id → 站台名（platform.name 字段，讲述人报站词要念的「几站台」）。 */
     private static String mtr3PlatformNameForPlatform(long platformId) {
-        if (mtr3PlatformsField == null || mtr3NameField == null) {
+        Object platform = mtr3PlatformById(platformId);
+        if (platform == null || mtr3NameField == null) {
+            return null;
+        }
+        try {
+            Object name = mtr3NameField.get(platform);
+            return name == null ? null : name.toString();
+        } catch (Throwable ignored) {
+            return null;
+        }
+    }
+
+    /**
+     * 【MTR3】下一班车信息：从 {@code SCHEDULES_FOR_PLATFORM} 取这一站的时刻表，
+     * 算「还有几秒到站」；终点站走 {@code ClientCache.getFormattedRouteDestination}（PIDS 同函数）。
+     */
+    /** 【1.39 修】到站锚点校正的诊断日志只打一次，避免每班/每帧刷屏。 */
+    private static boolean mtr3DwellAnchorLogged;
+
+    /**
+     * 【1.39 修】取这一站的停站时长（毫秒）—— 用来把 MTR3 时刻表的「发车时刻」拉回「开门时刻」。
+     *
+     * <p>MTR3 的 {@code ScheduleEntry.arrivalMillis} 不是到站时刻：反汇编 MTR-forge-1.20.1-3.2.2
+     * 的 {@code TrainServer.simulateTrain} 可见它取的是 {@code Siding.TimeSegment.endTime}
+     * （停站段结束 = 发车），公式
+     * {@code currentMillis + (endTime + offsetTime - currentTime) * MILLIS_PER_TICK}。
+     * 于是「提前 20 秒」实际是「发车前 20 秒」，落到真实开门只剩 (20s − 停站时长)。
+     * 实测 latest.log：配置 -20、起播时 remainMs=19551ms，2.272s 后门就开了 ⇒ 停站约 17.3s。
+     *
+     * <p>MTR3 的 {@code SavedRailBase.getDwellTime()} 单位是**半秒**
+     * （{@code Train.getTotalDwellTicks() = dwellTime × 10}），换算成毫秒要 ×500。
+     * 读不到就返回 0（保持旧行为），不影响其余功能。
+     */
+    /** 【性能】按 id 在 PLATFORMS 里找一次（反射遍历是热点，两个取字段的函数共用这一次）。 */
+    private static Object mtr3PlatformById(long platformId) {
+        if (mtr3PlatformsField == null) {
             return null;
         }
         try {
@@ -876,24 +911,30 @@ public final class MtrDwellAccess {
                 return null;
             }
             for (Object platform : platforms) {
-                if (platform == null) {
-                    continue;
-                }
-                if (idOf(platform) == platformId) {
-                    Object name = mtr3NameField.get(platform);
-                    return name == null ? null : name.toString();
+                if (platform != null && idOf(platform) == platformId) {
+                    return platform;
                 }
             }
         } catch (Throwable ignored) {
-            // 读不到只是没站台名可念
+            // 读不到只是没找到，返回 null
         }
         return null;
     }
 
-    /**
-     * 【MTR3】下一班车信息：从 {@code SCHEDULES_FOR_PLATFORM} 取这一站的时刻表，
-     * 算「还有几秒到站」；终点站走 {@code ClientCache.getFormattedRouteDestination}（PIDS 同函数）。
-     */
+    private static long mtr3DwellMsForPlatform(long platformId) {
+        Object platform = mtr3PlatformById(platformId);
+        if (platform == null || mtr3GetDwellTime == null) {
+            return 0L;
+        }
+        try {
+            Object v = mtr3GetDwellTime.invoke(platform);
+            long dwellMs = v instanceof Number num ? num.longValue() * 500L : 0L;
+            return dwellMs > 0L ? dwellMs : 0L;
+        } catch (Throwable ignored) {
+            return 0L;
+        }
+    }
+
     private static ArrivalInfo mtr3NearestArrival(long platformId) {
         if (mtr3SchedulesField == null || mtr3ArrivalMillisField == null) {
             LOGGER.info("[SmoothLift/PsdChime] MTR3 读不到 SCHEDULES_FOR_PLATFORM（时刻表），"
@@ -910,6 +951,14 @@ public final class MtrDwellAccess {
                 return null;
             }
             long now = System.currentTimeMillis();
+            // ★【1.39 修】MTR3 的 arrivalMillis 是**发车**时刻（TimeSegment.endTime），
+            //   比真实开门晚一整个停站时长。减掉它，让「提前 X 秒」真正以开门为基准。
+            long dwellMs = mtr3DwellMsForPlatform(platformId);
+            if (!mtr3DwellAnchorLogged) {
+                mtr3DwellAnchorLogged = true;
+                LOGGER.info("[SmoothLift/PsdChime] MTR3 到站锚点（1.20.1 hotfix-2 = 开门时刻，不扣停站）："
+                        + "本站停站 {}ms 仅作参考", dwellMs);
+            }
             long best = Long.MIN_VALUE;
             String bestDest = null;
             // 【10-01】站台名过一遍 PIDS 掩码：MTR3 的名字是 public 字段 `Platform.name`，
@@ -925,6 +974,12 @@ public final class MtrDwellAccess {
                 if (!(am instanceof Number n)) {
                     continue;
                 }
+                // ★【2026-11-14 实测修正】1.20.1（MTR3 hotfix-2）的 ScheduleEntry.arrivalMillis
+                //   实测同样是**开门时刻**：latest.log 23:14:26 起播报「剩 19814ms」→ 门 23:14:58 才开
+                //   （起播后 31.15s）⇒ arrivalMillis-now≈29.8s 与真实开门只差 ~1.3s（60tick 推送周期）。
+                //   上一版在这减 dwellMs(10000ms) 把窗口提前了 ~10s ⇒ 设定 -20s 实际 -32s（与 1.18.2 同型）。
+                //   ⇒ **不再减停站时长**，直接以 arrivalMillis 为开门锚点（hotfix-2 与 hotfix-1 同为开门时刻，
+                //   当初按 20:19 旧日志「剩 19551ms 门 2.27s 后开」误判为发车时刻，方向错了）。
                 long remaining = n.longValue() - now;
                 if (remaining < -ARRIVAL_PAST_MS) {
                     continue;

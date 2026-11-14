@@ -1,12 +1,10 @@
 package smooth.lift.client;
 
-import net.minecraft.network.FriendlyByteBuf;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.client.gui.components.Button;
 import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.network.chat.Component;
-import smooth.lift.SmoothLift;
 import smooth.lift.network.Packets;
 import smooth.lift.network.SyncSettingsPacket;
 

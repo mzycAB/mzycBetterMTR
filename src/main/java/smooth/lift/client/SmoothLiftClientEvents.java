@@ -261,6 +261,8 @@ public class SmoothLiftClientEvents {
         EscalatorAudioPlayer.onDisconnect();
         // 【1.15】停掉无障碍提示音并清掉定位缓存。
         EscalatorChimePlayer.onDisconnect();
+        // 【1.39.11201】停掉电梯 BGM（换世界/断线后实例与素材缓存一起作废）。
+        LiftBgmPlayer.onDisconnect();
         // 【1.50】停掉屏蔽门提示音 / 到站播报 / 进站报站并清掉定位缓存。
         PsdChimePlayer.onDisconnect();
         // 【09-30 / 1.29 移植】闸机提示音播放器随断线一并停掉。
@@ -293,6 +295,9 @@ public class SmoothLiftClientEvents {
         // 【1.42】直梯（MTR Lift）开关门提示音：关门连播 4 次 liftmusic.ogg、开门连播 2 次。
         //   与上面两个播放器互不影响：那两个只认「扶梯阶梯方块」，本播放器只认 MTR 的直梯对象。
         LiftChimePlayer.onClientTick(mc);
+        // 【1.39.11201】电梯 BGM：电梯**移动时**循环播放玩家导入的 ogg，停下就收。
+        //   与开关门提示音互不影响（一个是事件性连播、一个是持续性循环），共用 MtrLiftAccess 快照。
+        LiftBgmPlayer.onClientTick(mc);
         // 【1.50】屏蔽门（PSD / APG）开关门提示音 + 到站播报 / 进站报站。
         PsdChimePlayer.onClientTick(mc);
         // 【1.18.1204 / 1.29 移植】地图图片纹理：每 tick 轮询图集 sprite 引用，检测资源重载后重贴。
