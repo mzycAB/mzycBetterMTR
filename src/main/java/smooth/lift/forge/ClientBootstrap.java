@@ -41,6 +41,8 @@ public final class ClientBootstrap {
 
     public static final class Handlers {
 
+        private boolean tickBridgeLogged;
+
         @SubscribeEvent
         public void onRegisterClientCommands(RegisterClientCommandsEvent event) {
             ClientCommandRegistrationCallback.EVENT.invoke(callback ->
@@ -53,6 +55,12 @@ public final class ClientBootstrap {
                 return;
             }
             Minecraft client = Minecraft.getInstance();
+            if (!tickBridgeLogged) {
+                tickBridgeLogged = true;
+                org.slf4j.LoggerFactory.getLogger(ClientBootstrap.class).info(
+                        "[SmoothLift/Diag] 客户端 tick 桥已通：TickEvent.END → END_CLIENT_TICK"
+                                + "（进站播报 / 讲述人的逐 tick 循环开始运行）");
+            }
             ClientTickEvents.END_CLIENT_TICK.invoke(callback -> callback.onEndTick(client));
         }
 

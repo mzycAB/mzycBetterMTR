@@ -701,9 +701,16 @@ check(re.search(r"boolean trainAttenuated,\s*int roundKind,", player) is not Non
       "（眼下同进同出，但判据不同 —— 合并 = 本项目栽过的「一个哨兵表达两件事」）")
 
 # 退场：一次性声音没有引擎的「播完」回调
-check(re.search(r"long playableMs = Math\.max\(0L, tone\.durationMs\(\) - Math\.max\(0, startMs\)\);",
-                player) is not None,
-      "★ playableMs = max(0, 素材总长 − 剪掉的头部)（剪头那档要按**剩下的**算时长）")
+# 【1.39.11182】两种形态都允许：
+#   ① 素材时长能量出来 → playableMs = max(0, 素材总长 − 剪掉的头部)（剪头那档按**剩下的**算）；
+#   ② 量不出来（durationMs <= 0）→ 给 5 分钟宽松预算 UNKNOWN_DURATION_BUDGET_MS
+#      （旧写法算成 0 ⇒ 1 秒后按 isStopped 掐断，玩家听到「自定义 ogg 只响一下」）。
+check(re.search(r"long playableMs = tone\.durationMs\(\) > 0\s*\n\s*\?\s*Math\.max\(0L, "
+                r"tone\.durationMs\(\) - Math\.max\(0, startMs\)\)\s*\n\s*:\s*"
+                r"UNKNOWN_DURATION_BUDGET_MS;", player) is not None
+      or re.search(r"long playableMs = Math\.max\(0L, tone\.durationMs\(\) - Math\.max\(0, startMs\)\);",
+                   player) is not None,
+      "★ playableMs = max(0, 素材总长 − 剪掉的头部)，量不出时长时给 UNKNOWN_DURATION_BUDGET_MS")
 check(re.search(r"\(int\) \(\(playableMs \+ 49L\) / 50L\) \+ 20", player) is not None,
       "★★ remainingTicks = ceil(playableMs / 50) + 20（向上取整成 tick + 20 tick 余量）")
 check(re.search(r"public boolean isStopped\(\)\s*\{\s*return remainingTicks <= 0;", player)

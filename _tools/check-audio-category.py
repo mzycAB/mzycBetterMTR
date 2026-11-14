@@ -3,9 +3,9 @@
 
 ## 设计要点（脚本要钉住的不变量）
 
-1. **分类常量齐全**：17 个分类（futi/music 底噪、futi/help 提示音、
+1. **分类常量齐全**：18 个分类（futi/music 底噪、futi/help 提示音、
    train run/round/switch/in/out 列车五项、pbm open/close/midium/arrive、
-   lift up/down/open/close、zhaji in/out 闸机两侧），全部在 ALL_CATEGORIES 里；
+   lift up/down/open/close、lift/liftbgm 电梯BGM、zhaji in/out 闸机两侧），全部在 ALL_CATEGORIES 里；
    分类 = 子文件夹名（MBM_Audio/<分类>）。
    ★ 目录 2026-09-27 改版（第一版）：扶梯两类提到 MBM_Audio/futi 下；
      futi/ 只是**分组目录**、本身不是分类（判据：没有任何分类字符串恰好 == "futi"）⇒ 里面不放 ogg。
@@ -77,8 +77,9 @@ CATS = ["CAT_FUTI", "CAT_HELP",
         "CAT_TRAIN_RUN", "CAT_TRAIN_ROUND", "CAT_TRAIN_SWITCH", "CAT_TRAIN_IN", "CAT_TRAIN_OUT",
         "CAT_PSD_OPEN", "CAT_PSD_CLOSE", "CAT_PSD_MIDIUM", "CAT_PSD_ARRIVE",
         "CAT_LIFT_UP", "CAT_LIFT_DOWN", "CAT_LIFT_OPEN", "CAT_LIFT_CLOSE",
-        "CAT_ZHAJI_IN", "CAT_ZHAJI_OUT"]
-check(all(c in mgr_no for c in CATS), "17 个分类常量都在 Manager 里定义")
+        "CAT_ZHAJI_IN", "CAT_ZHAJI_OUT",
+        "CAT_LIFT_BGM"]
+check(all(c in mgr_no for c in CATS), "18 个分类常量都在 Manager 里定义")
 check('ALL_CATEGORIES' in mgr_no, "ALL_CATEGORIES 数组存在")
 check('"futi/music"' in mgr_no and '"futi/help"' in mgr_no
       and '"train/run"' in mgr_no and '"train/out"' in mgr_no,
@@ -97,8 +98,9 @@ check(_vals == {"futi/music", "futi/help",
                 "train/run", "train/round", "train/switch", "train/in", "train/out",
                 "pbm/open", "pbm/close", "pbm/midium", "pbm/arrive",
                 "lift/up", "lift/down", "lift/open", "lift/close",
+                "lift/liftbgm",
                 "zhaji/in", "zhaji/out"},
-      "17 个分类值 = 目录树（futi/* ×2、train/* ×5、pbm/* ×4、lift/* ×4、zhaji/* ×2）",
+      "18 个分类值 = 目录树（futi/* ×2、train/* ×5、pbm/* ×4、lift/* ×5、zhaji/* ×2）",
       "实际 = %s" % sorted(_vals))
 check('"pbm/open"' in mgr_no and '"pbm/close"' in mgr_no
       and '"pbm/midium"' in mgr_no and '"pbm/arrive"' in mgr_no,
@@ -132,7 +134,7 @@ check('endsWith(".ogg")' in mgr_no and "Files.move(" in mgr_no
 m = re.search(r"public static final String\[\] ALL_CATEGORIES\s*=\s*\{(.*?)\};", mgr_no, re.S)
 if m:
     listed = re.findall(r"CAT_[A-Z_]+", m.group(1))
-    check(listed == CATS, "ALL_CATEGORIES 顺序 = 全部 17 个（与同步包书写顺序一致）",
+    check(listed == CATS, "ALL_CATEGORIES 顺序 = 全部 18 个（与同步包书写顺序一致）",
           "实际 %s" % listed)
 check('CAT_MUSIC' not in mgr_no,
       "★ 常量名 CAT_MUSIC 已彻底移除（换成 CAT_TRAIN_RUN 等五个）")

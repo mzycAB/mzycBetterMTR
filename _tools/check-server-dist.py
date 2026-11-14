@@ -61,7 +61,7 @@ def _find_javap():
 
 
 JAVAP = _find_javap()
-EXPECT_VERSION = "1.35.11182"
+EXPECT_VERSION = "1.39.11182"
 
 # 目标类本身是客户端类 ⇒ 专用服务器不会加载 ⇒ 不会加载 mixin 类本身
 WHITELIST = {

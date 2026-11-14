@@ -735,6 +735,8 @@ public final class TrainAnnounceNarrator {
         try {
             Narrator n = Narrator.getNarrator();
             if (n == null || !n.active()) {
+                LOGGER.warn("[SmoothLift/TrainAnnounce] 文字转语音引擎不可用（实例={}，active={}）"
+                        + " ⇒ 讲述人不会出声；日志/字幕仍会出现", n, n != null && n.active());
                 return null;
             }
             narrator = n;

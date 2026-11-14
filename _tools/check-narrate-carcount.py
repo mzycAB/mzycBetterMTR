@@ -403,7 +403,7 @@ def main():
               "jar 名带的是 gradle.properties 里的 mod_version",
               "%s / %s" % (os.path.basename(jar), mod_version))
         # ★ 用户点名：版本号 1.34.xxxx（xxxx 不变）
-        check(mod_version == "1.34.11182", u"★ 版本号就是用户点名的 1.34.11182", "得到 %s" % mod_version)
+        check(mod_version == "1.39.11182", u"★ 版本号就是用户点名的 1.39.11182", "得到 %s" % mod_version)
         z = zipfile.ZipFile(jar)
         names = z.namelist()
         want = ["smooth/lift/client/TrainAnnounceNarrator.class",

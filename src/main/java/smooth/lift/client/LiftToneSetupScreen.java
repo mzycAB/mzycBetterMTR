@@ -2,6 +2,7 @@ package smooth.lift.client;
 
 import smooth.lift.compat.ButtonBuilder;
 
+
 import smooth.lift.net.SLNet;
 
 import net.minecraft.client.Minecraft;
@@ -325,6 +326,27 @@ public class LiftToneSetupScreen extends Screen {
 
             y += ROW_H;
         }
+
+        // 【1.39.11182】第五行「电梯 BGM」：与上面四项同一个按钮样式、同一行距。
+        //   ★ BGM 是「移动时循环播放」的 BGM，**也有自己的音量框**（用户点名，
+        //     "就像开门声音一样的输入框"，1~1000，100 = 原始音量）。
+        //   输入框走同一个落地路径：行键 "bgm"、通道 SET_LIFT_TONE_VOLUME_CHANNEL。
+        addRenderableWidget(ButtonBuilder.builder(new net.minecraft.network.chat.TextComponent("电梯BGM设置…"),
+                        button -> {
+                            applyMainVolumes();
+                            Minecraft.getInstance().setScreen(new LiftBgmSetupScreen(this));
+                        })
+                .bounds(mainRowStartX(), y, BTN_W, 20)
+                .build());
+
+        EditBox bgmBox = new EditBox(this.font, mainRowInputX(), y, MAIN_INPUT_W, 20,
+                new net.minecraft.network.chat.TextComponent("电梯BGM音量 1~1000"));
+        bgmBox.setMaxLength(8);
+        bgmBox.setValue(String.valueOf(EscalatorSpeedManager.getLiftBgmVolume(mcLevel())));
+        addRenderableWidget(bgmBox);
+        mainVolumeInputs.put("bgm", bgmBox);
+
+        y += ROW_H;
     }
 
     /** 一级页一行的总宽（按钮 + 空隙 + 「音量」标签 + 空隙 + 输入框）。 */
@@ -711,9 +733,9 @@ public class LiftToneSetupScreen extends Screen {
     private void renderMainPage(GuiGraphics guiGraphics) {
         int cx = this.width / 2;
 
-        // 每行按钮右边的「音量」标签
+        // 每行按钮右边的「音量」标签（四项 + BGM 第五行 = PAGES.length + 1）
         int y = LIST_TOP + 10;
-        for (int i = 0; i < PAGES.length; i++) {
+        for (int i = 0; i < PAGES.length + 1; i++) {
             guiGraphics.drawString(this.font, new net.minecraft.network.chat.TextComponent(VOLUME_LABEL),
                     mainRowLabelX(), y + 6, 0xFFFFFF, false);
             y += ROW_H;

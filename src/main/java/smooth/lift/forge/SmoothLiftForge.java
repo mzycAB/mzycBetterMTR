@@ -27,6 +27,9 @@ public class SmoothLiftForge {
     public static final String MOD_ID = "smooth_lift";
 
     public SmoothLiftForge() {
+        org.slf4j.LoggerFactory.getLogger("smoothlift").info(
+                "[SmoothLift/Build] 1.39.11182 · 严格按 MTR3 班次表版 · build 2026-11-14f"
+                        + "（进站播报只认 SCHEDULES_FOR_PLATFORM，不做任何预测）");
         SLNet.init();
 
         MinecraftForge.EVENT_BUS.register(new ForgeEventBridge());

@@ -228,6 +228,8 @@ public final class MtrDwellAccess {
     private static boolean broken;
     /** 「站台集合是空的」只提示一次。 */
     private static boolean warnedEmpty;
+    /** 【Diag】班次表存在但「可用班次为 0」也只打一次。 */
+    private static boolean mtr3EmptyScheduleLogged;
     /** 首次成功读到站台集合时打一条（只打一次）：日志里能一眼看出客户端到底有没有站台数据。 */
     private static boolean loggedCount;
     /** 【第十轮】「一个站台都够不着」只提示一次。 */
@@ -293,10 +295,10 @@ public final class MtrDwellAccess {
     private static Method mtr3GetCenter;
     /** 【MTR3】{@code AreaBase.inArea(int,int)}（public，platform 中点是否落在车站范围内）。 */
     private static Method mtr3InArea;
-    /** 【MTR3】BlockPos.getX/getY/getZ（getReturnType 拿，避免硬编码 MC 映射名 class_2338）。 */
-    private static Method mtr3PosGetX;
-    private static Method mtr3PosGetY;
-    private static Method mtr3PosGetZ;
+    // 【1.39.11182 修】MTR3 的 BlockPos 分量不再反射 getMethod("getX"/"getY"/"getZ")：
+    //   字符串方法名不会被 ForgeGradle reobf 成 SRG 名，生产环境必 NoSuchMethodException ⇒
+    //   bindMtr3() 直接失败 ⇒ 站台识别全失效 ⇒ 进站/到站播报与两条讲述人静默消失。
+    //   分量改走编译期 ((BlockPos) mid).getX()（invokevirtual 会被 reobf 成正确名字）。
     /** 【MTR3】{@code Route.platformIds}（public final List<RoutePlatform>，站台→线路用）。 */
     private static Field mtr3RoutePlatformIdsField;
     /** 【MTR3】{@code Route$RoutePlatform.platformId}（public final long）。 */
@@ -467,7 +469,7 @@ public final class MtrDwellAccess {
             }
         } catch (Throwable t) {
             LOGGER.info("[SmoothLift/PsdChime] 读不到 MTR3 站台数据层（{}），"
-                    + "停站时长只能靠上一轮实测学习（功能照常，只是第一次停站没人声）", t.toString());
+                    + "停站时长只能靠上一轮实测学习；⚠️ 站台识别也会一起失效 ⇒ 到站/进站播报与两条讲述人都会静默跳过（要查先查这里）", t.toString());
         }
         return false;
     }
@@ -495,12 +497,11 @@ public final class MtrDwellAccess {
             if (mtr3GetMidPos == null || mtr3GetDwellTime == null) {
                 throw new NoSuchMethodException("SavedRailBase.getMidPos/getDwellTime");
             }
-            // ★ 拿到 BlockPos 的真实 Class（运行期可能是 class_2338，也可能是 Mojang 名），避免硬编码映射。
-            Class<?> blockPos = mtr3GetMidPos.getReturnType();
-            mtr3PosGetX = blockPos.getMethod("getX");
-            mtr3PosGetY = blockPos.getMethod("getY");
-            mtr3PosGetZ = blockPos.getMethod("getZ");
-            setAccessible(mtr3PosGetX, mtr3PosGetY, mtr3PosGetZ);
+            // ★【1.39.11182 修】只确认返回类型、**不再反射它的 getX/getY/getZ**：
+            //   字符串方法名不会被 reobf，生产 jar 里 BlockPos 是 SRG 名 ⇒ 必 NoSuchMethodException，
+            //   整个 bindMtr3() 抛异常 → 站台识别全失效 → 进站讲述人消失。
+            //   分量改走编译期 ((BlockPos) mid).getX()，见 px/py/pz。与 Forge1.20.1 修复版一致。
+            mtr3GetMidPos.getReturnType();
             Class<?> named = Class.forName("mtr.data.NameColorDataBase");
             mtr3IdField = fieldInHierarchy(named, "id");
             mtr3NameField = fieldInHierarchy(named, "name");
@@ -527,7 +528,7 @@ public final class MtrDwellAccess {
             return true;
         } catch (Throwable t) {
             LOGGER.info("[SmoothLift/PsdChime] 读不到 MTR3 站台数据层（{}），"
-                    + "停站时长只能靠上一轮实测学习（功能照常，只是第一次停站没人声）", t.toString());
+                    + "停站时长只能靠上一轮实测学习；⚠️ 站台识别也会一起失效 ⇒ 到站/进站播报与两条讲述人都会静默跳过（要查先查这里）", t.toString());
             return false;
         }
     }
@@ -626,7 +627,7 @@ public final class MtrDwellAccess {
             // 不是错误路径：没装 MTR4 / 装了别的版本 / MTR 改了内部结构，都走到这里。
             // 屏蔽门提示音本来就有「实测学习」那条完整可用的路，读不到只是少一份参照。
             LOGGER.info("[SmoothLift/PsdChime] 读不到 MTR 站台数据（{}），"
-                    + "停站时长只能靠上一轮实测学习（功能照常，只是第一次停站没人声）", t.toString());
+                    + "停站时长只能靠上一轮实测学习；⚠️ 站台识别也会一起失效 ⇒ 到站/进站播报与两条讲述人都会静默跳过（要查先查这里）", t.toString());
             return false;
         }
     }
@@ -696,10 +697,13 @@ public final class MtrDwellAccess {
         }
     }
 
-    /** 中点坐标的 X 分量（按版本选 Position / BlockPos 的 getX）。 */
+    /** 中点坐标的 X 分量（MTR4 = Position.getX() 反射；MTR3 = BlockPos 编译期调用，remap 自动对）。 */
     private static double px(Object pos) {
         try {
-            return ((Number) (mode == MODE_MTR3 ? mtr3PosGetX : posGetX).invoke(pos)).doubleValue();
+            if (mode == MODE_MTR3) {
+                return ((net.minecraft.core.BlockPos) pos).getX();
+            }
+            return ((Number) posGetX.invoke(pos)).doubleValue();
         } catch (Throwable t) {
             return Double.NaN;
         }
@@ -708,7 +712,10 @@ public final class MtrDwellAccess {
     /** 中点坐标的 Y 分量。 */
     private static double py(Object pos) {
         try {
-            return ((Number) (mode == MODE_MTR3 ? mtr3PosGetY : posGetY).invoke(pos)).doubleValue();
+            if (mode == MODE_MTR3) {
+                return ((net.minecraft.core.BlockPos) pos).getY();
+            }
+            return ((Number) posGetY.invoke(pos)).doubleValue();
         } catch (Throwable t) {
             return Double.NaN;
         }
@@ -717,7 +724,10 @@ public final class MtrDwellAccess {
     /** 中点坐标的 Z 分量。 */
     private static double pz(Object pos) {
         try {
-            return ((Number) (mode == MODE_MTR3 ? mtr3PosGetZ : posGetZ).invoke(pos)).doubleValue();
+            if (mode == MODE_MTR3) {
+                return ((net.minecraft.core.BlockPos) pos).getZ();
+            }
+            return ((Number) posGetZ.invoke(pos)).doubleValue();
         } catch (Throwable t) {
             return Double.NaN;
         }
@@ -742,8 +752,7 @@ public final class MtrDwellAccess {
      * {@code Station.inArea(中点X, 中点Z)} 的那个就是（MTR3 没有 platform.area 链接）。
      */
     private static String mtr3StationNameOf(Object platform) {
-        if (mtr3StationsField == null || mtr3GetMidPos == null || mtr3InArea == null
-                || mtr3PosGetX == null || mtr3PosGetZ == null) {
+        if (mtr3StationsField == null || mtr3GetMidPos == null || mtr3InArea == null) {
             return null;
         }
         try {
@@ -859,7 +868,44 @@ public final class MtrDwellAccess {
 
     /** 【MTR3】站台 id → 站台名（platform.name 字段，讲述人报站词要念的「几站台」）。 */
     private static String mtr3PlatformNameForPlatform(long platformId) {
-        if (mtr3PlatformsField == null || mtr3NameField == null) {
+        Object platform = mtr3PlatformById(platformId);
+        if (platform == null || mtr3NameField == null) {
+            return null;
+        }
+        try {
+            Object name = mtr3NameField.get(platform);
+            return name == null ? null : name.toString();
+        } catch (Throwable ignored) {
+            return null;
+        }
+    }
+
+    /**
+     * 【MTR3】下一班车信息：从 {@code SCHEDULES_FOR_PLATFORM} 取这一站的时刻表，
+     * 算「还有几秒到站」；终点站走 {@code ClientCache.getFormattedRouteDestination}（PIDS 同函数）。
+     */
+    /** 【1.39 修】到站锚点校正的诊断日志只打一次，避免每班/每帧刷屏。 */
+    private static boolean mtr3DwellAnchorLogged;
+    /** 【Diag】「该站台没有班次」也只打一次，避免每 tick 刷屏。 */
+    private static boolean mtr3NoScheduleLogged;
+
+    /**
+     * 【1.39 修】取这一站的停站时长（毫秒）—— 用来把 MTR3 时刻表的「发车时刻」拉回「开门时刻」。
+     *
+     * <p>MTR3 的 {@code ScheduleEntry.arrivalMillis} 不是到站时刻：反汇编 MTR-forge-1.20.1-3.2.2
+     * 的 {@code TrainServer.simulateTrain} 可见它取的是 {@code Siding.TimeSegment.endTime}
+     * （停站段结束 = 发车），公式
+     * {@code currentMillis + (endTime + offsetTime - currentTime) * MILLIS_PER_TICK}。
+     * 于是「提前 20 秒」实际是「发车前 20 秒」，落到真实开门只剩 (20s − 停站时长)。
+     * 实测 latest.log：配置 -20、起播时 remainMs=19551ms，2.272s 后门就开了 ⇒ 停站约 17.3s。
+     *
+     * <p>MTR3 的 {@code SavedRailBase.getDwellTime()} 单位是**半秒**
+     * （{@code Train.getTotalDwellTicks() = dwellTime × 10}），换算成毫秒要 ×500。
+     * 读不到就返回 0（保持旧行为），不影响其余功能。
+     */
+    /** 【性能】按 id 在 PLATFORMS 里找一次（反射遍历是热点，两个取字段的函数共用这一次）。 */
+    private static Object mtr3PlatformById(long platformId) {
+        if (mtr3PlatformsField == null) {
             return null;
         }
         try {
@@ -868,24 +914,30 @@ public final class MtrDwellAccess {
                 return null;
             }
             for (Object platform : platforms) {
-                if (platform == null) {
-                    continue;
-                }
-                if (idOf(platform) == platformId) {
-                    Object name = mtr3NameField.get(platform);
-                    return name == null ? null : name.toString();
+                if (platform != null && idOf(platform) == platformId) {
+                    return platform;
                 }
             }
         } catch (Throwable ignored) {
-            // 读不到只是没站台名可念
+            // 读不到只是没找到，返回 null
         }
         return null;
     }
 
-    /**
-     * 【MTR3】下一班车信息：从 {@code SCHEDULES_FOR_PLATFORM} 取这一站的时刻表，
-     * 算「还有几秒到站」；终点站走 {@code ClientCache.getFormattedRouteDestination}（PIDS 同函数）。
-     */
+    private static long mtr3DwellMsForPlatform(long platformId) {
+        Object platform = mtr3PlatformById(platformId);
+        if (platform == null || mtr3GetDwellTime == null) {
+            return 0L;
+        }
+        try {
+            Object v = mtr3GetDwellTime.invoke(platform);
+            long dwellMs = v instanceof Number num ? num.longValue() * 500L : 0L;
+            return dwellMs > 0L ? dwellMs : 0L;
+        } catch (Throwable ignored) {
+            return 0L;
+        }
+    }
+
     private static ArrivalInfo mtr3NearestArrival(long platformId) {
         if (mtr3SchedulesField == null || mtr3ArrivalMillisField == null) {
             LOGGER.info("[SmoothLift/PsdChime] MTR3 读不到 SCHEDULES_FOR_PLATFORM（时刻表），"
@@ -899,9 +951,28 @@ public final class MtrDwellAccess {
             }
             Object set = scheduleMap.get(platformId);
             if (!(set instanceof Iterable<?> entries)) {
+                if (!mtr3NoScheduleLogged) {
+                    mtr3NoScheduleLogged = true;
+                    LOGGER.warn("[SmoothLift/Diag] MTR3 时刻表里没有这个站台的班次 ⇒ 进站播报/讲述人静默跳过："
+                                    + "请求 platformId={}、SCHEDULES_FOR_PLATFORM 站台数={}、已有 key={}；"
+                                    + "set={}（null=该站台从未有班次、非 Iterable=数据类型异常）",
+                            platformId, scheduleMap.size(), scheduleMap.keySet(),
+                            set == null ? "null" : set.getClass().getName());
+                }
                 return null;
             }
             long now = System.currentTimeMillis();
+            // ★【1.39 修】MTR3 的 arrivalMillis 是**发车**时刻（TimeSegment.endTime），
+            //   比真实开门晚一整个停站时长。减掉它，让「提前 X 秒」真正以开门为基准。
+            long dwellMs = mtr3DwellMsForPlatform(platformId);
+            if (!mtr3DwellAnchorLogged) {
+                mtr3DwellAnchorLogged = true;
+                int diagScheduleCount = set instanceof java.util.Collection<?> col ? col.size() : -1;
+                LOGGER.info("[SmoothLift/PsdChime] MTR3 到站锚点（1.18.2 hotfix-1 = 开门时刻，不扣停站）："
+                        + "本站停站 {}ms 仅作参考｜[Diag] platformId={}、时刻表 Map 站台数={}、"
+                        + "本站台班次={}、班次为空={}、mode=3",
+                        dwellMs, platformId, scheduleMap.size(), diagScheduleCount, diagScheduleCount == 0);
+            }
             long best = Long.MIN_VALUE;
             String bestDest = null;
             // 【10-01】站台名过一遍 PIDS 掩码：MTR3 的名字是 public 字段 `Platform.name`，
@@ -917,6 +988,12 @@ public final class MtrDwellAccess {
                 if (!(am instanceof Number n)) {
                     continue;
                 }
+                // ★【2026-11-14 实测修正】1.18.2 用的是 MTR3 hotfix-1：其 ScheduleEntry.arrivalMillis
+                //   对应的就是**开门时刻**（Siding 里 endTime 在走完进站轨道那一刻、dwell 是之后才加），
+                //   与 hotfix-2（1.20.1，arrivalMillis=发车时刻、需减停站）语义**相反**。
+                //   实测（latest.log 23:05:47 起播报「剩 19936ms」→ 门 23:06:20 才开 = 实际提前 32.75s）：
+                //   上一版在这减 dwellMs(10000ms) 把窗口整体提前了 ~10s ⇒ 设定 -20s 实际 -32.75s。
+                //   ⇒ 本版本**不再减停站时长**，直接以 arrivalMillis 为开门锚点。
                 long remaining = n.longValue() - now;
                 if (remaining < -ARRIVAL_PAST_MS) {
                     continue;
@@ -926,6 +1003,16 @@ public final class MtrDwellAccess {
                     // 【10-03 五改】与 MTR4 那一支同一个出口：终点站名掩一次（讲述人只念本名）。
                     bestDest = PlatformNameMask.mask(mtr3DestinationFor(entry));
                 }
+            }
+            if (best == Long.MIN_VALUE && !mtr3EmptyScheduleLogged) {
+                mtr3EmptyScheduleLogged = true;
+                int total = set instanceof java.util.Collection<?> col ? col.size() : -1;
+                LOGGER.warn("[SmoothLift/Diag] MTR3 班次表已下发，但本站台【可用班次为 0】⇒ 进站播报按班次表无车可报："
+                                + "platformId={}、该站台原始班次条数={}、班次表站台数={}、停站校正={}ms、"
+                                + "ARRIVAL_PAST_MS={}ms（原始班次全部早于此刻即被过滤）。"
+                                + "MTR3 只在列车由车厂按时刻表排班运行时生成班次；"
+                                + "PIDS 屏能看到「下一班」即代表班次表有数据",
+                        platformId, total, scheduleMap.size(), dwellMs, ARRIVAL_PAST_MS);
             }
             return best == Long.MIN_VALUE ? null : new ArrivalInfo(best, bestDest, bestPlatform, 0);
         } catch (Throwable t) {
@@ -1558,7 +1645,15 @@ public final class MtrDwellAccess {
     private static long dwellOf(Object platform) {
         try {
             Object dwell = (mode == MODE_MTR3 ? mtr3GetDwellTime : getDwellTime).invoke(platform);
-            return dwell instanceof Number n ? n.longValue() : Long.MIN_VALUE;
+            long v = dwell instanceof Number n ? n.longValue() : Long.MIN_VALUE;
+            // ★【1.39.11182 修 / 移植 Forge1.20.1】MTR3 的 dwellTime 单位是**半秒**不是 ms：
+            //   SavedRailBase.getDwellTime 返回 int、无效默认 20，Train.getTotalDwellTicks()
+            //   = dwellTime × 10（20 → 200 tick = 10 秒）。之前当 ms 用 ⇒ 10 秒停站被读成 20ms
+            //   ⇒ 时刻表周期算错，人声被门动作掐断。MTR4 的 dwellTime 才是 ms —— 只换算 MTR3。
+            if (mode == MODE_MTR3 && v != Long.MIN_VALUE) {
+                v *= 500L; // 半秒 → 毫秒（20 半秒 = 10 秒 = 10000ms）
+            }
+            return v;
         } catch (Throwable ignored) {
             return Long.MIN_VALUE;
         }
