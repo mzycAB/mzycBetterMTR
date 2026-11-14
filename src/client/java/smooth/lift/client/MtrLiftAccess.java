@@ -541,14 +541,33 @@ public final class MtrLiftAccess {
         if (level == null || broken || version() == Version.NONE) {
             return List.of();
         }
+        long tick = level.getGameTime();
+        if (level == cachedLevel && tick == cachedTick && !cachedSnapshot.isEmpty()) {
+            return cachedSnapshot;
+        }
         try {
-            return version == Version.MTR4 ? snapshotMtr4() : snapshotMtr3();
+            List<LiftView> out = version == Version.MTR4 ? snapshotMtr4() : snapshotMtr3();
+            if (!out.isEmpty()) {
+                cachedLevel = level;
+                cachedTick = tick;
+                cachedSnapshot = out;
+            }
+            return out;
         } catch (Throwable t) {
             broken = true;
+            cachedLevel = null;
+            cachedSnapshot = List.of();
             LOGGER.warn("[SmoothLift/LiftChime] 读取直梯数据失败，本功能已停用：{}", t.toString());
             return List.of();
         }
     }
+
+    /** 见 {@link #snapshot(Level)}：快照缓存的上一个等级实例（换世界自动失效）。 */
+    private static Level cachedLevel;
+    /** 见 {@link #snapshot(Level)}：快照缓存的上一个 gameTime。 */
+    private static long cachedTick = -1;
+    /** 见 {@link #snapshot(Level)}：缓存的那份只读快照（调用方只 for-each，绝不改）。 */
+    private static List<LiftView> cachedSnapshot = List.of();
 
     /**
      * 把一个「装着直梯的容器」变成可 for-each 的视图。

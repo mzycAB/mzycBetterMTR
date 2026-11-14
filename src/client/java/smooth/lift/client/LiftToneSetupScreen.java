@@ -325,6 +325,27 @@ public class LiftToneSetupScreen extends Screen {
 
             y += ROW_H;
         }
+
+        // 【1.39.1211】第五行「电梯 BGM」：与上面四项同一个按钮样式、同一行距。
+        //   ★ BGM 是「移动时循环播放」的 BGM，**也有自己的音量框**（用户点名，
+        //     "就像开门声音一样的输入框"，1~1000，100 = 原始音量）。
+        //   输入框走同一个落地路径：行键 "bgm"、通道 SET_LIFT_TONE_VOLUME_CHANNEL。
+        addRenderableWidget(Button.builder(Component.literal("电梯BGM设置…"),
+                        button -> {
+                            applyMainVolumes();
+                            Minecraft.getInstance().setScreen(new LiftBgmSetupScreen(this));
+                        })
+                .bounds(mainRowStartX(), y, BTN_W, 20)
+                .build());
+
+        EditBox bgmBox = new EditBox(this.font, mainRowInputX(), y, MAIN_INPUT_W, 20,
+                Component.literal("电梯BGM音量 1~1000"));
+        bgmBox.setMaxLength(8);
+        bgmBox.setValue(String.valueOf(EscalatorSpeedManager.getLiftBgmVolume(mcLevel())));
+        addRenderableWidget(bgmBox);
+        mainVolumeInputs.put("bgm", bgmBox);
+
+        y += ROW_H;
     }
 
     /** 一级页一行的总宽（按钮 + 空隙 + 「音量」标签 + 空隙 + 输入框）。 */

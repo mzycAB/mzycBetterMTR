@@ -207,6 +207,11 @@ public class SmoothLift implements ModInitializer {
     /** 【1.45】服务端 -> 客户端：同步「竖井列 → 直梯提示音」表（小包，不含音频字节）。 */
     public static final ResourceLocation LIFT_TONE_SYNC_CHANNEL = ResourceLocation.fromNamespaceAndPath("smoothlift", "lift_tone_sync");
 
+    /** 【1.39.1211】客户端 -> 服务端：设置本维度的电梯 BGM（= /liftbgm <名字>）。 */
+    public static final ResourceLocation SET_LIFT_BGM_CHANNEL = ResourceLocation.fromNamespaceAndPath("smoothlift", "set_lift_bgm");
+    /** 【1.39.1211】服务端 -> 客户端：同步本维度的电梯 BGM（dimId + audioId）。 */
+    public static final ResourceLocation LIFT_BGM_SYNC_CHANNEL = ResourceLocation.fromNamespaceAndPath("smoothlift", "lift_bgm_sync");
+
     // ------------------------------------------------------------------
     // 【09-30】闸机（MTR Ticket Barrier）提示音的频道
     //   进站 / 出站各一份设置，**只有维度默认这一层**（没有「按某一台闸机单独设置」的表，
@@ -768,6 +773,9 @@ public class SmoothLift implements ModInitializer {
                     if (EscalatorSpeedManager.clearPsdArriveIfRemoved(server, audioId) > 0) {
                         noteUiResult(player, true);
                     }
+                    // 【1.39.1211】电梯 BGM 也可能正指着这一段：removeAudio 已在服务端把它
+                    //   回落成「不播」，这里把权威值推给客户端（否则界面还打着旧 ✓、播放器还抱着旧 id）。
+                    EscalatorSpeedManager.syncLiftBgmToAll(server);
                     EscalatorSpeedManager.syncPsdChimeToAll(server);
                 }
             });
@@ -1005,7 +1013,8 @@ public class SmoothLift implements ModInitializer {
             int volume = buf.readVarInt();
             server.execute(() -> {
                 if (!"up".equals(which) && !"down".equals(which)
-                        && !"open".equals(which) && !"close".equals(which)) {
+                        && !"open".equals(which) && !"close".equals(which)
+                        && !"bgm".equals(which)) {
                     noteUiResult(player, false);
                     return;
                 }
@@ -1013,7 +1022,12 @@ public class SmoothLift implements ModInitializer {
                 EscalatorSpeedManager.setDefaultLiftToneVolume(level, which, volume);
                 int applied = EscalatorSpeedManager.getLiftToneVolume(level, which);
                 noteUiResult(player, true);
-                EscalatorSpeedManager.syncLiftChimeToAll(server);
+                if ("bgm".equals(which)) {
+                    // 【1.39.1211】BGM 音量走它自己的同步包（与音频同一份）。
+                    EscalatorSpeedManager.syncLiftBgmToAll(server);
+                } else {
+                    EscalatorSpeedManager.syncLiftChimeToAll(server);
+                }
             });
         });
 
@@ -1028,6 +1042,22 @@ public class SmoothLift implements ModInitializer {
             String fileName = buf.readUtf(128);
             server.execute(() -> {
                 ServerLevel level = player.serverLevel();
+                // 【1.39.1211】电梯 BGM 复用同一条「选中即导入」通道：
+                //   which = "bgm" 时 key 不参与（BGM 是按维度一份，不是按竖井列），
+                //   导入到 MBM_Audio/lift/liftbgm 后直接设为这一维度的 BGM。
+                if ("bgm".equals(which)) {
+                    String bgmProblem = EscalatorSpeedManager.importAudioToStore(
+                            level, EscalatorSpeedManager.CAT_LIFT_BGM, fileName);
+                    if (bgmProblem == null && EscalatorSpeedManager.setLiftBgmAudio(level, fileName)) {
+                        noteUiResult(player, true);
+                        EscalatorSpeedManager.syncAudioToAll(server);
+                        EscalatorSpeedManager.syncLiftBgmToAll(server);
+                    } else {
+                        noteUiResult(player, false);
+                        EscalatorSpeedManager.syncAudioToAll(server);
+                    }
+                    return;
+                }
                 String problem = EscalatorSpeedManager.importAudioToStore(
                         level, EscalatorSpeedManager.liftToneCategory(which), fileName);
                 if (problem == null) {
@@ -1039,6 +1069,23 @@ public class SmoothLift implements ModInitializer {
                         noteUiResult(player, false);
                         EscalatorSpeedManager.syncAudioToAll(server);
                     }
+                } else {
+                    noteUiResult(player, false);
+                }
+            });
+        });
+
+        // 【1.39.1211】电梯 BGM：石斧直梯 UI 里的「选用 / 不播」。
+        //   buf 顺序：audioId(utf)；成败只记进「本次界面会话」，退出 UI 时统一回「UI执行成功/失败」。
+        ServerPlayNetworking.registerGlobalReceiver(RawNet.type(SET_LIFT_BGM_CHANNEL), (payload, context) -> {
+            MinecraftServer server = context.server();
+            ServerPlayer player = context.player();
+            String audioId = payload.data().readUtf(128);
+            server.execute(() -> {
+                ServerLevel level = player.serverLevel();
+                if (EscalatorSpeedManager.setLiftBgmAudio(level, audioId)) {
+                    noteUiResult(player, true);
+                    EscalatorSpeedManager.syncLiftBgmToAll(server);
                 } else {
                     noteUiResult(player, false);
                 }
@@ -1536,6 +1583,8 @@ public class SmoothLift implements ModInitializer {
             EscalatorSpeedManager.syncLiftChimeToAll(server);
             // 【1.45】直梯楼层轨道提示音（石斧右键设置的三列表）
             EscalatorSpeedManager.syncLiftToneToAll(server);
+            // 【1.39.1211】电梯 BGM（按维度一份，进世界就要推，否则客户端镜像停在「不播」）
+            EscalatorSpeedManager.syncLiftBgmToAll(server);
             // 【1.50】屏蔽门开关门提示音（开关 + 每扇门单独素材）
             EscalatorSpeedManager.syncPsdChimeToAll(server);
             EscalatorSpeedManager.syncPsdToneToAll(server);
@@ -1588,6 +1637,11 @@ public class SmoothLift implements ModInitializer {
                 // 【1.45】直梯楼层轨道提示音同理会**每个维度都发一遍**。
                 for (ServerLevel level : server.getAllLevels()) {
                     EscalatorSpeedManager.sendLiftToneSyncTo(player, level);
+                }
+                // 【1.39.1211】电梯 BGM：同样每个维度一份，逐个维度发
+                //   （客户端进世界主动请求的这一轮是兜底，JOIN 那轮可能被丢包）。
+                for (ServerLevel level : server.getAllLevels()) {
+                    EscalatorSpeedManager.sendLiftBgmSyncTo(player, level);
                 }
                 // 【1.50】屏蔽门提示音（设置 + 每扇门单独素材）同样**每个维度都发一遍**。
                 for (ServerLevel level : server.getAllLevels()) {
@@ -3515,6 +3569,70 @@ public class SmoothLift implements ModInitializer {
             return "none";
         }
         return "「" + audioId + "」";
+    }
+
+    // ==================================================================
+    // 【1.39.1211】/liftbgm —— 电梯 BGM（电梯移动时循环播放的 ogg）
+    //
+    //   ★ 没有默认音频：补全里只有「本分类已导入的文件名 + off」，没有 default。
+    //   ★ 成败一律只回一条「指令执行成功 / 指令执行失败」（用户点名「不要加一堆没用的小字」）。
+    //   ★ source 可能为 null（_tools/CmdTreeCheck 脱离游戏环境建指令树），补全里要挡住。
+    // ==================================================================
+
+    /** /liftbgm（不带参数）：查当前设置；当前值只写日志，回执仍是一条统一回执。 */
+    private static int liftBgmShow(CommandContext<CommandSourceStack> context) {
+        CommandSourceStack source = context.getSource();
+        if (source == null) {
+            return 1;
+        }
+        ServerLevel level = source.getLevel();
+        LOGGER.info("[SmoothLift/LiftBgm] 当前电梯 BGM（{}）：{}",
+                level.dimension().location(), EscalatorSpeedManager.getLiftBgmAudio(level));
+        source.sendSuccess(() -> Component.literal("指令执行成功"), false);
+        return 1;
+    }
+
+    /** /liftbgm 的 <名字> 补全：MBM_Audio/lift/liftbgm 里已导入的素材 + off。 */
+    private static CompletableFuture<Suggestions> liftBgmNameSuggestions(
+            CommandContext<CommandSourceStack> context, SuggestionsBuilder builder) {
+        CommandSourceStack source = context.getSource();
+        if (source == null) {
+            return builder.buildFuture();
+        }
+        String typed = builder.getRemainingLowerCase();
+        for (String candidate : EscalatorSpeedManager.getServerAudioLibraryKeys(
+                source.getLevel(), EscalatorSpeedManager.CAT_LIFT_BGM)) {
+            if (candidate.toLowerCase(Locale.ROOT).startsWith(typed)) {
+                builder.suggest(candidate);
+            }
+        }
+        if ("off".startsWith(typed)) {
+            builder.suggest("off");
+        }
+        return builder.buildFuture();
+    }
+
+    /** /liftbgm <名字>（本维度）/ -f <名字>（所有维度）：校验 → 落地 → 同步 → 统一回执。 */
+    private static int liftBgmApply(CommandContext<CommandSourceStack> context, boolean forceAll) {
+        CommandSourceStack source = context.getSource();
+        if (source == null) {
+            return 1;
+        }
+        ServerLevel level = source.getLevel();
+        String name = StringArgumentType.getString(context, "name");
+        if (!EscalatorSpeedManager.isValidLiftBgmAudio(level, name)) {
+            source.sendFailure(Component.literal("指令执行失败"));
+            return 0;
+        }
+        if (forceAll) {
+            EscalatorSpeedManager.setLiftBgmAudioAll(source.getServer(), name);
+        } else if (!EscalatorSpeedManager.setLiftBgmAudio(level, name)) {
+            source.sendFailure(Component.literal("指令执行失败"));
+            return 0;
+        }
+        EscalatorSpeedManager.syncLiftBgmToAll(source.getServer());
+        source.sendSuccess(() -> Component.literal("指令执行成功"), false);
+        return 1;
     }
 
     /**
@@ -6474,6 +6592,22 @@ public class SmoothLift implements ModInitializer {
                         .then(Commands.argument("target", StringArgumentType.string())
                             .executes(context -> futiHelpMusicFromTo(context, false))))))
             .then(futiHelpMusicForce("-f"))
+        );
+
+        // 【1.39.1211】/liftbgm：**电梯 BGM** —— 电梯移动时循环播放的那一段 ogg。
+        //   ★ 没有默认音频（用户点名）：名字必须是 MBM_Audio/lift/liftbgm 里导入过的素材；
+        //     off / none = 不播；default 不是本功能的合法取值。
+        //   （无参数）   -> 显示当前设置   <名字> -> 本维度   -f <名字> -> 所有维度
+        //   ★ 反馈与其它指令同一口径：只回「指令执行成功 / 指令执行失败」，不多写一个字。
+        dispatcher.register(Commands.literal("liftbgm")
+            .executes(SmoothLift::liftBgmShow)
+            .then(Commands.argument("name", StringArgumentType.string())
+                .suggests((ctx, builder) -> SmoothLift.liftBgmNameSuggestions(ctx, builder))
+                .executes(context -> liftBgmApply(context, false)))
+            .then(Commands.literal("-f")
+                .then(Commands.argument("name", StringArgumentType.string())
+                    .suggests((ctx, builder) -> SmoothLift.liftBgmNameSuggestions(ctx, builder))
+                    .executes(context -> liftBgmApply(context, true))))
         );
 
         // 【1.42】/lifthelp：**直梯（Lift）**开关门提示音（liftmusic.ogg）开关。

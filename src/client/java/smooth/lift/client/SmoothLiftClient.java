@@ -199,6 +199,10 @@ public class SmoothLiftClient implements ClientModInitializer {
         // 与上面两个播放器互不影响：那两个只认「扶梯阶梯方块」，本播放器只认 MTR 的直梯对象。
         ClientTickEvents.END_CLIENT_TICK.register(LiftChimePlayer::onClientTick);
 
+        // 【1.39.1211】电梯 BGM：电梯**移动时**循环播放玩家导入的 ogg，停下就收。
+        //   与开关门提示音互不影响（一个是事件性连播、一个是持续性循环），共用 MtrLiftAccess 快照。
+        ClientTickEvents.END_CLIENT_TICK.register(LiftBgmPlayer::onClientTick);
+
         // 【1.50】MTR 屏蔽门（平台幕门）开关门提示音：默认开门 → dooropen.ogg、关门 → mdoorclose.ogg
         // （【1.15】起三段内置音频，指令名分别是 default / default-c / default-m，
         //  另有 default-s =「默认（短）」（同一段素材但不播语音播报段）—— 见 PsdChimePlayer）。
@@ -345,6 +349,7 @@ public class SmoothLiftClient implements ClientModInitializer {
             EscalatorAudioPlayer.onDisconnect();
             EscalatorChimePlayer.onDisconnect();
             LiftChimePlayer.onDisconnect();
+            LiftBgmPlayer.onDisconnect();
             PsdChimePlayer.onDisconnect();
             EscalatorAnimationDriver.clear();
             EscalatorStepRenderer.onDisconnect();
@@ -867,6 +872,25 @@ public class SmoothLiftClient implements ClientModInitializer {
                 LOGGER.info("[SmoothLift/LiftChime] 直梯楼层轨道提示音已同步（{}）：{} 条",
                         dimKey.location(), count);
                 LiftToneSetupScreen.notifyToneDataChanged();
+            });
+        });
+
+        // 【1.39.1211】接收服务端同步的**电梯 BGM**（dimId → audioId）；写序同 buildLiftBgmPacket。
+        ClientPlayNetworking.registerGlobalReceiver(RawNet.type(SmoothLift.LIFT_BGM_SYNC_CHANNEL), (payload, context) -> {
+            Minecraft client = context.client();
+            FriendlyByteBuf buf = payload.data();
+            String dimId = buf.readUtf(256);
+            String audioId = buf.readUtf(128);
+            int bgmVolume = buf.readVarInt();
+            final ResourceKey<Level> dimKey;
+            try {
+                dimKey = EscalatorSpeedManager.parseDimensionKey(dimId);
+            } catch (Exception e) {
+                return;
+            }
+            client.execute(() -> {
+                EscalatorSpeedManager.applyClientLiftBgm(dimKey, audioId, bgmVolume);
+                LiftBgmSetupScreen.notifyBgmDataChanged();
             });
         });
 
