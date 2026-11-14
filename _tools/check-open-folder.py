@@ -198,7 +198,8 @@ for name, want in GROUPS.items():
 
 _cat_vals = dict(re.findall(r'public static final String (CAT_[A-Z_]+)\s*=\s*"([^"]*)"', mgr_no))
 _parents = sorted(set(v.split("/")[0] for v in _cat_vals.values()))
-check(len(_cat_vals) == 17, "17 个 CAT_* 分类常量都在", "实际 %d" % len(_cat_vals))
+check(len(_cat_vals) == 18, "18 个 CAT_* 分类常量都在（【1.39.1204】新增 lift/liftbgm 电梯 BGM）",
+      "实际 %d" % len(_cat_vals))
 check(_parents == sorted(GROUPS.values()),
       "★ 每个分类值的上级目录恰好是五个组名之一（组只是目录、不是分类）",
       "实际上级 = %s" % _parents)
@@ -230,6 +231,8 @@ if JAVA_PAT is not None:
         ("MBM_Audio/pbm/arrive", True),
         ("MBM_Audio/futi/music", True),
         ("MBM_Audio/lift/close", True),
+        # 【1.39.1204】电梯 BGM 的导入文件夹：MBM_Audio/lift/liftbgm
+        ("MBM_Audio/lift/liftbgm", True),
         ("MBM_Audio/zhaji", True),
         ("MBM_Audio/zhaji/in", True),
         ("MBM_Audio/zhaji/out", True),

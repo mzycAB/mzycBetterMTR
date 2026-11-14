@@ -535,20 +535,45 @@ public final class MtrLiftAccess {
      * <p>失败一律**吞掉并降级**：直梯提示音是锦上添花的功能，绝不能因为它把一个
      * 反射异常抛到客户端 tick 里（那会每分钟刷几百条崩溃日志）。
      *
-     * @param level 客户端世界（只用来做一次空值判断；MTR 的集合本身就是全局的）
+     * <p>★【性能】一客户端刻内只反射一次：开关门提示音（{@code LiftChimePlayer}）与
+     * 电梯 BGM（{@code LiftBgmPlayer}）都在 EndClientTick 里各调一次本方法 ⇒ 旧版每帧
+     * 反射两遍 MTR 的直梯集合（field.get + 逐条读字段）。这里按「等级实例 + gameTime」
+     * 缓存：同一刻内的第二次调用直接复用。重进存档是新 Level 实例 / 新的 gameTime 计数，
+     * 两者任一变化都自然失效，不需要在断线钩子里额外清理。
+     *
+     * @param level 客户端世界（缓存键之一；MTR 的集合本身就是全局的）
      */
     public static List<LiftView> snapshot(Level level) {
         if (level == null || broken || version() == Version.NONE) {
             return List.of();
         }
+        long tick = level.getGameTime();
+        if (level == cachedLevel && tick == cachedTick && !cachedSnapshot.isEmpty()) {
+            return cachedSnapshot;
+        }
         try {
-            return version == Version.MTR4 ? snapshotMtr4() : snapshotMtr3();
+            List<LiftView> out = version == Version.MTR4 ? snapshotMtr4() : snapshotMtr3();
+            if (!out.isEmpty()) {
+                cachedLevel = level;
+                cachedTick = tick;
+                cachedSnapshot = out;
+            }
+            return out;
         } catch (Throwable t) {
             broken = true;
+            cachedLevel = null;
+            cachedSnapshot = List.of();
             LOGGER.warn("[SmoothLift/LiftChime] 读取直梯数据失败，本功能已停用：{}", t.toString());
             return List.of();
         }
     }
+
+    /** 见 {@link #snapshot(Level)}：快照缓存的上一个等级实例（换世界自动失效）。 */
+    private static Level cachedLevel;
+    /** 见 {@link #snapshot(Level)}：快照缓存的上一个 gameTime。 */
+    private static long cachedTick = -1;
+    /** 见 {@link #snapshot(Level)}：缓存的那份只读快照（调用方只 for-each，绝不改）。 */
+    private static List<LiftView> cachedSnapshot = List.of();
 
     /**
      * 把一个「装着直梯的容器」变成可 for-each 的视图。

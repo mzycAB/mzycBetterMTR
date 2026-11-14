@@ -398,8 +398,8 @@ def main():
         check(mod_version in os.path.basename(jar),
               "jar 名带的是 gradle.properties 里的 mod_version",
               "%s / %s" % (os.path.basename(jar), mod_version))
-        # ★ 用户点名：版本号 1.34.xxxx（xxxx 不变）
-        check(mod_version == "1.35.1204", u"★ 版本号就是用户点名的 1.35.1204", "得到 %s" % mod_version)
+        # ★ 用户点名：版本号 1.39.1204（1.39.xxxx，尾号 1204 表示 1.20.4 分支）
+        check(mod_version == "1.39.1204", u"★ 版本号就是用户点名的 1.39.1204", "得到 %s" % mod_version)
         z = zipfile.ZipFile(jar)
         names = z.namelist()
         want = ["smooth/lift/client/TrainAnnounceNarrator.class",

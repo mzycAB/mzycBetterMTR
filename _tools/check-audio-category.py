@@ -77,8 +77,10 @@ CATS = ["CAT_FUTI", "CAT_HELP",
         "CAT_TRAIN_RUN", "CAT_TRAIN_ROUND", "CAT_TRAIN_SWITCH", "CAT_TRAIN_IN", "CAT_TRAIN_OUT",
         "CAT_PSD_OPEN", "CAT_PSD_CLOSE", "CAT_PSD_MIDIUM", "CAT_PSD_ARRIVE",
         "CAT_LIFT_UP", "CAT_LIFT_DOWN", "CAT_LIFT_OPEN", "CAT_LIFT_CLOSE",
-        "CAT_ZHAJI_IN", "CAT_ZHAJI_OUT"]
-check(all(c in mgr_no for c in CATS), "17 个分类常量都在 Manager 里定义")
+        "CAT_ZHAJI_IN", "CAT_ZHAJI_OUT",
+        # 【1.39.1204】电梯 BGM：MBM_Audio/lift/liftbgm（用户点名的导入文件夹）
+        "CAT_LIFT_BGM"]
+check(all(c in mgr_no for c in CATS), "18 个分类常量都在 Manager 里定义")
 check('ALL_CATEGORIES' in mgr_no, "ALL_CATEGORIES 数组存在")
 check('"futi/music"' in mgr_no and '"futi/help"' in mgr_no
       and '"train/run"' in mgr_no and '"train/out"' in mgr_no,
@@ -97,8 +99,8 @@ check(_vals == {"futi/music", "futi/help",
                 "train/run", "train/round", "train/switch", "train/in", "train/out",
                 "pbm/open", "pbm/close", "pbm/midium", "pbm/arrive",
                 "lift/up", "lift/down", "lift/open", "lift/close",
-                "zhaji/in", "zhaji/out"},
-      "17 个分类值 = 目录树（futi/* ×2、train/* ×5、pbm/* ×4、lift/* ×4、zhaji/* ×2）",
+                "zhaji/in", "zhaji/out", "lift/liftbgm"},
+      "18 个分类值 = 目录树（futi/* ×2、train/* ×5、pbm/* ×4、lift/* ×5、zhaji/* ×2）",
       "实际 = %s" % sorted(_vals))
 check('"pbm/open"' in mgr_no and '"pbm/close"' in mgr_no
       and '"pbm/midium"' in mgr_no and '"pbm/arrive"' in mgr_no,
@@ -132,7 +134,7 @@ check('endsWith(".ogg")' in mgr_no and "Files.move(" in mgr_no
 m = re.search(r"public static final String\[\] ALL_CATEGORIES\s*=\s*\{(.*?)\};", mgr_no, re.S)
 if m:
     listed = re.findall(r"CAT_[A-Z_]+", m.group(1))
-    check(listed == CATS, "ALL_CATEGORIES 顺序 = 全部 17 个（与同步包书写顺序一致）",
+    check(listed == CATS, "ALL_CATEGORIES 顺序 = 全部 18 个（与同步包书写顺序一致）",
           "实际 %s" % listed)
 check('CAT_MUSIC' not in mgr_no,
       "★ 常量名 CAT_MUSIC 已彻底移除（换成 CAT_TRAIN_RUN 等五个）")

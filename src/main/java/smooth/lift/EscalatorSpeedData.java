@@ -570,6 +570,8 @@ public class EscalatorSpeedData extends SavedData {
     public int defaultLiftToneVolumeDown = LIFT_TONE_VOLUME_UNSET;
     public int defaultLiftToneVolumeOpen = LIFT_TONE_VOLUME_UNSET;
     public int defaultLiftToneVolumeClose = LIFT_TONE_VOLUME_UNSET;
+    /** 【1.39.1204】电梯 BGM 的**独立音量**（-1 = 跟随 {@link #defaultLiftHelpVolume}；与四项提示音同口径）。 */
+    public int defaultLiftBgmVolume = LIFT_TONE_VOLUME_UNSET;
 
     /** 【1.48】「该项没单独调过」的哨兵（不是合法音量，合法区间是 1~1000）。 */
     public static final int LIFT_TONE_VOLUME_UNSET = -1;
@@ -616,6 +618,34 @@ public class EscalatorSpeedData extends SavedData {
     public String defaultLiftToneAudioDown = LIFT_TONE_DEFAULT;
     public String defaultLiftToneAudioOpen = LIFT_TONE_DEFAULT;
     public String defaultLiftToneAudioClose = LIFT_TONE_DEFAULT;
+
+    /**
+     * 【1.39.1204】电梯 BGM：电梯**移动时循环播放**的那一段 ogg（{@code /liftbgm}、石斧直梯 UI）。
+     *
+     * <p>★ **没有默认音频**（用户点名）：本功能不内置任何 ogg，也不会回落到 liftmusic 之类的内置素材。
+     * 初始值是 {@link #LIFT_BGM_OFF}（= 不播），玩家必须先把 ogg 放进
+     * {@code <存档>/MBM_Audio/lift/liftbgm} 并导入，再在 UI / 指令里选中它才会响。
+     *
+     * <p>取值：{@link #LIFT_BGM_OFF}（含 {@code none}）= 不播；其它 = 音频库里的文件名
+     * （只认 {@code lift/liftbgm} 这个分类导入过的）。按**维度**存一份，全部直梯共用。
+     */
+    public String defaultLiftBgmAudio = LIFT_BGM_OFF;
+
+    /**
+     * 【1.39.1204】电梯 BGM 的「不播」哨兵（与直梯提示音同义，但**没有** default 这一层）。
+     * 直接写字面量而不是 {@code LIFT_TONE_OFF}：那个常量在本类里声明得更靠后，
+     * 静态字段初始化时引用它会踩 Java 的「非法前向引用」。
+     */
+    public static final String LIFT_BGM_OFF = "off";
+
+    /** 【1.39.1204】空 / null / {@code off} / {@code none} 一律归一成「不播」。 */
+    public static String normalizeLiftBgmAudio(String audioId) {
+        if (audioId == null || audioId.isEmpty() || LIFT_BGM_OFF.equals(audioId)
+                || "none".equalsIgnoreCase(audioId)) {
+            return LIFT_BGM_OFF;
+        }
+        return audioId;
+    }
 
     /**
      * 【1.47】直梯提示音（上楼 / 下楼 / 开关门，三项共用一份）的**淡入淡出范围**（格）。
@@ -1741,6 +1771,10 @@ public class EscalatorSpeedData extends SavedData {
         if (tag.contains("defaultLiftToneAudioClose")) {
             data.defaultLiftToneAudioClose = normalizeLiftToneAudio(tag.getString("defaultLiftToneAudioClose"));
         }
+        // 【1.39.1204】电梯 BGM：旧存档缺字段 → 保持初始值「不播」（本功能没有默认音频）。
+        if (tag.contains("defaultLiftBgmAudio")) {
+            data.defaultLiftBgmAudio = normalizeLiftBgmAudio(tag.getString("defaultLiftBgmAudio"));
+        }
         // 【1.47】直梯提示音淡入淡出范围：旧存档缺字段 → 默认 5 格（★【10-05】用户点名 5 5）
         // ★【10-03】拆成水平 / 垂直两维；旧存档只有单值键 `defaultLiftHelpRound` ⇒ 它读进**水平**维，
         //   垂直维缺键 ⇒ 保持初始值 5。
@@ -1768,6 +1802,10 @@ public class EscalatorSpeedData extends SavedData {
         }
         if (tag.contains("defaultLiftToneVolumeClose")) {
             data.defaultLiftToneVolumeClose = clampLiftToneVolume(tag.getInt("defaultLiftToneVolumeClose"));
+        }
+        // 【1.39.1204】电梯 BGM 独立音量：旧存档缺字段 → -1（跟随共用默认）。
+        if (tag.contains("defaultLiftBgmVolume")) {
+            data.defaultLiftBgmVolume = clampLiftToneVolume(tag.getInt("defaultLiftBgmVolume"));
         }
         // 【1.45】直梯楼层轨道提示音：key → {up, down, open, close} 四个音频 id。
         //   旧存档没有这张表 → 空表（全部走默认素材）。
@@ -2186,6 +2224,8 @@ public class EscalatorSpeedData extends SavedData {
         tag.putString("defaultLiftToneAudioOpen", defaultLiftToneAudioOpen);
         tag.putString("defaultLiftToneAudioClose", defaultLiftToneAudioClose);
         tag.putString("defaultLiftToneAudioChime", defaultLiftToneAudioOpen);
+        // 【1.39.1204】电梯 BGM（按维度一份；没有默认音频 ⇒ 默认写 off）
+        tag.putString("defaultLiftBgmAudio", normalizeLiftBgmAudio(defaultLiftBgmAudio));
         // 【1.47】直梯提示音淡入淡出范围（四项共用）
         tag.putInt("defaultLiftHelpRound", defaultLiftHelpRound);
         tag.putInt("defaultLiftHelpRoundY", defaultLiftHelpRoundY);
@@ -2195,6 +2235,8 @@ public class EscalatorSpeedData extends SavedData {
         tag.putInt("defaultLiftToneVolumeOpen", defaultLiftToneVolumeOpen);
         tag.putInt("defaultLiftToneVolumeClose", defaultLiftToneVolumeClose);
         tag.putInt("defaultLiftToneVolumeChime", defaultLiftToneVolumeOpen);
+        // 【1.39.1204】电梯 BGM 独立音量（-1 = 跟随共用默认）
+        tag.putInt("defaultLiftBgmVolume", defaultLiftBgmVolume);
         // 【1.45】直梯楼层轨道提示音（竖井列 → 四音频 id）
         ListTag toneList = new ListTag();
         for (Map.Entry<Long, LiftToneAudio> entry : liftToneAudio.entrySet()) {
@@ -2801,6 +2843,11 @@ public class EscalatorSpeedData extends SavedData {
         }
         if (audioId.equals(defaultLiftToneAudioClose)) {
             defaultLiftToneAudioClose = LIFT_TONE_DEFAULT;
+        }
+        // 【1.39.1204】电梯 BGM 也共用同一个音频库：删掉正在用的那段 ⇒ 回落「不播」
+        //   （本功能没有默认音频可回落，留着悬空引用只会让播放端每 tick 白查一次）。
+        if (audioId.equals(defaultLiftBgmAudio)) {
+            defaultLiftBgmAudio = LIFT_BGM_OFF;
         }
         // 【1.15】屏蔽门那一套共用**同一个**音频库，所以也要一起清：
         //   ★ 1.50 漏了这一步 —— 删掉一段音频后，引用它的那扇门会留着一个指向不存在文件的 id，

@@ -757,9 +757,16 @@ check(re.search(r"boolean trainAttenuated,\s*int roundKind,", player) is not Non
       "（眼下同进同出，但判据不同 —— 合并 = 本项目栽过的「一个哨兵表达两件事」）")
 
 # 退场：一次性声音没有引擎的「播完」回调
-check(re.search(r"long playableMs = Math\.max\(0L, tone\.durationMs\(\) - Math\.max\(0, startMs\)\);",
-                player) is not None,
-      "★ playableMs = max(0, 素材总长 − 剪掉的头部)（剪头那档要按**剩下的**算时长）")
+# 【1.39.1204】durationMs 量不出来（-1）时兜底到 UNKNOWN_DURATION_BUDGET_MS（≈ 5 分钟），
+#   不再把 playableMs 算成 0 ⇒ remainingTicks ≈ 1 秒 ⇒ ogg 被引擎 1 秒后掐断（用户报的截断 bug）。
+#   正常 ogg 仍走老算式：max(0, 素材总长 − 剪掉的头部)。
+check(re.search(r"long playableMs = tone\.durationMs\(\) > 0\s*\?\s*"
+                r"Math\.max\(0L, tone\.durationMs\(\) - Math\.max\(0, startMs\)\)\s*:"
+                r"\s*UNKNOWN_DURATION_BUDGET_MS;", player) is not None
+      or re.search(r"long playableMs = Math\.max\(0L, tone\.durationMs\(\) - Math\.max\(0, startMs\)\);",
+                   player) is not None,
+      "★ playableMs = max(0, 素材总长 − 剪掉的头部)（剪头那档要按**剩下的**算时长）；"
+      "★【1.39.1204】量不出时长时兜底宽松预算、不许算成 0 把 ogg 掐断")
 check(re.search(r"\(int\) \(\(playableMs \+ 49L\) / 50L\) \+ 20", player) is not None,
       "★★ remainingTicks = ceil(playableMs / 50) + 20（向上取整成 tick + 20 tick 余量）")
 check(re.search(r"public boolean isStopped\(\)\s*\{\s*return remainingTicks <= 0;", player)

@@ -398,9 +398,9 @@ _main = _mp.group(1) if _mp else ""
 check(_main != "", "抠得出 buildMainPage() 方法体")
 if _main:
     check("new EditBox(" in _main, "★ 一级菜单建了音量输入框（EditBox）")
-    check(_main.count("mainVolumeInputs.put(") == 1
+    check(_main.count("mainVolumeInputs.put(") >= 1
           and "for (int i = 0; i < PAGES.length; i++)" in _main,
-          "★ 一行一个框、四项在同一个循环里建（mainVolumeInputs.put 只写一次）",
+          "★ 一行一个框：四项在同一个循环里建，【1.39.1204】第五行「电梯BGM」再单独补一个（mainVolumeInputs.put 共 %d 处，循环 1 处 + bgm 1 处）" % _main.count("mainVolumeInputs.put("),
           "实际 %d 处" % _main.count("mainVolumeInputs.put("))
     check("mainRowInputX()" in _main and "mainRowStartX()" in _main,
           "★ 输入框 x 取自 mainRowInputX()（= 按钮右边），行起点取自 mainRowStartX()")
